@@ -353,12 +353,11 @@ ${categoryInstruction}
 
 Real player words already submitted: ${existingList}
 
-STEP 1 — STUDY THE VIBE:
-Look at the player words above. What sub-genre, era, style, or theme are they clustering around?
-- If category is "Musicians" and players picked rappers → your picks must be rappers too
-- If category is "Animals" and players picked house pets → your picks must be house pets too
-- If category is "Movies" and players picked 90s comedies → your picks must be 90s comedies too
-Match the ENERGY. If players are picking mainstream hits, don't go obscure. If players are picking niche deep cuts, don't go mainstream.
+STEP 1 — IDENTIFY THE SPECIFIC SUB-GENRE (MOST IMPORTANT STEP):
+Ignore the broad category. Instead, look ONLY at the actual player words and identify the NARROW sub-genre, style, era, or theme they share.
+For example: if the category is "Albums" but every player picked a hip-hop album → the sub-genre is "hip-hop albums". If the category is "Movies" but every player picked a horror film → the sub-genre is "horror movies". If the category is "Athletes" but every player picked NBA players → the sub-genre is "NBA players".
+ALL 10 of your candidates MUST belong to that same narrow sub-genre. Do NOT pick from the broader category — ONLY from the specific cluster the players defined.
+If players are picking mainstream → pick mainstream. If players are picking underground/niche → pick underground/niche. Match the popularity level too.
 
 STEP 2 — MAKE SURE EACH CANDIDATE IS TRULY UNIQUE:
 This is CRITICAL. Every candidate you generate must be a COMPLETELY DIFFERENT entity from every player word. This means:
@@ -384,7 +383,7 @@ Rules:
 - Include variety — different picks within the same energy
 
 Respond ONLY with valid JSON (no markdown, no extra text):
-{"words": ["word1", "word2", "word3", "word4", "word5", "word6", "word7", "word8", "word9", "word10"]}`;
+{"detected_subgenre": "the specific narrow sub-genre/style/era you identified from the player words", "words": ["word1", "word2", "word3", "word4", "word5", "word6", "word7", "word8", "word9", "word10"]}`;
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
@@ -398,7 +397,7 @@ Respond ONLY with valid JSON (no markdown, no extra text):
             body: JSON.stringify({
                 model: 'llama-3.3-70b-versatile',
                 messages: [{ role: 'user', content: prompt }],
-                temperature: 1.5,
+                temperature: 0.9,
                 max_tokens: 300,
                 seed: Math.floor(Math.random() * 2147483647)
             }),
@@ -412,6 +411,7 @@ Respond ONLY with valid JSON (no markdown, no extra text):
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (!jsonMatch) return null;
         const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.detected_subgenre) console.log(`AI Bot detected vibe: "${parsed.detected_subgenre}"`);
         const candidates = (parsed.words || [])
             .map(w => (w || '').trim().toLowerCase())
             .filter(w => w && !existingWords.some(e => e.toLowerCase() === w));
