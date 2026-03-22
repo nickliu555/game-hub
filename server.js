@@ -355,7 +355,7 @@ Real player words already submitted: ${existingList}
 
 STEP 1 — IDENTIFY THE SPECIFIC SUB-GENRE (MOST IMPORTANT STEP):
 Ignore the broad category. Instead, look ONLY at the actual player words and identify the NARROW sub-genre, style, era, or theme they share.
-For example: if the category is "Albums" but every player picked a hip-hop album → the sub-genre is "hip-hop albums". If the category is "Movies" but every player picked a horror film → the sub-genre is "horror movies". If the category is "Athletes" but every player picked NBA players → the sub-genre is "NBA players".
+For example: if the category is "Albums" but most players picked a hip-hop album → the sub-genre is "hip-hop albums". If the category is "Movies" but most players picked a horror film → the sub-genre is "horror movies". If the category is "Athletes" but most players picked NBA players → the sub-genre is "NBA players".
 ALL 10 of your candidates MUST belong to that same narrow sub-genre. Do NOT pick from the broader category — ONLY from the specific cluster the players defined.
 If players are picking mainstream → pick mainstream. If players are picking underground/niche → pick underground/niche. Match the popularity level too.
 
