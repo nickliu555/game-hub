@@ -498,6 +498,32 @@
         let hearPaused = false;
         let hearTimeout = null;
         let currentCategory = '';
+
+        // Pick the best available English voice for browser TTS
+        let cachedVoice = null;
+        function getBestVoice() {
+            if (cachedVoice) return cachedVoice;
+            const voices = speechSynthesis.getVoices();
+            if (!voices.length) return null;
+            // Prefer high-quality/enhanced voices by name (varies by OS)
+            const preferred = [
+                'Samantha', 'Karen', 'Daniel',                    // macOS
+                'Google UK English Female', 'Google US English',  // Chrome
+                'Microsoft Zira', 'Microsoft David',              // Windows
+            ];
+            for (const name of preferred) {
+                const v = voices.find(v => v.name.includes(name));
+                if (v) { cachedVoice = v; return v; }
+            }
+            // Fallback: any en voice
+            cachedVoice = voices.find(v => v.lang && v.lang.startsWith('en')) || null;
+            return cachedVoice;
+        }
+        // Preload voices (some browsers load async)
+        if (typeof speechSynthesis !== 'undefined') {
+            speechSynthesis.getVoices();
+            speechSynthesis.onvoiceschanged = () => { cachedVoice = null; getBestVoice(); };
+        }
         let editingCategory = false;
         let spinnerPlayers = [];
         let spinnerDone = false;
@@ -904,14 +930,17 @@
             document.getElementById('hearProgress').textContent = `Word ${hearIndex + 1} of ${hearWords.length}`;
             document.getElementById('audioIndicator').classList.add('active');
 
+            speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance(word);
-            utterance.rate = 0.9;
+            const voice = getBestVoice();
+            if (voice) utterance.voice = voice;
+            utterance.rate = 0.85;
             utterance.pitch = 1;
             utterance.onend = () => {
                 hearIndex++;
                 if (hearActive && !hearPaused) {
                     document.getElementById('audioIndicator').classList.remove('active');
-                    hearTimeout = setTimeout(() => speakNextWord(), 800);
+                    hearTimeout = setTimeout(() => speakNextWord(), 1000);
                 }
             };
             speechSynthesis.speak(utterance);
@@ -920,20 +949,17 @@
         function pauseHear() {
             const btn = document.getElementById('btnHearPause');
             if (hearPaused) {
-                // Resume: re-speak from current word
                 hearPaused = false;
                 hearActive = true;
                 btn.textContent = 'Pause';
                 speakNextWord();
             } else if (hearActive) {
-                // Pause: cancel current speech and pending timeout
                 hearPaused = true;
                 clearTimeout(hearTimeout);
                 speechSynthesis.cancel();
                 document.getElementById('audioIndicator').classList.remove('active');
                 btn.textContent = 'Resume';
             } else {
-                // Finished — restart
                 restartHear();
             }
         }
