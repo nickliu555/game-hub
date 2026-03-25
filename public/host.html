@@ -219,6 +219,32 @@
             outline: none;
         }
         .category-input::placeholder { color: #555; font-style: italic; font-weight: 400; }
+        .category-edit-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .category-edit-row .category-input { flex: 1; }
+        .randomize-btn {
+            background: #2a2a2a;
+            border: 2px solid #3a2a2a;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 20px;
+            padding: 6px 8px;
+            transition: all 0.3s;
+            line-height: 1;
+            flex-shrink: 0;
+            width: 38px;
+            height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .randomize-btn:hover {
+            border-color: #d4a844;
+            transform: rotate(15deg);
+        }
         .category-game {
             text-align: center;
             margin-bottom: 16px;
@@ -416,7 +442,10 @@
             </div>
             <div id="categoryEditBox" style="display:none; margin-top:15px; text-align:center;">
                 <div style="color:#888; font-size:12px; margin-bottom:6px;">📂 Category</div>
-                <input type="text" class="category-input" id="categoryInput" placeholder="e.g. Animals, Movies, Celebrities..." maxlength="100">
+                <div class="category-edit-row">
+                    <input type="text" class="category-input" id="categoryInput" placeholder="e.g. Animals, Movies, Celebrities..." maxlength="100">
+                    <button class="randomize-btn" onmousedown="event.preventDefault()" onclick="randomizeCategory()" title="Random category">🎲</button>
+                </div>
                 <div style="color:#666; font-size:11px; margin-top:6px;">Press Enter or click away to save</div>
             </div>
 
@@ -497,6 +526,14 @@
         let hearActive = false;
         let hearPaused = false;
         let hearTimeout = null;
+        const CATEGORIES = [
+            'Movies', 'Books', 'Celebrities', 'Musicians', 'Albums',
+            'Superheroes', 'Animals', 'Villains', 'Sea Creatures', 'TV Shows',
+            'Occupations', 'Cities', 'Countries', 'Sports Teams', 'Restaurants',
+            'Food', 'Drinks', 'Brands', 'Video Games', 'Songs',
+            'Actors', 'Fictional Characters', 'Colleges', 'Historical Figures', 'Athletes',
+            "Card Games", "Mythical Creatures"
+        ];
         let currentCategory = '';
 
         // Pick the best available English voice for browser TTS
@@ -1169,6 +1206,25 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ category: newCategory })
+            }).catch(() => {});
+        }
+
+        function randomizeCategory() {
+            let pick;
+            do {
+                pick = CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)];
+            } while (pick === currentCategory && CATEGORIES.length > 1);
+            currentCategory = pick;
+            updateCategoryDisplay();
+            // If edit mode is open, update the input too
+            const input = document.getElementById('categoryInput');
+            if (document.getElementById('categoryEditBox').style.display !== 'none') {
+                input.value = pick;
+            }
+            fetch('/api/category', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ category: pick })
             }).catch(() => {});
         }
 
