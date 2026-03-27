@@ -366,6 +366,201 @@
         }
         .spinner-dismiss-hint.visible { opacity: 1; }
 
+        /* ─── Fullscreen Word Overlay ─── */
+        .fullscreen-overlay {
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(135deg, #1a0a0a 0%, #4a0e0e 50%, #2d0808 100%);
+            z-index: 350;
+            display: none;
+            flex-direction: column;
+        }
+        .fullscreen-overlay::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Ctext x='10' y='40' font-size='28'%3E🏰%3C/text%3E%3Ctext x='60' y='90' font-size='28'%3E⚔️%3C/text%3E%3Ctext x='10' y='90' font-size='22'%3E👑%3C/text%3E%3Ctext x='70' y='35' font-size='22'%3E🏰%3C/text%3E%3C/svg%3E");
+            background-size: 120px 120px;
+            opacity: 0.07;
+            pointer-events: none;
+        }
+        .fullscreen-overlay.show { display: flex; }
+        .fullscreen-overlay-header {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 32px;
+            border-bottom: 1px solid #5a2a2a;
+            flex-shrink: 0;
+            background: rgba(0, 0, 0, 0.3);
+        }
+        .fullscreen-overlay-title {
+            color: #d4a844;
+            font-size: 26px;
+            font-weight: 700;
+            text-shadow: 0 2px 8px rgba(212, 168, 68, 0.3);
+        }
+        .fullscreen-overlay-close {
+            background: rgba(139, 26, 26, 0.4);
+            border: 2px solid #5a2a2a;
+            color: #ccc;
+            font-size: 28px;
+            cursor: pointer;
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            line-height: 1;
+        }
+        .fullscreen-overlay-close:hover { background: #a52a2a; border-color: #d4a844; color: #fff; }
+        .fullscreen-overlay-body {
+            position: relative;
+            flex: 1;
+            overflow-y: auto;
+            padding: 32px;
+        }
+        .fullscreen-words-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 18px;
+        }
+        .fullscreen-words-grid .word-chip {
+            font-size: 28px;
+            padding: 22px 16px;
+            background: rgba(28, 28, 28, 0.8);
+            border: 2px solid #5a2a2a;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(212, 168, 68, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .fullscreen-words-grid .word-chip:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(212, 168, 68, 0.15);
+            border-color: #a52a2a;
+        }
+        .fullscreen-attribution-list .attribution-item {
+            padding: 20px 24px;
+            margin-bottom: 14px;
+            background: rgba(28, 28, 28, 0.8);
+            border: 1px solid #3a2a2a;
+            border-left: 4px solid #a52a2a;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+            border-radius: 8px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .fullscreen-attribution-list .attribution-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+        }
+        .fullscreen-attribution-list .attribution-item.ai-bot {
+            border-left-color: #d4a844;
+            background: rgba(42, 34, 24, 0.8);
+        }
+        .fullscreen-attribution-list .attribution-player {
+            font-size: 18px;
+        }
+        .fullscreen-attribution-list .attribution-word {
+            font-size: 28px;
+            margin-top: 6px;
+        }
+        .words-display .section-label,
+        .attribution-display .section-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .expand-fullscreen-btn {
+            color: #666;
+            font-size: 18px;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .expand-fullscreen-btn:hover { color: #d4a844; }
+
+        /* ─── Global Fullscreen Button ─── */
+        .fullscreen-page-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 74px;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: #2a2a2a;
+            border: 2px solid #3a2a2a;
+            color: #d4a844;
+            font-size: 20px;
+            font-weight: 700;
+            cursor: pointer;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            padding: 0;
+        }
+        .fullscreen-page-btn:hover {
+            background: #3a2a2a;
+            border-color: #d4a844;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+        }
+
+        /* ─── Confirm Modal ─── */
+        .confirm-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 500;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .confirm-overlay.show { display: flex; }
+        .confirm-modal {
+            background: #1c1c1c;
+            border: 1px solid #3a2a2a;
+            border-radius: 12px;
+            padding: 28px 32px;
+            text-align: center;
+            max-width: 360px;
+            width: 100%;
+        }
+        .confirm-modal-text {
+            color: #ccc;
+            font-size: 16px;
+            margin-bottom: 24px;
+        }
+        .confirm-modal-buttons {
+            display: flex;
+            gap: 12px;
+        }
+        .confirm-modal-buttons button {
+            flex: 1;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 2px solid #3a2a2a;
+        }
+        .confirm-btn-cancel {
+            background: #2a2a2a;
+            color: #888;
+        }
+        .confirm-btn-cancel:hover { border-color: #555; }
+        .confirm-btn-ok {
+            background: #8b1a1a;
+            color: #d4a844;
+            border-color: #a52a2a;
+        }
+        .confirm-btn-ok:hover { background: #a52a2a; }
+
         /* ─── Floating Reactions ─── */
         .reaction-float {
             position: fixed;
@@ -494,7 +689,7 @@
             <hr style="border:none; border-top:1px solid #3a2a2a; margin-top:20px;">
 
             <div class="words-display" id="wordsDisplay">
-                <div class="section-label">All Words:</div>
+                <div class="section-label">All Words <span class="expand-fullscreen-btn" onclick="openFullscreen('words')" title="View fullscreen">⛶</span></div>
                 <div class="words-grid" id="wordsGrid"></div>
             </div>
 
@@ -508,7 +703,7 @@
             </div>
 
             <div class="attribution-display" id="attributionDisplay">
-                <div class="section-label">All Words with Names:</div>
+                <div class="section-label">All Words with Names <span class="expand-fullscreen-btn" onclick="openFullscreen('attribution')" title="View fullscreen">⛶</span></div>
                 <div id="attributionContainer"></div>
             </div>
 
@@ -767,6 +962,8 @@
             // Clear spinner overlay
             document.getElementById('spinnerOverlay').classList.remove('show');
             document.getElementById('spinnerName').style.color = '';
+            // Close fullscreen overlay if open
+            closeFullscreen();
         }
 
         function render(state) {
@@ -1049,7 +1246,8 @@
             const btn = document.getElementById('btnAttribution');
 
             if (!display.classList.contains('show')) {
-                if (!confirm('Are you sure? This will reveal which word belongs to which player.')) return;
+                const confirmed = await showConfirm('Are you sure? This will reveal which word belongs to which player.', 'Reveal');
+                if (!confirmed) return;
 
                 // Close words and hear if open
                 document.getElementById('wordsDisplay').classList.remove('show');
@@ -1162,7 +1360,8 @@
         }
 
         async function resetSubmissions() {
-            if (!confirm('This will clear all player submissions. Continue?')) return;
+            const confirmed = await showConfirm('This will clear all player submissions. Continue?', 'Reset');
+            if (!confirmed) return;
             await fetch('/api/reset', { method: 'POST' });
         }
 
@@ -1268,11 +1467,109 @@
             return div.innerHTML;
         }
 
+        // ─── Custom Confirm Modal ────────────────────────
+
+        function showConfirm(message, okLabel = 'Confirm') {
+            return new Promise(resolve => {
+                const overlay = document.getElementById('confirmOverlay');
+                document.getElementById('confirmText').textContent = message;
+                document.getElementById('confirmOk').textContent = okLabel;
+                overlay.classList.add('show');
+
+                function cleanup(result) {
+                    overlay.classList.remove('show');
+                    document.getElementById('confirmOk').removeEventListener('click', onOk);
+                    document.getElementById('confirmCancel').removeEventListener('click', onCancel);
+                    resolve(result);
+                }
+                function onOk() { cleanup(true); }
+                function onCancel() { cleanup(false); }
+
+                document.getElementById('confirmOk').addEventListener('click', onOk);
+                document.getElementById('confirmCancel').addEventListener('click', onCancel);
+            });
+        }
+
+        // ─── Fullscreen Word Display ────────────────────
+
+        function openFullscreen(mode) {
+            const overlay = document.getElementById('fullscreenOverlay');
+            const title = document.getElementById('fullscreenTitle');
+            const body = document.getElementById('fullscreenBody');
+
+            if (mode === 'words') {
+                title.textContent = 'All Words';
+                const chips = document.getElementById('wordsGrid').innerHTML;
+                body.innerHTML = `<div class="fullscreen-words-grid">${chips}</div>`;
+            } else if (mode === 'attribution') {
+                title.textContent = 'All Words with Names';
+                const items = document.getElementById('attributionContainer').innerHTML;
+                body.innerHTML = `<div class="fullscreen-attribution-list">${items}</div>`;
+            }
+
+            overlay.classList.add('show');
+
+            // Enter native fullscreen only if not already in it
+            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                const el = document.documentElement;
+                if (el.requestFullscreen) {
+                    el.requestFullscreen().catch(() => {});
+                } else if (el.webkitRequestFullscreen) {
+                    el.webkitRequestFullscreen();
+                }
+            }
+        }
+
+        function closeFullscreen() {
+            document.getElementById('fullscreenOverlay').classList.remove('show');
+        }
+
+        // Sync overlay state when user exits fullscreen via Escape key
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                document.getElementById('fullscreenOverlay').classList.remove('show');
+            }
+        });
+        document.addEventListener('webkitfullscreenchange', () => {
+            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                document.getElementById('fullscreenOverlay').classList.remove('show');
+            }
+        });
+
+        // ─── Global Page Fullscreen Toggle ────────────────
+
+        function togglePageFullscreen() {
+            if (document.fullscreenElement || document.webkitFullscreenElement) {
+                (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+            } else {
+                const el = document.documentElement;
+                if (el.requestFullscreen) {
+                    el.requestFullscreen().catch(() => {});
+                } else if (el.webkitRequestFullscreen) {
+                    el.webkitRequestFullscreen();
+                }
+            }
+        }
+
         document.addEventListener('keypress', (e) => {
             if (e.key !== 'Enter') return;
             if (e.target.id === 'inputApiKey') saveApiKey();
         });
     </script>
+
+    <!-- Confirm Modal -->
+    <div class="confirm-overlay" id="confirmOverlay">
+        <div class="confirm-modal">
+            <div class="confirm-modal-text" id="confirmText"></div>
+            <div class="confirm-modal-buttons">
+                <button class="confirm-btn-cancel" id="confirmCancel">Cancel</button>
+                <button class="confirm-btn-ok" id="confirmOk">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Fullscreen Button -->
+    <button class="fullscreen-page-btn" onclick="togglePageFullscreen()" aria-label="Toggle fullscreen" title="Toggle fullscreen">⛶</button>
 
     <!-- Help Button & Modal -->
     <button class="help-btn" onclick="document.getElementById('helpOverlay').classList.add('show')" aria-label="How to play">?</button>
@@ -1291,6 +1588,15 @@
             </ol>
         </div>
     </div>
+    <!-- Fullscreen Word Display Overlay -->
+    <div class="fullscreen-overlay" id="fullscreenOverlay">
+        <div class="fullscreen-overlay-header">
+            <div class="fullscreen-overlay-title" id="fullscreenTitle"></div>
+            <button class="fullscreen-overlay-close" onclick="closeFullscreen()">&times;</button>
+        </div>
+        <div class="fullscreen-overlay-body" id="fullscreenBody"></div>
+    </div>
+
     <!-- First Player Spinner Overlay -->
     <div class="spinner-overlay" id="spinnerOverlay" onclick="dismissSpinner()">
         <div class="spinner-modal" onclick="event.stopPropagation(); dismissSpinner();">
