@@ -97,8 +97,8 @@ function getPublicState() {
         || `http://${LOCAL_IP}:${PORT}`;
     return {
         phase: gameState.phase,
-        playerCount: gameState.submissions.filter(s => s.player !== 'AI Bot 🤖').length,
-        playerNames: gameState.submissions.filter(s => s.player !== 'AI Bot 🤖').map(s => s.player),
+        playerCount: gameState.submissions.filter(s => !s.isBot).length,
+        playerNames: gameState.submissions.filter(s => !s.isBot).map(s => s.player),
         hasApiKey: !!gameState.groqApiKey,
         playerUrl,
         round: gameState.round,
@@ -168,6 +168,11 @@ app.post('/api/submit', submitLimiter, async (req, res) => {
 
     if (!cleanName || !cleanWord) {
         return res.status(400).json({ error: 'Name and word are required.' });
+    }
+
+    // Block reserved bot name
+    if (cleanName.toLowerCase().replace(/\s+/g, ' ') === 'ai bot 🤖' || cleanName.toLowerCase().replace(/\s+/g, ' ') === 'ai bot') {
+        return res.status(400).json({ error: 'That name is reserved. Please choose another.' });
     }
 
     // Check if this player already submitted
@@ -274,7 +279,7 @@ app.post('/api/start', async (req, res) => {
                 gameState.groqApiKey
             );
             if (aiWord) {
-                gameState.submissions.push({ player: 'AI Bot 🤖', word: aiWord });
+                gameState.submissions.push({ player: 'AI Bot 🤖', word: aiWord, isBot: true });
                 console.log(`AI Bot word generated: "${aiWord}"`);
             } else {
                 console.warn('AI Bot word generation returned null, proceeding without it.');
