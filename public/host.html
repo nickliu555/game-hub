@@ -320,6 +320,77 @@
             background: #d4a844;
         }
 
+        /* ─── Timer Display ─── */
+        .timer-display-panel {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 6px;
+            display: none;
+            margin-top: 20px;
+            border-left: 3px solid #d4a844;
+            box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+        .timer-display-panel.show { display: block; }
+        .timer-display-panel.urgent { border-left-color: #ff6b6b; }
+        .timer-display-panel.expired { border-left-color: #ff3333; }
+        .timer-time {
+            font-size: 64px;
+            font-weight: 700;
+            color: #d4a844;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+            margin-bottom: 14px;
+            transition: color 0.3s;
+        }
+        .timer-time.urgent {
+            color: #ff6b6b;
+            animation: timerPulse 1s ease-in-out infinite;
+        }
+        .timer-time.expired {
+            color: #ff3333;
+            animation: timerPulse 0.5s ease-in-out infinite;
+        }
+        @keyframes timerPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.08); }
+        }
+        .timer-controls {
+            display: flex; gap: 8px; justify-content: center; margin-bottom: 12px;
+        }
+        .timer-controls button { width: auto; padding: 8px 20px; font-size: 14px; }
+        .timer-preset-row {
+            display: flex; gap: 5px; justify-content: center; flex-wrap: wrap;
+        }
+        .timer-preset {
+            background: #2a2a2a; color: #ccc; border: 1px solid #3a2a2a;
+            border-radius: 20px; padding: 4px 12px; font-size: 12px;
+            cursor: pointer; transition: all 0.2s; width: auto;
+        }
+        .timer-preset:hover { border-color: #d4a844; color: #d4a844; }
+        .timer-preset.active { background: #8b1a1a; color: #d4a844; border-color: #a52a2a; }
+        /* Screen flash vignette for urgent/expired */
+        .timer-screen-flash {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 99;
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+        .timer-screen-flash.tick {
+            background: radial-gradient(ellipse at center, transparent 50%, rgba(255, 60, 60, 0.15) 100%);
+            opacity: 1;
+        }
+        .timer-screen-flash.expired {
+            background: radial-gradient(ellipse at center, transparent 30%, rgba(255, 40, 40, 0.25) 100%);
+            animation: screenFlashPulse 0.6s ease-in-out 4;
+        }
+        @keyframes screenFlashPulse {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 1; }
+        }
+
         .spinner-overlay {
             position: fixed;
             inset: 0;
@@ -681,9 +752,26 @@
             <div id="gamePlayerCount" style="color:#888; font-size:0.9em; margin-bottom:20px; text-align:center;"></div>
             <div class="gap">
                 <button class="toggle-button" id="btnFirstPlayer" onclick="chooseFirstPlayer()">🎲 Choose First Player</button>
+                <button class="toggle-button" id="btnTimer" onclick="toggleTimer()">⏱️ Timer</button>
                 <button class="toggle-button" id="btnHear" onclick="toggleHear()">🔊 Hear All Words</button>
                 <button class="toggle-button" id="btnWords" onclick="toggleWords()">👁️ Reveal All Words</button>
                 <button class="toggle-button" id="btnAttribution" onclick="toggleAttribution()">🎭 Reveal All Words with Names</button>
+            </div>
+
+            <div class="timer-display-panel" id="timerDisplayPanel">
+                <div class="timer-time" id="timerDisplay">0:30</div>
+                <div class="timer-controls">
+                    <button class="btn-primary" id="btnTimerPlay" onclick="timerStart()">Start</button>
+                    <button class="btn-secondary" onclick="timerReset()">Reset</button>
+                </div>
+                <div class="timer-preset-row">
+                    <button class="timer-preset" onclick="timerSetPreset(15)">0:15</button>
+                    <button class="timer-preset active" onclick="timerSetPreset(30)">0:30</button>
+                    <button class="timer-preset" onclick="timerSetPreset(45)">0:45</button>
+                    <button class="timer-preset" onclick="timerSetPreset(60)">1:00</button>
+                    <button class="timer-preset" onclick="timerSetPreset(90)">1:30</button>
+                    <button class="timer-preset" onclick="timerSetPreset(120)">2:00</button>
+                </div>
             </div>
 
             <hr style="border:none; border-top:1px solid #3a2a2a; margin-top:20px;">
@@ -730,6 +818,12 @@
             "Card Games", "Mythical Creatures"
         ];
         let currentCategory = '';
+
+        // ─── Timer State ────────────────────────────────
+        let timerDuration = 30;
+        let timerRemaining = 30;
+        let timerInterval = null;
+        let timerRunning = false;
 
         // Pick the best available English voice for browser TTS
         let cachedVoice = null;
@@ -962,6 +1056,15 @@
             // Clear spinner overlay
             document.getElementById('spinnerOverlay').classList.remove('show');
             document.getElementById('spinnerName').style.color = '';
+            // Reset timer
+            timerStop();
+            timerRemaining = timerDuration;
+            timerUpdateDisplay();
+            document.getElementById('btnTimerPlay').textContent = 'Start';
+            document.getElementById('timerDisplayPanel').classList.remove('show', 'urgent', 'expired');
+            document.getElementById('btnTimer').classList.remove('active');
+            document.getElementById('btnTimer').textContent = '⏱️ Timer';
+            document.getElementById('timerScreenFlash').className = 'timer-screen-flash';
             // Close fullscreen overlay if open
             closeFullscreen();
         }
@@ -1125,6 +1228,9 @@
             document.getElementById('btnWords').classList.remove('active');
             document.getElementById('attributionDisplay').classList.remove('show');
             document.getElementById('btnAttribution').classList.remove('active');
+            document.getElementById('timerDisplayPanel').classList.remove('show');
+            document.getElementById('btnTimer').classList.remove('active');
+            timerReset();
 
             if (!display.classList.contains('show')) {
                 // Fetch words if needed
@@ -1222,11 +1328,14 @@
             const display = document.getElementById('wordsDisplay');
             const btn = document.getElementById('btnWords');
 
-            // Close attribution and hear if open
+            // Close attribution, hear, and timer if open
             document.getElementById('attributionDisplay').classList.remove('show');
             document.getElementById('btnAttribution').classList.remove('active');
             document.getElementById('hearDisplay').classList.remove('show');
             document.getElementById('btnHear').classList.remove('active');
+            document.getElementById('timerDisplayPanel').classList.remove('show');
+            document.getElementById('btnTimer').classList.remove('active');
+            timerReset();
             stopHear();
 
             if (!display.classList.contains('show') && !wordsLoaded) {
@@ -1249,11 +1358,14 @@
                 const confirmed = await showConfirm('Are you sure? This will reveal which word belongs to which player.', 'Reveal');
                 if (!confirmed) return;
 
-                // Close words and hear if open
+                // Close words, hear, and timer if open
                 document.getElementById('wordsDisplay').classList.remove('show');
                 document.getElementById('btnWords').classList.remove('active');
                 document.getElementById('hearDisplay').classList.remove('show');
                 document.getElementById('btnHear').classList.remove('active');
+                document.getElementById('timerDisplayPanel').classList.remove('show');
+                document.getElementById('btnTimer').classList.remove('active');
+                timerReset();
                 stopHear();
 
                 if (!attributionLoaded) {
@@ -1551,6 +1663,162 @@
             }
         }
 
+        // ─── Timer Logic ────────────────────────────────
+
+        function timerFormatDisplay(secs) {
+            const m = Math.floor(secs / 60);
+            const s = secs % 60;
+            return m + ':' + String(s).padStart(2, '0');
+        }
+
+        function timerUpdateDisplay() {
+            const el = document.getElementById('timerDisplay');
+            const panel = document.getElementById('timerDisplayPanel');
+            el.textContent = timerFormatDisplay(timerRemaining);
+            const urgent = timerRunning && timerRemaining <= 5 && timerRemaining > 0;
+            const expired = timerRunning === false && timerRemaining <= 0 && timerInterval === null;
+            el.classList.toggle('urgent', urgent);
+            el.classList.toggle('expired', expired);
+            panel.classList.toggle('urgent', urgent);
+            panel.classList.toggle('expired', expired);
+
+        }
+
+        function timerFlashScreen(mode) {
+            const flash = document.getElementById('timerScreenFlash');
+            flash.className = 'timer-screen-flash';
+            // Force reflow to restart animation
+            void flash.offsetWidth;
+            flash.classList.add(mode);
+            const dur = mode === 'expired' ? 2400 : 200;
+            setTimeout(() => flash.className = 'timer-screen-flash', dur);
+        }
+
+        function toggleTimer() {
+            const display = document.getElementById('timerDisplayPanel');
+            const btn = document.getElementById('btnTimer');
+
+            // Close others if open
+            document.getElementById('wordsDisplay').classList.remove('show');
+            document.getElementById('btnWords').classList.remove('active');
+            document.getElementById('attributionDisplay').classList.remove('show');
+            document.getElementById('btnAttribution').classList.remove('active');
+            document.getElementById('hearDisplay').classList.remove('show');
+            document.getElementById('btnHear').classList.remove('active');
+            stopHear();
+
+            const wasActive = btn.classList.contains('active');
+            display.classList.toggle('show');
+            btn.classList.toggle('active');
+
+            // If toggling off, stop and reset the timer
+            if (wasActive) {
+                timerReset();
+            }
+        }
+
+        function timerSetPreset(secs) {
+            timerStop();
+            timerDuration = secs;
+            timerRemaining = secs;
+            timerUpdateDisplay();
+            document.getElementById('btnTimerPlay').textContent = 'Start';
+            document.querySelectorAll('.timer-preset').forEach(b => {
+                const parts = b.textContent.split(':');
+                const val = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+                b.classList.toggle('active', val === secs);
+            });
+        }
+
+        function timerStart() {
+            if (timerRunning) {
+                timerStop();
+                document.getElementById('btnTimerPlay').textContent = 'Resume';
+                timerUpdateDisplay();
+                return;
+            }
+            if (timerRemaining <= 0) {
+                timerRemaining = timerDuration;
+            }
+            timerRunning = true;
+            document.getElementById('btnTimerPlay').textContent = 'Pause';
+            timerUpdateDisplay();
+            timerInterval = setInterval(() => {
+                timerRemaining--;
+                timerUpdateDisplay();
+                if (timerRemaining <= 5 && timerRemaining > 0) {
+                    playTick(timerRemaining);
+                    timerFlashScreen('tick');
+                }
+                if (timerRemaining <= 0) {
+                    timerStop();
+                    timerUpdateDisplay();
+                    playTimerEnd();
+                    timerFlashScreen('expired');
+                    document.getElementById('btnTimerPlay').textContent = 'Start';
+                }
+            }, 1000);
+        }
+
+        function timerStop() {
+            timerRunning = false;
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
+
+        function timerReset() {
+            timerStop();
+            timerRemaining = timerDuration;
+            timerUpdateDisplay();
+            document.getElementById('btnTimerPlay').textContent = 'Start';
+        }
+
+        function playTick(secsLeft) {
+            const ctx = getAudioCtx();
+            if (ctx.state === 'suspended') return;
+            const t = ctx.currentTime;
+            // Classic timer beep — short, clean, gets faster/higher as time runs out
+            const freq = 800 + (6 - secsLeft) * 100;
+            const vol = 0.3 + (6 - secsLeft) * 0.04;
+            const beepLen = 0.12;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, t);
+            gain.gain.setValueAtTime(vol, t);
+            gain.gain.setValueAtTime(vol, t + beepLen * 0.7);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + beepLen);
+            osc.start(t);
+            osc.stop(t + beepLen);
+        }
+
+        function playTimerEnd() {
+            const ctx = getAudioCtx();
+            if (ctx.state === 'suspended') return;
+            const t = ctx.currentTime;
+            // Rapid repeating beeps — like a kitchen timer / alarm clock going off
+            const beepCount = 12;
+            const beepOn = 0.1;
+            const beepOff = 0.1;
+            const cycle = beepOn + beepOff;
+            for (let i = 0; i < beepCount; i++) {
+                const start = t + i * cycle;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1000, start);
+                gain.gain.setValueAtTime(0.35, start);
+                gain.gain.setValueAtTime(0.35, start + beepOn * 0.8);
+                gain.gain.exponentialRampToValueAtTime(0.001, start + beepOn);
+                osc.start(start);
+                osc.stop(start + beepOn);
+            }
+        }
+
         document.addEventListener('keypress', (e) => {
             if (e.key !== 'Enter') return;
             if (e.target.id === 'inputApiKey') saveApiKey();
@@ -1567,6 +1835,9 @@
             </div>
         </div>
     </div>
+
+    <!-- Timer Screen Flash -->
+    <div class="timer-screen-flash" id="timerScreenFlash"></div>
 
     <!-- Global Fullscreen Button -->
     <button class="fullscreen-page-btn" onclick="togglePageFullscreen()" aria-label="Toggle fullscreen" title="Toggle fullscreen">⛶</button>

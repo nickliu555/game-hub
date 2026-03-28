@@ -5,6 +5,8 @@ const os = require('os');
 const rateLimit = require('express-rate-limit');
 const app = express();
 
+app.set('trust proxy', 1);
+
 // Rate limit for submission endpoint (max 10 requests per minute per IP)
 const submitLimiter = rateLimit({
     windowMs: 60 * 1000,
@@ -95,8 +97,8 @@ function getPublicState() {
         || `http://${LOCAL_IP}:${PORT}`;
     return {
         phase: gameState.phase,
-        playerCount: gameState.submissions.length,
-        playerNames: gameState.submissions.map(s => s.player),
+        playerCount: gameState.submissions.filter(s => s.player !== 'AI Bot 🤖').length,
+        playerNames: gameState.submissions.filter(s => s.player !== 'AI Bot 🤖').map(s => s.player),
         hasApiKey: !!gameState.groqApiKey,
         playerUrl,
         round: gameState.round,
