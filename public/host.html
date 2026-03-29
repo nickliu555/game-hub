@@ -1696,33 +1696,11 @@
             }
 
             overlay.classList.add('show');
-
-            // Enter native fullscreen only if not already in it
-            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-                const el = document.documentElement;
-                if (el.requestFullscreen) {
-                    el.requestFullscreen().catch(() => {});
-                } else if (el.webkitRequestFullscreen) {
-                    el.webkitRequestFullscreen();
-                }
-            }
         }
 
         function closeFullscreen() {
             document.getElementById('fullscreenOverlay').classList.remove('show');
         }
-
-        // Sync overlay state when user exits fullscreen via Escape key
-        document.addEventListener('fullscreenchange', () => {
-            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-                document.getElementById('fullscreenOverlay').classList.remove('show');
-            }
-        });
-        document.addEventListener('webkitfullscreenchange', () => {
-            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-                document.getElementById('fullscreenOverlay').classList.remove('show');
-            }
-        });
 
         // ─── Global Page Fullscreen Toggle ────────────────
 
@@ -1838,8 +1816,8 @@
                     timerUpdateDisplay();
                     playTimerEnd();
                     timerFlashScreen('expired');
-                    document.getElementById('btnTimerPlay').textContent = 'Start';
-                    document.getElementById('btnTimerFsPlay').textContent = 'Start';
+                    document.getElementById('btnTimerPlay').textContent = 'Restart';
+                    document.getElementById('btnTimerFsPlay').textContent = 'Restart';
                 }
             }, 1000);
         }
@@ -1938,12 +1916,17 @@
             document.getElementById('timerFullscreenOverlay').classList.remove('show');
         }
 
-        // Close fullscreen timer on Escape key
+        // Close fullscreen overlays on Escape key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-                const overlay = document.getElementById('timerFullscreenOverlay');
-                if (overlay && overlay.classList.contains('show')) {
+                const timerOv = document.getElementById('timerFullscreenOverlay');
+                if (timerOv && timerOv.classList.contains('show')) {
                     closeTimerFullscreen();
+                    return;
+                }
+                const wordsOv = document.getElementById('fullscreenOverlay');
+                if (wordsOv && wordsOv.classList.contains('show')) {
+                    closeFullscreen();
                 }
             }
         });
