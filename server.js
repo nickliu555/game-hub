@@ -190,6 +190,7 @@ app.post('/api/submit', submitLimiter, async (req, res) => {
     const existingWords = gameState.submissions.map(s => s.word);
     const sim = await checkSimilarity(cleanWord, existingWords, gameState.groqApiKey);
     if (sim && sim.is_similar) {
+        console.log(`Similarity rejection: "${cleanWord}" too similar to "${sim.similar_to}" (reason: ${sim.reason || 'n/a'})`);
         return res.status(400).json({ error: `That word is not available. Try another!` });
     }
 
