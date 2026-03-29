@@ -74,6 +74,7 @@
             margin-top: 20px;
             border-left: 3px solid #d4a844;
             box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.3);
+            position: relative;
         }
         .words-display.show, .attribution-display.show, .hear-display.show { display: block; }
 
@@ -384,6 +385,7 @@
             background: none; border: none; padding: 4px; line-height: 1;
             position: absolute; top: 8px; right: 8px;
             width: auto;
+            z-index: 2;
         }
         .timer-expand-btn:hover { color: #d4a844; }
         .timer-time-row {
@@ -440,6 +442,53 @@
             padding: 12px 32px; font-size: 16px; border-radius: 6px;
             cursor: pointer; font-weight: 600; border: 2px solid #3a2a2a;
         }
+        /* ─── Fullscreen Hear Overlay ─── */
+        .hear-fullscreen-overlay {
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(135deg, #1a0a0a 0%, #2d0808 50%, #1a0a0a 100%);
+            z-index: 350;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .hear-fullscreen-overlay.show { display: flex; }
+        .hear-fullscreen-overlay .hear-fs-close {
+            position: absolute;
+            top: 20px; right: 24px;
+            background: rgba(139, 26, 26, 0.4);
+            border: 2px solid #5a2a2a;
+            color: #ccc; font-size: 28px; cursor: pointer;
+            border-radius: 50%; width: 44px; height: 44px;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s; line-height: 1;
+        }
+        .hear-fullscreen-overlay .hear-fs-close:hover { background: #a52a2a; border-color: #d4a844; color: #fff; }
+        .hear-fs-icon {
+            font-size: clamp(80px, 15vw, 200px);
+            opacity: 0.3;
+            transition: opacity 0.3s;
+            line-height: 1;
+        }
+        .hear-fs-icon.active {
+            opacity: 1;
+            animation: audioWave 1s ease-in-out infinite;
+        }
+        .hear-fs-progress {
+            color: #888;
+            font-size: clamp(20px, 4vw, 36px);
+            margin-top: 24px;
+            font-variant-numeric: tabular-nums;
+        }
+        .hear-fs-controls {
+            display: flex; gap: 12px; margin-top: 40px;
+        }
+        .hear-fs-controls button {
+            padding: 12px 32px; font-size: 16px; border-radius: 6px;
+            cursor: pointer; font-weight: 600; border: 2px solid #3a2a2a;
+        }
+
         /* Screen flash vignette for urgent/expired */
         .timer-screen-flash {
             position: fixed;
@@ -898,6 +947,7 @@
             </div>
 
             <div class="hear-display" id="hearDisplay">
+                <button class="timer-expand-btn" onclick="openHearFullscreen()" title="Fullscreen hear">⛶</button>
                 <div id="audioIndicator" class="audio-indicator">🔊</div>
                 <div id="hearProgress" style="text-align:center; color:#888; font-size:13px; margin-bottom:12px;"></div>
                 <div style="display:flex; gap:10px; justify-content:center;">
@@ -1183,6 +1233,7 @@
             document.getElementById('btnTimer').textContent = '⏱️ Timer';
             document.getElementById('timerScreenFlash').className = 'timer-screen-flash';
             closeTimerFullscreen();
+            closeHearFullscreen();
             // Close fullscreen overlay if open
             closeFullscreen();
         }
@@ -1380,6 +1431,7 @@
                     document.getElementById('btnHearRestart').style.display = 'none';
                     document.getElementById('audioIndicator').classList.remove('active');
                     hearActive = false;
+                    syncHearFullscreen();
                 }
                 return;
             }
@@ -1387,6 +1439,7 @@
             const word = hearWords[hearIndex];
             document.getElementById('hearProgress').textContent = `Word ${hearIndex + 1} of ${hearWords.length}`;
             document.getElementById('audioIndicator').classList.add('active');
+            syncHearFullscreen();
 
             speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance(word);
@@ -1398,6 +1451,7 @@
                 hearIndex++;
                 if (hearActive && !hearPaused) {
                     document.getElementById('audioIndicator').classList.remove('active');
+                    syncHearFullscreen();
                     hearTimeout = setTimeout(() => speakNextWord(), 1000);
                 }
             };
@@ -1410,6 +1464,7 @@
                 hearPaused = false;
                 hearActive = true;
                 btn.textContent = 'Pause';
+                syncHearFullscreen();
                 speakNextWord();
             } else if (hearActive) {
                 hearPaused = true;
@@ -1417,6 +1472,7 @@
                 speechSynthesis.cancel();
                 document.getElementById('audioIndicator').classList.remove('active');
                 btn.textContent = 'Resume';
+                syncHearFullscreen();
             } else {
                 restartHear();
             }
@@ -1430,6 +1486,7 @@
             hearPaused = false;
             document.getElementById('btnHearPause').textContent = 'Pause';
             document.getElementById('btnHearRestart').style.display = '';
+            syncHearFullscreen();
             speakNextWord();
         }
 
@@ -1440,6 +1497,7 @@
             hearPaused = false;
             hearIndex = 0;
             document.getElementById('audioIndicator').classList.remove('active');
+            closeHearFullscreen();
         }
 
         async function toggleWords() {
@@ -1966,6 +2024,28 @@
             timerUpdateDisplay();
         }
 
+        function openHearFullscreen() {
+            const overlay = document.getElementById('hearFullscreenOverlay');
+            syncHearFullscreen();
+            overlay.classList.add('show');
+        }
+
+        function closeHearFullscreen() {
+            document.getElementById('hearFullscreenOverlay').classList.remove('show');
+        }
+
+        function syncHearFullscreen() {
+            const fsIcon = document.getElementById('hearFsIcon');
+            const fsProgress = document.getElementById('hearFsProgress');
+            const fsPauseBtn = document.getElementById('btnHearFsPause');
+            const fsRestartBtn = document.getElementById('btnHearFsRestart');
+            const mainIndicator = document.getElementById('audioIndicator');
+            fsIcon.classList.toggle('active', mainIndicator.classList.contains('active'));
+            fsProgress.textContent = document.getElementById('hearProgress').textContent;
+            fsPauseBtn.textContent = document.getElementById('btnHearPause').textContent;
+            fsRestartBtn.style.display = document.getElementById('btnHearRestart').style.display;
+        }
+
         function openTimerFullscreen() {
             const overlay = document.getElementById('timerFullscreenOverlay');
             timerUpdateDisplay();
@@ -1979,6 +2059,11 @@
         // Close fullscreen overlays on Escape key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
+                const hearOv = document.getElementById('hearFullscreenOverlay');
+                if (hearOv && hearOv.classList.contains('show')) {
+                    closeHearFullscreen();
+                    return;
+                }
                 const timerOv = document.getElementById('timerFullscreenOverlay');
                 if (timerOv && timerOv.classList.contains('show')) {
                     closeTimerFullscreen();
@@ -2066,6 +2151,17 @@
 
     <!-- Timer Screen Flash -->
     <div class="timer-screen-flash" id="timerScreenFlash"></div>
+
+    <!-- Fullscreen Hear Overlay -->
+    <div class="hear-fullscreen-overlay" id="hearFullscreenOverlay">
+        <button class="hear-fs-close" onclick="closeHearFullscreen()">&times;</button>
+        <div class="hear-fs-icon" id="hearFsIcon">🔊</div>
+        <div class="hear-fs-progress" id="hearFsProgress"></div>
+        <div class="hear-fs-controls">
+            <button class="btn-primary" id="btnHearFsPause" onclick="pauseHear()">Pause</button>
+            <button class="btn-secondary" id="btnHearFsRestart" onclick="restartHear()">Restart</button>
+        </div>
+    </div>
 
     <!-- Fullscreen Timer Overlay -->
     <div class="timer-fullscreen-overlay" id="timerFullscreenOverlay">
