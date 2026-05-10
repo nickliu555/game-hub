@@ -1,0 +1,140 @@
+/* ============================================================
+ * Shared Modal (alert + confirm)
+ * ------------------------------------------------------------
+ * One markup, themed per game via CSS variables. Set these on
+ * :root (or any ancestor) to match each game's palette:
+ *
+ *   --gm-overlay-bg          backdrop color
+ *   --gm-surface             modal card background
+ *   --gm-text                modal body text
+ *   --gm-border              card border color
+ *   --gm-radius              card corner radius (defaults to 12px)
+ *   --gm-btn-primary-bg      OK button background
+ *   --gm-btn-primary-fg      OK button text color
+ *   --gm-btn-primary-border  OK button border (optional)
+ *   --gm-btn-primary-hover   OK button hover background
+ *   --gm-btn-secondary-bg    Cancel button background
+ *   --gm-btn-secondary-fg    Cancel button text color
+ *   --gm-btn-secondary-border Cancel button border
+ *   --gm-btn-danger-bg       Variant: destructive primary background
+ *   --gm-btn-danger-fg       Variant: destructive primary text
+ * ============================================================ */
+
+.gm-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--gm-overlay-bg, rgba(0, 0, 0, 0.65));
+  z-index: 9999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: gmFadeIn 0.15s ease;
+}
+.gm-overlay.is-open { display: flex; }
+.gm-overlay[hidden] { display: none !important; }
+
+.gm-modal {
+  background: var(--gm-surface, #1c1c1c);
+  color: var(--gm-text, #e6e6e6);
+  border: 1px solid var(--gm-border, rgba(255, 255, 255, 0.12));
+  border-radius: var(--gm-radius, 12px);
+  padding: 28px 32px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+  animation: gmPop 0.15s ease;
+}
+
+.gm-msg {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.45;
+  margin: 0 0 22px;
+  color: inherit;
+}
+
+.gm-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.gm-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 10px 22px;
+  min-width: 110px;
+  border-radius: 8px;
+  border: 1.5px solid transparent;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, transform 0.08s ease;
+}
+.gm-btn:active { transform: translateY(1px); }
+
+.gm-btn-secondary {
+  background: var(--gm-btn-secondary-bg, #2a2a2a);
+  color: var(--gm-btn-secondary-fg, #aaa);
+  border-color: var(--gm-btn-secondary-border, #3a3a3a);
+}
+.gm-btn-secondary:hover {
+  border-color: var(--gm-btn-secondary-hover-border, #555);
+  color: var(--gm-btn-secondary-hover-fg, #ccc);
+}
+
+.gm-btn-primary {
+  background: var(--gm-btn-primary-bg, #8b1a1a);
+  color: var(--gm-btn-primary-fg, #fff);
+  border-color: var(--gm-btn-primary-border, transparent);
+}
+.gm-btn-primary:hover {
+  background: var(--gm-btn-primary-hover, var(--gm-btn-primary-bg, #a52a2a));
+}
+
+/* Destructive variant for primary button (e.g. Reset, Kick) */
+.gm-modal.is-danger .gm-btn-primary {
+  background: var(--gm-btn-danger-bg, #E21B3C);
+  color: var(--gm-btn-danger-fg, #fff);
+  border-color: var(--gm-btn-danger-bg, #E21B3C);
+}
+.gm-modal.is-danger .gm-btn-primary:hover {
+  background: var(--gm-btn-danger-hover, #c91230);
+  border-color: var(--gm-btn-danger-hover, #c91230);
+}
+
+/* Single-button alert layout */
+.gm-modal.is-alert .gm-actions { justify-content: center; }
+.gm-modal.is-alert .gm-btn-secondary { display: none; }
+
+@keyframes gmFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes gmPop {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Toast (paired with showToast) */
+.gm-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 40px;
+  transform: translate(-50%, 20px);
+  background: var(--gm-toast-bg, var(--gm-surface, #1c1c1c));
+  color: var(--gm-toast-fg, var(--gm-text, #fff));
+  border: 1px solid var(--gm-border, rgba(255, 255, 255, 0.12));
+  padding: 12px 22px;
+  border-radius: 999px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  z-index: 9999;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  font-weight: 700;
+  font-size: 14px;
+}
+.gm-toast.is-visible { opacity: 1; transform: translate(-50%, 0); }

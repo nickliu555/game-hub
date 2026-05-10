@@ -1,0 +1,142 @@
+:root {
+  --bg: #46178F;             /* Kahoot purple */
+  --bg-deep: #2C0E5C;        /* darker for gradients */
+  --surface: #FFFFFF;
+  --ink: #1A1A1A;
+  --ink-soft: #4a4655;
+  --muted: #8a8597;
+
+  /* 4 answer tile colors — classic Kahoot RGYG, mapped to A/B/C/D */
+  --ans-a: #E21B3C; /* red    */
+  --ans-b: #1368CE; /* blue   */
+  --ans-c: #D89E00; /* yellow */
+  --ans-d: #26890C; /* green  */
+
+  /* Generic accent (used for buttons, highlights, etc.) */
+  --accent: #46178F;
+  --accent-deep: #2C0E5C;
+  --warn: #E21B3C;
+  --good: #26890C;
+  --gold: #FFC700;
+
+  --radius: 14px;
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  --shadow-strong: 0 12px 40px rgba(0, 0, 0, 0.30);
+
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+
+  /* Shared modal theme (see /shared/modal.css). Trivia uses light cards on a
+     darkened backdrop with a magenta primary action. */
+  --gm-overlay-bg: rgba(0, 0, 0, 0.55);
+  --gm-surface: var(--surface);
+  --gm-text: var(--ink);
+  --gm-border: rgba(0, 0, 0, 0.08);
+  --gm-radius: var(--radius);
+  --gm-btn-secondary-bg: #f0eef5;
+  --gm-btn-secondary-fg: var(--ink-soft);
+  --gm-btn-secondary-border: rgba(0, 0, 0, 0.08);
+  --gm-btn-secondary-hover-border: rgba(0, 0, 0, 0.18);
+  --gm-btn-secondary-hover-fg: var(--ink);
+  --gm-btn-primary-bg: var(--accent);
+  --gm-btn-primary-fg: #fff;
+  --gm-btn-primary-border: var(--accent);
+  --gm-btn-primary-hover: var(--accent-deep);
+  --gm-btn-danger-bg: var(--warn);
+  --gm-btn-danger-fg: #fff;
+  --gm-btn-danger-hover: #b81630;
+  --gm-toast-bg: var(--ink);
+  --gm-toast-fg: #fff;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior-y: contain;
+}
+
+h1, h2, h3 { font-family: var(--font-sans); font-weight: 800; letter-spacing: -0.01em; }
+
+.player-attribution {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+  padding: 14px 12px 18px;
+}
+
+button, .btn-ghost {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: var(--ink);
+  color: white;
+  padding: 14px 22px;
+  border-radius: var(--radius);
+  font-size: 16px;
+  font-weight: 700;
+  text-decoration: none;
+  display: inline-block;
+  transition: transform 0.08s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+button:hover:not(:disabled), .btn-ghost:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+button:active:not(:disabled) { transform: translateY(0); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary { background: var(--good); }
+.btn-accent  { background: var(--gold); color: var(--ink); }
+.btn-ghost   { background: rgba(255, 255, 255, 0.1); color: white; border: 1.5px solid rgba(255,255,255,0.4); }
+.btn-ghost.btn-muted { background: var(--warn); color: white; border-color: var(--warn); }
+
+input[type="text"], select {
+  font-family: inherit;
+  font-size: 18px;
+  padding: 14px 16px;
+  border: 1.5px solid #d9d3e6;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.15s ease;
+  width: 100%;
+}
+input[type="text"]:focus, select:focus { border-color: var(--accent); }
+
+.brand {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: 28px;
+  color: white;
+  letter-spacing: -0.01em;
+}
+
+/* Tile color helpers (shared between player + host) */
+.tile-color-0 { background: var(--ans-a); }
+.tile-color-1 { background: var(--ans-b); }
+.tile-color-2 { background: var(--ans-c); color: var(--ink) !important; } /* yellow needs dark text */
+.tile-color-3 { background: var(--ans-d); }
+
+/* Big A/B/C/D letter on each answer tile */
+.choice-letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: 1em;
+  line-height: 1;
+  letter-spacing: 0;
+  text-align: center;
+  color: currentColor;
+  width: 1.4em;
+  height: 1.4em;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+}
+/* On the yellow tile (which has dark text), use a darker translucent disc */
+.tile-color-2 .choice-letter { background: rgba(0, 0, 0, 0.15); }

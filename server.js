@@ -2,7 +2,10 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const os = require('os');
+const http = require('http');
 const rateLimit = require('express-rate-limit');
+const games = require('./games');
+const mountTrivia = require('./server/trivia');
 const app = express();
 
 app.set('trust proxy', 1);
@@ -28,14 +31,45 @@ const reactLimiter = rateLimit({
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Serve the player page at root
+// ─── Hub & Games API ────────────────────────────────────────
+
+// Serve the hub page at root
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'player.html'));
+    res.sendFile(path.join(__dirname, 'public', 'hub.html'));
 });
 
-// Serve the host page at /host
-app.get('/host', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'host.html'));
+// Games registry API
+app.get('/api/games', (req, res) => {
+    res.json(games);
+});
+
+app.get('/api/games/:id', (req, res) => {
+    const game = games.find(g => g.id === req.params.id);
+    if (!game) return res.status(404).json({ error: 'Game not found' });
+    res.json(game);
+});
+
+// ─── Empire Game Routes ─────────────────────────────────────
+
+// Serve the empire host page
+app.get('/empire/host', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'empire', 'host.html'));
+});
+
+// Serve the empire player page
+app.get('/empire/play', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'empire', 'player.html'));
+});
+
+// ─── Trivia Game Routes ─────────────────────────────────────
+app.get('/trivia/host', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'trivia', 'host.html'));
+});
+app.get('/trivia/play', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'trivia', 'player.html'));
+});
+app.get('/trivia/join', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'trivia', 'join.html'));
 });
 
 // ─── Game State ─────────────────────────────────────────────
@@ -53,6 +87,7 @@ function createFreshState() {
         round: 1,              // increments on each reset so clients detect it
         category: '',          // optional category set by host
         aiBotEnabled: false,   // toggle for AI decoy word
+        reactionsMuted: false, // host can mute all player reactions
         gameId: SERVER_GAME_ID, // stable for entire server lifetime
     };
 }
@@ -90,11 +125,28 @@ const LOCAL_IP = getLocalIP();
 
 // ─── SSE (Server-Sent Events) ───────────────────────────────
 const sseClients = new Set();
+const hostClients = new Set();
+const HOST_GRACE_MS = 5000;
+let hostGraceTimer = null;
+let lastHostSeenAt = 0;
+// Set true when the host explicitly clicks Hub. Forces isHostPresent() to
+// return false even if the host's SSE briefly remains in `hostClients`
+// (the SSE closes naturally on navigation a moment later). Cleared the next
+// time a host actually opens the host page.
+let hostLeftIntentionally = false;
+// Host is "present" if any host SSE is connected, OR a host disconnected
+// within the grace window (covers refresh races and brief blips).
+function isHostPresent() {
+    if (hostLeftIntentionally) return false;
+    if (hostClients.size > 0) return true;
+    return lastHostSeenAt > 0 && (Date.now() - lastHostSeenAt) < HOST_GRACE_MS;
+}
 
 function getPublicState() {
-    const playerUrl = process.env.RENDER_EXTERNAL_URL
+    const baseUrl = process.env.RENDER_EXTERNAL_URL
         || process.env.PUBLIC_URL
         || `http://${LOCAL_IP}:${PORT}`;
+    const playerUrl = `${baseUrl}/empire/play`;
     return {
         phase: gameState.phase,
         playerCount: gameState.submissions.filter(s => !s.isBot).length,
@@ -104,7 +156,9 @@ function getPublicState() {
         round: gameState.round,
         category: gameState.category,
         aiBotEnabled: gameState.aiBotEnabled,
+        reactionsMuted: gameState.reactionsMuted,
         gameId: gameState.gameId,
+        hostPresent: isHostPresent(),
     };
 }
 
@@ -121,27 +175,57 @@ function broadcastReaction(emoji) {
     }
 }
 
-app.get('/api/events', (req, res) => {
+function broadcastKicked(player) {
+    const data = JSON.stringify({ player });
+    for (const client of sseClients) {
+        client.write(`event: kicked\ndata: ${data}\n\n`);
+    }
+}
+
+app.get('/api/empire/events', (req, res) => {
     res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         Connection: 'keep-alive',
     });
-    // Send current state immediately on connect
+    const isHost = req.query.role === 'host';
+    if (isHost) {
+        // Cancel any pending "host left" broadcast — host is back.
+        if (hostGraceTimer) { clearTimeout(hostGraceTimer); hostGraceTimer = null; }
+        const wasAbsent = !isHostPresent();
+        hostLeftIntentionally = false; // host is here now
+        hostClients.add(res);
+        lastHostSeenAt = Date.now();
+        if (wasAbsent) broadcast(); // tell players the host arrived
+    }
+    // Send current state AFTER host registration so the host sees themselves.
     res.write(`data: ${JSON.stringify(getPublicState())}\n\n`);
     sseClients.add(res);
-    req.on('close', () => sseClients.delete(res));
+    req.on('close', () => {
+        sseClients.delete(res);
+        if (isHost) {
+            hostClients.delete(res);
+            lastHostSeenAt = Date.now();
+            if (hostClients.size === 0) {
+                if (hostGraceTimer) clearTimeout(hostGraceTimer);
+                hostGraceTimer = setTimeout(() => {
+                    hostGraceTimer = null;
+                    broadcast();
+                }, HOST_GRACE_MS);
+            }
+        }
+    });
 });
 
 // ─── API Routes ─────────────────────────────────────────────
 
 // Get current game state (public - no secrets)
-app.get('/api/state', (req, res) => {
+app.get('/api/empire/state', (req, res) => {
     res.json(getPublicState());
 });
 
 // Save API key (host only)
-app.post('/api/set-key', async (req, res) => {
+app.post('/api/empire/set-key', async (req, res) => {
     touchActivity();
     const { key } = req.body;
     if (!key) return res.status(400).json({ error: 'Key required' });
@@ -156,8 +240,11 @@ app.post('/api/set-key', async (req, res) => {
 });
 
 // Submit a word (players)
-app.post('/api/submit', submitLimiter, async (req, res) => {
+app.post('/api/empire/submit', submitLimiter, async (req, res) => {
     touchActivity();
+    if (!isHostPresent()) {
+        return res.status(503).json({ error: 'Host has left the game.' });
+    }
     if (gameState.phase !== 'submission') {
         return res.status(400).json({ error: 'Not accepting submissions right now.' });
     }
@@ -210,7 +297,7 @@ app.post('/api/submit', submitLimiter, async (req, res) => {
 });
 
 // Withdraw a submission (player changes their mind before game starts)
-app.post('/api/withdraw', (req, res) => {
+app.post('/api/empire/withdraw', (req, res) => {
     touchActivity();
     if (gameState.phase !== 'submission') {
         return res.status(400).json({ error: 'Cannot withdraw right now.' });
@@ -229,8 +316,27 @@ app.post('/api/withdraw', (req, res) => {
     res.json({ ok: true });
 });
 
+// Kick a player (host only — removes their submission. They can rejoin
+// with the same name from their phone, matching Trivia's UX.)
+app.post('/api/empire/kick', (req, res) => {
+    touchActivity();
+    if (gameState.phase !== 'submission') {
+        return res.status(400).json({ error: 'Can only kick during submission phase.' });
+    }
+    const { player } = req.body || {};
+    const cleanName = (player || '').trim();
+    if (!cleanName) return res.status(400).json({ error: 'Player name is required.' });
+    const lower = cleanName.toLowerCase();
+    const idx = gameState.submissions.findIndex(s => s.player.toLowerCase() === lower);
+    if (idx === -1) return res.status(404).json({ error: 'Player not found.' });
+    const removed = gameState.submissions.splice(idx, 1)[0];
+    broadcastKicked(removed.player);
+    broadcast();
+    res.json({ ok: true });
+});
+
 // Set category (host only)
-app.post('/api/category', (req, res) => {
+app.post('/api/empire/category', (req, res) => {
     touchActivity();
     const { category } = req.body;
     gameState.category = (category || '').trim().substring(0, 100);
@@ -239,7 +345,7 @@ app.post('/api/category', (req, res) => {
 });
 
 // Toggle AI Bot (host only)
-app.post('/api/ai-bot', (req, res) => {
+app.post('/api/empire/ai-bot', (req, res) => {
     touchActivity();
     if (gameState.phase !== 'submission') {
         return res.status(400).json({ error: 'Can only toggle AI Bot during submission phase.' });
@@ -251,8 +357,14 @@ app.post('/api/ai-bot', (req, res) => {
 });
 
 // Send a reaction (players)
-const ALLOWED_REACTIONS = ['😂', '🔥', '👀', '👑', '💀', '🎉', '😱', '🤬'];
-app.post('/api/react', reactLimiter, (req, res) => {
+const ALLOWED_REACTIONS = ['😂', '🔥', '👀', '👑', '💀', '🎉', '😱', '😡'];
+app.post('/api/empire/react', reactLimiter, (req, res) => {
+    if (!isHostPresent()) {
+        return res.status(503).json({ error: 'Host has left the game.' });
+    }
+    if (gameState.reactionsMuted) {
+        return res.status(403).json({ error: 'Reactions are muted by the host.' });
+    }
     if (gameState.phase !== 'playing' && gameState.phase !== 'submission') {
         return res.status(400).json({ error: 'Reactions not available right now.' });
     }
@@ -264,8 +376,17 @@ app.post('/api/react', reactLimiter, (req, res) => {
     res.json({ ok: true });
 });
 
+// Toggle reactions muted (host only)
+app.post('/api/empire/reactions-muted', (req, res) => {
+    touchActivity();
+    const next = !!(req.body && req.body.muted);
+    gameState.reactionsMuted = next;
+    broadcast();
+    res.json({ ok: true, reactionsMuted: gameState.reactionsMuted });
+});
+
 // Start game (host only)
-app.post('/api/start', async (req, res) => {
+app.post('/api/empire/start', async (req, res) => {
     touchActivity();
     if (gameState.submissions.length < 2) {
         return res.status(400).json({ error: 'Need at least 2 players.' });
@@ -303,7 +424,7 @@ app.post('/api/start', async (req, res) => {
 });
 
 // Get shuffled words (no names)
-app.get('/api/words', (req, res) => {
+app.get('/api/empire/words', (req, res) => {
     if (gameState.phase !== 'playing') {
         return res.status(400).json({ error: 'Game not started yet.' });
     }
@@ -311,15 +432,32 @@ app.get('/api/words', (req, res) => {
 });
 
 // Get words with names (host only reveal)
-app.get('/api/attribution', (req, res) => {
+app.get('/api/empire/attribution', (req, res) => {
     if (gameState.phase !== 'playing') {
         return res.status(400).json({ error: 'Game not started yet.' });
     }
     res.json({ attribution: gameState.submissions });
 });
 
+// Host explicitly leaving via the Hub button. Resets the game AND immediately
+// flips host-presence to false (skipping the grace window) so every player
+// page shows the "no host" overlay before the host's tab even navigates.
+app.post('/api/empire/host-leave', (req, res) => {
+    touchActivity();
+    const key = gameState.groqApiKey;
+    const nextRound = gameState.round + 1;
+    gameState = createFreshState();
+    gameState.groqApiKey = key;
+    gameState.phase = 'submission';
+    gameState.round = nextRound;
+    hostLeftIntentionally = true;
+    if (hostGraceTimer) { clearTimeout(hostGraceTimer); hostGraceTimer = null; }
+    broadcast(); // players now see hostPresent=false → overlay
+    res.json({ ok: true });
+});
+
 // Reset game (new round)
-app.post('/api/reset', (req, res) => {
+app.post('/api/empire/reset', (req, res) => {
     touchActivity();
     const key = gameState.groqApiKey;
     const nextRound = gameState.round + 1;
@@ -332,7 +470,7 @@ app.post('/api/reset', (req, res) => {
 });
 
 // Full reset (back to API key setup, unless env var is set)
-app.post('/api/full-reset', (req, res) => {
+app.post('/api/empire/full-reset', (req, res) => {
     touchActivity();
     const nextRound = gameState.round + 1;
     gameState = createFreshState();
@@ -572,16 +710,28 @@ Respond ONLY with valid JSON (no markdown, no extra text):
 // ─── Start server ───────────────────────────────────────────
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
+const httpServer = http.createServer(app);
+
+// Mount the Trivia game (Socket.IO namespace + REST endpoints).
+mountTrivia(app, httpServer, { getPublicBaseUrl: () => {
+    if (process.env.RENDER_EXTERNAL_URL) return process.env.RENDER_EXTERNAL_URL;
+    if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL;
+    return `http://${LOCAL_IP}:${PORT}`;
+} });
+
+httpServer.listen(PORT, '0.0.0.0', () => {
     console.log('');
     console.log('═══════════════════════════════════════════');
-    console.log('  👑 Empire Game Server ⚔️');
+    console.log('  🎮 Game Hub');
     console.log('═══════════════════════════════════════════');
     if (process.env.RENDER_EXTERNAL_URL) {
         console.log(`  Live at: ${process.env.RENDER_EXTERNAL_URL}`);
     } else {
-        console.log(`  Host (you):   http://localhost:${PORT}/host`);
-        console.log(`  Players:      http://${LOCAL_IP}:${PORT}`);
+        console.log(`  Hub:          http://localhost:${PORT}`);
+        console.log(`  Empire Host:  http://localhost:${PORT}/empire/host`);
+        console.log(`  Empire Play:  http://${LOCAL_IP}:${PORT}/empire/play`);
+        console.log(`  Trivia Host:  http://localhost:${PORT}/trivia/host`);
+        console.log(`  Trivia Play:  http://${LOCAL_IP}:${PORT}/trivia/play`);
     }
     console.log('═══════════════════════════════════════════');
     console.log('');

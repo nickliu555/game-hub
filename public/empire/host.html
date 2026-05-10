@@ -3,10 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Empire Game - Host</title>
+    <title>Empire - Host</title>
+    <script src="/shared/iris-preload.js"></script>
     <link rel="stylesheet" href="shared.css">
+    <link rel="stylesheet" href="/shared/topbar.css">
+    <link rel="stylesheet" href="/shared/modal.css">
+    <link rel="stylesheet" href="/shared/iris.css">
+    <script src="/shared/topbar.js" defer></script>
+    <script src="/shared/modal.js" defer></script>
+    <script src="/shared/iris.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <style>
+        /* Theme the shared game topbar to match Empire (dark + red + gold).
+           Host uses the Trivia-style `body.host > .host-shell > .host-main`
+           flex column layout. The topbar is sticky inside that column, no
+           position:fixed needed. body.host overrides the shared player
+           flex-centering rules from shared.css. */
+        body.host {
+            display: block;
+            padding: 0;
+            align-items: stretch;
+            justify-content: stretch;
+            min-height: 100vh;
+        }
+        .host-shell {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            position: relative;
+            z-index: 1;
+        }
+        .host-main {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .game-topbar {
+            --gtb-bg: rgba(20, 12, 12, 0.85);
+            --gtb-border: #3a2a2a;
+            --gtb-text: #d4a844;
+            --gtb-btn-bg: #2a2a2a;
+            --gtb-btn-border: #3a2a2a;
+            --gtb-btn-hover-bg: #3a2a2a;
+            --gtb-btn-hover-fg: #d4a844;
+            --gtb-accent: #d4a844;
+            --gtb-danger: #8b1a1a;
+        }
+        .game-topbar .gtb-btn { color: #ccc; }
+        .game-topbar .gtb-btn:hover { color: #d4a844; }
+        .game-topbar .gtb-btn-danger:hover { background: #8b1a1a; border-color: #a52a2a; color: #fff; }
+
         .player-tracker-header {
             cursor: pointer;
             display: flex;
@@ -85,17 +133,18 @@
         }
 
         .word-chip {
-            background: #1c1c1c;
-            padding: 12px;
-            border-radius: 6px;
+            background: #2a1a1a;
+            padding: 14px 12px;
+            border-radius: 8px;
             text-align: center;
-            border: 1px solid #3a2a2a;
-            font-weight: 500;
-            color: #d4a844;
+            border: 1.5px solid #5a2a2a;
+            font-weight: 600;
+            color: #f0d89c;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
         }
 
         .attribution-item {
-            background: #1c1c1c;
+            background: #2a1a1a;
             padding: 12px;
             border-radius: 6px;
             margin-bottom: 8px;
@@ -373,13 +422,6 @@
         }
         .timer-preset:hover { border-color: #d4a844; color: #d4a844; }
         .timer-preset.active { background: #8b1a1a; color: #d4a844; border-color: #a52a2a; }
-        .timer-edit-input {
-            background: transparent; color: #d4a844; border: none;
-            border-bottom: 2px solid #d4a844;
-            font-size: 64px; font-weight: 700; width: 4ch;
-            text-align: center; outline: none; font-variant-numeric: tabular-nums;
-            line-height: 1; font-family: inherit;
-        }
         .timer-expand-btn {
             color: #666; font-size: 18px; cursor: pointer; transition: color 0.2s;
             background: none; border: none; padding: 4px; line-height: 1;
@@ -701,131 +743,429 @@
             box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
         }
 
-        /* ─── Confirm Modal ─── */
-        .confirm-overlay {
+        /* ─── Back to Hub Button ─── */
+        .back-hub-btn {
             position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.85);
-            z-index: 500;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        .confirm-overlay.show { display: flex; }
-        .confirm-modal {
-            background: #1c1c1c;
-            border: 1px solid #3a2a2a;
-            border-radius: 12px;
-            padding: 28px 32px;
-            text-align: center;
-            max-width: 360px;
-            width: 100%;
-        }
-        .confirm-modal-text {
-            color: #ccc;
-            font-size: 16px;
-            margin-bottom: 24px;
-        }
-        .confirm-modal-buttons {
-            display: flex;
-            gap: 12px;
-        }
-        .confirm-modal-buttons button {
-            flex: 1;
-            padding: 10px;
-            border-radius: 6px;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            border: 2px solid #3a2a2a;
-        }
-        .confirm-btn-cancel {
+            bottom: 20px;
+            left: 20px;
+            height: 44px;
+            border-radius: 22px;
             background: #2a2a2a;
-            color: #888;
-        }
-        .confirm-btn-cancel:hover { border-color: #555; }
-        .confirm-btn-ok {
-            background: #8b1a1a;
-            color: #d4a844;
-            border-color: #a52a2a;
-        }
-        .confirm-btn-ok:hover { background: #a52a2a; }
-
-        /* ─── Alert Modal (single OK button) ─── */
-        .alert-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.7);
-            z-index: 500;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        .alert-overlay.show { display: flex; }
-        .alert-modal {
-            background: #1c1c1c;
-            border: 1px solid #3a2a2a;
-            border-radius: 12px;
-            padding: 28px 32px;
-            text-align: center;
-            max-width: 360px;
-            width: 100%;
-        }
-        .alert-modal-text {
-            color: #ccc;
-            font-size: 16px;
-            margin-bottom: 24px;
-        }
-        .alert-modal-buttons {
-            display: flex;
-            justify-content: center;
-        }
-        .alert-modal-buttons button {
-            padding: 10px 32px;
-            border-radius: 6px;
-            font-size: 15px;
+            border: 2px solid #3a2a2a;
+            color: #aaa;
+            font-size: 14px;
             font-weight: 600;
             cursor: pointer;
-            border: 2px solid #a52a2a;
-            background: #8b1a1a;
-            color: #d4a844;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0 16px;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            text-decoration: none;
         }
-        .alert-modal-buttons button:hover { background: #a52a2a; }
+        .back-hub-btn:hover {
+            background: #3a2a2a;
+            border-color: #d4a844;
+            color: #d4a844;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+        }
 
-        /* ─── Floating Reactions ─── */
+        /* ─── Fullscreen Restore Banner ─── */
+        .fs-restore-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #8b1a1a, #a52a2a);
+            color: #fff;
+            text-align: center;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            z-index: 9999;
+            display: none;
+            animation: fsBannerSlide 0.3s ease;
+        }
+        .fs-restore-banner.show { display: block; }
+        @keyframes fsBannerSlide {
+            from { transform: translateY(-100%); }
+            to { transform: translateY(0); }
+        }
+
+        /* ─── Confirm Modal ─── */
+        /* Modals (alert + confirm) live in /shared/modal.css. Empire just
+           sets the CSS vars below to theme them. */
+        :root {
+            --gm-overlay-bg: rgba(0, 0, 0, 0.78);
+            --gm-surface: #1c1c1c;
+            --gm-text: #e0c87a;
+            --gm-border: #3a2a2a;
+            --gm-radius: 12px;
+            --gm-btn-secondary-bg: #2a2a2a;
+            --gm-btn-secondary-fg: #888;
+            --gm-btn-secondary-border: #3a2a2a;
+            --gm-btn-secondary-hover-border: #5a3a3a;
+            --gm-btn-secondary-hover-fg: #ccc;
+            --gm-btn-primary-bg: #8b1a1a;
+            --gm-btn-primary-fg: #d4a844;
+            --gm-btn-primary-border: #a52a2a;
+            --gm-btn-primary-hover: #a52a2a;
+            --gm-btn-danger-bg: #a52a2a;
+            --gm-btn-danger-fg: #fff;
+            --gm-btn-danger-hover: #c93340;
+        }
+
+        /* ─── Floating Reactions (matches Trivia behavior) ─── */
         .reaction-float {
             position: fixed;
-            font-size: 48px;
+            bottom: -60px;
+            font-size: 56px;
+            line-height: 1;
             pointer-events: none;
             z-index: 400;
-            animation: floatUp 2.5s ease-out forwards;
+            filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
             will-change: transform, opacity;
+            animation: reactionFloat 3.5s ease-out forwards;
+            user-select: none;
         }
-        @keyframes floatUp {
-            0% {
-                opacity: 1;
-                transform: translateY(0) scale(1) rotate(0deg);
-            }
-            20% {
-                opacity: 1;
-                transform: translateY(-80px) scale(1.15);
-            }
-            100% {
-                opacity: 0;
-                transform: translateY(-400px) scale(0.6) rotate(15deg);
-            }
+        @keyframes reactionFloat {
+            0%   { transform: translateY(0)     rotate(0deg)  scale(0.4); opacity: 0; }
+            15%  { transform: translateY(-15vh) rotate(-6deg) scale(1);   opacity: 1; }
+            85%  { transform: translateY(-90vh) rotate(6deg)  scale(1);   opacity: 1; }
+            100% { transform: translateY(-105vh) rotate(0deg) scale(0.85); opacity: 0; }
+        }
+
+        /* ─── Attribution: only visible on the lobby/submission screen ──
+           Matches Trivia's host: uncluttered display once the game starts. */
+        .lobby-attribution {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.45);
+            font-size: 11px;
+            margin-top: 18px;
+            display: none;
+        }
+        body:has(#viewHostSubmission[style*="block"]) .lobby-attribution {
+            display: block;
+        }
+
+        /* ─── Lobby (submission phase): two big side-by-side panels (Trivia-style) ─── */
+        body:has(#viewHostSubmission[style*="block"]) .container,
+        body:has(#viewHostGame[style*="block"]) .container {
+            max-width: 1400px;
+            background: transparent;
+            box-shadow: none;
+            border: none;
+            padding: 16px;
+        }
+        body:has(#viewHostSubmission[style*="block"]) h1,
+        body:has(#viewHostGame[style*="block"]) h1 { display: none; }
+        .lobby-grid {
+            display: grid;
+            grid-template-columns: 1.1fr 1fr;
+            gap: 28px;
+            align-items: stretch;
+        }
+        .lobby-grid > .panel {
+            background: #1c1c1c;
+            border: 1px solid #3a1a1a;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            padding: 28px;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        /* QR panel (left) */
+        .panel-qr { text-align: center; justify-content: center; }
+        .panel-qr h2 {
+            margin: 0 0 6px;
+            font-size: 36px;
+            color: #d4a844;
+            letter-spacing: 0.02em;
+        }
+        .panel-qr .qr-sub { color: #aaa; font-size: 16px; margin: 0 0 18px; }
+        .panel-qr .qr-box {
+            background: #1c1c1c;
+            padding: 12px;
+            border-radius: 12px;
+            display: inline-flex;
+            margin: 0 auto;
+        }
+        .panel-qr .join-url {
+            margin-top: 18px;
+            font-size: 18px;
+            font-weight: 700;
+            color: #d4a844;
+            word-break: break-all;
+        }
+        /* Players panel (right) */
+        .panel-players { height: 78vh; }
+        .panel-players .ph-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .panel-players .ph-header h3 {
+            margin: 0;
+            font-size: 24px;
+            color: #d4a844;
+        }
+        .panel-players .ph-count {
+            background: #8b1a1a;
+            color: #fff;
+            padding: 4px 14px;
+            border-radius: 999px;
+            font-weight: 800;
+            font-size: 16px;
+        }
+        .panel-players .player-grid {
+            flex: 1;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 8px;
+            align-content: flex-start;
+            min-height: 60px;
+            padding: 8px;
+            background: #141414;
+            border: 1px solid #2a1a1a;
+            border-radius: 8px;
+        }
+        .panel-players .player-grid:empty::after {
+            content: 'Waiting for players to join…';
+            grid-column: 1 / -1;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            padding: 24px 12px;
+        }
+        .panel-players .player-chip {
+            background: #2a1a1a;
+            border: 1.5px solid #3a2a2a;
+            color: #f0d89c;
+            padding: 10px 12px;
+            border-radius: 10px;
+            font-weight: 600;
+            text-align: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, transform 0.08s ease;
+        }
+        .panel-players .player-chip:hover {
+            background: #E21B3C;
+            border-color: #E21B3C;
+            color: #fff;
+            transform: translateY(-1px);
+        }
+        /* Stack settings + actions below the player grid */
+        .panel-players .lobby-config {
+            margin-top: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .panel-players .lobby-actions {
+            margin-top: 14px;
+        }
+        .panel-players .lobby-actions button { width: 100%; font-size: 18px; padding: 14px 28px; }
+        @media (max-width: 900px) {
+            .lobby-grid { grid-template-columns: 1fr; gap: 18px; }
+            .panel-players { height: auto; max-height: 70vh; }
+        }
+
+        /* ─── Game phase: stage + control deck ─── */
+        .game-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+            gap: 28px;
+            align-items: stretch;
+        }
+        .game-grid > .panel {
+            background: #1c1c1c;
+            border: 1px solid #3a1a1a;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            padding: 28px;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-stage { min-height: 70vh; position: relative; }
+        .stage-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding-bottom: 14px;
+            margin-bottom: 18px;
+            border-bottom: 1px solid #3a2a2a;
+        }
+        .stage-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #d4a844;
+            letter-spacing: 0.02em;
+        }
+        .stage-context {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #aaa;
+            font-size: 13px;
+            font-weight: 600;
+            flex-wrap: nowrap;
+            white-space: nowrap;
+        }
+        .stage-context .ctx-chip {
+            background: #2a1a1a;
+            border: 1px solid #3a2a2a;
+            padding: 4px 10px;
+            border-radius: 999px;
+            color: #f0d89c;
+        }
+        .stage-fullscreen {
+            background: transparent;
+            border: 1px solid #3a2a2a;
+            color: #d4a844;
+            border-radius: 8px;
+            padding: 6px 10px;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            transition: background 0.15s ease, border-color 0.15s ease;
+        }
+        .stage-fullscreen:hover { background: #2a1a1a; border-color: #d4a844; }
+        .stage-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 0;
+        }
+        .stage-empty {
+            color: #777;
+            text-align: center;
+            font-size: 16px;
+            line-height: 1.6;
+            padding: 40px 20px;
+        }
+        .stage-empty .stage-empty-icon {
+            font-size: 56px;
+            margin-bottom: 14px;
+            opacity: 0.5;
+        }
+
+        .panel-controls .controls-title {
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #888;
+            margin: 0 0 14px;
+        }
+        .panel-controls .controls-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .panel-controls .controls-list .toggle-button {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-align: left;
+            justify-content: flex-start;
+            padding: 14px 16px;
+        }
+        .panel-controls .controls-list .toggle-button .ctrl-icon {
+            font-size: 20px;
+            line-height: 1;
+            width: 24px;
+            text-align: center;
+        }
+        .panel-controls .controls-list .toggle-button .ctrl-label {
+            flex: 1;
+            min-width: 0;
+        }
+        .panel-controls .controls-list .toggle-button .ctrl-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: transparent;
+            box-shadow: 0 0 0 1px #3a2a2a inset;
+            flex: 0 0 auto;
+        }
+        .panel-controls .controls-list .toggle-button.active .ctrl-dot {
+            background: #d4a844;
+            box-shadow: 0 0 0 2px rgba(212, 168, 68, 0.35);
+        }
+        .panel-controls .controls-footer {
+            margin-top: auto;
+            padding-top: 18px;
+            border-top: 1px solid #3a2a2a;
+            color: #888;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        @media (max-width: 900px) {
+            .game-grid { grid-template-columns: 1fr; gap: 18px; }
+            .panel-stage { min-height: 50vh; }
+        }
+
+        /* When a panel is hosted inside the stage, drop its own decoration. */
+        .stage-body .timer-display-panel,
+        .stage-body .words-display,
+        .stage-body .hear-display,
+        .stage-body .attribution-display {
+            background: transparent;
+            border-left: none;
+            box-shadow: none;
+            padding: 0;
+            margin: 0;
+        }
+        .stage-body .timer-display-panel .timer-expand-btn,
+        .stage-body .hear-display .timer-expand-btn,
+        .stage-body .words-display .expand-fullscreen-btn,
+        .stage-body .attribution-display .expand-fullscreen-btn,
+        .stage-body .words-display .section-label,
+        .stage-body .attribution-display .section-label {
+            display: none !important;
         }
     </style>
 </head>
-<body>
+<body class="host">
+    <div class="host-shell">
+    <!-- Shared game topbar -->
+    <div class="game-topbar" id="empireTopbar">
+      <span class="gtb-brand">👑 Empire</span>
+      <div class="gtb-controls">
+        <a href="/" id="empireHubBtn" class="gtb-btn" title="Back to hub (resets game)">← Hub</a>
+        <button class="gtb-btn" type="button" title="How to play" onclick="document.getElementById('helpOverlay').classList.add('show')">? Help</button>
+        <div class="gtb-settings-wrapper">
+          <button class="gtb-btn" type="button" data-gtb-settings-toggle aria-controls="empireSettingsPanel" aria-expanded="false" title="Settings">⚙️ Settings</button>
+          <div class="gtb-settings-panel" id="empireSettingsPanel" hidden>
+            <button id="empireReactionsBtn" class="gtb-btn" type="button" data-gtb-settings-keep-open title="Mute player reactions">🔔 Reactions</button>
+            <button id="empireFullscreenBtn" class="gtb-btn" type="button" title="Toggle fullscreen" onclick="togglePageFullscreen()">⛶ Fullscreen</button>
+            <div class="gtb-divider"></div>
+            <button id="empireResetBtn" class="gtb-btn gtb-btn-danger" type="button" title="Reset the game" onclick="resetSubmissions()">Reset game</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <main class="host-main">
     <div class="container">
-        <h1>👑 Empire Game ⚔️</h1>
 
         <!-- ═══ API Key Setup ═══ -->
         <div id="viewSetup" style="display:none;">
-            <div class="host-badge"><span>👑 HOST</span></div>
             <div class="api-key-box">
                 <div id="expiredBanner" class="expired-banner">
                     <div class="icon">⚠️</div>
@@ -844,126 +1184,152 @@
             </div>
         </div>
 
-        <!-- ═══ Submission Phase ═══ -->
+        <!-- ═══ Submission Phase (Lobby) ═══ -->
         <div id="viewHostSubmission" style="display:none;">
-            <div class="host-badge"><span>👑 HOST</span></div>
+            <div class="lobby-grid">
+              <!-- LEFT: QR panel -->
+              <div class="panel panel-qr">
+                <h2>Scan to join</h2>
+                <p class="qr-sub">Point your phone camera at the code</p>
+                <div class="qr-box" id="qrCode"></div>
+                <div class="join-url" id="playerUrl"></div>
+              </div>
 
-            <div class="player-tracker">
-                <div class="player-tracker-header" id="playerTrackerHeader" onclick="togglePlayerNames()">
-                    <span><span class="player-count" id="hostPlayerCount">0</span> players joined</span>
-                    <span class="chevron">▼</span>
+              <!-- RIGHT: Players panel -->
+              <div class="panel panel-players">
+                <div class="ph-header">
+                    <h3>Players</h3>
+                    <div class="ph-count" id="hostPlayerCount">0</div>
                 </div>
-                <div class="player-names-list" id="playerNamesList">
-                    <div class="player-names-list-inner" id="playerNamesInner"></div>
+                <div class="player-grid" id="playerNamesInner"></div>
+
+                <div class="lobby-config">
+                    <div class="category-box" id="categoryBox" onclick="startEditCategory()">
+                        <div class="category-label">📂 Category (click to edit)</div>
+                        <div class="category-value" id="categoryDisplay"><span class="category-placeholder">No category set</span></div>
+                    </div>
+                    <div id="categoryEditBox" style="display:none; text-align:center;">
+                        <div style="color:#888; font-size:12px; margin-bottom:6px;">📂 Category</div>
+                        <div class="category-edit-row">
+                            <input type="text" class="category-input" id="categoryInput" placeholder="e.g. Animals, Movies, Celebrities..." maxlength="100">
+                            <button class="randomize-btn" onmousedown="event.preventDefault()" onclick="randomizeCategory()" title="Random category">🎲</button>
+                        </div>
+                        <div style="color:#666; font-size:11px; margin-top:6px;">Press Enter or click away to save</div>
+                    </div>
+
+                    <div class="ai-bot-toggle-row" id="aiBotToggleRow">
+                        <div class="ai-bot-toggle-label">
+                            <span class="title">🤖 AI Bot</span>
+                            <span class="subtitle">Adds a decoy word to throw off players</span>
+                        </div>
+                        <label class="ai-bot-switch">
+                            <input type="checkbox" id="aiBotToggle" onchange="toggleAiBot(this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
                 </div>
-            </div>
 
-            <div class="connection-url">
-                <div class="label">Scan to join:</div>
-                <div id="qrCode" style="display:flex; justify-content:center; margin:12px 0;"></div>
-                <div class="url" id="playerUrl"></div>
-            </div>
-
-            <div class="category-box" id="categoryBox" onclick="startEditCategory()">
-                <div class="category-label">📂 Category (click to edit)</div>
-                <div class="category-value" id="categoryDisplay"><span class="category-placeholder">No category set</span></div>
-            </div>
-            <div id="categoryEditBox" style="display:none; margin-top:15px; text-align:center;">
-                <div style="color:#888; font-size:12px; margin-bottom:6px;">📂 Category</div>
-                <div class="category-edit-row">
-                    <input type="text" class="category-input" id="categoryInput" placeholder="e.g. Animals, Movies, Celebrities..." maxlength="100">
-                    <button class="randomize-btn" onmousedown="event.preventDefault()" onclick="randomizeCategory()" title="Random category">🎲</button>
+                <div class="lobby-actions">
+                    <button class="btn-primary" id="btnStartGame" onclick="startGame()">
+                        Start Game →
+                    </button>
                 </div>
-                <div style="color:#666; font-size:11px; margin-top:6px;">Press Enter or click away to save</div>
-            </div>
-
-            <div class="ai-bot-toggle-row" id="aiBotToggleRow">
-                <div class="ai-bot-toggle-label">
-                    <span class="title">🤖 AI Bot</span>
-                    <span class="subtitle">Adds a decoy word to throw off players</span>
-                </div>
-                <label class="ai-bot-switch">
-                    <input type="checkbox" id="aiBotToggle" onchange="toggleAiBot(this.checked)">
-                    <span class="slider"></span>
-                </label>
-            </div>
-
-            <div style="margin-top:20px;">
-                <p style="color:#888; font-size:13px; text-align:center; margin-bottom:12px;">
-                    Waiting for players to submit words...
-                </p>
-            </div>
-
-            <div class="btn-row" style="margin-top:40px;">
-                <button class="btn-primary" id="btnStartGame" onclick="startGame()">
-                    Start Game →
-                </button>
-                <button class="btn-secondary" onclick="resetSubmissions()">
-                    🔄 Reset Game
-                </button>
+              </div>
             </div>
         </div>
 
         <!-- ═══ Game Phase ═══ -->
         <div id="viewHostGame" style="display:none;">
-            <div class="host-badge"><span>👑 HOST</span></div>
-            <h2 style="margin-bottom:4px;">Game Started!</h2>
-            <div id="gameCategoryDisplay" style="display:none; text-align:center; margin-bottom:4px;">
-                <span style="color:#888; font-size:12px;">📂 </span><span id="gameCategoryValue" style="color:#ccc; font-size:14px; font-weight:600;"></span>
-            </div>
-            <div id="gamePlayerCount" style="color:#888; font-size:0.9em; margin-bottom:20px; text-align:center;"></div>
-            <div class="gap">
-                <button class="toggle-button" id="btnFirstPlayer" onclick="chooseFirstPlayer()">🎲 Choose First Player</button>
-                <button class="toggle-button" id="btnTimer" onclick="toggleTimer()">⏱️ Timer</button>
-                <button class="toggle-button" id="btnHear" onclick="toggleHear()">🔊 Hear All Words</button>
-                <button class="toggle-button" id="btnWords" onclick="toggleWords()">👁️ Reveal All Words</button>
-                <button class="toggle-button" id="btnAttribution" onclick="toggleAttribution()">🎭 Reveal All Words with Names</button>
-            </div>
+            <div class="game-grid">
+                <!-- Stage (left): the active panel renders here -->
+                <div class="panel panel-stage" id="gameStagePanel">
+                    <div class="stage-header">
+                        <div class="stage-title" id="stageTitle">Ready</div>
+                        <div class="stage-context">
+                            <span class="ctx-chip" id="ctxPlayers">0 players</span>
+                            <span class="ctx-chip" id="ctxCategory" style="display:none;"></span>
+                            <button class="stage-fullscreen" id="stageFullscreenBtn" type="button" title="Fullscreen" onclick="openStageFullscreen()" style="display:none;">⛶</button>
+                        </div>
+                    </div>
+                    <div class="stage-body" id="stageBody">
+                        <!-- Empty / placeholder -->
+                        <div class="stage-empty" id="stageEmpty">
+                            <div class="stage-empty-icon">🎴</div>
+                            <div>Pick a tool from the right to bring it on stage.</div>
+                            <div style="margin-top:8px; font-size:13px; color:#666;">Only one panel shows at a time. Use ⛶ to go fullscreen.</div>
+                        </div>
 
-            <hr style="border:none; border-top:1px solid #3a2a2a; margin-top:20px;">
+                        <!-- Stage hosts (hidden by default; shown when active) -->
+                        <div class="timer-display-panel" id="timerDisplayPanel">
+                            <button class="timer-expand-btn" onclick="openTimerFullscreen()" title="Fullscreen timer">⛶</button>
+                            <div class="timer-time-row">
+                                <div class="timer-time" id="timerDisplay">0:30</div>
+                            </div>
+                            <div class="timer-controls">
+                                <button class="btn-primary" id="btnTimerPlay" onclick="timerStart()">Start</button>
+                                <button class="btn-secondary" onclick="timerReset()">Reset</button>
+                            </div>
+                            <div class="timer-preset-row">
+                                <button class="timer-preset" onclick="timerSetPreset(15)">0:15</button>
+                                <button class="timer-preset active" onclick="timerSetPreset(30)">0:30</button>
+                                <button class="timer-preset" onclick="timerSetPreset(45)">0:45</button>
+                                <button class="timer-preset" onclick="timerSetPreset(60)">1:00</button>
+                                <button class="timer-preset" onclick="timerSetPreset(90)">1:30</button>
+                                <button class="timer-preset" onclick="timerSetPreset(120)">2:00</button>
+                            </div>
+                        </div>
 
-            <div class="timer-display-panel" id="timerDisplayPanel">
-                <button class="timer-expand-btn" onclick="openTimerFullscreen()" title="Fullscreen timer">⛶</button>
-                <div class="timer-time-row">
-                    <div class="timer-time" id="timerDisplay" onclick="timerStartEdit()">0:30</div>
+                        <div class="words-display" id="wordsDisplay">
+                            <div class="section-label">All Words <span class="expand-fullscreen-btn" onclick="openFullscreen('words')" title="View fullscreen">⛶</span></div>
+                            <div class="words-grid" id="wordsGrid"></div>
+                        </div>
+
+                        <div class="hear-display" id="hearDisplay">
+                            <button class="timer-expand-btn" onclick="openHearFullscreen()" title="Fullscreen hear">⛶</button>
+                            <div id="audioIndicator" class="audio-indicator">🔊</div>
+                            <div id="hearProgress" style="text-align:center; color:#888; font-size:13px; margin-bottom:12px;"></div>
+                            <div style="display:flex; gap:10px; justify-content:center;">
+                                <button class="btn-secondary" id="btnHearPause" onclick="pauseHear()" style="width:auto; padding:8px 20px;">Pause</button>
+                                <button class="btn-secondary" id="btnHearRestart" onclick="restartHear()" style="width:auto; padding:8px 20px;">Restart</button>
+                            </div>
+                        </div>
+
+                        <div class="attribution-display" id="attributionDisplay">
+                            <div class="section-label">All Words with Names <span class="expand-fullscreen-btn" onclick="openFullscreen('attribution')" title="View fullscreen">⛶</span></div>
+                            <div id="attributionContainer"></div>
+                        </div>
+                    </div>
                 </div>
-                <div class="timer-controls">
-                    <button class="btn-primary" id="btnTimerPlay" onclick="timerStart()">Start</button>
-                    <button class="btn-secondary" onclick="timerReset()">Reset</button>
-                </div>
-                <div class="timer-preset-row">
-                    <button class="timer-preset" onclick="timerSetPreset(15)">0:15</button>
-                    <button class="timer-preset active" onclick="timerSetPreset(30)">0:30</button>
-                    <button class="timer-preset" onclick="timerSetPreset(45)">0:45</button>
-                    <button class="timer-preset" onclick="timerSetPreset(60)">1:00</button>
-                    <button class="timer-preset" onclick="timerSetPreset(90)">1:30</button>
-                    <button class="timer-preset" onclick="timerSetPreset(120)">2:00</button>
-                </div>
-            </div>
 
-            <div class="words-display" id="wordsDisplay">
-                <div class="section-label">All Words <span class="expand-fullscreen-btn" onclick="openFullscreen('words')" title="View fullscreen">⛶</span></div>
-                <div class="words-grid" id="wordsGrid"></div>
-            </div>
-
-            <div class="hear-display" id="hearDisplay">
-                <button class="timer-expand-btn" onclick="openHearFullscreen()" title="Fullscreen hear">⛶</button>
-                <div id="audioIndicator" class="audio-indicator">🔊</div>
-                <div id="hearProgress" style="text-align:center; color:#888; font-size:13px; margin-bottom:12px;"></div>
-                <div style="display:flex; gap:10px; justify-content:center;">
-                    <button class="btn-secondary" id="btnHearPause" onclick="pauseHear()" style="width:auto; padding:8px 20px;">Pause</button>
-                    <button class="btn-secondary" id="btnHearRestart" onclick="restartHear()" style="width:auto; padding:8px 20px;">Restart</button>
+                <!-- Control deck (right): toggles + game info -->
+                <div class="panel panel-controls">
+                    <h3 class="controls-title">Game Tools</h3>
+                    <div class="controls-list">
+                        <button class="toggle-button" id="btnFirstPlayer" onclick="chooseFirstPlayer()">
+                            <span class="ctrl-icon">🎲</span><span class="ctrl-label">Choose First Player</span>
+                        </button>
+                        <button class="toggle-button" id="btnTimer" onclick="toggleTimer()">
+                            <span class="ctrl-icon">⏱️</span><span class="ctrl-label">Timer</span><span class="ctrl-dot"></span>
+                        </button>
+                        <button class="toggle-button" id="btnHear" onclick="toggleHear()">
+                            <span class="ctrl-icon">🔊</span><span class="ctrl-label">Hear All Words</span><span class="ctrl-dot"></span>
+                        </button>
+                        <button class="toggle-button" id="btnWords" onclick="toggleWords()">
+                            <span class="ctrl-icon">👁️</span><span class="ctrl-label">Reveal All Words</span><span class="ctrl-dot"></span>
+                        </button>
+                        <button class="toggle-button" id="btnAttribution" onclick="toggleAttribution()">
+                            <span class="ctrl-icon">🎭</span><span class="ctrl-label">Reveal Words with Names</span><span class="ctrl-dot"></span>
+                        </button>
+                    </div>
+                    <div class="controls-footer">
+                        <span id="controlsHint">Tap a tool to bring it on stage</span>
+                    </div>
                 </div>
             </div>
-
-            <div class="attribution-display" id="attributionDisplay">
-                <div class="section-label">All Words with Names <span class="expand-fullscreen-btn" onclick="openFullscreen('attribution')" title="View fullscreen">⛶</span></div>
-                <div id="attributionContainer"></div>
-            </div>
-
-            <button class="btn-gold" onclick="newRound()" style="margin-top:40px;">New Round</button>
         </div>
-        <div style="text-align:center; color:#555; font-size:11px; margin-top:40px;">Developed by Nick Liu (with help from Claude)</div>
+        <div class="lobby-attribution">Developed by Nick Liu (with help from Claude)</div>
+    </div>
+    </main>
     </div>
 
     <script>
@@ -1154,11 +1520,20 @@
 
         // ─── SSE (real-time updates) ────────────────────────
         function connectSSE() {
-            const es = new EventSource('/api/events');
+            const es = new EventSource('/api/empire/events?role=host');
+            let firstMessage = true;
             es.onmessage = (evt) => {
                 try {
                     const state = JSON.parse(evt.data);
                     render(state);
+                    if (firstMessage) {
+                        firstMessage = false;
+                        // Signal to the iris transition (if any) that the
+                        // page is rendered with real state.
+                        if (window.Iris && typeof window.Iris.ready === 'function') {
+                            window.Iris.ready();
+                        }
+                    }
                 } catch (e) {
                     console.error('SSE parse error:', e);
                 }
@@ -1174,21 +1549,29 @@
             };
         }
 
+        const REACTION_MAX_ON_SCREEN = 30;
         function spawnReaction(emoji) {
+            // Cap concurrent reactions so a flood doesn't crush rendering.
+            const existing = document.querySelectorAll('.reaction-float');
+            if (existing.length >= REACTION_MAX_ON_SCREEN) {
+                existing[0].remove();
+            }
             const el = document.createElement('div');
             el.className = 'reaction-float';
             el.textContent = emoji;
             // Random horizontal position across the screen
-            const x = 10 + Math.random() * 80; // 10-90% from left
-            el.style.left = x + 'vw';
-            el.style.bottom = '40px';
-            document.body.appendChild(el);
+            el.style.left = (5 + Math.random() * 90) + '%';
+            el.style.bottom = '-60px';
+            const scale = 0.85 + Math.random() * 0.5;
+            el.style.fontSize = (36 * scale) + 'px';
+            el.style.animationDuration = (3.0 + Math.random() * 1.2) + 's';
             el.addEventListener('animationend', () => el.remove());
+            document.body.appendChild(el);
         }
 
         async function fetchState() {
             try {
-                const res = await fetch('/api/state');
+                const res = await fetch('/api/empire/state');
                 const state = await res.json();
                 render(state);
             } catch (e) {
@@ -1216,9 +1599,6 @@
             document.getElementById('hearDisplay').classList.remove('show');
             document.querySelectorAll('.toggle-button').forEach(b => b.classList.remove('active'));
             document.getElementById('qrCode').innerHTML = '';
-            // Collapse player names toggle
-            document.getElementById('playerTrackerHeader').classList.remove('expanded');
-            document.getElementById('playerNamesList').classList.remove('show');
             // Clear spinner overlay
             document.getElementById('spinnerOverlay').classList.remove('show');
             document.getElementById('spinnerName').style.color = '';
@@ -1248,6 +1628,9 @@
             knownHostGameId = state.gameId || null;
             knownHostRound = state.round;
 
+            // Reflect server-side reactionsMuted on the topbar button
+            updateReactionsBtn(!!state.reactionsMuted);
+
             const prevPhase = lastHostPhase;
             lastHostPhase = state.phase;
             hideAllViews();
@@ -1270,8 +1653,10 @@
                 if (state.playerNames && state.playerNames.length > 0) {
                     state.playerNames.forEach(name => {
                         const chip = document.createElement('span');
-                        chip.className = 'player-name-chip';
+                        chip.className = 'player-chip';
                         chip.textContent = name;
+                        chip.title = 'Click to remove';
+                        chip.addEventListener('click', () => kickPlayer(name));
                         namesInner.appendChild(chip);
                     });
                 }
@@ -1281,8 +1666,8 @@
                 if (!qrContainer.hasChildNodes()) {
                     new QRCode(qrContainer, {
                         text: url,
-                        width: 180,
-                        height: 180,
+                        width: 300,
+                        height: 300,
                         colorDark: '#d4a844',
                         colorLight: '#1c1c1c',
                         correctLevel: QRCode.CorrectLevel.M
@@ -1319,14 +1704,14 @@
                     document.getElementById('spinnerName').style.color = '';
                 }
                 show('viewHostGame');
-                document.getElementById('gamePlayerCount').textContent = `(${state.playerCount} players)`;
+                // Stage context chips (players, category)
+                const ctxPlayers = document.getElementById('ctxPlayers');
+                if (ctxPlayers) ctxPlayers.textContent = `${state.playerCount} player${state.playerCount === 1 ? '' : 's'}`;
                 const cat = state.category || '';
-                const gameCatEl = document.getElementById('gameCategoryDisplay');
-                if (cat) {
-                    document.getElementById('gameCategoryValue').textContent = cat;
-                    gameCatEl.style.display = 'block';
-                } else {
-                    gameCatEl.style.display = 'none';
+                const ctxCat = document.getElementById('ctxCategory');
+                if (ctxCat) {
+                    if (cat) { ctxCat.textContent = `📂 ${cat}`; ctxCat.style.display = ''; }
+                    else { ctxCat.style.display = 'none'; }
                 }
                 return;
             }
@@ -1334,13 +1719,6 @@
 
         function show(id) {
             document.getElementById(id).style.display = 'block';
-        }
-
-        function togglePlayerNames() {
-            const header = document.getElementById('playerTrackerHeader');
-            const list = document.getElementById('playerNamesList');
-            header.classList.toggle('expanded');
-            list.classList.toggle('show');
         }
 
         // ─── Host Actions ───────────────────────────────────
@@ -1353,7 +1731,7 @@
                 return;
             }
             try {
-                const res = await fetch('/api/set-key', {
+                const res = await fetch('/api/empire/set-key', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ key })
@@ -1373,7 +1751,7 @@
             try {
                 // Ensure AudioContext is created from user gesture
                 getAudioCtx();
-                const res = await fetch('/api/start', { method: 'POST' });
+                const res = await fetch('/api/empire/start', { method: 'POST' });
                 const data = await res.json();
                 if (!res.ok) {
                     showAlert(data.error || 'Cannot start game.');
@@ -1404,7 +1782,7 @@
             if (!display.classList.contains('show')) {
                 // Fetch words if needed
                 if (!hearWords.length) {
-                    const res = await fetch('/api/words');
+                    const res = await fetch('/api/empire/words');
                     const data = await res.json();
                     hearWords = data.words;
                 }
@@ -1515,7 +1893,7 @@
             stopHear();
 
             if (!display.classList.contains('show') && !wordsLoaded) {
-                const res = await fetch('/api/words');
+                const res = await fetch('/api/empire/words');
                 const data = await res.json();
                 document.getElementById('wordsGrid').innerHTML =
                     data.words.map(w => `<div class="word-chip">${escapeHtml(w)}</div>`).join('');
@@ -1545,7 +1923,7 @@
                 stopHear();
 
                 if (!attributionLoaded) {
-                    const res = await fetch('/api/attribution');
+                    const res = await fetch('/api/empire/attribution');
                     const data = await res.json();
                     document.getElementById('attributionContainer').innerHTML =
                         data.attribution.map(s => {
@@ -1569,7 +1947,7 @@
             // Fetch player names if we don't have them yet
             if (!spinnerPlayers.length) {
                 try {
-                    const res = await fetch('/api/attribution');
+                    const res = await fetch('/api/empire/attribution');
                     const data = await res.json();
                     spinnerPlayers = data.attribution.map(s => s.player).filter(p => p !== 'AI Bot 🤖');
                 } catch (e) { return; }
@@ -1643,14 +2021,93 @@
             document.getElementById('spinnerName').style.color = '';
         }
 
-        async function newRound() {
-            await fetch('/api/reset', { method: 'POST' });
+        async function resetSubmissions() {
+            const confirmed = await showConfirm('This will reset the game and clear all player submissions. Continue?', 'Reset', { danger: true });
+            if (!confirmed) return;
+            await fetch('/api/empire/reset', { method: 'POST' });
         }
 
-        async function resetSubmissions() {
-            const confirmed = await showConfirm('This will reset the game and clear all player submissions. Continue?', 'Reset');
+        async function kickPlayer(name) {
+            const confirmed = await showConfirm(`Remove ${name} from the game?`, 'Kick', { danger: true });
             if (!confirmed) return;
-            await fetch('/api/reset', { method: 'POST' });
+            try {
+                const r = await fetch('/api/empire/kick', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ player: name }),
+                });
+                if (!r.ok) {
+                    const data = await r.json().catch(() => ({}));
+                    alert(data.error || 'Could not kick player.');
+                }
+            } catch (_) {
+                alert('Could not kick player. Please try again.');
+            }
+        }
+
+        // Hub button: confirm + reset, then navigate. We use capture-phase so
+        // we run before the anchor's default navigation.
+        document.addEventListener('DOMContentLoaded', function () {
+            const hubBtn = document.getElementById('empireHubBtn');
+            if (hubBtn) {
+                hubBtn.addEventListener('click', async function (e) {
+                    e.preventDefault();
+                    const origin = { clientX: e.clientX, clientY: e.clientY, currentTarget: hubBtn };
+                    const confirmed = await showConfirm(
+                        'Leaving will reset the game and clear all player submissions. Go back to the hub?',
+                        'Leave & Reset',
+                        { danger: true }
+                    );
+                    if (!confirmed) return;
+                    if (document.fullscreenElement || document.webkitFullscreenElement) {
+                        sessionStorage.setItem('hub_fullscreen', '1');
+                    }
+                    try {
+                        await fetch('/api/empire/host-leave', { method: 'POST' });
+                    } catch (_) { /* navigate anyway */ }
+                    if (window.Iris && typeof window.Iris.transitionTo === 'function') {
+                        window.Iris.transitionTo('/', origin, { emoji: '🎮', name: 'Game Hub' });
+                    } else {
+                        window.location.href = '/';
+                    }
+                });
+            }
+
+            // Reactions toggle (mutes/unmutes player reactions server-side).
+            const reactionsBtn = document.getElementById('empireReactionsBtn');
+            if (reactionsBtn) {
+                reactionsBtn.addEventListener('click', async function () {
+                    const next = !reactionsMutedState;
+                    try {
+                        const r = await fetch('/api/empire/reactions-muted', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ muted: next }),
+                        });
+                        const data = await r.json();
+                        if (data && typeof data.reactionsMuted === 'boolean') {
+                            updateReactionsBtn(data.reactionsMuted);
+                        }
+                    } catch (_) { /* ignore */ }
+                });
+            }
+        });
+
+        // ─── Reactions topbar button state ──────────────────
+        let reactionsMutedState = false;
+        function updateReactionsBtn(muted) {
+            reactionsMutedState = !!muted;
+            const btn = document.getElementById('empireReactionsBtn');
+            if (!btn) return;
+            if (reactionsMutedState) {
+                btn.textContent = '🔕 Reactions: Off';
+                btn.classList.add('is-muted');
+                btn.title = 'Player reactions are muted — click to allow';
+            } else {
+                btn.textContent = '🔔 Reactions: On';
+                btn.classList.remove('is-muted');
+                btn.title = 'Click to mute all player reactions';
+            }
         }
 
         // ─── Helpers ────────────────────────────────────────
@@ -1689,7 +2146,7 @@
             document.getElementById('categoryEditBox').style.display = 'none';
             document.getElementById('categoryBox').style.display = 'block';
             updateCategoryDisplay();
-            fetch('/api/category', {
+            fetch('/api/empire/category', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ category: newCategory })
@@ -1708,7 +2165,7 @@
             if (document.getElementById('categoryEditBox').style.display !== 'none') {
                 input.value = pick;
             }
-            fetch('/api/category', {
+            fetch('/api/empire/category', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ category: pick })
@@ -1718,7 +2175,7 @@
         async function toggleAiBot(enabled) {
             document.getElementById('aiBotToggleRow').classList.toggle('active', enabled);
             try {
-                await fetch('/api/ai-bot', {
+                await fetch('/api/empire/ai-bot', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ enabled })
@@ -1755,46 +2212,56 @@
             return div.innerHTML;
         }
 
+        // ─── Game-phase stage controller ──────────────────
+        // The four stage tools (Timer, Words, Hear, Attribution) toggle a
+        // `.show` class on their panel. We watch those classes and update
+        // the stage header (title + ⛶ button) and empty state accordingly.
+        // This keeps the existing toggle functions untouched.
+        const STAGE_TOOLS = [
+            { id: 'timerDisplayPanel', title: '⏱️ Timer', fs: () => openTimerFullscreen() },
+            { id: 'wordsDisplay',      title: '👁️ All Words', fs: () => openFullscreen('words') },
+            { id: 'hearDisplay',       title: '🔊 Hear All Words', fs: () => openHearFullscreen() },
+            { id: 'attributionDisplay',title: '🎭 Words with Names', fs: () => openFullscreen('attribution') },
+        ];
+        let activeStageFsHandler = null;
+        function syncStage() {
+            const titleEl = document.getElementById('stageTitle');
+            const emptyEl = document.getElementById('stageEmpty');
+            const fsBtn = document.getElementById('stageFullscreenBtn');
+            if (!titleEl || !emptyEl || !fsBtn) return;
+            const active = STAGE_TOOLS.find(t => {
+                const el = document.getElementById(t.id);
+                return el && el.classList.contains('show');
+            });
+            if (active) {
+                titleEl.textContent = active.title;
+                emptyEl.style.display = 'none';
+                fsBtn.style.display = '';
+                activeStageFsHandler = active.fs;
+            } else {
+                titleEl.textContent = 'Ready';
+                emptyEl.style.display = '';
+                fsBtn.style.display = 'none';
+                activeStageFsHandler = null;
+            }
+        }
+        function openStageFullscreen() {
+            if (typeof activeStageFsHandler === 'function') activeStageFsHandler();
+        }
+        // Watch the four stage panels for `.show` class changes — anything
+        // that toggles them (existing functions, future ones) keeps the
+        // header in sync without code changes there.
+        document.addEventListener('DOMContentLoaded', () => {
+            const obs = new MutationObserver(() => syncStage());
+            STAGE_TOOLS.forEach(t => {
+                const el = document.getElementById(t.id);
+                if (el) obs.observe(el, { attributes: true, attributeFilter: ['class'] });
+            });
+            syncStage();
+        });
+
         // ─── Custom Alert Modal ─────────────────────────
-
-        function showAlert(message) {
-            return new Promise(resolve => {
-                const overlay = document.getElementById('alertOverlay');
-                document.getElementById('alertText').textContent = message;
-                overlay.classList.add('show');
-
-                function onOk() {
-                    overlay.classList.remove('show');
-                    document.getElementById('alertOk').removeEventListener('click', onOk);
-                    resolve();
-                }
-
-                document.getElementById('alertOk').addEventListener('click', onOk);
-            });
-        }
-
-        // ─── Custom Confirm Modal ────────────────────────
-
-        function showConfirm(message, okLabel = 'Confirm') {
-            return new Promise(resolve => {
-                const overlay = document.getElementById('confirmOverlay');
-                document.getElementById('confirmText').textContent = message;
-                document.getElementById('confirmOk').textContent = okLabel;
-                overlay.classList.add('show');
-
-                function cleanup(result) {
-                    overlay.classList.remove('show');
-                    document.getElementById('confirmOk').removeEventListener('click', onOk);
-                    document.getElementById('confirmCancel').removeEventListener('click', onCancel);
-                    resolve(result);
-                }
-                function onOk() { cleanup(true); }
-                function onCancel() { cleanup(false); }
-
-                document.getElementById('confirmOk').addEventListener('click', onOk);
-                document.getElementById('confirmCancel').addEventListener('click', onCancel);
-            });
-        }
+        // showAlert / showConfirm are provided by /shared/modal.js.
 
         // ─── Fullscreen Word Display ────────────────────
 
@@ -1834,6 +2301,41 @@
                 }
             }
         }
+
+        // Keep the topbar fullscreen button label in sync with state.
+        function updateFullscreenBtnLabel() {
+            const btn = document.getElementById('empireFullscreenBtn');
+            if (!btn) return;
+            const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+            btn.textContent = isFs ? '⛶ Exit' : '⛶ Fullscreen';
+            btn.title = isFs ? 'Exit fullscreen' : 'Toggle fullscreen';
+        }
+        document.addEventListener('fullscreenchange', updateFullscreenBtnLabel);
+        document.addEventListener('webkitfullscreenchange', updateFullscreenBtnLabel);
+        updateFullscreenBtnLabel();
+
+        // Re-enter fullscreen if navigated from hub while fullscreen
+        if (sessionStorage.getItem('hub_fullscreen') === '1') {
+            sessionStorage.removeItem('hub_fullscreen');
+            const banner = document.getElementById('fsRestoreBanner');
+            banner.classList.add('show');
+            banner.addEventListener('click', () => {
+                banner.classList.remove('show');
+                const el = document.documentElement;
+                if (el.requestFullscreen) {
+                    el.requestFullscreen().catch(() => {});
+                } else if (el.webkitRequestFullscreen) {
+                    el.webkitRequestFullscreen();
+                }
+            });
+        }
+
+        // Set fullscreen flag when going back to hub while in fullscreen
+        document.getElementById('backHubBtn').addEventListener('click', () => {
+            if (document.fullscreenElement || document.webkitFullscreenElement) {
+                sessionStorage.setItem('hub_fullscreen', '1');
+            }
+        });
 
         // ─── Timer Logic ────────────────────────────────
 
@@ -1954,76 +2456,6 @@
             document.getElementById('btnTimerFsPlay').textContent = 'Start';
         }
 
-        let timerEditing = false;
-
-        function timerStartEdit() {
-            if (timerRunning || timerEditing) return;
-            timerEditing = true;
-            const el = document.getElementById('timerDisplay');
-            const current = timerFormatDisplay(timerRemaining);
-            el.innerHTML = `<input type="text" class="timer-edit-input" id="timerEditInput" value="${current}" maxlength="5">`;
-            el.onclick = null;
-            const input = document.getElementById('timerEditInput');
-            input.focus();
-            input.select();
-            input.addEventListener('input', () => {
-                input.value = input.value.replace(/[^0-9:]/g, '');
-            });
-            input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') { e.preventDefault(); timerCommitEdit(); }
-                if (e.key === 'Escape') { e.preventDefault(); timerCancelEdit(); }
-            });
-            input.addEventListener('blur', () => timerCommitEdit());
-        }
-
-        function timerCommitEdit() {
-            if (!timerEditing) return;
-            timerEditing = false;
-            const input = document.getElementById('timerEditInput');
-            if (!input) { timerRestoreDisplay(); return; }
-            const raw = input.value.trim();
-            let totalSecs = 0;
-            let valid = true;
-            if (raw.includes(':')) {
-                const parts = raw.split(':');
-                const m = parseInt(parts[0], 10);
-                const s = parseInt(parts[1], 10);
-                if (isNaN(m) || isNaN(s) || m < 0 || s < 0 || s > 59) valid = false;
-                else totalSecs = m * 60 + s;
-            } else {
-                const mins = parseInt(raw, 10);
-                if (isNaN(mins) || mins < 1 || mins > 9) valid = false;
-                else totalSecs = mins * 60;
-            }
-            if (!valid || totalSecs < 1 || totalSecs > 3599) {
-                timerRestoreDisplay();
-                return;
-            }
-            timerDuration = totalSecs;
-            timerRemaining = totalSecs;
-            document.getElementById('btnTimerPlay').textContent = 'Start';
-            document.getElementById('btnTimerFsPlay').textContent = 'Start';
-            // Deselect all presets, re-highlight if it matches one
-            document.querySelectorAll('.timer-preset').forEach(b => {
-                const parts = b.textContent.split(':');
-                const val = parseInt(parts[0]) * 60 + parseInt(parts[1]);
-                b.classList.toggle('active', val === totalSecs);
-            });
-            timerRestoreDisplay();
-        }
-
-        function timerCancelEdit() {
-            timerEditing = false;
-            timerRestoreDisplay();
-        }
-
-        function timerRestoreDisplay() {
-            const el = document.getElementById('timerDisplay');
-            el.textContent = timerFormatDisplay(timerRemaining);
-            el.onclick = timerStartEdit;
-            timerUpdateDisplay();
-        }
-
         function openHearFullscreen() {
             const overlay = document.getElementById('hearFullscreenOverlay');
             syncHearFullscreen();
@@ -2080,46 +2512,30 @@
             const ctx = getAudioCtx();
             if (ctx.state === 'suspended') return;
             const t = ctx.currentTime;
-            // Classic timer beep — short, clean, gets faster/higher as time runs out
-            const freq = 800 + (6 - secsLeft) * 100;
-            const vol = 0.3 + (6 - secsLeft) * 0.04;
-            const beepLen = 0.12;
+            // Match Trivia's last-5s warning sound exactly: a clean 880 Hz
+            // sine pip for ticks 5→1, and a louder 1320 Hz pip at 0.
+            const isFinal = secsLeft === 0;
+            const vol = isFinal ? 1.0 : 0.4 + (5 - secsLeft) * 0.14;
+            const freq = isFinal ? 1320 : 880;
+            const dur = isFinal ? 0.55 : 0.12;
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(ctx.destination);
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(freq, t);
-            gain.gain.setValueAtTime(vol, t);
-            gain.gain.setValueAtTime(vol, t + beepLen * 0.7);
-            gain.gain.exponentialRampToValueAtTime(0.001, t + beepLen);
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0, t);
+            gain.gain.linearRampToValueAtTime(vol, t + 0.01);
+            gain.gain.setValueAtTime(vol, t + dur - 0.04);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+            osc.connect(gain).connect(ctx.destination);
             osc.start(t);
-            osc.stop(t + beepLen);
+            osc.stop(t + dur + 0.02);
         }
 
         function playTimerEnd() {
-            const ctx = getAudioCtx();
-            if (ctx.state === 'suspended') return;
-            const t = ctx.currentTime;
-            // Rapid repeating beeps — like a kitchen timer / alarm clock going off
-            const beepCount = 12;
-            const beepOn = 0.1;
-            const beepOff = 0.1;
-            const cycle = beepOn + beepOff;
-            for (let i = 0; i < beepCount; i++) {
-                const start = t + i * cycle;
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(1000, start);
-                gain.gain.setValueAtTime(0.35, start);
-                gain.gain.setValueAtTime(0.35, start + beepOn * 0.8);
-                gain.gain.exponentialRampToValueAtTime(0.001, start + beepOn);
-                osc.start(start);
-                osc.stop(start + beepOn);
-            }
+            // Match Trivia's time-out sound exactly: the loud final pip
+            // produced by playTick(0) — a single 1320 Hz sine, 0.55s,
+            // at full volume (no rapid alarm-clock loop).
+            playTick(0);
         }
 
         document.addEventListener('keypress', (e) => {
@@ -2128,26 +2544,7 @@
         });
     </script>
 
-    <!-- Alert Modal -->
-    <div class="alert-overlay" id="alertOverlay">
-        <div class="alert-modal">
-            <div class="alert-modal-text" id="alertText"></div>
-            <div class="alert-modal-buttons">
-                <button id="alertOk">OK</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Confirm Modal -->
-    <div class="confirm-overlay" id="confirmOverlay">
-        <div class="confirm-modal">
-            <div class="confirm-modal-text" id="confirmText"></div>
-            <div class="confirm-modal-buttons">
-                <button class="confirm-btn-cancel" id="confirmCancel">Cancel</button>
-                <button class="confirm-btn-ok" id="confirmOk">Confirm</button>
-            </div>
-        </div>
-    </div>
+    <!-- Alert + Confirm modals are provided by /shared/modal.js -->
 
     <!-- Timer Screen Flash -->
     <div class="timer-screen-flash" id="timerScreenFlash"></div>
@@ -2173,15 +2570,16 @@
         </div>
     </div>
 
-    <!-- Global Fullscreen Button -->
-    <button class="fullscreen-page-btn" onclick="togglePageFullscreen()" aria-label="Toggle fullscreen" title="Toggle fullscreen">⛶</button>
+    <!-- Global Fullscreen + Hub buttons moved into the shared topbar. -->
 
-    <!-- Help Button & Modal -->
-    <button class="help-btn" onclick="document.getElementById('helpOverlay').classList.add('show')" aria-label="How to play">?</button>
+    <!-- Fullscreen Restore Banner -->
+    <div class="fs-restore-banner" id="fsRestoreBanner">Tap to restore fullscreen</div>
+
+    <!-- Help modal (button moved into topbar) -->
     <div class="help-overlay" id="helpOverlay" onclick="if(event.target===this)this.classList.remove('show')">
         <div class="help-modal">
             <button class="help-modal-close" onclick="document.getElementById('helpOverlay').classList.remove('show')">&times;</button>
-            <h2>👑 Empire Game ⚔️</h2>
+            <h2>👑 Empire ⚔️</h2>
             <p>A real-time multiplayer party game where each player secretly submits a word, then everyone tries to figure out who submitted what.</p>
             <ol>
                 <li><strong>The host</strong> opens the game on a laptop or TV screen</li>

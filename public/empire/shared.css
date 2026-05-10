@@ -201,30 +201,32 @@ button {
 
 .help-btn {
     position: fixed;
-    bottom: 20px;
-    right: 20px;
-    width: 44px;
-    height: 44px;
+    top: calc(14px + env(safe-area-inset-top, 0px));
+    left: calc(14px + env(safe-area-inset-left, 0px));
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
-    background: #2a2a2a;
-    border: 2px solid #3a2a2a;
+    background: rgba(42, 26, 26, 0.85);
+    border: 1.5px solid rgba(212, 168, 68, 0.45);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     color: #d4a844;
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 700;
     cursor: pointer;
     z-index: 100;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.3s;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    transition: all 0.2s ease;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
     padding: 0;
+    -webkit-tap-highlight-color: transparent;
 }
 .help-btn:hover {
-    background: #3a2a2a;
+    background: rgba(58, 42, 42, 0.95);
     border-color: #d4a844;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
 }
 
 .help-overlay {
@@ -322,3 +324,16 @@ button {
 .pink-theme .help-modal p { color: #6a1040; }
 .pink-theme .help-modal ol { color: #6a1040; }
 .pink-theme .help-modal ol li strong { color: #d63384; }
+
+/* ─── Pink theme: shared element overrides (no yellow text) ──── */
+.pink-theme .input-group label { color: #d63384; }
+.pink-theme input { border-color: rgba(214, 51, 132, 0.4); color: #6a1040; }
+.pink-theme input:focus { border-color: #d63384; }
+.pink-theme .player-tracker {
+    background: rgba(255, 192, 218, 0.4);
+    border-color: rgba(214, 51, 132, 0.4);
+}
+.pink-theme .player-tracker-header { color: #d63384; }
+.pink-theme .player-count { color: #d63384; }
+.pink-theme .section-label { color: #d63384; }
+.pink-theme .spinner { border-color: #d63384; border-top-color: transparent; }

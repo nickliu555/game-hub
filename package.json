@@ -1,7 +1,7 @@
 {
-  "name": "empire-game",
+  "name": "game-hub",
   "version": "1.0.0",
-  "description": "Empire Game - Multiplayer party word game",
+  "description": "Game Hub - Multiplayer party games for phones and a shared screen",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -9,6 +9,9 @@
   "dependencies": {
     "dotenv": "^17.3.1",
     "express": "^4.18.2",
-    "express-rate-limit": "^8.2.1"
+    "express-rate-limit": "^8.2.1",
+    "nanoid": "^3.3.7",
+    "qrcode": "^1.5.3",
+    "socket.io": "^4.7.5"
   }
 }

@@ -1,0 +1,243 @@
+/* ============================================================
+ * Shared Game Topbar
+ * ------------------------------------------------------------
+ * Brand on the left, controls (Hub / toggle buttons / Reset)
+ * on the right. Themed via CSS variables — set these on the
+ * page (or :root) to match the game's visual style.
+ *
+ *   --gtb-bg            background of the bar
+ *   --gtb-border        bottom border color
+ *   --gtb-text          brand + button text color
+ *   --gtb-btn-bg        idle button background
+ *   --gtb-btn-border    idle button border
+ *   --gtb-btn-hover-bg  hover background
+ *   --gtb-btn-hover-fg  hover text color
+ *   --gtb-accent        accent (used for active/muted state)
+ *   --gtb-danger        destructive button color (Reset)
+ * ============================================================ */
+
+.game-topbar {
+  /* Defaults; per-game overrides may set these on :root or .game-topbar */
+  --gtb-bg: rgba(0, 0, 0, 0.35);
+  --gtb-border: rgba(255, 255, 255, 0.12);
+  --gtb-text: #ffffff;
+  --gtb-btn-bg: rgba(255, 255, 255, 0.08);
+  --gtb-btn-border: rgba(255, 255, 255, 0.28);
+  --gtb-btn-hover-bg: rgba(255, 255, 255, 0.18);
+  --gtb-btn-hover-fg: #ffffff;
+  --gtb-accent: #FFC700;
+  --gtb-danger: #E21B3C;
+
+  position: sticky;
+  top: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 24px;
+  background: var(--gtb-bg);
+  border-bottom: 1px solid var(--gtb-border);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--gtb-text);
+  box-sizing: border-box;
+}
+
+.game-topbar .gtb-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--gtb-text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.game-topbar .gtb-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.game-topbar .gtb-btn {
+  /* Reset all inherited button styling so this looks identical
+     across pages with different base CSS (e.g. Empire's shared.css
+     sets `button { width: 100% }`, which would stack the topbar
+     buttons into a column). */
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  width: auto;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  background: var(--gtb-btn-bg);
+  color: var(--gtb-text);
+  border: 1.5px solid var(--gtb-btn-border);
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.08s ease;
+  box-shadow: none;
+}
+.game-topbar .gtb-btn:hover {
+  background: var(--gtb-btn-hover-bg);
+  color: var(--gtb-btn-hover-fg);
+  border-color: var(--gtb-btn-hover-bg);
+  transform: translateY(-1px);
+}
+.game-topbar .gtb-btn:active { transform: translateY(0); }
+.game-topbar .gtb-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+/* "Active" / muted state, e.g. Reactions: Off */
+.game-topbar .gtb-btn.is-active {
+  background: var(--gtb-accent);
+  color: #1f1330;
+  border-color: var(--gtb-accent);
+}
+.game-topbar .gtb-btn.is-muted {
+  background: var(--gtb-danger);
+  color: #fff;
+  border-color: var(--gtb-danger);
+}
+
+/* Destructive (Reset) — subtle outline by default, red on hover */
+.game-topbar .gtb-btn.gtb-btn-danger {
+  border-color: rgba(226, 27, 60, 0.45);
+  color: var(--gtb-text);
+}
+.game-topbar .gtb-btn.gtb-btn-danger:hover {
+  background: var(--gtb-danger);
+  border-color: var(--gtb-danger);
+  color: #fff;
+}
+
+@media (max-width: 640px) {
+  .game-topbar { padding: 10px 14px; gap: 10px; }
+  .game-topbar .gtb-brand { font-size: 18px; }
+  .game-topbar .gtb-btn { padding: 8px 11px; font-size: 13px; }
+}
+
+/* ============================================================
+ * Settings popover
+ * Anchors a panel under a "⚙ Settings" topbar button. The
+ * panel itself contains stacked .gtb-btn entries (Reactions,
+ * Fullscreen, Reset, etc.) so they re-use existing styling.
+ * ============================================================ */
+.gtb-settings-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+.gtb-settings-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  padding: 10px;
+  background: var(--gtb-panel-bg, #1c1c1c);
+  color: var(--gtb-text);
+  border: 1px solid var(--gtb-border);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 95;
+}
+.gtb-settings-panel[hidden] { display: none; }
+/* Buttons inside the settings panel stretch full-width and left-align. */
+.gtb-settings-panel .gtb-btn {
+  width: 100%;
+  justify-content: flex-start;
+  flex: 0 0 auto;
+}
+.gtb-settings-panel .gtb-section {
+  padding: 6px 8px 2px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gtb-text);
+  opacity: 0.6;
+}
+.gtb-settings-panel .gtb-divider {
+  height: 1px;
+  background: var(--gtb-border);
+  margin: 4px -2px;
+}
+
+/* ============================================================
+ * Help modal (themable, shared across games)
+ * ============================================================ */
+.gtb-help-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  z-index: 220;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.gtb-help-overlay.is-open { display: flex; }
+
+.gtb-help-modal {
+  background: var(--gtb-panel-bg, #1c1c1c);
+  border: 1px solid var(--gtb-border);
+  border-radius: 14px;
+  padding: 30px;
+  max-width: 480px;
+  width: 100%;
+  max-height: 82vh;
+  overflow-y: auto;
+  position: relative;
+  color: var(--gtb-text);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+}
+.gtb-help-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--gtb-text);
+  opacity: 0.65;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 10px;
+  width: auto;
+}
+.gtb-help-modal-close:hover { opacity: 1; color: var(--gtb-accent); }
+.gtb-help-modal h2 {
+  color: var(--gtb-accent);
+  font-size: 22px;
+  margin: 0 0 12px;
+  text-align: center;
+}
+.gtb-help-modal p {
+  font-size: 14px;
+  line-height: 1.55;
+  margin: 0 0 16px;
+  text-align: center;
+  opacity: 0.9;
+}
+.gtb-help-modal ol, .gtb-help-modal ul {
+  font-size: 14px;
+  line-height: 1.7;
+  padding-left: 22px;
+  margin: 0;
+}
+.gtb-help-modal li { margin-bottom: 6px; }
+.gtb-help-modal li strong { color: var(--gtb-accent); }

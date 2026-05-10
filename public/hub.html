@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Hub</title>
+    <script src="/shared/iris-preload.js"></script>
+    <link rel="stylesheet" href="hub.css">
+    <link rel="stylesheet" href="/shared/iris.css">
+    <script src="/shared/iris.js" defer></script>
+</head>
+<body>
+    <header class="hub-header">
+        <h1>🎮 <span class="accent">Game</span> Hub</h1>
+        <p>Pick a game and start playing</p>
+    </header>
+
+    <main class="hub-main">
+        <div class="section-label">Games</div>
+        <div class="game-cards" id="gameCards">
+            <!-- Populated by JS -->
+        </div>
+    </main>
+
+    <footer class="hub-footer">Game Hub</footer>
+
+    <button class="fullscreen-btn" onclick="toggleFullscreen()" aria-label="Toggle fullscreen" title="Toggle fullscreen">⛶</button>
+
+    <div class="fs-restore-banner" id="fsRestoreBanner">Tap to restore fullscreen</div>
+
+    <script>
+        async function loadGames() {
+            try {
+                const res = await fetch('/api/games');
+                const games = await res.json();
+                render(games);
+            } catch (e) {
+                document.getElementById('gameCards').innerHTML =
+                    '<p style="color:#8f98a0;">Failed to load games.</p>';
+            } finally {
+                if (window.Iris && typeof window.Iris.ready === 'function') {
+                    window.Iris.ready();
+                }
+            }
+        }
+
+        function render(games) {
+            const container = document.getElementById('gameCards');
+            container.innerHTML = '';
+            games.forEach(game => {
+                const card = document.createElement('div');
+                card.className = 'game-card';
+
+                const rulesHtml = game.rules && game.rules.length
+                    ? `<div class="game-rules">
+                        <h3>How to Play</h3>
+                        <ol>${game.rules.map(r => `<li>${esc(r)}</li>`).join('')}</ol>
+                       </div>`
+                    : '';
+
+                card.innerHTML = `
+                    <div class="game-card-header">
+                        <span class="game-emoji">${esc(game.emoji)}</span>
+                        <div class="game-info">
+                            <div class="game-name">${esc(game.name)}</div>
+                            <div class="game-tagline">${esc(game.tagline)}</div>
+                            <div class="game-meta">
+                                <span>👥 ${esc(game.playerCount)}</span>
+                                <span>⏱ ${esc(game.duration)}</span>
+                            </div>
+                        </div>
+                        <span class="game-chevron">▼</span>
+                    </div>
+                    <div class="game-card-body">
+                        <div class="game-card-body-inner">
+                            <p class="game-description">${esc(game.description)}</p>
+                            ${rulesHtml}
+                            <div class="game-actions">
+                                <a href="${esc(game.hostPath)}" class="btn-play">▶ Play</a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                card.querySelector('.game-card-header').addEventListener('click', () => {
+                    card.classList.toggle('expanded');
+                });
+
+                // Prevent card toggle when clicking the Play button
+                card.querySelector('.btn-play').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (document.fullscreenElement || document.webkitFullscreenElement) {
+                        sessionStorage.setItem('hub_fullscreen', '1');
+                    }
+                    startIrisTransition(e, game);
+                });
+
+                container.appendChild(card);
+            });
+        }
+
+        function esc(str) {
+            const d = document.createElement('div');
+            d.textContent = str || '';
+            return d.innerHTML;
+        }
+
+        function startIrisTransition(e, game) {
+            e.preventDefault();
+            const href = e.currentTarget.getAttribute('href');
+            window.Iris.transitionTo(href, e, {
+                emoji: game.emoji,
+                name: game.name,
+            });
+        }
+
+        loadGames();
+
+        // Restore fullscreen if coming back from a game page
+        if (sessionStorage.getItem('hub_fullscreen') === '1') {
+            sessionStorage.removeItem('hub_fullscreen');
+            const banner = document.getElementById('fsRestoreBanner');
+            banner.classList.add('show');
+            banner.addEventListener('click', () => {
+                banner.classList.remove('show');
+                const el = document.documentElement;
+                if (el.requestFullscreen) {
+                    el.requestFullscreen().catch(() => {});
+                } else if (el.webkitRequestFullscreen) {
+                    el.webkitRequestFullscreen();
+                }
+            });
+        }
+
+        function toggleFullscreen() {
+            if (document.fullscreenElement || document.webkitFullscreenElement) {
+                (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+            } else {
+                const el = document.documentElement;
+                if (el.requestFullscreen) {
+                    el.requestFullscreen().catch(() => {});
+                } else if (el.webkitRequestFullscreen) {
+                    el.webkitRequestFullscreen();
+                }
+            }
+        }
+    </script>
+</body>
+</html>
