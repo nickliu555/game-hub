@@ -222,7 +222,6 @@ html { touch-action: manipulation; }
     bottom: calc(10px + env(safe-area-inset-bottom, 0px));
   }
   .reaction-btn { font-size: 30px; padding: 12px 0; }
-  .tile { font-size: 22px; }
   .countdown-pill { font-size: 14px; padding: 6px 12px; }
 }
 
