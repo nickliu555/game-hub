@@ -669,6 +669,11 @@
   function renderQuestion(q) {
     currentQ = q;
     lastTickSec = null;
+    // Capture the client/server clock offset NOW, while the socket event is
+    // still fresh. startQTimer below may be deferred via requestAnimationFrame,
+    // which is paused on hidden tabs — if we let startQTimer recalc the offset
+    // from a delayed q.serverNow it will skew the displayed countdown.
+    if (typeof q.serverNow === 'number') clockOffset = q.serverNow - Date.now();
     const wasPromptOnly = document.body.classList.contains('host-prompt-only');
     show('question');
     qIndex.textContent = q.index + 1;
@@ -781,7 +786,6 @@
 
   function startQTimer(q) {
     stopQTimer();
-    if (typeof q.serverNow === 'number') clockOffset = q.serverNow - Date.now();
     const update = function () {
       const msLeft = Math.max(0, q.endsAt - serverNow());
       const secLeft = Math.ceil(msLeft / 1000);

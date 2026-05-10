@@ -789,7 +789,7 @@ body.host.host-prompt-only #view-question .answer-grid .answer-card {
   transform: scale(1);
   opacity: 1;
 }
-.sting-overlay.timeout .sting-text { color: #ffb3bf; }
+.sting-overlay.timeout .sting-text { color: #ff4757; }
 .sting-overlay.all-answered .sting-text { color: #b6f0a8; }
 
 /* Final-question splash: gold tint and a smoother, more cinematic exit. */
