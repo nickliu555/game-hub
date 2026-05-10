@@ -118,7 +118,7 @@ input[type="text"]:focus, select:focus { border-color: var(--accent); }
 /* Tile color helpers (shared between player + host) */
 .tile-color-0 { background: var(--ans-a); }
 .tile-color-1 { background: var(--ans-b); }
-.tile-color-2 { background: var(--ans-c); color: var(--ink) !important; } /* yellow needs dark text */
+.tile-color-2 { background: var(--ans-c); }
 .tile-color-3 { background: var(--ans-d); }
 
 /* Big A/B/C/D letter on each answer tile */
@@ -138,5 +138,3 @@ input[type="text"]:focus, select:focus { border-color: var(--accent); }
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.18);
 }
-/* On the yellow tile (which has dark text), use a darker translucent disc */
-.tile-color-2 .choice-letter { background: rgba(0, 0, 0, 0.15); }
