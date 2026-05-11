@@ -1,15 +1,14 @@
 /* iris-preload.js — synchronous head script that eliminates flicker on the
- * destination page of an iris transition. Must be loaded in <head> *without*
- * `defer` or `async`, BEFORE iris.css/iris.js, so it runs before the first
- * paint.
+ * destination page of a page transition. Must be loaded in <head> *without*
+ * `defer` or `async`, BEFORE iris.css/iris.js, so it runs before first paint.
  *
- * If the previous page initiated an iris transition (sessionStorage flag),
- * this script:
+ * If the previous page initiated a transition (sessionStorage flag), this
+ * script:
  *   1) Adds `iris-incoming` to <html> (CSS pre-paint cover kicks in).
- *   2) Builds the actual iris-overlay element with the emoji + name and
- *      appends it to <html> already in the "covered" state. iris.js will
- *      later find this element and handle the collapse — there is no
- *      handoff between layers, so nothing flickers in.
+ *   2) Builds the actual overlay (cover + spinner + emoji) and appends it
+ *      to <html> already in the "covered" state. iris.js later finds this
+ *      element and handles the collapse — no handoff between layers, so
+ *      nothing flickers.
  */
 (function () {
     var raw;
@@ -28,26 +27,29 @@
     var html = document.documentElement;
     html.classList.add('iris-incoming');
 
-    // Build the overlay synchronously. iris.css will style it (it loads
-    // immediately after this script in <head>, and CSS is render-blocking,
-    // so it'll be applied before first paint).
+    // If a destination color was provided, set it on <html> so the CSS
+    // pre-paint cover (`html.iris-incoming::before`) uses it too — keeps
+    // the cover color continuous from before iris.js runs.
+    if (data.color) {
+        html.style.setProperty('--iris-bg', data.color);
+    }
+
     var ov = document.createElement('div');
-    ov.className = 'iris-overlay no-transition revealing iris-active';
+    ov.className = 'iris-overlay no-transition revealing';
     ov.id = 'irisOverlay';
     ov.setAttribute('aria-hidden', 'true');
-    ov.style.setProperty('--iris-x', '50%');
-    ov.style.setProperty('--iris-y', '50%');
+    if (data.color) ov.style.backgroundColor = data.color;
 
-    var emoji = document.createElement('div');
-    emoji.className = 'iris-emoji';
-    emoji.textContent = data.emoji || '';
+    ov.innerHTML =
+        '<div class="iris-loader">' +
+          '<svg class="iris-ring" viewBox="0 0 50 50" aria-hidden="true">' +
+            '<circle class="iris-ring-track" cx="25" cy="25" r="22" />' +
+            '<circle class="iris-ring-arc"   cx="25" cy="25" r="22" />' +
+          '</svg>' +
+          '<div class="iris-emoji"></div>' +
+        '</div>';
+    ov.querySelector('.iris-emoji').textContent = data.emoji || '🎮';
 
-    var name = document.createElement('div');
-    name.className = 'iris-name';
-    name.textContent = data.name || '';
-
-    ov.appendChild(emoji);
-    ov.appendChild(name);
     html.appendChild(ov);
     // Mark that the JS-built overlay exists so the CSS-only pre-paint
     // cover stays hidden (avoids double-paint).

@@ -1,45 +1,43 @@
-/* Shared iris-reveal page transition.
+/* Shared page transition: a flat color cover with a centered emoji wrapped
+ * in a spinning ring. Communicates "loading into <this game>" without the
+ * theatrical iris-wipe.
  *
- * Markup: a single overlay element is auto-injected by iris.js if not present:
+ * Markup (auto-injected by iris.js / iris-preload.js):
  *   <div class="iris-overlay" id="irisOverlay" aria-hidden="true">
- *     <div class="iris-emoji"></div>
- *     <div class="iris-name"></div>
+ *     <div class="iris-loader">
+ *       <svg class="iris-ring" viewBox="0 0 50 50">
+ *         <circle class="iris-ring-track" cx="25" cy="25" r="22" />
+ *         <circle class="iris-ring-arc"   cx="25" cy="25" r="22" />
+ *       </svg>
+ *       <div class="iris-emoji"></div>
+ *     </div>
  *   </div>
  *
- * Trigger: call `Iris.transitionTo(href, originEvent, { emoji, name })`,
- * or add `data-iris` to an <a> element (auto-bound on click). Optional
- * data attributes: `data-iris-emoji`, `data-iris-name`.
+ * Trigger from JS:
+ *   Iris.transitionTo(href, originEvent, { emoji, name, color });
+ *   ('name' is accepted for back-compat but no longer rendered.)
+ *
+ * Or declaratively: <a data-iris href="..." data-iris-emoji="🧠"
+ *                      data-iris-color="#46178F">
  */
 
-/* Shared iris-reveal page transition.
- *
- * Markup: a single overlay element is auto-injected by iris.js if not present:
- *   <div class="iris-overlay" id="irisOverlay" aria-hidden="true">
- *     <div class="iris-emoji"></div>
- *     <div class="iris-name"></div>
- *   </div>
- *
- * Trigger: call `Iris.transitionTo(href, originEvent, { emoji, name })`,
- * or add `data-iris` to an <a> element (auto-bound on click). Optional
- * data attributes: `data-iris-emoji`, `data-iris-name`.
- */
+:root {
+    --iris-bg: #1b2838;
+}
 
-/* ─── Pre-paint cover ───────────────────────────────────────────────
-   When the destination page starts loading, an inline <head> script adds
-   `iris-incoming` to <html> (sync, before first paint). This rule covers
-   the screen with the iris background color *before* any of the page's
-   CSS or content can paint, eliminating the flicker between navigation
-   and the iris.js-controlled overlay taking over. */
+/* ─── Pre-paint cover ────────────────────────────────────────────────
+   The destination's <head> script (iris-preload.js) sets `iris-incoming`
+   on <html> synchronously, before first paint. This rule covers the
+   screen with the iris background instantly, so there's no flash of the
+   destination's own background before iris.js takes over. */
 html.iris-incoming::before {
     content: "";
     position: fixed;
     inset: 0;
-    background: #1b2838;
+    background: var(--iris-bg);
     z-index: 9999;
     pointer-events: none;
 }
-/* Once iris.js has injected its real overlay, we drop the pre-paint cover
-   to avoid a double layer. */
 html.iris-incoming.iris-active::before {
     display: none;
 }
@@ -47,92 +45,72 @@ html.iris-incoming.iris-active::before {
 .iris-overlay {
     position: fixed;
     inset: 0;
-    background: #1b2838;
+    background: var(--iris-bg);
     z-index: 10000;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 18px;
     pointer-events: none;
-    clip-path: circle(0 at var(--iris-x, 50%) var(--iris-y, 50%));
-    -webkit-clip-path: circle(0 at var(--iris-x, 50%) var(--iris-y, 50%));
-    transition: clip-path 2000ms cubic-bezier(0.4, 0, 0.2, 1),
-                -webkit-clip-path 2000ms cubic-bezier(0.4, 0, 0.2, 1);
-    will-change: clip-path;
+    opacity: 0;
+    transition: opacity 250ms ease;
+    will-change: opacity;
 }
-
 .iris-overlay.revealing {
     pointer-events: auto;
-    clip-path: circle(150% at var(--iris-x, 50%) var(--iris-y, 50%));
-    -webkit-clip-path: circle(150% at var(--iris-x, 50%) var(--iris-y, 50%));
+    opacity: 1;
 }
-
-/* Used to skip transitions when initially showing the overlay covered
-   on the destination page (so it appears instantly, then collapses). */
-.iris-overlay.no-transition,
-.iris-overlay.no-transition .iris-emoji,
-.iris-overlay.no-transition .iris-name {
+.iris-overlay.no-transition {
     transition: none !important;
 }
 
-.iris-emoji {
-    font-size: 72px;
-    opacity: 0;
-    transform: scale(0.6);
-    transition: opacity 600ms ease, transform 600ms ease;
+/* Loader: emoji centered inside a spinning ring. */
+.iris-loader {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
-
-.iris-name {
-    font-size: 22px;
-    font-weight: 600;
-    color: #ffffff;
-    letter-spacing: 0.5px;
-    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
-    opacity: 0;
-    transform: translateY(8px);
-    transition: opacity 600ms ease, transform 600ms ease;
+.iris-ring {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    animation: irisRingSpin 1.4s linear infinite;
 }
-
-.iris-overlay.revealing .iris-emoji {
-    opacity: 1;
-    transform: none;
-    /* Delay only on reveal; on collapse, fade out immediately. */
-    transition-delay: 800ms;
+.iris-ring-track {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.12);
+    stroke-width: 3;
 }
-
-.iris-overlay.revealing .iris-name {
-    opacity: 1;
-    transform: none;
-    transition-delay: 1000ms;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .iris-overlay,
-    .iris-emoji,
-    .iris-name {
-        transition: none;
-    }
-}
-
-/* ─── Page dim/blur during transition ────────────────────────────────
-   When the iris is active, the underlying page eases into a slight
-   scale + blur. On collapse, it eases back to normal — hiding any
-   late-loading "pop-in" of content. The overlay itself lives outside
-   <body> (appended to <html>) so the body transform doesn't break its
-   fixed positioning. */
-body.iris-page-active {
-    transform: scale(1.04);
-    filter: blur(6px);
+.iris-ring-arc {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.95);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-dasharray: 90 200;
+    stroke-dashoffset: 0;
     transform-origin: 50% 50%;
 }
-body {
-    transition: transform 700ms cubic-bezier(0.4, 0, 0.2, 1),
-                filter 700ms cubic-bezier(0.4, 0, 0.2, 1);
+.iris-emoji {
+    font-size: 56px;
+    line-height: 1;
+    user-select: none;
+    /* Subtle breathing pulse so the moment feels alive even on instant loads. */
+    animation: irisEmojiPulse 1.6s ease-in-out infinite;
 }
+
+@keyframes irisRingSpin {
+    to { transform: rotate(360deg); }
+}
+@keyframes irisEmojiPulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.06); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-    body.iris-page-active {
-        transform: none;
-        filter: none;
-    }
+    .iris-overlay { transition: none; }
+    .iris-ring,
+    .iris-emoji { animation: none; }
 }

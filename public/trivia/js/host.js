@@ -150,7 +150,7 @@
             if (navigated) return;
             navigated = true;
             if (window.Iris && typeof window.Iris.transitionTo === 'function') {
-              window.Iris.transitionTo('/', origin, { emoji: '🎮', name: 'Game Hub' });
+              window.Iris.transitionTo('/', origin, { emoji: '🎮', name: 'Game Hub', color: '#1b2838' });
             } else {
               window.location.href = '/';
             }
