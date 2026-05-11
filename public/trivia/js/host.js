@@ -855,12 +855,16 @@
       const isCorrect = i === r.correctIndex;
       const colorVar = ['--ans-a','--ans-b','--ans-c','--ans-d'][i];
       const choiceText = (q.choices && q.choices[i]) || '';
+      const indicator = isCorrect
+        ? '<div class="row-indicator correct-check" aria-label="Correct answer">✓</div>'
+        : '<div class="row-indicator" aria-hidden="true"></div>';
       return (
         '<div class="bar-row ' + (isCorrect ? 'correct' : '') + '">' +
           '<div class="shape" style="color: var(' + colorVar + ')">' + shapeHTML(i) + '</div>' +
           '<div class="choice-text">' + escapeHtml(choiceText) + '</div>' +
           '<div class="bar"><div class="bar-fill" style="width:' + pct.toFixed(1) + '%; background: var(' + colorVar + ')"></div></div>' +
           '<div class="count">' + count + '</div>' +
+          indicator +
         '</div>'
       );
     }).join('');

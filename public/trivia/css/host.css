@@ -394,13 +394,17 @@ body.host {
 .bars h3 { margin: 0 0 14px; }
 .bar-row {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1.4fr) minmax(0, 2fr) 56px;
+  grid-template-columns: 44px minmax(0, 1.4fr) minmax(0, 2fr) 56px 36px;
   align-items: center;
   gap: 10px; margin: 10px 0;
   padding: 4px 6px;
   border-radius: 8px;
 }
-.bar-row .shape { font-size: 28px; text-align: center; line-height: 1; }
+.bar-row .shape {
+  font-size: 28px;
+  text-align: center;
+  line-height: 1;
+}
 .bar-row .choice-text {
   font-weight: 600;
   font-size: 18px;
@@ -415,11 +419,42 @@ body.host {
 }
 .bar-row .count { text-align: right; font-weight: 800; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .bar-row.correct {
-  background: rgba(38, 137, 12, 0.10);
-  box-shadow: inset 0 0 0 2px var(--good);
+  background: linear-gradient(90deg, rgba(38, 137, 12, 0.18) 0%, rgba(38, 137, 12, 0.08) 100%);
+  box-shadow: inset 0 0 0 3px var(--good), 0 4px 18px rgba(38, 137, 12, 0.18);
 }
-.bar-row.correct .choice-text { color: var(--good); font-weight: 800; }
-.bar-row:not(.correct) { opacity: 0.85; }
+.bar-row.correct .choice-text {
+  color: var(--good);
+  font-weight: 800;
+}
+.bar-row:not(.correct) {
+  opacity: 0.55;
+  filter: grayscale(0.35);
+}
+/* Reserved indicator column at the end of every row, so the answer text and
+   bar lengths stay aligned across rows. Empty on wrong rows; a green check
+   appears on the correct row. */
+.row-indicator {
+  width: 36px;
+  height: 36px;
+}
+.correct-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--good);
+  color: white;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgba(38, 137, 12, 0.45);
+  animation: correctBadgePop 0.5s cubic-bezier(.2, 1.6, .4, 1) both;
+}
+@keyframes correctBadgePop {
+  0%   { transform: scale(0.4) rotate(-8deg); opacity: 0; }
+  60%  { transform: scale(1.2)  rotate(2deg);  opacity: 1; }
+  100% { transform: scale(1)    rotate(0);     opacity: 1; }
+}
 
 .leaderboard-panel {
   background: var(--surface); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow);
