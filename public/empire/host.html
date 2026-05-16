@@ -1309,7 +1309,7 @@
                             <span class="ctrl-icon">🎲</span><span class="ctrl-label">Choose First Player</span>
                         </button>
                         <button class="toggle-button" id="btnTimer" onclick="toggleTimer()">
-                            <span class="ctrl-icon">⏱️</span><span class="ctrl-label">Timer</span><span class="ctrl-dot"></span>
+                            <span class="ctrl-icon">⏰</span><span class="ctrl-label">Timer</span><span class="ctrl-dot"></span>
                         </button>
                         <button class="toggle-button" id="btnHear" onclick="toggleHear()">
                             <span class="ctrl-icon">🔊</span><span class="ctrl-label">Hear All Words</span><span class="ctrl-dot"></span>
@@ -1610,7 +1610,7 @@
             document.getElementById('btnTimerFsPlay').textContent = 'Start';
             document.getElementById('timerDisplayPanel').classList.remove('show', 'urgent', 'expired');
             document.getElementById('btnTimer').classList.remove('active');
-            document.getElementById('btnTimer').textContent = '⏱️ Timer';
+            document.getElementById('btnTimer').textContent = '⏰ Timer';
             document.getElementById('timerScreenFlash').className = 'timer-screen-flash';
             closeTimerFullscreen();
             closeHearFullscreen();
@@ -2218,7 +2218,7 @@
         // the stage header (title + ⛶ button) and empty state accordingly.
         // This keeps the existing toggle functions untouched.
         const STAGE_TOOLS = [
-            { id: 'timerDisplayPanel', title: '⏱️ Timer', fs: () => openTimerFullscreen() },
+            { id: 'timerDisplayPanel', title: '⏰ Timer', fs: () => openTimerFullscreen() },
             { id: 'wordsDisplay',      title: '👁️ All Words', fs: () => openFullscreen('words') },
             { id: 'hearDisplay',       title: '🔊 Hear All Words', fs: () => openHearFullscreen() },
             { id: 'attributionDisplay',title: '🎭 Words with Names', fs: () => openFullscreen('attribution') },
