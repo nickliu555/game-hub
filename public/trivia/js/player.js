@@ -191,41 +191,48 @@
     urgentClassAdded = false;
     haptic5Fired = false;
     haptic2Fired = false;
-    countdownInterval = setInterval(function () {
+    let lastLeft = -1;
+    const tick = function () {
       if (!currentQuestion) return stopCountdown();
       const el = document.getElementById('pcountdown');
       if (!el) return stopCountdown();
-      const left = Math.max(0, Math.ceil((currentQuestion.endsAt - serverNow()) / 1000));
-      el.textContent = left + 's';
+      const msLeftPrecise = Math.max(0, currentQuestion.endsAt - serverNow());
+      const left = Math.ceil(msLeftPrecise / 1000);
 
       const stillAnswering =
         !answeredQuestionId || answeredQuestionId !== currentQuestion.id;
 
-      if (stillAnswering && left <= 5 && left > 0) {
-        if (!urgentClassAdded) {
-          urgentClassAdded = true;
-          document.body.classList.add('urgent');
-          el.classList.add('urgent');
-          const bar = document.getElementById('urgentBar');
-          if (bar) {
-            const msLeftPrecise = Math.max(0, currentQuestion.endsAt - serverNow());
-            const elapsedInUrgent = 5000 - msLeftPrecise;
-            bar.style.animationDelay = '-' + (elapsedInUrgent / 1000).toFixed(2) + 's';
+      if (left !== lastLeft) {
+        lastLeft = left;
+        el.textContent = left + 's';
+
+        if (stillAnswering && left <= 5 && left > 0) {
+          if (!urgentClassAdded) {
+            urgentClassAdded = true;
+            document.body.classList.add('urgent');
+            el.classList.add('urgent');
+            const bar = document.getElementById('urgentBar');
+            if (bar) {
+              const elapsedInUrgent = 5000 - msLeftPrecise;
+              bar.style.animationDelay = '-' + (elapsedInUrgent / 1000).toFixed(2) + 's';
+            }
           }
+          if (left <= 5 && !haptic5Fired) { haptic5Fired = true; tryVibrate(50); }
+          if (left <= 2 && !haptic2Fired) { haptic2Fired = true; tryVibrate([90, 60, 90]); }
+        } else if (urgentClassAdded && (!stillAnswering || left <= 0)) {
+          urgentClassAdded = false;
+          document.body.classList.remove('urgent');
+          el.classList.remove('urgent');
         }
-        if (left <= 5 && !haptic5Fired) { haptic5Fired = true; tryVibrate(50); }
-        if (left <= 2 && !haptic2Fired) { haptic2Fired = true; tryVibrate([90, 60, 90]); }
-      } else if (urgentClassAdded && (!stillAnswering || left <= 0)) {
-        urgentClassAdded = false;
-        document.body.classList.remove('urgent');
-        el.classList.remove('urgent');
       }
 
-      if (left <= 0) stopCountdown();
-    }, 250);
+      if (msLeftPrecise <= 0) { stopCountdown(); return; }
+      countdownInterval = requestAnimationFrame(tick);
+    };
+    countdownInterval = requestAnimationFrame(tick);
   }
   function stopCountdown() {
-    if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+    if (countdownInterval) { cancelAnimationFrame(countdownInterval); countdownInterval = null; }
     document.body.classList.remove('urgent');
     const el = document.getElementById('pcountdown');
     if (el) el.classList.remove('urgent');

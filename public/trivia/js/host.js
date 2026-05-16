@@ -786,25 +786,36 @@
 
   function startQTimer(q) {
     stopQTimer();
+    const totalMs = q.timeLimitSec * 1000;
+    let lastSec = -1;
+    let urgent = false;
     const update = function () {
       const msLeft = Math.max(0, q.endsAt - serverNow());
       const secLeft = Math.ceil(msLeft / 1000);
-      const pct = Math.max(0, (msLeft / (q.timeLimitSec * 1000)) * 100);
-      timerText.textContent = String(secLeft);
+      const pct = Math.max(0, (msLeft / totalMs) * 100);
+      // Ring updates every frame for smoothness; cheap single style write.
       timerRing.style.setProperty('--pct', pct.toFixed(1));
-      if (secLeft <= 5 && msLeft > 0) timerRing.classList.add('urgent');
-      else timerRing.classList.remove('urgent');
-      if (secLeft >= 0 && secLeft <= 5 && secLeft !== lastTickSec) {
-        lastTickSec = secLeft;
-        playTick(secLeft);
+      // Text + urgent + tick fire only on second-boundary changes.
+      if (secLeft !== lastSec) {
+        lastSec = secLeft;
+        timerText.textContent = String(secLeft);
+        const shouldUrgent = secLeft <= 5 && msLeft > 0;
+        if (shouldUrgent !== urgent) {
+          urgent = shouldUrgent;
+          timerRing.classList.toggle('urgent', urgent);
+        }
+        if (secLeft >= 0 && secLeft <= 5 && secLeft !== lastTickSec) {
+          lastTickSec = secLeft;
+          playTick(secLeft);
+        }
       }
-      if (msLeft <= 0) stopQTimer();
+      if (msLeft <= 0) { stopQTimer(); return; }
+      qTimer = requestAnimationFrame(update);
     };
-    update();
-    qTimer = setInterval(update, 100);
+    qTimer = requestAnimationFrame(update);
   }
   function stopQTimer() {
-    if (qTimer) { clearInterval(qTimer); qTimer = null; }
+    if (qTimer) { cancelAnimationFrame(qTimer); qTimer = null; }
     if (timerRing) timerRing.classList.remove('urgent');
   }
 
