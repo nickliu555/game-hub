@@ -1,6 +1,7 @@
 (function () {
   'use strict';
 
+  // RFC 4122 v4 generator — kept inline so this file has no external deps.
   function uuid() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
       const r = (Math.random() * 16) | 0;
@@ -14,7 +15,9 @@
   const errorMsg = document.getElementById('errorMsg');
   const submitBtn = form.querySelector('button[type="submit"]');
 
-  // Host-absent overlay (created on demand, covers the join form).
+  // The overlay is created on demand and disables the Join button while
+  // the host is away — it would be confusing to let a player join a game
+  // that nobody is running.
   function ensureHostAbsentOverlay() {
     let ov = document.getElementById('hostAbsentOverlay');
     if (ov) return ov;
@@ -24,7 +27,7 @@
     ov.hidden = true;
     ov.innerHTML =
       '<div class="host-absent-card">' +
-        '<div class="icon">🧠</div>' +
+        '<div class="icon"><span class="brand-24">24</span></div>' +
         '<div class="title">No game in progress</div>' +
         '<div class="sub">' +
           '<span class="pulse-dot"></span>' +
@@ -34,7 +37,7 @@
     document.body.appendChild(ov);
     return ov;
   }
-  // Separate overlay for the "quiz already started" case so the wording
+  // Separate overlay for the "round already started" case so the wording
   // reflects reality (it isn't a host-absence problem — just bad timing).
   function ensureRoundLockedOverlay() {
     let ov = document.getElementById('roundLockedOverlay');
@@ -45,22 +48,23 @@
     ov.hidden = true;
     ov.innerHTML =
       '<div class="host-absent-card">' +
-        '<div class="icon">🧠</div>' +
-        '<div class="title">Quiz in progress</div>' +
+        '<div class="icon"><span class="brand-24">24</span></div>' +
+        '<div class="title">Round in progress</div>' +
         '<div class="sub">' +
           '<span class="pulse-dot"></span>' +
-          'You can\'t hop in mid-quiz. This page will unlock as soon as the host starts the next one.' +
+          'You can\'t hop in mid-round. This page will unlock as soon as the host starts the next one.' +
         '</div>' +
       '</div>';
     document.body.appendChild(ov);
     return ov;
   }
+
   let hostPresent = false;
   let roundLocked = false;
   function refreshLockState() {
     const hostOv = ensureHostAbsentOverlay();
     const roundOv = ensureRoundLockedOverlay();
-    // Host-absent takes precedence so we don't tell the player "quiz in
+    // Host-absent takes precedence so we don't tell the player "round in
     // progress" when really no one is even running the game.
     hostOv.hidden = hostPresent;
     roundOv.hidden = !(hostPresent && roundLocked);
@@ -68,7 +72,7 @@
     if (hostPresent && errorMsg.textContent && /host/i.test(errorMsg.textContent)) {
       errorMsg.textContent = '';
     }
-    if (!roundLocked && errorMsg.textContent && /quiz|started/i.test(errorMsg.textContent)) {
+    if (!roundLocked && errorMsg.textContent && /round/i.test(errorMsg.textContent)) {
       errorMsg.textContent = '';
     }
   }
@@ -80,33 +84,31 @@
     roundLocked = !!locked;
     refreshLockState();
   }
-  // Default to absent + locked until the server confirms otherwise so we
-  // never flash an enabled Join button before we know the real state.
+  // Default to absent + locked until the server says otherwise so we never
+  // flash an enabled Join button before we know the real state.
   setHostPresent(false);
   setRoundLocked(true);
 
-  // If we already have a playerId, go straight to /trivia/play
-  const existing = localStorage.getItem('trivia.playerId');
+  // If we've joined before, jump straight to the play screen.
+  const existing = localStorage.getItem('twentyfour.playerId');
   if (existing) {
-    window.location.replace('/trivia/play');
+    window.location.replace('/twentyfour/play');
     return;
   }
 
-  // Pre-fill name if the host just reset the game.
-  const rejoinName = localStorage.getItem('trivia.rejoinName');
+  // Pre-fill the name if the host just reset the game and bounced us here.
+  const rejoinName = localStorage.getItem('twentyfour.rejoinName');
   if (rejoinName) {
     nameInput.value = rejoinName;
-    localStorage.removeItem('trivia.rejoinName');
+    localStorage.removeItem('twentyfour.rejoinName');
   }
 
-  const socket = io('/trivia', { transports: ['polling', 'websocket'] });
+  const socket = io('/twentyfour', { transports: ['polling', 'websocket'] });
 
   let socketReady = false;
   socket.on('connect', function () {
     socketReady = true;
     errorMsg.textContent = '';
-    // Ask the server whether a host is currently present. Until we hear back,
-    // the form stays disabled (default state set above).
     socket.emit('query:status', {}, function (status) {
       setHostPresent(!!(status && status.hostPresent));
       setRoundLocked(!!(status && status.phase && status.phase !== 'LOBBY'));
@@ -115,21 +117,16 @@
   socket.on('state:hostPresence', function (p) {
     setHostPresent(!(p && p.present === false));
   });
-  // Quiz lifecycle is broadcast across the namespace, so even though we
-  // haven't joined yet we still hear when a quiz starts/ends/resets.
+  // Round lifecycle is broadcast across the namespace, so even though we
+  // haven't joined yet we still hear when a round starts/ends/resets.
+  socket.on('state:round', function () { setRoundLocked(true); });
+  socket.on('state:final', function () { setRoundLocked(true); });
   socket.on('state:lobby', function () { setRoundLocked(false); });
   socket.on('state:reset', function () { setRoundLocked(false); });
-  socket.on('state:intro', function () { setRoundLocked(true); });
-  socket.on('state:prompt', function () { setRoundLocked(true); });
-  socket.on('state:question', function () { setRoundLocked(true); });
-  socket.on('state:reveal', function () { setRoundLocked(true); });
-  socket.on('state:final', function () { setRoundLocked(true); });
   socket.on('connect_error', function (err) {
     errorMsg.textContent = 'Connection error: ' + (err && err.message ? err.message : err);
   });
-  socket.on('disconnect', function () {
-    socketReady = false;
-  });
+  socket.on('disconnect', function () { socketReady = false; });
 
   function showError(msg) {
     errorMsg.textContent = msg;
@@ -157,18 +154,18 @@
       if (!res || !res.ok) {
         const reason = res && res.reason;
         const friendly = {
-          'lobby-closed': 'The quiz has already started — sorry, you cannot join now.',
           'name-blocked': 'Please choose a different name.',
           'name-too-short': 'Please enter a valid name.',
           'name-taken': (res && res.name ? '"' + res.name + '"' : 'That name') + ' is already another player\'s name.',
           'host-absent': 'The host isn\'t here right now. Wait for them to return and try again.',
+          'round-in-progress': 'A round is already in progress. Wait for the host to start the next one.',
           'bad-player-id': 'Something went wrong. Please reload the page.',
         }[reason] || 'Could not join. Please try again.';
         return showError(friendly);
       }
-      localStorage.setItem('trivia.playerId', pid);
-      localStorage.setItem('trivia.playerName', res.player.name);
-      window.location.replace('/trivia/play');
+      localStorage.setItem('twentyfour.playerId', pid);
+      localStorage.setItem('twentyfour.playerName', res.player.name);
+      window.location.replace('/twentyfour/play');
     });
   });
 })();

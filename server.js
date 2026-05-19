@@ -6,6 +6,7 @@ const http = require('http');
 const rateLimit = require('express-rate-limit');
 const games = require('./games');
 const mountTrivia = require('./server/trivia');
+const mountTwentyFour = require('./server/twentyfour');
 const app = express();
 
 app.set('trust proxy', 1);
@@ -712,12 +713,18 @@ Respond ONLY with valid JSON (no markdown, no extra text):
 const PORT = process.env.PORT || 3000;
 const httpServer = http.createServer(app);
 
-// Mount the Trivia game (Socket.IO namespace + REST endpoints).
-mountTrivia(app, httpServer, { getPublicBaseUrl: () => {
+// Build the public base URL once — both games need it for QR generation.
+const getPublicBaseUrl = () => {
     if (process.env.RENDER_EXTERNAL_URL) return process.env.RENDER_EXTERNAL_URL;
     if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL;
     return `http://${LOCAL_IP}:${PORT}`;
-} });
+};
+
+// Mount the Trivia game (Socket.IO namespace + REST endpoints).
+mountTrivia(app, httpServer, { getPublicBaseUrl });
+
+// Mount the "24" math game (Socket.IO namespace + REST endpoints + page routes).
+mountTwentyFour(app, httpServer, { getPublicBaseUrl });
 
 httpServer.listen(PORT, '0.0.0.0', () => {
     console.log('');
@@ -732,6 +739,8 @@ httpServer.listen(PORT, '0.0.0.0', () => {
         console.log(`  Empire Play:  http://${LOCAL_IP}:${PORT}/empire/play`);
         console.log(`  Trivia Host:  http://localhost:${PORT}/trivia/host`);
         console.log(`  Trivia Play:  http://${LOCAL_IP}:${PORT}/trivia/play`);
+        console.log(`  24 Host:      http://localhost:${PORT}/twentyfour/host`);
+        console.log(`  24 Play:      http://${LOCAL_IP}:${PORT}/twentyfour/play`);
     }
     console.log('═══════════════════════════════════════════');
     console.log('');

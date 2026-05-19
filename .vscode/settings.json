@@ -7,6 +7,10 @@
         "/^node --check server\\.js && node --check server/trivia/index\\.js && node --check public/trivia/js/host\\.js && node --check public/trivia/js/player\\.js && node --check public/trivia/js/join\\.js && echo OK$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^node -e \"const a=require\\('\\./server/twentyfour/puzzles\\.json'\\); console\\.log\\('count:',a\\.length, 'first:', JSON\\.stringify\\(a\\[0\\]\\), 'last:', JSON\\.stringify\\(a\\[a\\.length-1\\]\\)\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }

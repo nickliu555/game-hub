@@ -1,0 +1,315 @@
+/* === Player screen: phone-first. Tap a number, an op, then another number. === */
+
+body.player {
+  background: linear-gradient(180deg, #f7eeee 0%, #ffffff 100%);
+  color: var(--ink);
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.player-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 14px 16px 24px;
+  gap: 12px;
+  min-height: 0;
+}
+
+.p-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 4px;
+}
+.p-header .me {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.p-header .me .name {
+  font-weight: 800;
+  font-size: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 56vw;
+}
+.p-header .me .score {
+  background: var(--accent);
+  color: #fff;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.p-header .countdown {
+  font-family: ui-monospace, Menlo, Monaco, monospace;
+  font-weight: 800;
+  font-size: 20px;
+  color: var(--ink);
+  background: var(--surface);
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(0,0,0,0.08);
+  transition: color 0.2s, border-color 0.2s, background 0.2s, transform 0.1s;
+}
+.p-header .countdown.warn {
+  color: var(--accent);
+  border-color: var(--accent);
+  animation: countdown-pulse 1s ease-in-out infinite;
+}
+.p-header .countdown.urgent {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent-deep);
+  font-size: 22px;
+  animation: countdown-urgent 0.6s ease-in-out infinite;
+  box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.55);
+}
+@keyframes countdown-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+@keyframes countdown-urgent {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.55); }
+  50% { transform: scale(1.12); box-shadow: 0 0 0 10px rgba(234, 88, 12, 0); }
+}
+
+
+/* Vertically center the puzzle content (numbers grid + ops + controls) in
+   the area below the header so the whole thing reads as a balanced block
+   rather than crammed against the top. */
+#view-puzzle {
+  justify-content: center;
+}
+
+/* Number grid (2x2) — the heart of the screen. A perfect square so every
+   tile is always the same fixed size, even when some tiles are consumed. */
+.numbers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 14px;
+  aspect-ratio: 1 / 1;
+  /* Cap by both available width AND leftover vertical room (after header,
+     history, ops, controls) so the square never overflows the viewport. */
+  width: min(100%, calc(100dvh - 360px));
+  margin: 0 auto;
+}
+.tile {
+  background: var(--tile-bg);
+  border: 2.5px solid var(--tile-border);
+  border-radius: 22px;
+  font-family: var(--font-sans);
+  font-weight: 800;
+  color: var(--tile-ink);
+  font-size: clamp(40px, 14vw, 72px);
+  font-variant-numeric: tabular-nums;
+  padding: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  transition: transform 0.08s ease, border-color 0.15s ease, background 0.2s ease, opacity 0.25s ease;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.05);
+  min-width: 0;
+  min-height: 0;
+}
+.tile.selected {
+  background: var(--tile-selected-bg);
+  border-color: var(--tile-selected-border);
+  transform: translateY(-2px) scale(1.02);
+}
+.tile.consumed {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.85);
+}
+.tile.disabled { opacity: 0.55; pointer-events: none; }
+.tile .frac {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  gap: 2px;
+}
+.tile .frac .num,
+.tile .frac .den {
+  font-size: 0.55em;
+}
+.tile .frac .bar {
+  width: 0.7em;
+  height: 3px;
+  background: currentColor;
+  border-radius: 2px;
+}
+
+/* Shake when an attempted final value is wrong. */
+.tile.shake { animation: shake 0.4s ease; }
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(6px); }
+}
+.tile.win {
+  background: var(--good);
+  color: #fff;
+  border-color: var(--good);
+  animation: pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
+/* Operator row */
+.ops {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.op {
+  background: var(--op-bg);
+  color: var(--op-ink);
+  border: 2px solid var(--accent);
+  border-radius: 16px;
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: 30px;
+  padding: 14px 0;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.08s ease, background 0.15s ease, color 0.15s ease;
+}
+.op.selected,
+.op:active {
+  background: var(--op-selected-bg);
+  color: var(--op-selected-ink);
+}
+.op.disabled, .op[disabled] {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* Control row: Undo / Reset / Skip. Pushed a bit lower with a subtle
+   divider so it reads as a distinct row from the operator buttons. */
+.controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  margin-top: 36px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(0,0,0,0.08);
+}
+.controls button {
+  padding: 12px 0;
+  font-size: 15px;
+  background: rgba(0,0,0,0.06);
+  color: var(--ink);
+  font-weight: 700;
+}
+.controls button:hover:not(:disabled) { background: rgba(0,0,0,0.10); }
+.controls .btn-skip { background: var(--accent); color: #fff; }
+.controls .btn-skip:hover:not(:disabled) { background: var(--accent-deep); }
+.controls .skip-remaining {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.9;
+  margin-top: 1px;
+}
+
+/* Per-player final summary */
+.final-card {
+  margin: auto;
+  background: var(--surface);
+  padding: 28px 24px;
+  border-radius: 22px;
+  text-align: center;
+  box-shadow: var(--shadow-strong);
+  max-width: 380px;
+  width: 100%;
+}
+.final-card h1 { margin: 0 0 4px; font-size: 32px; }
+.final-card .rank-line {
+  font-size: 18px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.final-card .stats {
+  display: flex;
+  justify-content: space-around;
+  gap: 12px;
+  padding: 12px 0 18px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.final-card .stats .v {
+  display: block;
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Big translucent overlay covering the play area when host isn't here. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(200, 16, 46, 0.92);
+  color: #fff;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  z-index: 100;
+  text-align: center;
+}
+.overlay.show { display: flex; }
+.overlay h2 { margin: 0; font-size: 28px; }
+.overlay p { margin: 0; max-width: 320px; line-height: 1.5; }
+
+/* Lobby waiting view */
+.lobby-wait {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 14px;
+  padding: 24px;
+}
+.lobby-wait .pulse {
+  width: 88px;
+  height: 88px;
+  background: var(--accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 900;
+  font-size: 32px;
+  box-shadow: 0 0 0 0 rgba(200, 16, 46, 0.5);
+  animation: pulse 1.8s infinite;
+}
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(200, 16, 46, 0.45); }
+  70%  { box-shadow: 0 0 0 18px rgba(200, 16, 46, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(200, 16, 46, 0); }
+}

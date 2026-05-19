@@ -175,7 +175,10 @@ function mountTrivia(app, httpServer, opts) {
     // Anyone (join page, player page) can ask for current status to render
     // the right initial UI before any other events fire.
     socket.on('query:status', (_p, ack) => {
-      ack && ack({ hostPresent: isHostPresent() });
+      ack && ack({
+        hostPresent: isHostPresent(),
+        phase: game.phase,
+      });
     });
 
     // ---- Player flows ----

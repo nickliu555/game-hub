@@ -228,6 +228,23 @@
             background: linear-gradient(180deg, rgba(255, 192, 218, 0.95), rgba(255, 214, 232, 0.95));
             border-color: rgba(255, 105, 180, 0.45);
         }
+
+        /* ─── Submit card (frames the join form so inputs aren't floating) ─── */
+        .submit-card {
+            background: linear-gradient(180deg, rgba(42, 26, 26, 0.9), rgba(28, 18, 18, 0.95));
+            border: 1px solid rgba(212, 168, 68, 0.22);
+            border-radius: 14px;
+            padding: 28px 22px 24px;
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+        }
+        .submit-card .player-tracker { margin-bottom: 18px; }
+        .pink-theme .submit-card {
+            background: linear-gradient(180deg, rgba(255, 192, 218, 0.95), rgba(255, 214, 232, 0.95));
+            border-color: rgba(255, 105, 180, 0.45);
+        }
+        @media (max-width: 600px) {
+            .submit-card { padding: 22px 16px 20px; }
+        }
         .pink-theme .state-card h2 { color: #d63384; }
         .pink-theme .state-card h2.is-warn { color: #d63384; }
         .pink-theme .state-card {
@@ -609,30 +626,32 @@
                 <span class="cc-label">Category</span>
                 <span id="submitCategoryValue"></span>
             </div>
-            <div class="player-tracker">
-                <div class="player-tracker-header">
-                    <span class="player-count" id="playerPlayerCount">0</span> players joined
+            <div class="submit-card">
+                <div class="player-tracker">
+                    <div class="player-tracker-header">
+                        <span class="player-count" id="playerPlayerCount">0</span> players joined
+                    </div>
                 </div>
-            </div>
-            <div class="input-group">
-                <label for="playerName">Your Name</label>
-                <input type="text" id="playerName" placeholder="Enter your name" autocomplete="given-name" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="next" maxlength="50">
-            </div>
-            <div class="input-group">
-                <label for="playerWord">Your Secret Word</label>
-                <input type="text" id="playerWord" placeholder="Enter your word" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="send" maxlength="150">
-            </div>
-            <div id="playerSubmitMsg" class="msg"></div>
-            <div id="categoryWarningBox" style="display:none; margin-top:12px;">
-                <div class="msg warning show" style="background:rgba(212,168,68,0.1); color:#d4a844; border-left:4px solid #d4a844; text-align:left; margin-bottom:10px;">
-                    <span id="categoryWarningText"></span>
+                <div class="input-group">
+                    <label for="playerName">Your Name</label>
+                    <input type="text" id="playerName" placeholder="Enter your name" autocomplete="given-name" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="next" maxlength="50">
                 </div>
-                <button class="btn-primary" id="btnSubmitAnyway" onclick="submitAnyway()" style="width:100%;">Submit Anyway</button>
-                <button type="button" class="btn-link-resubmit" onclick="dismissCategoryWarning()">Change word</button>
-            </div>
-            <div id="submitBtnRow" style="margin-top:22px;">
-                <button class="btn-primary" id="btnPlayerSubmit" onclick="playerSubmitWord()" style="width:100%;">Submit Word</button>
-                <button type="button" class="btn-link-resubmit" onclick="playerClear()">Clear</button>
+                <div class="input-group">
+                    <label for="playerWord">Your Secret Word</label>
+                    <input type="text" id="playerWord" placeholder="Enter your word" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="send" maxlength="150">
+                </div>
+                <div id="playerSubmitMsg" class="msg"></div>
+                <div id="categoryWarningBox" style="display:none; margin-top:12px;">
+                    <div class="msg warning show" style="background:rgba(212,168,68,0.1); color:#d4a844; border-left:4px solid #d4a844; text-align:left; margin-bottom:10px;">
+                        <span id="categoryWarningText"></span>
+                    </div>
+                    <button class="btn-primary" id="btnSubmitAnyway" onclick="submitAnyway()" style="width:100%;">Submit Anyway</button>
+                    <button type="button" class="btn-link-resubmit" onclick="dismissCategoryWarning()">Change word</button>
+                </div>
+                <div id="submitBtnRow" style="margin-top:22px;">
+                    <button class="btn-primary" id="btnPlayerSubmit" onclick="playerSubmitWord()" style="width:100%;">Submit Word</button>
+                    <button type="button" class="btn-link-resubmit" onclick="playerClear()">Clear</button>
+                </div>
             </div>
         </div>
 
@@ -670,9 +689,12 @@
                 <span id="gameCategoryValue"></span>
             </div>
             <div class="state-card">
-                <div class="sc-icon">🎮</div>
                 <h2>The game has started!</h2>
                 <p>Look at the host's screen to see the words.</p>
+                <div class="sc-pulse">
+                    <span class="pulse-dot"></span>
+                    <span><span class="player-count" id="gamePlayerCount" style="font-size:14px;">0</span> <span id="gamePlayerCountLabel">players in the game</span></span>
+                </div>
                 <div class="secret-card" id="secretCardGame" onclick="toggleSecretCard('Game')" role="button" tabindex="0" aria-label="Reveal your word">
                     <div class="secret-label">🔒 Your secret word</div>
                     <div class="secret-reveal-zone">
@@ -716,6 +738,16 @@
                 <div class="sc-actions">
                     <button class="btn-primary" onclick="rejoinAfterKick()" style="width:100%; max-width:240px;">Rejoin</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- ═══ Game in progress — player never submitted, locked out ═══ -->
+        <div id="viewPlayerLocked" style="display:none;">
+            <div class="state-card">
+                <div class="sc-icon">🔒</div>
+                <h2 class="is-warn">Game in progress</h2>
+                <p>You can't hop in mid-game. This page will unlock as soon as the host starts the next round.</p>
+                <div class="sc-pulse"><span class="pulse-dot"></span> Standing by</div>
             </div>
         </div>
 
@@ -917,9 +949,21 @@
                 return;
             }
             if (state.phase === 'playing') {
+                // Players who never submitted a word for this round don't get
+                // to peek at the game — lock them out until the next round.
+                if (!playerSubmitted) {
+                    show('viewPlayerLocked');
+                    setReactionBarVisible(false);
+                    return;
+                }
                 show('viewPlayerGame');
                 showPlayerHeader();
                 showCategoryBanner('game', state.category);
+                // Surface the player count where the icon used to live.
+                const gpc = document.getElementById('gamePlayerCount');
+                const gpl = document.getElementById('gamePlayerCountLabel');
+                if (gpc) gpc.textContent = state.playerCount;
+                if (gpl) gpl.textContent = state.playerCount === 1 ? 'player in the game' : 'players in the game';
                 // Reset word reveal to hidden when first entering game phase
                 if (prevPhase !== 'playing') {
                     resetSecretCard('Game');

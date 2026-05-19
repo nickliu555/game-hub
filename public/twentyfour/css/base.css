@@ -1,0 +1,142 @@
+:root {
+  /* 24 Game brand palette: warm orange on white with a yellow accent. */
+  --bg: #F97316;             /* primary orange */
+  --bg-deep: #C2410C;        /* darker orange for gradients */
+  --surface: #FFFFFF;
+  --ink: #1A1A1A;
+  --ink-soft: #4a4a4a;
+  --muted: #8a8a8a;
+
+  --accent: #EA580C;
+  --accent-deep: #9A3412;
+  --warn: #EA580C;
+  --good: #1f8a3a;
+  --gold: #FFD200;            /* accent yellow */
+
+  /* Tile colors for the 4 number cards on the player screen. White cards
+     with an orange border read most like the 24 Game box. */
+  --tile-bg: #FFFFFF;
+  --tile-ink: #1A1A1A;
+  --tile-border: rgba(0, 0, 0, 0.10);
+  --tile-selected-bg: #FFF6D4;
+  --tile-selected-border: var(--gold);
+  --tile-disabled-bg: #f4f1ee;
+
+  /* Operator buttons */
+  --op-bg: #FFFFFF;
+  --op-ink: var(--accent);
+  --op-selected-bg: var(--accent);
+  --op-selected-ink: #FFFFFF;
+
+  --radius: 14px;
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  --shadow-strong: 0 12px 40px rgba(0, 0, 0, 0.30);
+
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+
+  /* Shared modal theme — light cards on a darkened backdrop with an orange
+     primary action button. */
+  --gm-overlay-bg: rgba(0, 0, 0, 0.55);
+  --gm-surface: var(--surface);
+  --gm-text: var(--ink);
+  --gm-border: rgba(0, 0, 0, 0.08);
+  --gm-radius: var(--radius);
+  --gm-btn-secondary-bg: #f1ecec;
+  --gm-btn-secondary-fg: var(--ink-soft);
+  --gm-btn-secondary-border: rgba(0, 0, 0, 0.08);
+  --gm-btn-secondary-hover-border: rgba(0, 0, 0, 0.18);
+  --gm-btn-secondary-hover-fg: var(--ink);
+  --gm-btn-primary-bg: var(--accent);
+  --gm-btn-primary-fg: #fff;
+  --gm-btn-primary-border: var(--accent);
+  --gm-btn-primary-hover: var(--accent-deep);
+  --gm-btn-danger-bg: var(--accent);
+  --gm-btn-danger-fg: #fff;
+  --gm-btn-danger-hover: var(--accent-deep);
+  --gm-toast-bg: var(--ink);
+  --gm-toast-fg: #fff;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior-y: contain;
+}
+
+h1, h2, h3 { font-family: var(--font-sans); font-weight: 800; letter-spacing: -0.01em; }
+
+.player-attribution {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+  padding: 14px 12px 18px;
+}
+
+button, .btn-ghost {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: var(--ink);
+  color: white;
+  padding: 14px 22px;
+  border-radius: var(--radius);
+  font-size: 16px;
+  font-weight: 700;
+  text-decoration: none;
+  display: inline-block;
+  transition: transform 0.08s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+button:hover:not(:disabled), .btn-ghost:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+button:active:not(:disabled) { transform: translateY(0); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-accent  { background: var(--gold); color: var(--ink); }
+.btn-ghost   { background: rgba(255, 255, 255, 0.1); color: white; border: 1.5px solid rgba(255,255,255,0.4); }
+.btn-ghost.btn-muted { background: var(--warn); color: white; border-color: var(--warn); }
+
+input[type="text"], select {
+  font-family: inherit;
+  font-size: 18px;
+  padding: 14px 16px;
+  border: 1.5px solid #e0d6d6;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.15s ease;
+  width: 100%;
+}
+input[type="text"]:focus, select:focus { border-color: var(--accent); }
+
+.brand {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: 28px;
+  color: white;
+  letter-spacing: -0.01em;
+}
+
+/* The signature "24" badge — used as the brand chip on host & join pages. */
+.brand-24 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6em;
+  height: 1.6em;
+  padding: 0 0.15em;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 0.22em;
+  font-weight: 900;
+  font-size: 1em;
+  letter-spacing: -0.02em;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
