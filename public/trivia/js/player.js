@@ -19,6 +19,7 @@
   let answeredQuestionId = null;
   let countdownInterval = null;
   let lastResult = null;
+  let lobbyTotalPlayers = 0;
 
   // ---------------- Rendering ----------------
   function render(html) {
@@ -26,9 +27,17 @@
   }
 
   function renderLobbyWaiting() {
+    const label = lobbyTotalPlayers === 1 ? 'player' : 'players';
+    const countLine = lobbyTotalPlayers > 0
+      ? '<div class="lobby-player-count">' +
+          '<span class="pulse-dot"></span>' +
+          '<span><strong>' + lobbyTotalPlayers + '</strong> ' + label + ' in the lobby</span>' +
+        '</div>'
+      : '';
     render(
       '<h2>You\'re in!</h2>' +
       '<p>Look up at the big screen. The quiz will start soon.</p>' +
+      countLine +
       '<p style="margin-top:14px; color: var(--muted); font-size: 14px;">Keep this tab open.</p>'
     );
   }
@@ -382,7 +391,11 @@
       reactionsMutedByHost = !!res.reactionsMuted;
       updateHostPresence(res.hostPresent !== false);
       updateReactionButtonState();
-      if (res.phase === 'LOBBY') { setReactionsAllowed(true); renderLobbyWaiting(); }
+      if (res.phase === 'LOBBY') {
+        if (typeof res.total === 'number') lobbyTotalPlayers = res.total;
+        setReactionsAllowed(true);
+        renderLobbyWaiting();
+      }
       else if (res.phase === 'INTRO') { setReactionsAllowed(false); renderIntro(res.intro); }
       else if (res.phase === 'PROMPT') { setReactionsAllowed(false); renderPrompt(res.prompt); }
       else if (res.phase === 'QUESTION' && res.question) {
@@ -410,6 +423,7 @@
   socket.on('state:lobby', function (s) {
     if (rejected) return;
     if (s && s.phase === 'LOBBY') {
+      if (typeof s.total === 'number') lobbyTotalPlayers = s.total;
       setReactionsAllowed(true);
       if (!currentQuestion || answeredQuestionId === (currentQuestion && currentQuestion.id)) {
         renderLobbyWaiting();

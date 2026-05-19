@@ -1,0 +1,609 @@
+/* ─── Easter egg: Pink theme ─── */
+body.pink-theme {
+    background: linear-gradient(135deg, #ff9ec6 0%, #ff6fa8 30%, #e84393 60%, #ff9ec6 100%);
+}
+body.pink-theme::before {
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Ctext x='10' y='40' font-size='28'%3E💕%3C/text%3E%3Ctext x='60' y='90' font-size='28'%3E💗%3C/text%3E%3Ctext x='10' y='90' font-size='22'%3E💖%3C/text%3E%3Ctext x='70' y='35' font-size='22'%3E💕%3C/text%3E%3C/svg%3E");
+    background-size: 120px 120px;
+    opacity: 0.15;
+    -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 100%);
+    mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 100%);
+}
+.pink-theme .container {
+    background: #ffd6e8;
+    border: 2px solid #ff69b4;
+    box-shadow: 0 10px 40px rgba(255, 105, 180, 0.4), 0 0 60px rgba(255, 105, 180, 0.15);
+    position: relative;
+    z-index: 1;
+}
+.pink-theme h1 {
+    color: #d63384;
+    text-shadow: 0 0 10px rgba(255, 105, 180, 0.3);
+}
+.pink-theme .player-tracker {
+    background: #ffc0da;
+    border: 2px solid #ff85c8;
+}
+.pink-theme .player-tracker-header { color: #c0246a; }
+.pink-theme .player-count { color: #d63384; }
+.pink-theme label { color: #a0205a; }
+.pink-theme input {
+    border: 2px solid #ffb0d0;
+    background: #ffecf2;
+    color: #6a1040;
+}
+.pink-theme input:focus {
+    border-color: #ff69b4;
+    box-shadow: 0 0 8px rgba(255, 105, 180, 0.4);
+}
+.pink-theme input::placeholder { color: #d4809e; }
+.pink-theme .btn-primary {
+    background: linear-gradient(135deg, #ff69b4, #ff1493);
+    color: #fff;
+    font-weight: 700;
+}
+.pink-theme .btn-primary:hover {
+    background: linear-gradient(135deg, #ff1493, #ff44b0);
+    box-shadow: 0 4px 20px rgba(255, 20, 147, 0.6);
+}
+.pink-theme .btn-primary:disabled {
+    background: linear-gradient(135deg, #e0a0c0, #d090b0);
+    color: #fff;
+}
+.pink-theme .btn-secondary {
+    background: #ffc0da;
+    color: #a0205a;
+    border: 2px solid #ffb0d0;
+}
+.pink-theme .btn-secondary:hover { background: #ffb0d0; }
+.pink-theme .waiting .text { color: #8a1050; }
+.pink-theme .waiting .sub { color: #b05080; }
+.pink-theme .spinner {
+    border-color: #ff69b4;
+    border-top-color: transparent;
+}
+.pink-theme .msg.error {
+    background: #ffcce0;
+    color: #c0205a;
+    border-left: 4px solid #ff1493;
+}
+.pink-theme .msg.success {
+    background: #e0ffe0;
+    color: #2a8a2a;
+    border-left: 4px solid #5cb85c;
+}
+.pink-theme .section-label,
+.pink-theme h2 { color: #d63384; }
+.pink-theme div[style*="color:#555"] { color: #c06090 !important; }
+
+.reaction-wrapper { display: contents; }
+/* Sticky reaction bar (matches Trivia): sits in document flow,
+   pushed to the bottom by `margin-top: auto` on the flex parent.
+   Sticks to the viewport bottom only when the user scrolls past it,
+   so on tall screens it nestles right under the content (no big gap). */
+.empire-reaction-bar {
+    position: sticky;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    margin-top: 8px;
+    margin-bottom: 0;
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    gap: 4px;
+    padding: 10px 12px 8px;
+    background: rgba(42, 26, 26, 0.85);
+    border: 1px solid rgba(212, 168, 68, 0.35);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 999px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+    box-sizing: border-box;
+    z-index: 5;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+.empire-reaction-bar.is-visible {
+    visibility: visible;
+    opacity: 1;
+}
+.empire-reaction-bar .reaction-btn {
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    border: none;
+    border-radius: 999px;
+    padding: 8px 0;
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+    transition: transform 0.08s ease, opacity 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+    text-align: center;
+}
+.empire-reaction-bar .reaction-btn:not(:disabled):active { transform: scale(1.25); }
+.empire-reaction-bar .reaction-btn:disabled,
+.empire-reaction-bar .reaction-btn.cooldown {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+.empire-reaction-cooldown {
+    position: absolute;
+    top: -22px;
+    right: 14px;
+    font-size: 11px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.65);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    z-index: 3;
+    pointer-events: none;
+}
+.pink-theme .empire-reaction-bar {
+    background: rgba(120, 30, 70, 0.85);
+    border-color: rgba(255, 105, 180, 0.5);
+}
+
+/* ─── State card (unified pattern for all status screens) ─────── */
+.state-card {
+    background: linear-gradient(180deg, rgba(42, 26, 26, 0.9), rgba(28, 18, 18, 0.95));
+    border: 1px solid rgba(212, 168, 68, 0.22);
+    border-radius: 14px;
+    padding: 48px 28px 44px;
+    text-align: center;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 380px;
+}
+.state-card .sc-icon { font-size: 60px; margin-bottom: 18px; line-height: 1; }
+.state-card h2 {
+    color: #f0c860;
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0 0 8px;
+    letter-spacing: 0.3px;
+    text-align: center;
+}
+.state-card h2.is-success { color: #5cb85c; }
+.state-card h2.is-warn    { color: #d4a844; }
+.state-card h2.is-danger  { color: #E21B3C; }
+.state-card p {
+    color: #b8bec5;
+    font-size: 15px;
+    line-height: 1.5;
+    margin: 6px 0 0;
+    max-width: 320px;
+}
+.state-card .sc-pulse {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 18px;
+    color: #8f98a0;
+    font-size: 13px;
+}
+.state-card .sc-actions { margin-top: 24px; width: 100%; display: flex; justify-content: center; }
+.state-card .secret-card { width: 100%; max-width: 340px; margin-top: 24px; }
+.pink-theme .state-card {
+    background: linear-gradient(180deg, rgba(255, 192, 218, 0.95), rgba(255, 214, 232, 0.95));
+    border-color: rgba(255, 105, 180, 0.45);
+}
+
+/* ─── Submit card (frames the join form so inputs aren't floating) ─── */
+.submit-card {
+    background: linear-gradient(180deg, rgba(42, 26, 26, 0.9), rgba(28, 18, 18, 0.95));
+    border: 1px solid rgba(212, 168, 68, 0.22);
+    border-radius: 14px;
+    padding: 28px 22px 24px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+.submit-card .player-tracker { margin-bottom: 18px; }
+.pink-theme .submit-card {
+    background: linear-gradient(180deg, rgba(255, 192, 218, 0.95), rgba(255, 214, 232, 0.95));
+    border-color: rgba(255, 105, 180, 0.45);
+}
+@media (max-width: 600px) {
+    .submit-card { padding: 22px 16px 20px; }
+}
+.pink-theme .state-card h2 { color: #d63384; }
+.pink-theme .state-card h2.is-warn { color: #d63384; }
+.pink-theme .state-card {
+    background: linear-gradient(180deg, rgba(60, 20, 40, 0.92), rgba(40, 14, 28, 0.96));
+    border-color: rgba(255, 105, 180, 0.4);
+}
+.pink-theme .player-header {
+    border-bottom-color: rgba(255, 105, 180, 0.32);
+}
+.pink-theme .state-card p { color: #a0205a; }
+.pink-theme .state-card .sc-pulse { color: #b05080; }
+
+/* ─── Pulse dot (matches Trivia) ────────────────────── */
+.pulse-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    background: #d4a844;
+    border-radius: 50%;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+.pink-theme .pulse-dot { background: #d63384; }
+.pink-theme .host-absent-card .title { color: #d63384; }
+.pink-theme .host-absent-card .icon-pulse { background: #d63384; }
+
+/* ─── Category chip (replaces heavy banner) ─────────────── */
+.category-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: rgba(212, 168, 68, 0.12);
+    border: 1px solid rgba(212, 168, 68, 0.35);
+    color: #f0c860;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    margin-bottom: 14px;
+}
+.category-chip .cc-label {
+    color: rgba(212, 168, 68, 0.7);
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 1px;
+}
+.pink-theme .category-chip {
+    background: rgba(255, 105, 180, 0.12);
+    border-color: rgba(255, 105, 180, 0.4);
+    color: #d63384;
+}
+.pink-theme .category-chip .cc-label { color: #b05080; }
+
+/* ─── Pink theme: secret card overrides (no yellow text) ──── */
+.pink-theme .secret-card {
+    background: linear-gradient(135deg, rgba(255, 105, 180, 0.12), rgba(214, 51, 132, 0.18));
+    border-color: rgba(255, 105, 180, 0.55);
+}
+.pink-theme .secret-card .secret-label {
+    color: rgba(214, 51, 132, 0.85);
+}
+.pink-theme .secret-card .secret-word { color: #d63384; }
+.pink-theme .secret-card:not(.is-revealed) .secret-word {
+    color: rgba(214, 51, 132, 0.75);
+}
+.pink-theme .secret-card .secret-timer {
+    background: linear-gradient(90deg, #d63384, #ff69b4);
+}
+.pink-theme .secret-card .secret-hint {
+    color: rgba(255, 255, 255, 0.95);
+    background: rgba(106, 16, 64, 0.25);
+}
+.pink-theme .secret-card:hover {
+    border-color: rgba(255, 105, 180, 0.7);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35), 0 0 18px rgba(255, 105, 180, 0.25);
+}
+
+/* ─── Player attribution footer ───────────────────── */
+.player-attribution {
+    margin-top: 24px;
+    text-align: center;
+    color: #555;
+    font-size: 11px;
+}
+
+/* ─── Branded join header (matches Trivia / 24 pattern) ─────────
+   Sits at the top of the /join page above whichever view is active.
+   Gives players the same "you scanned the right QR" reassurance that
+   Trivia and 24 provide on their join screens. The brand is the
+   dominant identity; the H1 is a quieter sub-heading beneath it. */
+.join-header {
+    text-align: center;
+    padding: 14px 0 12px;
+    margin: 0 0 16px;
+}
+.join-header .brand {
+    font-size: 36px;
+    font-weight: 800;
+    color: #d4a844;
+    letter-spacing: 0.4px;
+    line-height: 1.1;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+}
+.join-header h1 {
+    color: #e8e0d2;
+    font-size: 28px;
+    font-weight: 700;
+    margin: 22px 0 4px;
+    letter-spacing: 0.2px;
+}
+.join-header p {
+    color: #b8aab0;
+    font-size: 16px;
+    margin: 8px 0 0;
+    line-height: 1.4;
+}
+.pink-theme .join-header .brand { color: #d63384; }
+.pink-theme .join-header h1 { color: #ffe6f0; }
+.pink-theme .join-header p { color: #b05080; }
+@media (max-width: 600px) {
+    .join-header .brand { font-size: 32px; }
+    .join-header h1 { font-size: 24px; margin-top: 20px; }
+    .join-header p { font-size: 15px; }
+}
+
+/* ─── Host-absent overlay ─── */
+.host-absent-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 5, 5, 0.92);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    padding: 24px;
+}
+.host-absent-overlay.show { display: flex; }
+.host-absent-card {
+    background: #1c1c1c;
+    border: 1px solid #3a2a2a;
+    border-radius: 14px;
+    padding: 32px 24px;
+    max-width: 400px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+.host-absent-card .icon { font-size: 56px; margin-bottom: 12px; }
+.host-absent-card .title { color: #d4a844; font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+.host-absent-card .sub { color: #aaa; font-size: 15px; line-height: 1.5; }
+.host-absent-card .pulse-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    background: #d4a844;
+    border-radius: 50%;
+    margin-right: 8px;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* ─── Player header bar (replaces the big "Empire" title) ──────
+   Always shown. Holds the inline help button (left), the player's
+   name once joined (center), and a spacer (right) to keep the name
+   visually centered. */
+.player-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 4px 0 14px;
+    margin: -8px 0 16px;
+    border-bottom: 1px solid rgba(212, 168, 68, 0.18);
+}
+.player-header .ph-icon {
+    font-size: 22px;
+    line-height: 1;
+}
+.player-header .ph-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: #f0c860;
+    letter-spacing: 0.4px;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pink-theme .player-header { border-bottom-color: rgba(255, 105, 180, 0.4); }
+.pink-theme .player-header .ph-name { color: #d63384; }
+
+/* ─── Secret card ("your word") ────────────────────────
+   A single integrated card that always shows the player's word,
+   obscured behind a blur + label until tapped. Tapping toggles the
+   reveal; the card auto-hides again after a few seconds so the word
+   isn't left exposed to nearby players. */
+.secret-card {
+    margin-top: 18px;
+    position: relative;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    border-radius: 12px;
+    padding: 12px 18px 14px;
+    background: linear-gradient(135deg, rgba(212, 168, 68, 0.08), rgba(139, 26, 26, 0.12));
+    border: 1.5px solid rgba(212, 168, 68, 0.45);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    transition: border-color 0.25s ease, box-shadow 0.25s ease,
+                transform 0.2s ease;
+    overflow: hidden;
+}
+.secret-card:hover {
+    border-color: rgba(212, 168, 68, 0.7);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35), 0 0 18px rgba(212, 168, 68, 0.18);
+}
+.secret-card:active { transform: scale(0.985); }
+.secret-card .secret-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: rgba(212, 168, 68, 0.85);
+    margin-bottom: 6px;
+}
+.secret-card .secret-word {
+    text-align: center;
+    font-size: 1.3em;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #f0c860;
+    line-height: 1.2;
+    min-height: 1.2em;
+    transition: filter 0.4s ease, color 0.3s ease;
+}
+/* Reveal zone wraps the word so the "Tap to reveal" hint can sit
+   directly over the word (not the whole card), keeping the hint
+   and the revealed word vertically aligned. */
+.secret-card .secret-reveal-zone { position: relative; }
+.secret-card .secret-hint {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.95);
+    /* No background at all — readability comes from a soft text
+       shadow that hugs only the glyphs, so the hint blends with
+       the frosted secret card. */
+    background: transparent;
+    text-shadow:
+        0 0 6px rgba(0, 0, 0, 0.85),
+        0 0 12px rgba(0, 0, 0, 0.6),
+        0 1px 2px rgba(0, 0, 0, 0.7);
+    transition: opacity 0.35s ease;
+    pointer-events: none;
+}
+/* Hidden state: word is blurred, hint overlays. */
+.secret-card:not(.is-revealed) .secret-word {
+    filter: blur(10px);
+    color: rgba(212, 168, 68, 0.75);
+}
+.secret-card.is-revealed .secret-hint { opacity: 0; }
+/* A subtle countdown bar appears while revealed, hinting at auto-hide. */
+.secret-card .secret-timer {
+    position: absolute;
+    left: 0; bottom: 0;
+    height: 2px;
+    width: 100%;
+    background: linear-gradient(90deg, #d4a844, #f0c860);
+    transform-origin: left center;
+    transform: scaleX(0);
+    opacity: 0;
+}
+.secret-card.is-revealed .secret-timer {
+    opacity: 0.7;
+    transform: scaleX(1);
+    transition: transform var(--secret-reveal-ms, 6000ms) linear;
+}
+
+/* ─── Slim, app-like container (overrides shared.css) ───────── */
+body {
+    align-items: stretch;
+    padding: 18px 12px;
+    padding-top: calc(18px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    min-height: 100vh;
+    min-height: 100dvh;
+    overscroll-behavior-y: contain;
+    -webkit-text-size-adjust: 100%;
+}
+body.player-page .container {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    max-width: 480px;
+    width: 100%;
+    margin: 0 auto;
+    min-height: calc(100vh - 36px);
+    min-height: calc(100dvh - 36px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    display: flex;
+    flex-direction: column;
+}
+body.player-page .container > div[id^="view"] {
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
+}
+
+/* On /join, center the header + active view as a single group so the
+   brand sits in the upper portion of a tall phone and the form sits
+   right beneath it — instead of the brand being pinned to the top
+   edge with the form vertically centered far below (which is what
+   `flex: 1; justify-content: center` produces on each view).
+   Doubled `.player-page.join-page` selector wins source-order ties
+   over the rule above. /play is intentionally untouched. */
+body.player-page.join-page .container {
+    justify-content: center;
+}
+body.player-page.join-page .container > div[id^="view"] {
+    flex: 0 0 auto;
+    justify-content: flex-start;
+}
+
+/* ─── Resubmit (text-link style, low visual weight) ─────────── */
+.btn-link-resubmit {
+    display: block;
+    margin: 24px auto 0;
+    background: none;
+    border: none;
+    color: #8f98a0;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: 6px;
+    text-decoration: underline;
+    text-decoration-color: rgba(143, 152, 160, 0.35);
+    text-underline-offset: 3px;
+    transition: color 0.2s ease, text-decoration-color 0.2s ease;
+}
+.btn-link-resubmit:hover {
+    color: #d4a844;
+    text-decoration-color: rgba(212, 168, 68, 0.6);
+}
+.pink-theme .btn-link-resubmit { color: #b05080; }
+.pink-theme .btn-link-resubmit:hover { color: #d63384; }
+
+/* ─── Mobile-first tightening (player screens are ~always on a phone) ─── */
+@media (max-width: 600px) {
+    body { padding: 14px 10px; padding-top: calc(14px + env(safe-area-inset-top, 0px)); padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+    .container { padding: 20px 16px; border-radius: 10px; }
+    .empire-reaction-bar {
+        padding: 12px 10px 10px;
+        gap: 6px;
+        bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    }
+    .empire-reaction-bar .reaction-btn {
+        font-size: 30px;
+        padding: 10px 0;
+    }
+    .state-card { padding: 36px 18px 32px; min-height: 320px; }
+    .state-card .sc-icon { font-size: 50px; margin-bottom: 14px; }
+    .state-card h2 { font-size: 22px; }
+    .state-card p { font-size: 14px; }
+    .input-group input { padding: 14px; }
+    .btn-primary { padding: 16px; font-size: 17px; min-height: 52px; }
+    .secret-card { padding: 14px 18px 16px; }
+    .secret-card .secret-word { font-size: 1.4em; }
+}
+
+/* iPhone SE / very small phones */
+@media (max-width: 380px) {
+    .state-card { padding: 28px 14px 26px; min-height: 280px; }
+    .state-card .sc-icon { font-size: 44px; }
+    .state-card h2 { font-size: 20px; }
+    .empire-reaction-bar .reaction-btn { font-size: 26px; }
+}
+
+/* Short screens (landscape phones, very small displays) */
+@media (max-height: 600px) {
+    .state-card { min-height: 0; padding: 24px 18px; }
+    .state-card .sc-icon { font-size: 38px; margin-bottom: 8px; }
+}

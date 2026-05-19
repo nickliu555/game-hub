@@ -57,7 +57,15 @@ app.get('/empire/host', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'empire', 'host.html'));
 });
 
-// Serve the empire player page
+// Serve the empire join page (entry point for players — submit form,
+// "waiting for host", "game in progress" lock screen, kicked view).
+app.get('/empire/join', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'empire', 'join.html'));
+});
+
+// Serve the empire play page (post-join — done/playing views, reactions,
+// secret card, reset/new-round notifications, kicked view). Players land
+// here automatically after a successful submission.
 app.get('/empire/play', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'empire', 'player.html'));
 });
@@ -147,7 +155,7 @@ function getPublicState() {
     const baseUrl = process.env.RENDER_EXTERNAL_URL
         || process.env.PUBLIC_URL
         || `http://${LOCAL_IP}:${PORT}`;
-    const playerUrl = `${baseUrl}/empire/play`;
+    const playerUrl = `${baseUrl}/empire/join`;
     return {
         phase: gameState.phase,
         playerCount: gameState.submissions.filter(s => !s.isBot).length,
@@ -736,7 +744,7 @@ httpServer.listen(PORT, '0.0.0.0', () => {
     } else {
         console.log(`  Hub:          http://localhost:${PORT}`);
         console.log(`  Empire Host:  http://localhost:${PORT}/empire/host`);
-        console.log(`  Empire Play:  http://${LOCAL_IP}:${PORT}/empire/play`);
+        console.log(`  Empire Join:  http://${LOCAL_IP}:${PORT}/empire/join`);
         console.log(`  Trivia Host:  http://localhost:${PORT}/trivia/host`);
         console.log(`  Trivia Play:  http://${LOCAL_IP}:${PORT}/trivia/play`);
         console.log(`  24 Host:      http://localhost:${PORT}/twentyfour/host`);

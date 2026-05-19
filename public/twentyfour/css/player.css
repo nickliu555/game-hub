@@ -294,6 +294,36 @@ body.player {
   gap: 14px;
   padding: 24px;
 }
+
+/* Live player count pill (matches Empire/Trivia pattern). */
+.lobby-player-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-size: 14px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+.lobby-player-count strong {
+  color: var(--accent);
+  font-weight: 800;
+}
+.lobby-player-count .pulse-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: var(--good);
+  border-radius: 50%;
+  animation: lobbyCountPulse 1.5s ease-in-out infinite;
+}
+@keyframes lobbyCountPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
 .lobby-wait .pulse {
   width: 88px;
   height: 88px;

@@ -192,6 +192,7 @@ function mountTwentyFour(app, httpServer, opts) {
         player: { id: res.player.id, name: res.player.name, score: res.player.score },
         phase: game.phase,
         hostPresent: isHostPresent(),
+        total: game.players.size,
       };
       if (game.phase === PHASES.ROUND) {
         payload.round = game.getRoundPublic();

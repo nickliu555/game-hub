@@ -15,6 +15,9 @@
   const viewPuzzle = document.getElementById('view-puzzle');
   const viewFinal = document.getElementById('view-final');
   const viewDone = document.getElementById('view-done');
+  const lobbyPlayerCount = document.getElementById('lobbyPlayerCount');
+  const lobbyPlayerCountValue = document.getElementById('lobbyPlayerCountValue');
+  const lobbyPlayerCountLabel = document.getElementById('lobbyPlayerCountLabel');
   const numbersEl = document.getElementById('numbers');
   const opsEl = document.getElementById('ops');
   const undoBtn = document.getElementById('undoBtn');
@@ -35,6 +38,17 @@
     viewPuzzle.style.display = (name === 'puzzle') ? 'flex' : 'none';
     viewFinal.style.display = (name === 'final') ? 'flex' : 'none';
     viewDone.style.display  = (name === 'done')  ? 'flex' : 'none';
+  }
+
+  // Live player count shown in the lobby waiting view. Mirrors Empire/Trivia.
+  function setLobbyPlayerCount(total) {
+    if (typeof total !== 'number' || total <= 0) {
+      if (lobbyPlayerCount) lobbyPlayerCount.hidden = true;
+      return;
+    }
+    if (lobbyPlayerCountValue) lobbyPlayerCountValue.textContent = String(total);
+    if (lobbyPlayerCountLabel) lobbyPlayerCountLabel.textContent = total === 1 ? 'player' : 'players';
+    if (lobbyPlayerCount) lobbyPlayerCount.hidden = false;
   }
 
   function showDone(payload) {
@@ -366,7 +380,10 @@
       meScore.textContent = res.player.score || 0;
       setHostPresent(res.hostPresent !== false);
 
-      if (res.phase === 'LOBBY') showView('lobby');
+      if (res.phase === 'LOBBY') {
+        setLobbyPlayerCount(res.total);
+        showView('lobby');
+      }
       else if (res.phase === 'ROUND') {
         applyRound(res.round);
         if (res.done) showDone(res.done);
@@ -380,6 +397,9 @@
 
   socket.on('state:hostPresence', function (p) {
     setHostPresent(!(p && p.present === false));
+  });
+  socket.on('state:lobby', function (s) {
+    if (s && typeof s.total === 'number') setLobbyPlayerCount(s.total);
   });
   socket.on('state:reset', function () {
     // Host reset the game — kick us back to join.

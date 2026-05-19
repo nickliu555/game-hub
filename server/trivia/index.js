@@ -209,6 +209,7 @@ function mountTrivia(app, httpServer, opts) {
         phase: game.phase,
         reactionsMuted,
         hostPresent: isHostPresent(),
+        total: game.players.size,
       };
       if (game.phase === PHASES.INTRO) payload.intro = game.getIntroPublic();
       else if (game.phase === PHASES.PROMPT) payload.prompt = game.getPromptPublic();

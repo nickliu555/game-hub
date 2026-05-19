@@ -15,15 +15,36 @@ body.join, body.player {
   color: white;
 }
 
+/* Center the join-stack vertically on tall phones (matches Empire's
+   pattern). Scoped to body.join so the in-game player page keeps its
+   default top-aligned flow for view-fill behavior. */
+body.join { justify-content: center; }
+
 /* ---- Join page ---- */
 .join-header {
   text-align: center;
-  padding: 24px 0 12px;
+  padding: 14px 0 12px;
   color: white;
 }
-.join-header .brand { font-size: 32px; }
-.join-header h1 { color: white; }
-.join-header p { color: rgba(255,255,255,0.8); margin: 8px 0 0; }
+.join-header .brand {
+  font-size: 36px;
+  font-weight: 800;
+  color: var(--gold);            /* Kahoot-style gold accent — pops against purple */
+  letter-spacing: 0.3px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+}
+.join-header h1 {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 28px;
+  font-weight: 700;
+  margin: 22px 0 4px;
+  letter-spacing: 0.2px;
+}
+.join-header p {
+  color: rgba(255,255,255,0.85);
+  font-size: 16px;
+  margin: 8px 0 0;
+}
 
 .join-form {
   margin-top: 30px;
@@ -84,6 +105,36 @@ body.join, body.player {
 }
 .state-card h2 { margin: 0 0 8px; font-size: 26px; }
 .state-card p { color: var(--ink-soft); margin: 6px 0; }
+
+/* Live player count shown in the lobby waiting card (matches Empire's
+   "X players so far" treatment). */
+.lobby-player-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 6px 12px;
+  background: rgba(70, 23, 143, 0.08);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+.lobby-player-count strong {
+  color: var(--accent);
+  font-weight: 800;
+}
+.lobby-player-count .pulse-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: var(--good);
+  border-radius: 50%;
+  animation: lobbyPulse 1.5s ease-in-out infinite;
+}
+@keyframes lobbyPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
 
 /* Tile grid for 4 answer buttons */
 .tiles {
