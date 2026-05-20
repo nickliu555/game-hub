@@ -63,6 +63,10 @@ const games = [
         ],
         hostPath: '/twentyfour/host',
         playPath: '/twentyfour/play',
+        // Solo practice mode — pick a difficulty and solve unlimited puzzles
+        // with a running timer and a "Give Up" reveal. Surfaced as a secondary
+        // link on the hub card so it doesn't compete with the host CTA.
+        practicePath: '/twentyfour/practice?from=hub',
     },
 ];
 

@@ -119,6 +119,7 @@
   });
   // Round lifecycle is broadcast across the namespace, so even though we
   // haven't joined yet we still hear when a round starts/ends/resets.
+  socket.on('state:intro', function () { setRoundLocked(true); });
   socket.on('state:round', function () { setRoundLocked(true); });
   socket.on('state:final', function () { setRoundLocked(true); });
   socket.on('state:lobby', function () { setRoundLocked(false); });

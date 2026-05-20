@@ -1,0 +1,369 @@
+/* === Practice mode: solo puzzle solving. Reuses .numbers/.tile/.ops/.op
+   styles from player.css; this file adds the practice-specific chrome
+   (header, stats bar, difficulty picker, answer reveal, exit modal). === */
+
+body.practice {
+  background: linear-gradient(180deg, #f7eeee 0%, #ffffff 100%);
+  color: var(--ink);
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.practice-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 14px 16px 24px;
+  gap: 14px;
+  min-height: 0;
+}
+
+/* ---------------- Top bar ---------------- */
+.practice-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 4px;
+}
+.practice-back {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--ink);
+  border: none;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 7px 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.practice-back:hover { background: rgba(0, 0, 0, 0.10); }
+.practice-brand {
+  flex: 1;
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--ink);
+  text-align: center;
+}
+.practice-brand .brand-24 {
+  color: var(--accent);
+  font-weight: 900;
+  margin-right: 2px;
+}
+.practice-badge {
+  background: var(--gold);
+  color: var(--ink);
+  font-weight: 800;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+/* ---------------- View management ---------------- */
+.practice-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+.practice-view[hidden] { display: none; }
+
+/* ---------------- Setup view ---------------- */
+#view-setup {
+  justify-content: center;
+  text-align: center;
+  gap: 22px;
+}
+.setup-hero h1 {
+  font-size: 28px;
+  font-weight: 800;
+  margin: 0 0 8px;
+  color: var(--ink);
+}
+.setup-hero p {
+  font-size: 15px;
+  color: var(--ink-soft);
+  margin: 0;
+  line-height: 1.45;
+}
+
+.difficulty-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.diff-card {
+  background: var(--surface);
+  border: 2.5px solid rgba(0, 0, 0, 0.10);
+  border-radius: 16px;
+  padding: 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  transition: transform 0.08s, border-color 0.15s, background 0.15s;
+  font-family: var(--font-sans);
+}
+.diff-card:hover { border-color: var(--accent); }
+.diff-card.selected {
+  background: #FFF6D4;
+  border-color: var(--gold);
+  transform: translateY(-1px);
+}
+.diff-label {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.diff-count {
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+#startBtn {
+  margin-top: 4px;
+  padding: 16px;
+  font-size: 17px;
+  font-weight: 800;
+  border-radius: 14px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.08s;
+}
+#startBtn:hover:not(:disabled) { background: var(--accent-deep); }
+#startBtn:active:not(:disabled) { transform: scale(0.98); }
+#startBtn:disabled { opacity: 0.5; cursor: wait; }
+
+.setup-loading,
+.setup-error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+  text-align: center;
+}
+.setup-error { color: #c8102e; font-weight: 700; }
+
+/* ---------------- Puzzle view ---------------- */
+#view-puzzle { justify-content: flex-start; }
+
+.practice-stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--surface);
+  border: 1.5px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-family: var(--font-sans);
+}
+.stat {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.stat-icon { font-size: 16px; }
+.stat-value {
+  font-weight: 800;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.stat-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin-left: 2px;
+}
+
+/* Tappable stat (used for the difficulty chip). Looks like a stat but
+   the cursor + hover state hint at its button role. */
+.stat-button {
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s;
+}
+.stat-button:hover { background: rgba(0, 0, 0, 0.08); border-color: rgba(0, 0, 0, 0.14); }
+.stat-button:active { transform: scale(0.97); }
+.stat-button .stat-value { font-size: 15px; }
+.stat-caret { font-size: 11px; color: var(--ink-soft); margin-left: 1px; }
+
+/* Difficulty switcher overlay note (sits between picker and actions). */
+.diff-overlay-note {
+  font-size: 12px;
+  color: var(--ink-soft);
+  text-align: center;
+  margin: 4px 0 0;
+  line-height: 1.4;
+}
+
+/* "Give Up" replaces multiplayer's "Skip" — same row position but a
+   gentler, secondary-feeling style (it's not penalized). */
+.controls .btn-give-up {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--ink);
+  font-weight: 700;
+}
+.controls .btn-give-up:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+/* ---------------- Answer view ---------------- */
+#view-answer { justify-content: center; gap: 22px; text-align: center; }
+
+.answer-card {
+  background: var(--surface);
+  border: 2.5px solid var(--gold);
+  border-radius: 22px;
+  padding: 28px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 8px 30px rgba(234, 88, 12, 0.10);
+}
+.answer-label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.answer-numbers {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.answer-expr {
+  font-size: clamp(24px, 7vw, 34px);
+  font-weight: 800;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  word-break: break-word;
+  line-height: 1.2;
+}
+.answer-equals {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--accent);
+}
+.answer-note {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+
+#nextBtn {
+  padding: 16px;
+  font-size: 17px;
+  font-weight: 800;
+  border-radius: 14px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.08s;
+}
+#nextBtn:hover { background: var(--accent-deep); }
+#nextBtn:active { transform: scale(0.98); }
+
+/* ---------------- Exit confirmation overlay ---------------- */
+.exit-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fadeIn 0.18s ease;
+}
+.exit-overlay[hidden] { display: none; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.exit-card {
+  background: var(--surface);
+  border-radius: 20px;
+  padding: 26px 22px;
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+.exit-card h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 800;
+  text-align: center;
+  color: var(--ink);
+}
+
+.exit-stats {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+.exit-stat {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 12px;
+  padding: 14px 8px;
+  text-align: center;
+}
+.exit-stat-value {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.exit-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.exit-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.exit-actions .btn-primary,
+.exit-actions .btn-secondary {
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 800;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.08s;
+}
+.exit-actions .btn-secondary {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--ink);
+}
+.exit-actions .btn-secondary:hover { background: rgba(0, 0, 0, 0.10); }
+.exit-actions .btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+.exit-actions .btn-primary:hover { background: var(--accent-deep); }
+.exit-actions button:active { transform: scale(0.97); }

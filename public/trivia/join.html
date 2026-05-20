@@ -15,18 +15,19 @@
   <link rel="stylesheet" href="/trivia/css/player.css" />
 </head>
 <body class="join">
-  <div class="join-header">
-    <div class="brand">🧠 Trivia</div>
+  <div class="join-brand">🧠 Trivia</div>
+
+  <div class="join-hero">
     <h1>Join the game</h1>
     <p>Enter your name to play</p>
-  </div>
 
-  <form id="joinForm" class="join-form" autocomplete="off">
-    <label for="nameInput">Your name</label>
-    <input id="nameInput" type="text" maxlength="20" autocomplete="given-name" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="e.g. Alex" required />
-    <button type="submit" class="btn-primary">Join</button>
-    <div id="errorMsg" class="error-msg" aria-live="polite"></div>
-  </form>
+    <form id="joinForm" class="join-form" autocomplete="off">
+      <label for="nameInput">Your name</label>
+      <input id="nameInput" type="text" maxlength="20" autocomplete="given-name" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="e.g. Alex" required />
+      <button type="submit" class="btn-primary">Join</button>
+      <div id="errorMsg" class="error-msg" aria-live="polite"></div>
+    </form>
+  </div>
 
   <div class="player-attribution">Developed by Nick Liu (with help from Claude)</div>
 

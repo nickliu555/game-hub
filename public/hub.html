@@ -77,6 +77,7 @@
                             ${rulesHtml}
                             <div class="game-actions">
                                 <a href="${esc(game.hostPath)}" class="btn-play">▶ Play</a>
+                                ${game.practicePath ? `<a href="${esc(game.practicePath)}" class="btn-practice">Practice solo</a>` : ''}
                             </div>
                         </div>
                     </div>

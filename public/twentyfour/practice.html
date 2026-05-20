@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>24 · Practice</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#F97316">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/twentyfour/css/base.css" />
+  <link rel="stylesheet" href="/twentyfour/css/player.css" />
+  <link rel="stylesheet" href="/twentyfour/css/practice.css" />
+</head>
+<body class="practice">
+  <div class="practice-shell">
+    <!-- Top bar: back button + brand + practice badge -->
+    <div class="practice-header">
+      <button class="practice-back" id="backBtn" type="button" aria-label="Back">← Back</button>
+      <div class="practice-brand"><span class="brand-24">24</span> Practice</div>
+      <span class="practice-badge">SOLO</span>
+    </div>
+
+    <!-- Setup view: pick difficulty -->
+    <div class="practice-view" id="view-setup">
+      <div class="setup-hero">
+        <h1>Practice Mode</h1>
+        <p>Pick a difficulty and solve as many puzzles as you can. Stuck on one? Tap Give Up to see a worked answer.</p>
+      </div>
+      <div class="difficulty-picker" id="difficultyPicker">
+        <button class="diff-card selected" data-difficulty="easy" type="button">
+          <span class="diff-label">Easy</span>
+          <span class="diff-count" data-count="easy">…</span>
+        </button>
+        <button class="diff-card" data-difficulty="medium" type="button">
+          <span class="diff-label">Medium</span>
+          <span class="diff-count" data-count="medium">…</span>
+        </button>
+        <button class="diff-card" data-difficulty="hard" type="button">
+          <span class="diff-label">Hard</span>
+          <span class="diff-count" data-count="hard">…</span>
+        </button>
+        <button class="diff-card" data-difficulty="any" type="button">
+          <span class="diff-label">Any</span>
+          <span class="diff-count" data-count="any">…</span>
+        </button>
+      </div>
+      <button id="startBtn" class="btn-primary" type="button">Start Practicing</button>
+      <p class="setup-loading" id="setupLoading" hidden>Loading puzzles…</p>
+      <p class="setup-error" id="setupError" hidden></p>
+    </div>
+
+    <!-- Active puzzle view -->
+    <div class="practice-view" id="view-puzzle" hidden>
+      <div class="practice-stats">
+        <div class="stat">
+          <span class="stat-icon">⏱</span>
+          <span class="stat-value" id="timerDisplay">0:00</span>
+        </div>
+        <div class="stat">
+          <span class="stat-icon">✓</span>
+          <span class="stat-value" id="solvedDisplay">0</span>
+          <span class="stat-label" id="solvedLabel">solved</span>
+        </div>
+        <button class="stat stat-button" id="difficultyChip" type="button" aria-label="Change difficulty">
+          <span class="stat-value" id="difficultyDisplay">Easy</span>
+          <span class="stat-icon stat-caret">▾</span>
+        </button>
+      </div>
+
+      <div id="puzzle-area" style="display:flex; flex-direction:column; gap:12px; min-height:0; flex:1;">
+        <div class="numbers" id="numbers"></div>
+        <div class="ops" id="ops">
+          <button class="op" data-op="+" type="button">+</button>
+          <button class="op" data-op="-" type="button">−</button>
+          <button class="op" data-op="*" type="button">×</button>
+          <button class="op" data-op="/" type="button">÷</button>
+        </div>
+        <div class="controls">
+          <button id="undoBtn" type="button" disabled>↶ Undo</button>
+          <button id="resetBtn" type="button" disabled>Reset</button>
+          <button id="giveUpBtn" class="btn-give-up" type="button">Give Up</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Answer reveal view -->
+    <div class="practice-view" id="view-answer" hidden>
+      <div class="answer-card">
+        <div class="answer-label">One way to solve</div>
+        <div class="answer-numbers" id="answerNumbers"></div>
+        <div class="answer-expr" id="answerExpr">—</div>
+        <div class="answer-equals">= 24</div>
+        <p class="answer-note" id="answerNote" hidden>
+          No worked solution is recorded for this puzzle yet — but it is solvable.
+        </p>
+      </div>
+      <button id="nextBtn" class="btn-primary" type="button">Next Puzzle →</button>
+    </div>
+  </div>
+
+  <!-- Exit confirmation / session summary overlay -->
+  <div class="exit-overlay" id="exitOverlay" hidden>
+    <div class="exit-card">
+      <h2 id="exitTitle">Leaving so soon?</h2>
+      <div class="exit-stats" id="exitStats" hidden>
+        <div class="exit-stat">
+          <div class="exit-stat-value" id="exitSolved">0</div>
+          <div class="exit-stat-label">solved</div>
+        </div>
+        <div class="exit-stat">
+          <div class="exit-stat-value" id="exitTime">0:00</div>
+          <div class="exit-stat-label">elapsed</div>
+        </div>
+      </div>
+      <div class="exit-actions">
+        <button id="exitStayBtn" class="btn-secondary" type="button">Keep practicing</button>
+        <button id="exitLeaveBtn" class="btn-primary" type="button">Exit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change-difficulty overlay (opened from the stats chip) -->
+  <div class="exit-overlay" id="diffOverlay" hidden>
+    <div class="exit-card">
+      <h2>Change difficulty</h2>
+      <div class="difficulty-picker" id="changeDifficultyPicker">
+        <button class="diff-card" data-difficulty="easy" type="button">
+          <span class="diff-label">Easy</span>
+          <span class="diff-count" data-count="easy">…</span>
+        </button>
+        <button class="diff-card" data-difficulty="medium" type="button">
+          <span class="diff-label">Medium</span>
+          <span class="diff-count" data-count="medium">…</span>
+        </button>
+        <button class="diff-card" data-difficulty="hard" type="button">
+          <span class="diff-label">Hard</span>
+          <span class="diff-count" data-count="hard">…</span>
+        </button>
+        <button class="diff-card" data-difficulty="any" type="button">
+          <span class="diff-label">Any</span>
+          <span class="diff-count" data-count="any">…</span>
+        </button>
+      </div>
+      <p class="diff-overlay-note">Switching draws a new puzzle from the selected pool. Your time and solved count keep going.</p>
+      <div class="exit-actions">
+        <button id="diffCancelBtn" class="btn-secondary" type="button">Cancel</button>
+        <button id="diffApplyBtn" class="btn-primary" type="button">Switch</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/twentyfour/js/puzzle-engine.js"></script>
+  <script src="/twentyfour/js/practice.js"></script>
+</body>
+</html>

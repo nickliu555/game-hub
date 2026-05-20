@@ -25,17 +25,18 @@
     </div>
 
     <div class="container">
-        <!-- Branded header (matches the Trivia / 24 join screens). Stays
-             visible across every view on this page so players always know
-             which game they just scanned into. -->
-        <div class="join-header">
-            <div class="brand">👑 Empire</div>
+        <!-- Brand pinned to the top edge (mirrors Trivia's /play player-top).
+             The hero block below absorbs remaining space and centers
+             "Join the game" + tagline + the active view as a single
+             group, so the form sits right beneath the hero text. -->
+        <div class="join-brand">👑 Empire</div>
+
+        <div class="join-hero">
             <h1>Join the game</h1>
             <p>Enter your name and a secret word to play</p>
-        </div>
 
-        <!-- ═══ Waiting for host (setup phase) ═══ -->
-        <div id="viewPlayerWaiting" style="display:none;">
+            <!-- ═══ Waiting for host (setup phase) ═══ -->
+            <div id="viewPlayerWaiting" style="display:none;">
             <div class="state-card">
                 <div class="sc-icon">⏳</div>
                 <h2>Waiting for the host…</h2>
@@ -94,6 +95,7 @@
                 </div>
             </div>
         </div>
+        </div><!-- /.join-hero -->
 
         <div class="player-attribution">Developed by Nick Liu (with help from Claude)</div>
     </div>

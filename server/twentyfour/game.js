@@ -5,6 +5,7 @@ const { replay } = require('./solver');
 
 const PHASES = {
   LOBBY: 'LOBBY',
+  INTRO: 'INTRO',
   ROUND: 'ROUND',
   FINAL: 'FINAL',
 };
@@ -12,6 +13,11 @@ const PHASES = {
 const MAX_NAME_LEN = 20;
 const SKIP_LOCKOUT_MS = 20 * 1000;
 const DEFAULT_DURATION_MIN = 2;
+// Pre-round "Get ready" splash so players aren't yanked straight from the
+// lobby into puzzle #1. Mirrors trivia's INTRO phase, just shorter — 24
+// players are heads-down on phones, not watching a single shared screen.
+const INTRO_DURATION_MS = 3000;
+const INTRO_GO_HOLD_MS = 900;
 
 function fisherYates(a) {
   for (let i = a.length - 1; i > 0; i--) {
@@ -43,7 +49,11 @@ class Game {
     /** @type {Map<string, Player>} */
     this.players = new Map();
     this._roundTimer = null;
+    this._introTimer = null;
+    this.introStartTs = 0;
+    this.introEndsAt = 0;
     this.onRoundEnd = null; // callback wired by the transport layer
+    this.onIntroEnd = null; // callback wired by the transport layer
     // ONE shared, freshly-shuffled puzzle sequence for the active round.
     // Every player advances through this same list at their own pace, so
     // puzzle #N is the same puzzle for everyone (fair scoring).
@@ -128,6 +138,29 @@ class Game {
       : DEFAULT_DURATION_MIN;
     this.difficulty = diff;
     this.durationMs = Math.round(mins * 60 * 1000);
+    // Settings are locked in NOW, but the round timer + queue + puzzle
+    // serves are deferred until _endIntro() so the "Get ready" countdown
+    // is pure leeway and doesn't eat into playable time.
+    this._enterIntro();
+    return { ok: true };
+  }
+
+  _enterIntro() {
+    if (this._introTimer) { clearTimeout(this._introTimer); this._introTimer = null; }
+    this.phase = PHASES.INTRO;
+    this.introStartTs = Date.now();
+    this.introEndsAt = this.introStartTs + INTRO_DURATION_MS;
+    // Hold a beat past the visible countdown so clients can show "Go!"
+    // before puzzles materialise.
+    this._introTimer = setTimeout(() => {
+      this._introTimer = null;
+      this._endIntro();
+    }, INTRO_DURATION_MS + INTRO_GO_HOLD_MS);
+  }
+
+  _endIntro() {
+    if (this.phase !== PHASES.INTRO) return;
+    if (this._introTimer) { clearTimeout(this._introTimer); this._introTimer = null; }
     this.roundStartTs = Date.now();
     this.roundEndsAt = this.roundStartTs + this.durationMs;
     this.phase = PHASES.ROUND;
@@ -141,7 +174,9 @@ class Game {
       this._serveNext(player);
     }
     this._armRoundTimer();
-    return { ok: true };
+    if (typeof this.onIntroEnd === 'function') {
+      try { this.onIntroEnd(); } catch (_) {}
+    }
   }
 
   _armRoundTimer() {
@@ -252,6 +287,15 @@ class Game {
     };
   }
 
+  getIntroPublic() {
+    return {
+      endsAt: this.introEndsAt,
+      serverNow: Date.now(),
+      durationMs: INTRO_DURATION_MS,
+      difficulty: this.difficulty,
+    };
+  }
+
   getLeaderboard(limit) {
     const arr = Array.from(this.players.values())
       .map((p) => ({
@@ -328,12 +372,15 @@ class Game {
 
   reset() {
     if (this._roundTimer) { clearTimeout(this._roundTimer); this._roundTimer = null; }
+    if (this._introTimer) { clearTimeout(this._introTimer); this._introTimer = null; }
     this.phase = PHASES.LOBBY;
     this.players = new Map();
     this.difficulty = 'any';
     this.durationMs = DEFAULT_DURATION_MIN * 60 * 1000;
     this.roundStartTs = 0;
     this.roundEndsAt = 0;
+    this.introStartTs = 0;
+    this.introEndsAt = 0;
     this.sharedQueue = [];
   }
 }

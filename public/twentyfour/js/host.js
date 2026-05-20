@@ -6,6 +6,7 @@
   // ---------------- Element refs ----------------
   const views = {
     lobby: document.getElementById('view-lobby'),
+    intro: document.getElementById('view-intro'),
     round: document.getElementById('view-round'),
     final: document.getElementById('view-final'),
   };
@@ -26,6 +27,7 @@
   const diffPill = document.getElementById('diffPill');
   const countdownEl = document.getElementById('countdown');
   const barsEl = document.getElementById('bars');
+  const introCountdownEl = document.getElementById('introCountdown');
 
   const podiumEl = document.getElementById('podium');
   const lbRows = document.getElementById('lbRows');
@@ -126,7 +128,9 @@
       renderQR();
       renderLobby({ players: res.players });
       if (res.phase === 'LOBBY') show('lobby');
-      else if (res.phase === 'ROUND') {
+      else if (res.phase === 'INTRO') {
+        renderIntro(res.intro);
+      } else if (res.phase === 'ROUND') {
         show('round');
         applyRound(res.round);
         applyScores(res.leaderboard);
@@ -192,6 +196,7 @@
     if (views.lobby.classList.contains('active')) renderLobby(s);
   });
   socket.on('state:reset', function () {
+    stopIntroTimer();
     show('lobby');
     barsEl.innerHTML = '';
     podiumEl.innerHTML = '';
@@ -358,10 +363,33 @@
   }
 
   socket.on('state:round', function (r) {
+    stopIntroTimer();
     show('round');
     applyRound(r);
     // Server sends a separate score:update with the initial all-zeros board.
   });
+
+  // ---------------- Intro ("Get ready" countdown) ----------------
+  let introTimer = null;
+  function stopIntroTimer() {
+    if (introTimer) { clearInterval(introTimer); introTimer = null; }
+  }
+  function renderIntro(payload) {
+    stopIntroTimer();
+    show('intro');
+    if (payload && typeof payload.serverNow === 'number') {
+      clockOffset = payload.serverNow - Date.now();
+    }
+    const endsAt = (payload && payload.endsAt) || (Date.now() + 3000);
+    function tick() {
+      const left = Math.max(0, Math.ceil((endsAt - serverNow()) / 1000));
+      if (introCountdownEl) introCountdownEl.textContent = left <= 0 ? 'Go!' : String(left);
+      if (left <= 0) stopIntroTimer();
+    }
+    tick();
+    introTimer = setInterval(tick, 200);
+  }
+  socket.on('state:intro', function (p) { renderIntro(p); });
 
   // ---------------- Scoreboard (bar chart) ----------------
   // Render a bar per player; widths animate via CSS transition. We sort
@@ -371,9 +399,15 @@
     const maxScore = Math.max(1, lb.length ? lb[0].score : 1);
     barsEl.innerHTML = lb.map(function (p) {
       const pct = Math.round((p.score / maxScore) * 100);
+      const skipNote = (p.skippedCount > 0)
+        ? '<span class="bar-skips">· ' + p.skippedCount + ' skipped</span>'
+        : '';
       return (
         '<div class="bar-row" data-pid="' + p.id + '">' +
-          '<div class="bar-name">' + escapeHtml(p.name) + '</div>' +
+          '<div class="bar-name">' +
+            '<span class="bar-name-text">' + escapeHtml(p.name) + '</span>' +
+            skipNote +
+          '</div>' +
           '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>' +
           '<div class="bar-value">' + p.score + '</div>' +
         '</div>'
@@ -444,11 +478,20 @@
       podiumStep('first', '🥇', gold) +
       podiumStep('third', '🥉', bronze);
 
-    lbRows.innerHTML = fullLb.map(function (p, i) {
+    const headerRow = fullLb.length
+      ? '<div class="leaderboard-row leaderboard-header">' +
+          '<div class="lb-rank">#</div>' +
+          '<div>Name</div>' +
+          '<div class="lb-skips">Skips</div>' +
+          '<div class="lb-score">Solves</div>' +
+        '</div>'
+      : '';
+    lbRows.innerHTML = headerRow + fullLb.map(function (p, i) {
       return (
         '<div class="leaderboard-row">' +
           '<div class="lb-rank">' + (i + 1) + '</div>' +
           '<div>' + escapeHtml(p.name) + '</div>' +
+          '<div class="lb-skips">' + (p.skippedCount || 0) + '</div>' +
           '<div class="lb-score">' + p.score + '</div>' +
         '</div>'
       );

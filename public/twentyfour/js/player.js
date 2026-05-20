@@ -12,9 +12,11 @@
   const meScore = document.getElementById('meScore');
   const pCountdown = document.getElementById('pCountdown');
   const viewLobby = document.getElementById('view-lobby');
+  const viewIntro = document.getElementById('view-intro');
   const viewPuzzle = document.getElementById('view-puzzle');
   const viewFinal = document.getElementById('view-final');
   const viewDone = document.getElementById('view-done');
+  const pIntroCountdown = document.getElementById('pIntroCountdown');
   const lobbyPlayerCount = document.getElementById('lobbyPlayerCount');
   const lobbyPlayerCountValue = document.getElementById('lobbyPlayerCountValue');
   const lobbyPlayerCountLabel = document.getElementById('lobbyPlayerCountLabel');
@@ -35,6 +37,7 @@
 
   function showView(name) {
     viewLobby.style.display = (name === 'lobby') ? 'flex' : 'none';
+    viewIntro.style.display = (name === 'intro') ? 'flex' : 'none';
     viewPuzzle.style.display = (name === 'puzzle') ? 'flex' : 'none';
     viewFinal.style.display = (name === 'final') ? 'flex' : 'none';
     viewDone.style.display  = (name === 'done')  ? 'flex' : 'none';
@@ -62,87 +65,68 @@
     showView('done');
   }
 
-  // ---------------- Rational arithmetic (mirror of server/solver.js) ----------------
-  function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { const t = b; b = a % b; a = t; } return a || 1; }
-  function rMake(n, d) {
-    if (d === 0) return null;
-    if (d < 0) { n = -n; d = -d; }
-    const g = gcd(n, d);
-    return { n: n / g, d: d / g };
-  }
-  function rAdd(a, b) { return rMake(a.n * b.d + b.n * a.d, a.d * b.d); }
-  function rSub(a, b) { return rMake(a.n * b.d - b.n * a.d, a.d * b.d); }
-  function rMul(a, b) { return rMake(a.n * b.n, a.d * b.d); }
-  function rDiv(a, b) { if (b.n === 0) return null; return rMake(a.n * b.d, a.d * b.n); }
-  function rEq(a, b) { return a.n === b.n && a.d === b.d; }
-  const OPS = { '+': rAdd, '-': rSub, '*': rMul, '/': rDiv };
-
-  // Render a rational either as a plain integer or a stacked fraction.
-  function tileInnerHtml(r) {
-    if (r.d === 1) return String(r.n);
-    return (
-      '<div class="frac">' +
-        '<div class="num">' + r.n + '</div>' +
-        '<div class="bar"></div>' +
-        '<div class="den">' + r.d + '</div>' +
-      '</div>'
-    );
-  }
-
-  // ---------------- Puzzle state ----------------
+  // ---------------- Multiplayer puzzle state ----------------
+  // Tile UI + rational math + combine logic all live in puzzle-engine.js
+  // (shared with practice mode). This file owns the multiplayer-specific
+  // bits: current puzzle id, skip timer, server submission + ack handling.
   let currentPuzzleId = null;
-  let originalNumbers = null;  // int[4] from server
   let servedAt = 0;
   let skipEligibleAt = 0;
-  // Live state. Each tile slot 0..3 either has a value (rational) or null
-  // if consumed. We track combine history so Undo can revert.
-  let tiles = [];          // [rational | null]
-  let history = [];        // [{aId, op, bId, prevA, prevB}]
-  let selected = { aId: null, op: null };  // tap-A then tap-op then tap-B
-  let solving = false;     // true while waiting for server ack
+
+  const engine = window.PuzzleEngine.create({
+    numbersEl: numbersEl,
+    opsEl: opsEl,
+    undoBtn: undoBtn,
+    resetBtn: resetBtn,
+    onSolve: function (steps) {
+      // Engine has locked itself and shown the win flash. Reflect the lock
+      // on the (engine-external) skip button immediately so the player
+      // can't tap Skip during the ~450ms before the next puzzle loads.
+      updateSkipBtn();
+      // Submit to server for authoritative scoring; advance on ack.
+      socket.emit('player:solve', { puzzleId: currentPuzzleId, steps: steps }, function (res) {
+        if (!res || !res.ok) {
+          // Server rejected (stale puzzle, bad steps, etc.) — reset locally.
+          engine.reset();
+          engine.unlock();
+          updateSkipBtn();
+          return;
+        }
+        if (res.accepted) {
+          meScore.textContent = res.score;
+          if (res.next) {
+            // Tiny delay so the player sees the win flash before swapping.
+            setTimeout(function () { loadPuzzle(res.next); }, 450);
+          } else if (res.done) {
+            setTimeout(function () { showDone({ solvedCount: res.score }); }, 450);
+          }
+        } else {
+          // Accepted as a valid sequence but didn't equal 24 — shouldn't
+          // happen because the engine checks locally, but recover anyway.
+          engine.reset();
+          engine.unlock();
+          updateSkipBtn();
+        }
+      });
+    },
+  });
 
   function loadPuzzle(payload) {
     currentPuzzleId = payload.puzzleId;
-    originalNumbers = payload.numbers.slice();
     servedAt = payload.servedAt;
     skipEligibleAt = payload.skipEligibleAt;
-    tiles = originalNumbers.map(function (n) { return rMake(n, 1); });
-    history = [];
-    selected = { aId: null, op: null };
-    solving = false;
-    renderTiles();
-    renderOps();
-    renderControls();
+    engine.loadPuzzle(payload.numbers);
+    updateSkipBtn();
     showView('puzzle');
   }
 
-  function renderTiles() {
-    numbersEl.innerHTML = tiles.map(function (r, i) {
-      if (!r) return '<div class="tile consumed" data-id="' + i + '"></div>';
-      const cls = ['tile'];
-      if (selected.aId === i) cls.push('selected');
-      return '<div class="' + cls.join(' ') + '" data-id="' + i + '">' + tileInnerHtml(r) + '</div>';
-    }).join('');
-  }
-  function renderOps() {
-    Array.prototype.forEach.call(opsEl.querySelectorAll('.op'), function (btn) {
-      btn.classList.toggle('selected', btn.dataset.op === selected.op);
-      // Operators are only meaningful once an A tile is selected.
-      btn.disabled = (selected.aId === null) || solving;
-    });
-  }
-  function renderControls() {
-    undoBtn.disabled = history.length === 0 || solving;
-    resetBtn.disabled = history.length === 0 || solving;
-    updateSkipBtn();
-  }
   function updateSkipBtn() {
     const remaining = Math.max(0, skipEligibleAt - Date.now());
     if (remaining > 0) {
       skipBtn.disabled = true;
       skipRemainingEl.textContent = Math.ceil(remaining / 1000) + 's';
     } else {
-      skipBtn.disabled = solving;
+      skipBtn.disabled = engine.isLocked();
       skipRemainingEl.textContent = '';
     }
   }
@@ -150,168 +134,45 @@
   // sync without polling the server.
   setInterval(updateSkipBtn, 250);
 
-  // ---------------- Tile + op interactions ----------------
-  numbersEl.addEventListener('click', function (e) {
-    if (solving) return;
-    const tile = e.target.closest('.tile');
-    if (!tile || tile.classList.contains('consumed')) return;
-    const id = parseInt(tile.dataset.id, 10);
-    if (!Number.isInteger(id) || !tiles[id]) return;
-
-    // Step 1: pick A
-    if (selected.aId === null) {
-      selected.aId = id;
-      selected.op = null;
-      renderTiles();
-      renderOps();
-      return;
-    }
-    // Tapping A again deselects
-    if (selected.aId === id && !selected.op) {
-      selected.aId = null;
-      renderTiles();
-      renderOps();
-      return;
-    }
-    // Step 2 (after op picked): pick B and commit
-    if (selected.op) {
-      if (id === selected.aId) {
-        // Tapping A while an op is selected → swap A
-        selected.aId = id;
-        renderTiles();
-        return;
-      }
-      commitStep(selected.aId, selected.op, id);
-      return;
-    }
-    // Otherwise replace A
-    selected.aId = id;
-    renderTiles();
-  });
-
-  opsEl.addEventListener('click', function (e) {
-    if (solving) return;
-    const btn = e.target.closest('.op');
-    if (!btn || btn.disabled) return;
-    if (selected.aId === null) return;
-    selected.op = btn.dataset.op;
-    renderOps();
-  });
-
-  function commitStep(aId, op, bId) {
-    const a = tiles[aId];
-    const b = tiles[bId];
-    const fn = OPS[op];
-    const r = fn(a, b);
-    if (r === null) {
-      // Division by zero — flash B and clear selection.
-      shakeTile(bId);
-      selected = { aId: null, op: null };
-      renderTiles();
-      renderOps();
-      return;
-    }
-    history.push({ aId: aId, op: op, bId: bId, prevA: a, prevB: b });
-    tiles[aId] = null;
-    tiles[bId] = r;
-    selected = { aId: null, op: null };
-    renderTiles();
-    renderOps();
-    renderControls();
-
-    // Was that the final combine?
-    const remaining = tiles.filter(function (t) { return t !== null; });
-    if (remaining.length === 1) {
-      if (rEq(remaining[0], { n: 24, d: 1 })) {
-        submitSolve();
-      } else {
-        // Not 24 — shake and auto-reset.
-        const lastId = tiles.findIndex(function (t) { return t !== null; });
-        shakeTile(lastId);
-        setTimeout(resetPuzzle, 550);
-      }
-    }
-  }
-
-  function shakeTile(id) {
-    const el = numbersEl.querySelector('.tile[data-id="' + id + '"]');
-    if (!el) return;
-    el.classList.add('shake');
-    setTimeout(function () { el.classList.remove('shake'); }, 450);
-  }
-
-  function resetPuzzle() {
-    tiles = originalNumbers.map(function (n) { return rMake(n, 1); });
-    history = [];
-    selected = { aId: null, op: null };
-    renderTiles();
-    renderOps();
-    renderControls();
-  }
-
-  undoBtn.addEventListener('click', function () {
-    if (!history.length || solving) return;
-    const step = history.pop();
-    tiles[step.aId] = step.prevA;
-    tiles[step.bId] = step.prevB;
-    selected = { aId: null, op: null };
-    renderTiles();
-    renderOps();
-
-    renderControls();
-  });
-  resetBtn.addEventListener('click', resetPuzzle);
-
-  // ---------------- Solve / skip ----------------
-  function submitSolve() {
-    solving = true;
-    renderOps();
-    renderControls();
-    // Brief win animation on the remaining tile.
-    const lastId = tiles.findIndex(function (t) { return t !== null; });
-    const winTile = numbersEl.querySelector('.tile[data-id="' + lastId + '"]');
-    if (winTile) winTile.classList.add('win');
-
-    const steps = history.map(function (s) { return { aId: s.aId, op: s.op, bId: s.bId }; });
-    socket.emit('player:solve', { puzzleId: currentPuzzleId, steps: steps }, function (res) {
-      if (!res || !res.ok) {
-        // Server rejected (stale puzzle, bad steps, etc.) — just reset locally.
-        solving = false;
-        resetPuzzle();
-        return;
-      }
-      if (res.accepted) {
-        meScore.textContent = res.score;
-        if (res.next) {
-          // Tiny delay so the player sees the win flash before swapping.
-          setTimeout(function () { loadPuzzle(res.next); }, 450);
-        } else if (res.done) {
-          setTimeout(function () { showDone({ solvedCount: res.score }); }, 450);
-        }
-      } else {
-        // Accepted as a valid sequence but didn't equal 24 — shouldn't
-        // happen because we check locally, but reset just in case.
-        solving = false;
-        resetPuzzle();
-      }
-    });
-  }
-
   skipBtn.addEventListener('click', function () {
-    if (solving) return;
+    if (engine.isLocked()) return;
     if (Date.now() < skipEligibleAt) return;
-    solving = true;
-    renderControls();
+    engine.lock();
+    updateSkipBtn();
     socket.emit('player:skip', { puzzleId: currentPuzzleId }, function (res) {
-      solving = false;
       if (!res || !res.ok) {
-        renderControls();
+        engine.unlock();
+        updateSkipBtn();
         return;
       }
       if (res.next) loadPuzzle(res.next);
       else if (res.done) showDone(null);
     });
   });
+
+  // ---------------- Pre-round "Get ready" intro ----------------
+  let introTimer = null;
+  function stopIntroTimer() {
+    if (introTimer) { clearInterval(introTimer); introTimer = null; }
+  }
+  function renderIntro(payload) {
+    stopIntroTimer();
+    if (payload && typeof payload.serverNow === 'number') {
+      clockOffset = payload.serverNow - Date.now();
+    }
+    const endsAt = (payload && payload.endsAt) || (Date.now() + 3000);
+    // Reset the round chip while we wait for the actual round start.
+    pCountdown.textContent = '—';
+    pCountdown.classList.remove('warn', 'urgent');
+    showView('intro');
+    function tick() {
+      const left = Math.max(0, Math.ceil((endsAt - serverNow()) / 1000));
+      if (pIntroCountdown) pIntroCountdown.textContent = left <= 0 ? 'Go!' : String(left);
+      if (left <= 0) stopIntroTimer();
+    }
+    tick();
+    introTimer = setInterval(tick, 200);
+  }
 
   // ---------------- Round countdown (player-side) ----------------
   let roundEndsAt = 0;
@@ -384,6 +245,9 @@
         setLobbyPlayerCount(res.total);
         showView('lobby');
       }
+      else if (res.phase === 'INTRO') {
+        renderIntro(res.intro);
+      }
       else if (res.phase === 'ROUND') {
         applyRound(res.round);
         if (res.done) showDone(res.done);
@@ -415,9 +279,14 @@
     window.location.replace('/twentyfour/join');
   });
   socket.on('state:round', function (r) {
+    stopIntroTimer();
     applyRound(r);
   });
+  socket.on('state:intro', function (p) {
+    renderIntro(p);
+  });
   socket.on('puzzle:next', function (p) {
+    stopIntroTimer();
     if (p) loadPuzzle(p);
   });
   socket.on('puzzle:done', function (p) {

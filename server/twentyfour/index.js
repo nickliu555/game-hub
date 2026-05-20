@@ -64,6 +64,11 @@ function mountTwentyFour(app, httpServer, opts) {
   app.get('/twentyfour/play', (_req, res) => {
     res.sendFile(path.join(__dirname, '..', '..', 'public', 'twentyfour', 'player.html'));
   });
+  // Solo practice mode — no socket connection, runs entirely client-side
+  // off the pre-generated puzzles.json + solutions.json static assets.
+  app.get('/twentyfour/practice', (_req, res) => {
+    res.sendFile(path.join(__dirname, '..', '..', 'public', 'twentyfour', 'practice.html'));
+  });
 
   // ---------------- REST endpoints ----------------
   app.get('/api/twentyfour/config', (_req, res) => {
@@ -109,6 +114,9 @@ function mountTwentyFour(app, httpServer, opts) {
   function broadcastRound() {
     ns.emit('state:round', game.getRoundPublic());
   }
+  function broadcastIntro() {
+    ns.emit('state:intro', game.getIntroPublic());
+  }
   function broadcastFinal() {
     ns.emit('state:final', {
       podium: game.getPodium(),
@@ -138,6 +146,17 @@ function mountTwentyFour(app, httpServer, opts) {
   // When the round timer fires server-side, switch everyone to FINAL.
   game.onRoundEnd = () => {
     broadcastFinal();
+  };
+
+  // When the pre-round INTRO countdown elapses, the game has just armed the
+  // round timer and served puzzle #1 to every player — push the matching
+  // socket events so clients leave the "Get ready" splash.
+  game.onIntroEnd = () => {
+    broadcastRound();
+    broadcastScores();
+    for (const player of game.players.values()) {
+      sendPuzzleTo(player);
+    }
   };
 
   // ---------------- Socket handlers ----------------
@@ -173,7 +192,9 @@ function mountTwentyFour(app, httpServer, opts) {
       // If the round is already running, the player was given an initial
       // puzzle by addPlayer() — push it to them and update everyone's view
       // of the round + scoreboard.
-      if (game.phase === PHASES.ROUND) {
+      if (game.phase === PHASES.INTRO) {
+        socket.emit('state:intro', game.getIntroPublic());
+      } else if (game.phase === PHASES.ROUND) {
         socket.emit('state:round', game.getRoundPublic());
         sendPuzzleTo(res.player);
         broadcastScores();
@@ -206,6 +227,8 @@ function mountTwentyFour(app, httpServer, opts) {
         } else {
           payload.currentPuzzle = game.getPuzzlePayloadFor(pid);
         }
+      } else if (game.phase === PHASES.INTRO) {
+        payload.intro = game.getIntroPublic();
       } else if (game.phase === PHASES.FINAL) {
         payload.podium = game.getPodium();
         payload.fullLeaderboard = game.getLeaderboard();
@@ -249,6 +272,10 @@ function mountTwentyFour(app, httpServer, opts) {
         const p = game.players.get(playerId);
         if (p) sendPuzzleTo(p);
       }
+      // Skip count is part of the leaderboard (tiebreaker + visible column on
+      // the host). Re-broadcast so all clients refresh — score:update is the
+      // existing channel for leaderboard data.
+      broadcastScores();
     });
 
     // ---- Host flows ----
@@ -270,6 +297,8 @@ function mountTwentyFour(app, httpServer, opts) {
       if (game.phase === PHASES.ROUND) {
         payload.round = game.getRoundPublic();
         payload.leaderboard = game.getLeaderboard();
+      } else if (game.phase === PHASES.INTRO) {
+        payload.intro = game.getIntroPublic();
       } else if (game.phase === PHASES.FINAL) {
         payload.podium = game.getPodium();
         payload.fullLeaderboard = game.getLeaderboard();
@@ -280,6 +309,8 @@ function mountTwentyFour(app, httpServer, opts) {
       if (game.phase === PHASES.ROUND) {
         socket.emit('state:round', game.getRoundPublic());
         socket.emit('score:update', { leaderboard: game.getLeaderboard() });
+      } else if (game.phase === PHASES.INTRO) {
+        socket.emit('state:intro', game.getIntroPublic());
       } else if (game.phase === PHASES.FINAL) {
         socket.emit('state:final', {
           podium: game.getPodium(),
@@ -304,12 +335,11 @@ function mountTwentyFour(app, httpServer, opts) {
       if (!res.ok) return ack && ack(res);
       ack && ack({ ok: true });
       broadcastLobby();
-      broadcastRound();
-      broadcastScores();
-      // Push each player's first puzzle individually.
-      for (const player of game.players.values()) {
-        sendPuzzleTo(player);
-      }
+      // Hold everyone on a "Get ready" countdown for a few seconds before
+      // the round actually starts. The matching `state:round` + per-player
+      // `puzzle:next` are emitted from game.onIntroEnd above when the
+      // server-side intro timer elapses.
+      broadcastIntro();
     });
 
     socket.on('host:kick', ({ playerId: pid } = {}, ack) => {

@@ -238,6 +238,19 @@ body.host {
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
+.chart-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.chart-unit {
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
 
 .bars {
   flex: 1;
@@ -253,11 +266,23 @@ body.host {
   gap: 12px;
 }
 .bar-name {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bar-name-text {
   font-weight: 700;
   font-size: 18px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.bar-skips {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
 }
 .bar-track {
   background: #f0eaea;
@@ -349,7 +374,7 @@ body.host {
 }
 .leaderboard-row {
   display: grid;
-  grid-template-columns: 30px 1fr 60px;
+  grid-template-columns: 30px 1fr 60px 70px;
   gap: 10px;
   padding: 6px 0;
   font-size: 17px;
@@ -357,7 +382,20 @@ body.host {
 }
 .leaderboard-row:last-child { border-bottom: none; }
 .leaderboard-row .lb-rank { color: rgba(255,255,255,0.5); text-align: right; font-variant-numeric: tabular-nums; }
+.leaderboard-row .lb-skips { color: rgba(255,255,255,0.6); text-align: right; font-variant-numeric: tabular-nums; }
 .leaderboard-row .lb-score { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.leaderboard-header {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.5);
+  border-bottom: 1px solid rgba(255,255,255,0.18);
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+}
+.leaderboard-header .lb-rank,
+.leaderboard-header .lb-skips,
+.leaderboard-header .lb-score { font-weight: 600; color: rgba(255,255,255,0.5); }
 
 /* Pre-results splash overlay shown for ~4s when the round ends, before
    the podium + leaderboard fade in. */
@@ -394,11 +432,64 @@ body.host {
   .round-header .countdown { font-size: 42px; }
 }
 
-/* The three views (lobby/round/final) are toggled via [hidden]. */
+/* The four views (lobby/intro/round/final) are toggled via .active. */
 .view { display: none; }
 .view.active { display: flex; }
 .view.lobby.active { display: grid; }
+.view.intro.active { display: flex; align-items: center; justify-content: center; }
 .view.fading-out { opacity: 0; transition: opacity 0.25s ease; }
+
+/* ---- Intro ("Get ready" splash) ---- */
+.intro-view {
+  text-align: center;
+  padding: 4vh 20px 6vh;
+  animation: introFadeIn 0.4s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  color: #fff;
+}
+.intro-view .intro-hint {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: clamp(18px, 1.6vw, 26px);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin: 0;
+  font-weight: 800;
+}
+.intro-view .intro-title {
+  font-size: clamp(72px, 11vw, 180px);
+  margin: 0;
+  color: #fff;
+  line-height: 1;
+  font-weight: 900;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+}
+.intro-view .intro-countdown {
+  font-weight: 900;
+  font-size: clamp(120px, 20vw, 320px);
+  line-height: 1;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+  animation: introPulse 1s ease-in-out infinite;
+  margin: 0;
+  text-shadow: 0 6px 30px rgba(0, 0, 0, 0.35);
+}
+.intro-view .intro-sub {
+  font-size: clamp(16px, 1.6vw, 24px);
+  color: rgba(255, 255, 255, 0.8);
+  margin: 12px 0 0;
+}
+@keyframes introPulse {
+  0%, 100% { transform: scale(1);    opacity: 1;   }
+  50%      { transform: scale(1.06); opacity: 0.9; }
+}
+@keyframes introFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
 
 /* Confetti */
 .confetti {
