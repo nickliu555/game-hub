@@ -62,11 +62,12 @@
     const params = new URLSearchParams(window.location.search);
     const from = (params.get('from') || '').toLowerCase();
     if (from === 'join') return '/twentyfour/join';
+    if (from === 'play') return '/twentyfour/play';
     return '/';
   }
 
   // ---------------- Data loading ----------------
-  // Both files live at /twentyfour/data/ (written by scripts/build-solutions.js).
+  // Both files live at /twentyfour/data/ and are committed as static assets.
   let puzzles = null;        // [[a,b,c,d], ...]
   let solutions = null;      // [exprString | null, ...] — indexed identically
   let dataReady = false;
@@ -83,7 +84,7 @@
       }
       if (solutions.length !== puzzles.length) {
         // Stale solutions.json — practice can still run, but log loudly.
-        console.warn('[practice] solutions.length (' + solutions.length + ') != puzzles.length (' + puzzles.length + '). Rebuild via `node scripts/build-solutions.js`.');
+        console.warn('[practice] solutions.length (' + solutions.length + ') != puzzles.length (' + puzzles.length + ').');
       }
       dataReady = true;
       paintDifficultyCounts();

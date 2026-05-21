@@ -116,6 +116,27 @@ body.join {
   margin-right: 8px;
   animation: hostAbsentPulse 1.5s ease-in-out infinite;
 }
+.host-absent-card .overlay-practice-link {
+  display: inline-block;
+  margin-top: 22px;
+  padding: 12px 22px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 800;
+  font-size: 15px;
+  text-decoration: none;
+  border-radius: 999px;
+  box-shadow: 0 6px 16px rgba(234, 88, 12, 0.35);
+  transition: transform 0.08s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.host-absent-card .overlay-practice-link:hover,
+.host-absent-card .overlay-practice-link:focus-visible {
+  background: var(--accent-deep);
+  box-shadow: 0 8px 22px rgba(234, 88, 12, 0.45);
+}
+.host-absent-card .overlay-practice-link:active {
+  transform: translateY(1px);
+}
 @keyframes hostAbsentPulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }

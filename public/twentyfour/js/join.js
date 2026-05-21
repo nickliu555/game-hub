@@ -33,6 +33,7 @@
           '<span class="pulse-dot"></span>' +
           'The host isn\'t here right now. This page will unlock automatically when they return.' +
         '</div>' +
+        '<a class="overlay-practice-link" href="/twentyfour/practice?from=join">Practice solo →</a>' +
       '</div>';
     document.body.appendChild(ov);
     return ov;
@@ -54,6 +55,7 @@
           '<span class="pulse-dot"></span>' +
           'You can\'t hop in mid-round. This page will unlock as soon as the host starts the next one.' +
         '</div>' +
+        '<a class="overlay-practice-link" href="/twentyfour/practice?from=join">Practice solo while you wait →</a>' +
       '</div>';
     document.body.appendChild(ov);
     return ov;
