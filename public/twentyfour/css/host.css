@@ -436,13 +436,13 @@ body.host {
 .view { display: none; }
 .view.active { display: flex; }
 .view.lobby.active { display: grid; }
-.view.intro.active { display: flex; align-items: center; justify-content: center; }
+.view.intro.active { display: flex; flex: 1; min-height: 0; align-items: center; justify-content: center; }
 .view.fading-out { opacity: 0; transition: opacity 0.25s ease; }
 
 /* ---- Intro ("Get ready" splash) ---- */
 .intro-view {
   text-align: center;
-  padding: 4vh 20px 6vh;
+  padding: 5vh 20px;
   animation: introFadeIn 0.4s ease;
   display: flex;
   flex-direction: column;

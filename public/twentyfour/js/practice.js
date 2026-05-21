@@ -214,11 +214,19 @@
   // solved counter intentionally persist — the session continues.
   let pendingDifficulty = null;
 
+  // Switch is only meaningful when the pending choice differs from the
+  // current difficulty. Disabling it prevents an unintentional puzzle
+  // reshuffle when the user opens the picker and confirms the same level.
+  function updateDiffApplyState() {
+    diffApplyBtn.disabled = (pendingDifficulty === null) || (pendingDifficulty === selectedDifficulty);
+  }
+
   difficultyChip.addEventListener('click', function () {
     pendingDifficulty = selectedDifficulty;
     Array.prototype.forEach.call(changeDifficultyPicker.querySelectorAll('.diff-card'), function (b) {
       b.classList.toggle('selected', b.dataset.difficulty === selectedDifficulty);
     });
+    updateDiffApplyState();
     diffOverlay.hidden = false;
   });
 
@@ -229,6 +237,7 @@
     Array.prototype.forEach.call(changeDifficultyPicker.querySelectorAll('.diff-card'), function (b) {
       b.classList.toggle('selected', b === btn);
     });
+    updateDiffApplyState();
   });
 
   diffCancelBtn.addEventListener('click', function () {
@@ -237,7 +246,12 @@
   });
 
   diffApplyBtn.addEventListener('click', function () {
-    if (!pendingDifficulty) { diffOverlay.hidden = true; return; }
+    // Same level as current → nothing to do; don't reshuffle the puzzle.
+    if (!pendingDifficulty || pendingDifficulty === selectedDifficulty) {
+      diffOverlay.hidden = true;
+      pendingDifficulty = null;
+      return;
+    }
     if (poolSize(pendingDifficulty) === 0) {
       // Vanishingly unlikely (every difficulty has hundreds of puzzles),
       // but bail safely without disturbing the session if it ever happens.

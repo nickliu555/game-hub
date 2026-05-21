@@ -14,6 +14,7 @@
   const viewLobby = document.getElementById('view-lobby');
   const viewIntro = document.getElementById('view-intro');
   const viewPuzzle = document.getElementById('view-puzzle');
+  const viewFinalWait = document.getElementById('view-final-wait');
   const viewFinal = document.getElementById('view-final');
   const viewDone = document.getElementById('view-done');
   const pIntroCountdown = document.getElementById('pIntroCountdown');
@@ -39,6 +40,7 @@
     viewLobby.style.display = (name === 'lobby') ? 'flex' : 'none';
     viewIntro.style.display = (name === 'intro') ? 'flex' : 'none';
     viewPuzzle.style.display = (name === 'puzzle') ? 'flex' : 'none';
+    viewFinalWait.style.display = (name === 'final-wait') ? 'flex' : 'none';
     viewFinal.style.display = (name === 'final') ? 'flex' : 'none';
     viewDone.style.display  = (name === 'done')  ? 'flex' : 'none';
   }
@@ -254,7 +256,10 @@
         else if (res.currentPuzzle) loadPuzzle(res.currentPuzzle);
         else showView('lobby'); // shouldn't happen, but be defensive
       } else if (res.phase === 'FINAL') {
-        showFinal();
+        // Reconnecting into FINAL — the host's reveal moment has already
+        // passed, so skip the "Look up!" interstitial and go straight to
+        // the personal stats card.
+        showFinalStats(res);
       }
     });
   });
@@ -267,6 +272,7 @@
   });
   socket.on('state:reset', function () {
     // Host reset the game — kick us back to join.
+    cancelFinalWait();
     const savedName = localStorage.getItem('twentyfour.playerName') || '';
     if (savedName) localStorage.setItem('twentyfour.rejoinName', savedName);
     localStorage.removeItem('twentyfour.playerId');
@@ -299,14 +305,38 @@
     if (me) meScore.textContent = me.score;
   });
   socket.on('state:final', function (f) {
-    showFinal(f);
+    showFinalWait(f);
   });
 
-  function showFinal(f) {
+  // Duration of the host's "Time's up! → Now for the results…" splash. Kept
+  // in sync with public/twentyfour/js/host.js showFinalIntro() so the phone's
+  // "Look up!" card swaps to personal stats just as the host reveals podium.
+  const FINAL_WAIT_MS = 3800;
+  let finalWaitTimer = null;
+  function cancelFinalWait() {
+    if (finalWaitTimer) { clearTimeout(finalWaitTimer); finalWaitTimer = null; }
+  }
+
+  function showFinalWait(f) {
+    cancelFinalWait();
+    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+    pCountdown.textContent = '0:00';
+    pCountdown.classList.remove('warn');
+    showView('final-wait');
+    finalWaitTimer = setTimeout(function () {
+      finalWaitTimer = null;
+      showFinalStats(f);
+    }, FINAL_WAIT_MS);
+  }
+
+  function showFinalStats(f) {
+    cancelFinalWait();
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
     showView('final');
     pCountdown.textContent = '0:00';
     pCountdown.classList.remove('warn');
+    // Small buzz to pull attention back to the phone for the personal recap.
+    if (navigator.vibrate) { try { navigator.vibrate(40); } catch (_) {} }
     // Pull our own row from the leaderboard so we can show real solved /
     // skipped counts. (Score == solvedCount in this game, but read it from
     // the explicit fields for clarity.)
@@ -319,7 +349,18 @@
         // rank). Fall back to array position if the server didn't send one.
         const rank = (typeof me.rank === 'number') ? me.rank : (f.fullLeaderboard.indexOf(me) + 1);
         const total = f.fullLeaderboard.length;
-        finalRankLine.textContent = 'You finished ' + ordinal(rank) + ' of ' + total;
+        // Medal tier prefix + color class for the top three; everyone else
+        // gets the default accent-orange rank line.
+        const tierClass = (rank === 1) ? 'rank-gold'
+                        : (rank === 2) ? 'rank-silver'
+                        : (rank === 3) ? 'rank-bronze'
+                        : '';
+        const medal = (rank === 1) ? '🥇 '
+                    : (rank === 2) ? '🥈 '
+                    : (rank === 3) ? '🥉 '
+                    : '';
+        finalRankLine.className = 'rank-line' + (tierClass ? ' ' + tierClass : '');
+        finalRankLine.textContent = medal + 'You finished ' + ordinal(rank) + ' of ' + total;
       } else {
         finalSkips.textContent = '0';
       }

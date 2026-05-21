@@ -14,10 +14,10 @@ const MAX_NAME_LEN = 20;
 const SKIP_LOCKOUT_MS = 20 * 1000;
 const DEFAULT_DURATION_MIN = 2;
 // Pre-round "Get ready" splash so players aren't yanked straight from the
-// lobby into puzzle #1. Mirrors trivia's INTRO phase, just shorter — 24
-// players are heads-down on phones, not watching a single shared screen.
-const INTRO_DURATION_MS = 3000;
-const INTRO_GO_HOLD_MS = 900;
+// lobby into puzzle #1. Mirrors trivia's INTRO phase exactly so players
+// hopping between games feel the same pre-round beat.
+const INTRO_DURATION_MS = 4000;
+const INTRO_GO_HOLD_MS = 1100;
 
 function fisherYates(a) {
   for (let i = a.length - 1; i > 0; i--) {

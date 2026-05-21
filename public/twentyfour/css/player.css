@@ -242,11 +242,21 @@ body.player {
   max-width: 380px;
   width: 100%;
 }
-.final-card h1 { margin: 0 0 4px; font-size: 32px; }
+.final-card h1 { margin: 0 0 4px; font-size: 22px; color: var(--muted); font-weight: 700; }
 .final-card .rank-line {
-  font-size: 18px;
-  color: var(--muted);
-  margin-bottom: 12px;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--accent);
+  margin-bottom: 18px;
+}
+/* Medal tiers — darker silver/bronze than the literal coin colors so they
+   stay legible on the white card surface. */
+.final-card .rank-line.rank-gold   { color: #D4AF37; }
+.final-card .rank-line.rank-silver { color: #8E9295; }
+.final-card .rank-line.rank-bronze { color: #B36A2A; }
+@media (max-width: 360px) {
+  .final-card .rank-line { font-size: 22px; }
 }
 .final-card .stats {
   display: flex;
@@ -389,4 +399,43 @@ body.player {
 @keyframes pIntroFadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
+}
+
+/* End-of-round "Look up!" interstitial — runs in parallel with the host's
+   "Time's up! → Now for the results…" splash so the phone doesn't compete
+   with the podium reveal for attention. */
+.final-wait {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 14px;
+  padding: 24px;
+  animation: pIntroFadeIn 0.35s ease;
+}
+.final-wait-hint {
+  color: var(--ink-soft);
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+.final-wait-title {
+  font-size: 30px;
+  font-weight: 900;
+  color: var(--accent);
+  line-height: 1.15;
+  margin: 0;
+}
+.final-wait-emoji {
+  font-size: 84px;
+  line-height: 1;
+  animation: pIntroPulse 1.4s ease-in-out infinite;
+}
+.final-wait-sub {
+  color: var(--ink-soft);
+  font-size: 15px;
+  margin: 0;
 }
