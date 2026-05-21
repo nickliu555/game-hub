@@ -101,7 +101,7 @@ function createFreshState() {
     };
 }
 
-// ─── Inactivity auto-reset (45 min) ─────────────────────────
+// ─── Inactivity auto-reset (60 min) ─────────────────────────
 let lastActivity = Date.now();
 
 function touchActivity() {

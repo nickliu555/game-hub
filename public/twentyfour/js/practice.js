@@ -147,7 +147,14 @@
   let queue = [];             // shuffled list of puzzle ids to serve
   let cursor = 0;             // next index into queue
   let currentPuzzleId = null;
-  let sessionStartTs = 0;
+  // Timer is built around "accumulated ms while actively playing" rather
+  // than a wall-clock delta from session start, so it can pause cleanly
+  // when (a) the player is reading a Give Up reveal or (b) the tab is
+  // hidden in the background.
+  let accumulatedMs = 0;
+  let activeSegmentStart = 0; // ms timestamp when current run started; 0 = paused
+  let viewActive = false;     // true while the puzzle view is the active one
+  let pageVisible = (typeof document === 'undefined') ? true : !document.hidden;
   let timerHandle = null;
   let solvedCount = 0;
   let gaveUpCount = 0;
@@ -156,6 +163,10 @@
     viewSetup.hidden = name !== 'setup';
     viewPuzzle.hidden = name !== 'puzzle';
     viewAnswer.hidden = name !== 'answer';
+    // Timer only accumulates while the puzzle view is showing — the
+    // answer view (Give Up reveal) and the setup screen don't count as
+    // active play.
+    setViewActive(name === 'puzzle');
   }
 
   // ---------------- Puzzle engine ----------------
@@ -200,7 +211,8 @@
     cursor = 0;
     solvedCount = 0;
     gaveUpCount = 0;
-    sessionStartTs = Date.now();
+    accumulatedMs = 0;
+    activeSegmentStart = 0;
     paintStats();
     paintDifficultyChip();
     startTimer();
@@ -319,14 +331,40 @@
   function stopTimer() {
     if (timerHandle) { clearInterval(timerHandle); timerHandle = null; }
   }
+  // Recompute whether the timer should be actively accumulating. Called
+  // on every view change and visibility change. If we transition from
+  // active → paused, fold the current segment into accumulatedMs. If we
+  // transition from paused → active, start a fresh segment.
+  function reconcileTimer() {
+    const want = viewActive && pageVisible;
+    const isAccumulating = activeSegmentStart !== 0;
+    if (want && !isAccumulating) {
+      activeSegmentStart = Date.now();
+    } else if (!want && isAccumulating) {
+      accumulatedMs += Date.now() - activeSegmentStart;
+      activeSegmentStart = 0;
+    }
+    paintTimer();
+  }
+  function setViewActive(b) {
+    viewActive = !!b;
+    reconcileTimer();
+  }
   function elapsedSec() {
-    if (!sessionStartTs) return 0;
-    return Math.floor((Date.now() - sessionStartTs) / 1000);
+    let total = accumulatedMs;
+    if (activeSegmentStart) total += (Date.now() - activeSegmentStart);
+    return Math.floor(total / 1000);
   }
   function formatTime(totalSec) {
-    const m = Math.floor(totalSec / 60);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
     const s = totalSec % 60;
-    return m + ':' + (s < 10 ? '0' : '') + s;
+    const ss = (s < 10 ? '0' : '') + s;
+    if (h > 0) {
+      const mm = (m < 10 ? '0' : '') + m;
+      return h + ':' + mm + ':' + ss;
+    }
+    return m + ':' + ss;
   }
   function paintTimer() {
     timerDisplay.textContent = formatTime(elapsedSec());
@@ -334,6 +372,15 @@
   function paintStats() {
     solvedDisplay.textContent = String(solvedCount);
     solvedLabel.textContent = solvedCount === 1 ? 'solved' : 'solved';
+  }
+
+  // Pause the timer when the tab is hidden (switched away, phone
+  // locked, etc.) so a long break doesn't inflate the session time.
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', function () {
+      pageVisible = !document.hidden;
+      reconcileTimer();
+    });
   }
 
   // ---------------- Back / exit overlay ----------------

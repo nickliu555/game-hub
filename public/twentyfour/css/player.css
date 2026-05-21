@@ -82,6 +82,25 @@ body.player {
   0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.55); }
   50% { transform: scale(1.12); box-shadow: 0 0 0 10px rgba(234, 88, 12, 0); }
 }
+/* After the round ends, the score and timer are redundant with the
+   personal stats card + host leaderboard. Hide them so the eye lands on
+   the rank reveal. The name stays so the player still recognizes the
+   device. `.p-header` grows the name into the freed space. */
+.p-header.header-end {
+  justify-content: center;
+}
+.p-header.header-end .me {
+  justify-content: center;
+  width: 100%;
+}
+.p-header.header-end .me .score,
+.p-header.header-end .countdown {
+  display: none;
+}
+.p-header.header-end .me .name {
+  max-width: 100%;
+  text-align: center;
+}
 
 
 /* Vertically center the puzzle content (numbers grid + ops + controls) in
@@ -428,11 +447,7 @@ body.player {
   color: var(--accent);
   line-height: 1.15;
   margin: 0;
-}
-.final-wait-emoji {
-  font-size: 84px;
-  line-height: 1;
-  animation: pIntroPulse 1.4s ease-in-out infinite;
+  animation: pIntroPulse 1.6s ease-in-out infinite;
 }
 .final-wait-sub {
   color: var(--ink-soft);

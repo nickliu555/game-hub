@@ -11,6 +11,7 @@
   const meName = document.getElementById('meName');
   const meScore = document.getElementById('meScore');
   const pCountdown = document.getElementById('pCountdown');
+  const pHeader = document.querySelector('.p-header');
   const viewLobby = document.getElementById('view-lobby');
   const viewIntro = document.getElementById('view-intro');
   const viewPuzzle = document.getElementById('view-puzzle');
@@ -43,6 +44,15 @@
     viewFinalWait.style.display = (name === 'final-wait') ? 'flex' : 'none';
     viewFinal.style.display = (name === 'final') ? 'flex' : 'none';
     viewDone.style.display  = (name === 'done')  ? 'flex' : 'none';
+    // After the round timer ends the score chip and countdown are just
+    // noise — the personal stats card and the host leaderboard already
+    // show the score, and the timer reads 0:00 forever. Hide them on the
+    // final views, keep the name so the player still recognizes their
+    // device. Any other view restores the normal header.
+    if (pHeader) {
+      const ended = (name === 'final-wait' || name === 'final');
+      pHeader.classList.toggle('header-end', ended);
+    }
   }
 
   // Live player count shown in the lobby waiting view. Mirrors Empire/Trivia.
