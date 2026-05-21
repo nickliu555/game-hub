@@ -4,7 +4,7 @@ A real-time multiplayer party game platform for phones and a shared screen — h
 
 ## Games
 
-### 👑 Empire ⚔️
+### 👑 Empire
 A word-guessing party game.
 
 1. Everyone secretly submits a word (optionally within a chosen category)
@@ -12,7 +12,7 @@ A word-guessing party game.
 3. Players take turns guessing which word belongs to which person — guess correctly and you "capture" them into your empire
 4. **Last empire standing wins!**
 
-### ❓ Trivia
+### 🧠 Trivia
 Fast-paced multiple-choice trivia with live scoring. Questions come from the Open Trivia Database.
 
 1. The host picks a category, difficulty, number of questions, and time per question
