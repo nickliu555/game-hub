@@ -166,11 +166,13 @@
       });
     }
     function renderControls() {
-      // Undo can step back any tap — operator pick, A pick, or a
-      // committed combine — so it's enabled whenever any of those exist.
-      const hasUndoable = history.length > 0 || selected.aId !== null || selected.op !== null;
-      if (undoBtn) undoBtn.disabled = !hasUndoable || locked;
-      if (resetBtn) resetBtn.disabled = history.length === 0 || locked;
+      // Undo and Reset are both enabled whenever there's anything to
+      // reverse — a pending operator pick, a pending A pick, or one or
+      // more committed combines. Reset wipes everything back to the
+      // initial four tiles; Undo peels one tap at a time.
+      const hasState = history.length > 0 || selected.aId !== null || selected.op !== null;
+      if (undoBtn) undoBtn.disabled = !hasState || locked;
+      if (resetBtn) resetBtn.disabled = !hasState || locked;
     }
     function renderAll() { renderTiles(); renderOps(); renderControls(); }
 
