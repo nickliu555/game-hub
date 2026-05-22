@@ -115,11 +115,29 @@
     }
 
     function undo() {
-      if (!history.length || locked) return;
+      if (locked) return;
+      // Undo peels one tap at a time, in reverse order:
+      //   1. operator selection      →  clear op (A tile stays selected)
+      //   2. A tile selection        →  clear A
+      //   3. last committed combine  →  pop history, restore both tiles
+      //      AND re-select A + op so the next two undos can peel those
+      //      individual taps too (a full A+op+B commit takes 3 undos
+      //      to fully reverse).
+      if (selected.op !== null) {
+        selected.op = null;
+        renderAll();
+        return;
+      }
+      if (selected.aId !== null) {
+        selected.aId = null;
+        renderAll();
+        return;
+      }
+      if (!history.length) return;
       const step = history.pop();
       tiles[step.aId] = step.prevA;
       tiles[step.bId] = step.prevB;
-      selected = { aId: null, op: null };
+      selected = { aId: step.aId, op: step.op };
       renderAll();
     }
 
@@ -148,7 +166,10 @@
       });
     }
     function renderControls() {
-      if (undoBtn) undoBtn.disabled = history.length === 0 || locked;
+      // Undo can step back any tap — operator pick, A pick, or a
+      // committed combine — so it's enabled whenever any of those exist.
+      const hasUndoable = history.length > 0 || selected.aId !== null || selected.op !== null;
+      if (undoBtn) undoBtn.disabled = !hasUndoable || locked;
       if (resetBtn) resetBtn.disabled = history.length === 0 || locked;
     }
     function renderAll() { renderTiles(); renderOps(); renderControls(); }
@@ -172,15 +193,13 @@
       if (selected.aId === null) {
         selected.aId = id;
         selected.op = null;
-        renderTiles();
-        renderOps();
+        renderAll();
         return;
       }
       // Tapping A again deselects
       if (selected.aId === id && !selected.op) {
         selected.aId = null;
-        renderTiles();
-        renderOps();
+        renderAll();
         return;
       }
       // Step 2 (after op picked): pick B and commit
@@ -195,7 +214,7 @@
       }
       // Otherwise replace A
       selected.aId = id;
-      renderTiles();
+      renderAll();
     }
 
     function onOpClick(e) {
@@ -204,7 +223,7 @@
       if (!btn || btn.disabled || !opsEl.contains(btn)) return;
       if (selected.aId === null) return;
       selected.op = btn.dataset.op;
-      renderOps();
+      renderAll();
     }
 
     function commitStep(aId, op, bId) {
