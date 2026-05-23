@@ -19,6 +19,20 @@ body.host {
   padding: 28px 32px 40px;
   min-height: 0;
   align-items: stretch;
+  position: relative;
+}
+
+/* Pinned to the bottom of the lobby section so it doesn't steal grid
+   row space from the QR card / player grid columns. */
+.lobby-attribution {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 11px;
+  pointer-events: none;
 }
 
 .lobby-left {
@@ -111,7 +125,7 @@ body.host {
 .lobby-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
+  align-items: center;
   gap: 16px;
   padding-bottom: 4px;
 }
@@ -169,7 +183,7 @@ body.host {
 
 .start-row {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 12px;
 }
 .start-row .btn-start {

@@ -27,8 +27,8 @@
         <div class="gtb-settings-wrapper">
           <button class="gtb-btn" type="button" data-gtb-settings-toggle aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️ Settings</button>
           <div class="gtb-settings-panel" id="settingsPanel" hidden>
-            <button id="muteReactionsBtn" class="gtb-btn" type="button" data-gtb-settings-keep-open title="Mute player reactions">🔔 Reactions</button>
             <button id="fullscreenBtn" class="gtb-btn" type="button" title="Toggle fullscreen">⛶ Fullscreen</button>
+            <button id="muteReactionsBtn" class="gtb-btn" type="button" data-gtb-settings-keep-open title="Mute player reactions">🔔 Reactions</button>
             <div class="gtb-divider"></div>
             <button id="resetBtn" class="gtb-btn gtb-btn-danger" type="button" title="Reset the whole game">Reset game</button>
           </div>
@@ -42,14 +42,14 @@
         <div class="lobby-grid">
           <div class="qr-panel">
             <h2>Scan to join</h2>
-            <p>Point your phone camera at the code</p>
-            <img id="qrImg" alt="Join QR code" width="320" height="320" />
+            <p>Or type the URL below on your phone</p>
+            <img id="qrImg" alt="Join QR code" width="420" height="420" />
             <div class="join-url" id="joinUrl"></div>
           </div>
           <div class="players-panel">
             <div class="header">
-              <h3>Players</h3>
-              <div class="count" id="playerCount">0</div>
+              <h3>🧠 Trivia</h3>
+              <div class="count"><span id="playerCount">0</span> players</div>
             </div>
             <div class="player-list" id="playerList"></div>
             <div class="lobby-config">

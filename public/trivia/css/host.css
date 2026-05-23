@@ -143,9 +143,9 @@ body.host {
   flex-direction: column;
   justify-content: center;
 }
-.qr-panel h2 { margin: 0 0 8px; font-size: 44px; color: var(--accent-deep); }
-.qr-panel p  { color: var(--ink-soft); margin: 4px 0 16px; font-size: 20px; }
-.qr-panel img { background: white; padding: 12px; border-radius: var(--radius); display: block; margin: 0 auto; }
+.qr-panel h2 { margin: 0 0 4px; font-size: 44px; color: var(--accent-deep); }
+.qr-panel p  { color: var(--ink-soft); margin: 0 0 16px; font-size: 20px; }
+.qr-panel img { background: white; padding: 12px; border-radius: var(--radius); display: block; margin: 0 auto; width: 420px; height: 420px; max-width: 60vh; max-height: 60vh; }
 .qr-panel .join-url {
   margin-top: 14px;
   font-size: 22px; font-weight: 700; color: var(--accent);
@@ -162,9 +162,9 @@ body.host {
   display: flex; flex-direction: column;
 }
 .players-panel .header {
-  display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;
 }
-.players-panel h3 { margin: 0; font-size: 26px; }
+.players-panel h3 { margin: 0; font-size: 36px; line-height: 1; }
 .players-panel .count {
   background: var(--accent); color: white; padding: 4px 14px; border-radius: 999px;
   font-weight: 800; font-size: 18px;
@@ -177,6 +177,14 @@ body.host {
   gap: 8px;
   align-content: flex-start;
   min-height: 60px;
+}
+.player-list:empty::after {
+  content: 'Waiting for players to join…';
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--ink-soft, #888);
+  font-size: 14px;
+  padding: 24px 12px;
 }
 .player-chip {
   background: #f3eff8;

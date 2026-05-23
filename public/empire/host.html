@@ -894,6 +894,15 @@
             border-radius: 12px;
             display: inline-flex;
             margin: 0 auto;
+            max-width: 60vh;
+            max-height: 60vh;
+        }
+        .panel-qr .qr-box canvas,
+        .panel-qr .qr-box img {
+            max-width: 60vh;
+            max-height: 60vh;
+            width: 420px;
+            height: 420px;
         }
         .panel-qr .join-url {
             margin-top: 18px;
@@ -908,11 +917,12 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
+            margin-bottom: 18px;
         }
         .panel-players .ph-header h3 {
             margin: 0;
-            font-size: 24px;
+            font-size: 36px;
+            line-height: 1;
             color: #d4a844;
         }
         .panel-players .ph-count {
@@ -1152,8 +1162,8 @@
         <div class="gtb-settings-wrapper">
           <button class="gtb-btn" type="button" data-gtb-settings-toggle aria-controls="empireSettingsPanel" aria-expanded="false" title="Settings">⚙️ Settings</button>
           <div class="gtb-settings-panel" id="empireSettingsPanel" hidden>
-            <button id="empireReactionsBtn" class="gtb-btn" type="button" data-gtb-settings-keep-open title="Mute player reactions">🔔 Reactions</button>
             <button id="empireFullscreenBtn" class="gtb-btn" type="button" title="Toggle fullscreen" onclick="togglePageFullscreen()">⛶ Fullscreen</button>
+            <button id="empireReactionsBtn" class="gtb-btn" type="button" data-gtb-settings-keep-open title="Mute player reactions">🔔 Reactions</button>
             <div class="gtb-divider"></div>
             <button id="empireResetBtn" class="gtb-btn gtb-btn-danger" type="button" title="Reset the game" onclick="resetSubmissions()">Reset game</button>
           </div>
@@ -1190,7 +1200,7 @@
               <!-- LEFT: QR panel -->
               <div class="panel panel-qr">
                 <h2>Scan to join</h2>
-                <p class="qr-sub">Point your phone camera at the code</p>
+                <p class="qr-sub">Or type the URL below on your phone</p>
                 <div class="qr-box" id="qrCode"></div>
                 <div class="join-url" id="playerUrl"></div>
               </div>
@@ -1198,8 +1208,8 @@
               <!-- RIGHT: Players panel -->
               <div class="panel panel-players">
                 <div class="ph-header">
-                    <h3>Players</h3>
-                    <div class="ph-count" id="hostPlayerCount">0</div>
+                    <h3>👑 Empire</h3>
+                    <div class="ph-count"><span id="hostPlayerCount">0</span> players</div>
                 </div>
                 <div class="player-grid" id="playerNamesInner"></div>
 
@@ -1666,8 +1676,8 @@
                 if (!qrContainer.hasChildNodes()) {
                     new QRCode(qrContainer, {
                         text: url,
-                        width: 300,
-                        height: 300,
+                        width: 420,
+                        height: 420,
                         colorDark: '#d4a844',
                         colorLight: '#1c1c1c',
                         correctLevel: QRCode.CorrectLevel.M

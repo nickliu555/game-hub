@@ -231,7 +231,7 @@
     playerCount.textContent = players.length;
     startBtn.disabled = players.length === 0;
     if (players.length === 0) {
-      playerGrid.innerHTML = '<div class="player-empty">Waiting for players to scan the QR code…</div>';
+      playerGrid.innerHTML = '<div class="player-empty">Waiting for players to join…</div>';
       return;
     }
     playerGrid.innerHTML = players.map(function (p) {
