@@ -107,15 +107,14 @@
         <!-- ═══ Removed by host ═══ -->
         <div id="viewPlayerKicked" style="display:none;">
             <div class="state-card">
-                <div class="sc-icon">🚫</div>
+                <div class="sc-icon">&#x1F6AA;</div>
                 <h2 class="is-danger">You were removed by the host.</h2>
+                <p>You can rejoin if the game is still open.</p>
                 <div class="sc-actions">
                     <button class="btn-primary" onclick="rejoinAfterKick()" style="width:100%; max-width:240px;">Rejoin</button>
                 </div>
             </div>
         </div>
-
-        <div class="player-attribution" id="playerAttribution" hidden>Developed by Nick Liu (with help from Claude)</div>
 
         <!-- Sticky reaction bar lives inside the flex column container so
              `margin-top: auto` pushes it to the bottom on tall screens and
@@ -129,6 +128,8 @@
             <button type="button" class="reaction-btn" data-emoji="😡" aria-label="angry">😡</button>
             <span class="empire-reaction-cooldown" hidden></span>
         </div>
+
+        <div class="player-attribution" id="playerAttribution" hidden>Developed by Nick Liu (with help from Claude)</div>
     </div>
 
     <script src="js/shared.js"></script>

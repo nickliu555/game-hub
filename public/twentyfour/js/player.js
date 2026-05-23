@@ -18,6 +18,7 @@
   const viewFinalWait = document.getElementById('view-final-wait');
   const viewFinal = document.getElementById('view-final');
   const viewDone = document.getElementById('view-done');
+  const viewKicked = document.getElementById('view-kicked');
   const pIntroCountdown = document.getElementById('pIntroCountdown');
   const lobbyPlayerCount = document.getElementById('lobbyPlayerCount');
   const lobbyPlayerCountValue = document.getElementById('lobbyPlayerCountValue');
@@ -72,6 +73,7 @@
     viewFinalWait.style.display = (name === 'final-wait') ? 'flex' : 'none';
     viewFinal.style.display = (name === 'final') ? 'flex' : 'none';
     viewDone.style.display  = (name === 'done')  ? 'flex' : 'none';
+    if (viewKicked) viewKicked.style.display = (name === 'kicked') ? 'flex' : 'none';
     // After the round timer ends, score and timer are redundant with the
     // personal stats card + host leaderboard. Hide them so just the name
     // remains centered. Any other view restores the normal three-part header.
@@ -358,10 +360,21 @@
     window.location.replace('/twentyfour/join');
   });
   socket.on('player:rejected', function () {
+    // Host kicked us — show a message instead of a silent redirect so the
+    // player understands why they were bounced. Matches Trivia's behavior.
+    cancelFinalWait();
+    const savedName = localStorage.getItem('twentyfour.playerName') || '';
+    if (savedName) localStorage.setItem('twentyfour.rejoinName', savedName);
     localStorage.removeItem('twentyfour.playerId');
     localStorage.removeItem('twentyfour.playerName');
-    window.location.replace('/twentyfour/join');
+    showView('kicked');
   });
+  const kickRejoinBtn = document.getElementById('kickRejoinBtn');
+  if (kickRejoinBtn) {
+    kickRejoinBtn.addEventListener('click', function () {
+      window.location.replace('/twentyfour/join');
+    });
+  }
   socket.on('state:round', function (r) {
     stopIntroTimer();
     applyRound(r);

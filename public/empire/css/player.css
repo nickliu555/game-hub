@@ -1,4 +1,8 @@
 /* ─── Easter egg: Pink theme ─── */
+html:has(body.pink-theme) {
+    background-color: #ff9ec6;
+    background-image: linear-gradient(135deg, #ff9ec6 0%, #ff6fa8 30%, #e84393 60%, #ff9ec6 100%);
+}
 body.pink-theme {
     background: linear-gradient(135deg, #ff9ec6 0%, #ff6fa8 30%, #e84393 60%, #ff9ec6 100%);
 }
@@ -84,7 +88,7 @@ body.pink-theme::before {
    so on tall screens it nestles right under the content (no big gap). */
 .empire-reaction-bar {
     position: sticky;
-    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(28px + env(safe-area-inset-bottom, 0px));
     margin-top: 8px;
     margin-bottom: 0;
     align-self: stretch;
@@ -291,12 +295,21 @@ body.pink-theme::before {
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35), 0 0 18px rgba(255, 105, 180, 0.25);
 }
 
-/* ─── Player attribution footer ───────────────────── */
+/* ─── Player attribution footer ───────────────────
+   Pinned beneath the reaction bar as a fixed strip so it never bumps
+   any other UI and stays visible on all mobile devices. */
 .player-attribution {
-    margin-top: 24px;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(4px + env(safe-area-inset-bottom, 0px));
     text-align: center;
     color: #555;
-    font-size: 11px;
+    font-size: 10px;
+    line-height: 1.2;
+    padding: 0 12px;
+    pointer-events: none;
+    z-index: 6;
 }
 
 /* ─── Branded join header (matches Trivia / 24 pattern) ─────────
@@ -574,7 +587,7 @@ body.player-page.join-page .join-hero > div[id^="view"] {
     .empire-reaction-bar {
         padding: 12px 10px 10px;
         gap: 6px;
-        bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+        bottom: calc(30px + env(safe-area-inset-bottom, 0px));
     }
     .empire-reaction-bar .reaction-btn {
         font-size: 30px;

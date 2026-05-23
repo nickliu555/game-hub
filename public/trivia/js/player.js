@@ -44,10 +44,10 @@
         '</div>'
       : '';
     render(
+      '<div class="lobby-hero" aria-hidden="true"><span>🧠</span></div>' +
       '<h2>You\'re in!</h2>' +
       '<p>Look up at the big screen. The quiz will start soon.</p>' +
-      countLine +
-      '<p style="margin-top:14px; color: var(--muted); font-size: 14px;">Keep this tab open.</p>'
+      countLine
     );
     setAttributionVisible(true);
   }
@@ -188,10 +188,19 @@
     } else {
       localStorage.removeItem('trivia.rejoinName');
     }
+    const isKick = reason === 'kicked';
+    const iconLine = isKick
+      ? '<div style="font-size:56px; line-height:1; margin-bottom:10px;" aria-hidden="true">🚪</div>'
+      : '';
+    const subLine = isKick
+      ? '<p style="color: var(--ink-soft); margin: 6px 0 0; font-size: 14px;">You can rejoin if the game is still open.</p>'
+      : '';
     elView.innerHTML =
       '<div class="state-card">' +
+        iconLine +
         '<h2>' + msg + '</h2>' +
-        '<button class="btn-primary" style="margin-top: 16px;" onclick="localStorage.removeItem(\'trivia.playerId\'); localStorage.removeItem(\'trivia.playerName\'); window.location.replace(\'/trivia/join\');">Rejoin</button>' +
+        subLine +
+        '<button class="btn-primary" style="margin-top: 18px;" onclick="localStorage.removeItem(\'trivia.playerId\'); localStorage.removeItem(\'trivia.playerName\'); window.location.replace(\'/trivia/join\');">Rejoin</button>' +
       '</div>';
   }
 

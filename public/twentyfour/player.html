@@ -88,6 +88,14 @@
       </div>
     </div>
 
+    <!-- Removed by host -->
+    <div class="kick-wait" id="view-kicked" style="display:none;">
+      <div class="kick-icon" aria-hidden="true">🚪</div>
+      <div class="kick-title">You were removed by the host.</div>
+      <div class="kick-sub">You can rejoin if the game is still open.</div>
+      <button type="button" class="btn-primary" id="kickRejoinBtn" style="margin-top:18px;">Rejoin</button>
+    </div>
+
     <!-- Final per-player summary -->
     <div id="view-final" style="display:none; flex:1; flex-direction:column;">
       <div class="final-card">
@@ -112,9 +120,6 @@
     </div>
   </div>
 
-  <!-- Attribution: visible only in lobby + final phases (in-round is too busy). -->
-  <div class="player-attribution" id="playerAttribution" hidden>Developed by Nick Liu (with help from Claude)</div>
-
   <!-- Reaction bar: visible during lobby + final phases only.
        In-round (puzzle/done) is intentionally too busy for reactions. -->
   <div class="reaction-bar" id="reactionBar" hidden>
@@ -126,6 +131,10 @@
     <button type="button" class="reaction-btn" data-reaction="5" aria-label="angry">😡</button>
     <div class="reaction-cooldown" id="reactionCooldown" hidden></div>
   </div>
+
+  <!-- Attribution: pinned beneath the reaction bar via CSS (position: fixed).
+       Visible only in lobby + final phases (in-round is too busy). -->
+  <div class="player-attribution" id="playerAttribution" hidden>Developed by Nick Liu (with help from Claude)</div>
 
   <!-- Host absent overlay -->
   <div class="host-absent-overlay" id="hostAbsentOverlay" hidden>

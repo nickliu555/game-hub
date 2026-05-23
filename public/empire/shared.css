@@ -2,14 +2,24 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+html {
+    background-color: #1a0a0a;
+    background-image: linear-gradient(135deg, #1a0a0a 0%, #4a0e0e 50%, #2d0808 100%);
+    background-attachment: fixed;
+    background-size: cover;
+    min-height: 100%;
+    overscroll-behavior-y: contain;
+}
+
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #1a0a0a 0%, #4a0e0e 50%, #2d0808 100%);
+    background: transparent;
     min-height: 100vh;
     display: flex;
     justify-content: center;
     align-items: center;
     padding: 20px;
+    overscroll-behavior-y: contain;
 }
 
 body::before {
