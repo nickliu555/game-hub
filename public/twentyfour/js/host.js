@@ -394,9 +394,29 @@
   // ---------------- Scoreboard (bar chart) ----------------
   // Render a bar per player; widths animate via CSS transition. We sort
   // descending by score so the leader floats to the top.
+  //
+  // Rank-shuffle uses a FLIP animation: snapshot each row's *visual*
+  // position before the re-render (via getBoundingClientRect so mid-flight
+  // transforms are captured), then after the DOM update apply an inverse
+  // translateY with no transition, and on the next frame remove it with
+  // a transition so rows glide smoothly into their new positions. Doing
+  // this with the rect (not offsetTop) means rapid back-to-back updates
+  // redirect mid-animation instead of snapping.
+  const prevScores = new Map();
+  const FLIP_MS = 420;
   function applyScores(leaderboard) {
     const lb = (leaderboard || []).slice().sort(function (a, b) { return b.score - a.score; });
     const maxScore = Math.max(1, lb.length ? lb[0].score : 1);
+
+    // 1. Snapshot current visual top per pid (captures in-flight transforms).
+    const containerTop = barsEl.getBoundingClientRect().top;
+    const oldTops = new Map();
+    barsEl.querySelectorAll('.bar-row').forEach(function (row) {
+      const pid = row.getAttribute('data-pid');
+      if (pid) oldTops.set(pid, row.getBoundingClientRect().top - containerTop);
+    });
+
+    // 2. Re-render.
     barsEl.innerHTML = lb.map(function (p) {
       const pct = Math.round((p.score / maxScore) * 100);
       const skipNote = (p.skippedCount > 0)
@@ -413,6 +433,58 @@
         '</div>'
       );
     }).join('');
+
+    // 3. FLIP: invert positions for rows that moved, then animate to 0.
+    //    Also trigger a pulse on rows whose score went up.
+    const newRows = barsEl.querySelectorAll('.bar-row');
+    newRows.forEach(function (row) {
+      const pid = row.getAttribute('data-pid');
+      const newTop = row.getBoundingClientRect().top - containerTop;
+      const oldTop = oldTops.get(pid);
+      if (typeof oldTop === 'number') {
+        const delta = oldTop - newTop;
+        if (Math.abs(delta) > 0.5) {
+          row.style.transition = 'none';
+          row.style.transform = 'translateY(' + delta + 'px)';
+        }
+      }
+    });
+    // Force layout flush so the inverted transform is committed before we
+    // start the transition back to 0. Without this, the browser may batch
+    // both writes and skip the animation entirely.
+    void barsEl.offsetWidth;
+    requestAnimationFrame(function () {
+      newRows.forEach(function (row) {
+        if (row.style.transform) {
+          row.style.transition = 'transform ' + FLIP_MS + 'ms cubic-bezier(0.22, 1, 0.36, 1)';
+          row.style.transform = '';
+        }
+      });
+    });
+
+    // 4. Score pulse on the value cell whenever a player's score increased.
+    //    Pulsing a child (not the row) avoids fighting the FLIP transform.
+    lb.forEach(function (p) {
+      const pid = String(p.id);
+      const prev = prevScores.get(pid);
+      if (typeof prev === 'number' && p.score > prev) {
+        const row = barsEl.querySelector('.bar-row[data-pid="' + p.id + '"]');
+        const val = row && row.querySelector('.bar-value');
+        if (val) {
+          // Retrigger pattern: remove class, force reflow, re-add.
+          val.classList.remove('pulse');
+          void val.offsetWidth;
+          val.classList.add('pulse');
+        }
+      }
+      prevScores.set(pid, p.score);
+    });
+    // Drop entries for players no longer in the leaderboard so the map
+    // doesn't grow unbounded across long sessions.
+    const currentPids = new Set(lb.map(function (p) { return String(p.id); }));
+    Array.from(prevScores.keys()).forEach(function (pid) {
+      if (!currentPids.has(pid)) prevScores.delete(pid);
+    });
   }
   socket.on('score:update', function (p) {
     applyScores(p && p.leaderboard);
@@ -464,7 +536,10 @@
     const byRank = new Map();
     podium.forEach(function (p) {
       if (!byRank.has(p.rank)) {
-        const g = { rank: p.rank, score: p.score, players: [] };
+        // All players sharing a rank also share skippedCount by definition
+        // of competition rank (rank ties require both score AND skips to
+        // match), so it's safe to capture it once per group.
+        const g = { rank: p.rank, score: p.score, skippedCount: p.skippedCount || 0, players: [] };
         byRank.set(p.rank, g);
         groups.push(g);
       }
@@ -487,9 +562,16 @@
         '</div>'
       : '';
     lbRows.innerHTML = headerRow + fullLb.map(function (p, i) {
+      // Use the server-assigned competition rank (ties share a rank like
+      // 1, 1, 3) instead of the array index. Blank out the cell when this
+      // row has the same rank as the previous one so the column reads
+      // cleanly: 1 / blank / 3 for a tie at the top.
+      const rank = (typeof p.rank === 'number') ? p.rank : (i + 1);
+      const prevRank = i > 0 ? fullLb[i - 1].rank : null;
+      const rankLabel = (rank === prevRank) ? '' : rank;
       return (
         '<div class="leaderboard-row">' +
-          '<div class="lb-rank">' + (i + 1) + '</div>' +
+          '<div class="lb-rank">' + rankLabel + '</div>' +
           '<div>' + escapeHtml(p.name) + '</div>' +
           '<div class="lb-skips">' + (p.skippedCount || 0) + '</div>' +
           '<div class="lb-score">' + p.score + '</div>' +
@@ -506,12 +588,15 @@
       : '<div class="name">' +
           group.players.map(function (p) { return escapeHtml(p.name); }).join(' · ') +
         '</div>';
+    const skips = group.skippedCount;
+    const skipsLabel = skips + (skips === 1 ? ' skip' : ' skips');
     return (
       '<div class="podium-spot ' + klass + (tie ? ' tie' : '') + '">' +
         '<div class="medal">' + medal + '</div>' +
         '<div class="rank">' + ordinal(group.rank) + (tie ? ' (tie)' : '') + '</div>' +
         nameHtml +
         '<div class="score">' + group.score + (group.score === 1 ? ' solve' : ' solves') + '</div>' +
+        '<div class="skips">' + skipsLabel + '</div>' +
       '</div>'
     );
   }

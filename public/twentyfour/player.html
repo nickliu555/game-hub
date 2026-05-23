@@ -96,6 +96,15 @@
           <div><span class="v" id="finalSkips">0</span>skipped</div>
         </div>
         <p style="color:var(--ink-soft); font-size:14px;">Check the host's screen for the leaderboard.</p>
+        <!-- Collapsible "review the ones you didn't finish" — populated
+             dynamically from the `you:final` payload + solutions.json. -->
+        <div id="unfinishedSection" class="unfinished-section" hidden>
+          <button type="button" class="unfinished-toggle" id="unfinishedToggle" aria-expanded="false">
+            <span class="unfinished-toggle-label" id="unfinishedToggleLabel">Puzzles you didn't finish</span>
+            <span class="unfinished-toggle-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="unfinished-list" id="unfinishedList" hidden></div>
+        </div>
       </div>
     </div>
   </div>

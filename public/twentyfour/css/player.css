@@ -454,3 +454,118 @@ body.player {
   font-size: 15px;
   margin: 0;
 }
+
+/* "Puzzles you didn't finish" collapsible section on the final card.
+   Default-collapsed; one tap to expand, one tap per row to reveal the
+   worked solution. Scrolls inside the card if the list gets long. */
+.unfinished-section {
+  margin-top: 18px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  padding-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.unfinished-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid rgba(0, 0, 0, 0.1);
+  background: var(--surface);
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.unfinished-toggle:hover { border-color: var(--accent); }
+.unfinished-toggle-chevron {
+  font-size: 14px;
+  color: var(--ink-soft);
+  transition: transform 0.2s ease;
+}
+.unfinished-toggle[aria-expanded="true"] .unfinished-toggle-chevron {
+  transform: rotate(180deg);
+}
+.unfinished-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 40vh;
+  overflow-y: auto;
+  padding: 2px;
+}
+/* The `hidden` attribute is `display: none` by default, but our flex
+   rules above would override it. Re-assert it for both containers so
+   the collapse toggle actually hides the list. */
+.unfinished-section[hidden],
+.unfinished-list[hidden] {
+  display: none;
+}
+.unfinished-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 10px;
+}
+.unfinished-numbers {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.unfinished-numbers-loading {
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-style: italic;
+}
+.unfinished-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.unfinished-chip-missing { color: var(--ink-soft); }
+.unfinished-reveal {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 12px;
+  cursor: pointer;
+}
+.unfinished-reveal:hover { background: var(--accent-deep); }
+.unfinished-solution {
+  flex-shrink: 0;
+  font-family: ui-monospace, Menlo, Monaco, monospace;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--accent-deep);
+  text-align: right;
+  max-width: 60%;
+  word-break: break-word;
+}
+.unfinished-error {
+  padding: 12px;
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 13px;
+}

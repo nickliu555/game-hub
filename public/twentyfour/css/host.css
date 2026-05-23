@@ -303,6 +303,20 @@ body.host {
   font-size: 22px;
   font-variant-numeric: tabular-nums;
   text-align: right;
+  /* Default origin keeps the pulse from drifting the value off-axis. */
+  transform-origin: center right;
+}
+/* Score increment pulse: brief scale-up + accent flash. Driven by the
+   host JS toggling .pulse on the value cell whenever a player's score
+   goes up. Lives on the .bar-value child (not the row) so it doesn't
+   collide with the FLIP translateY on the row itself. */
+.bar-value.pulse {
+  animation: barValuePulse 520ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes barValuePulse {
+  0%   { transform: scale(1);    color: inherit; }
+  35%  { transform: scale(1.35); color: var(--accent); }
+  100% { transform: scale(1);    color: inherit; }
 }
 
 /* ---------------- Final ---------------- */
@@ -352,6 +366,7 @@ body.host {
 .podium-spot .medal { font-size: 56px; line-height: 1; }
 .podium-spot .name { font-size: 22px; font-weight: 800; }
 .podium-spot .score { font-size: 26px; font-weight: 800; color: var(--accent); }
+.podium-spot .skips { font-size: 14px; font-weight: 600; color: var(--muted); margin-top: 2px; }
 .podium-spot .names { font-size: 16px; color: var(--muted); }
 .podium-spot.tie .name { font-size: 17px; }
 

@@ -200,6 +200,15 @@ class Game {
     player.score = 0;
     player.solvedCount = 0;
     player.skippedCount = 0;
+    // Per-player list of puzzle ids that the player hit Skip on. Used at
+    // round end (via getPersonalFinal) to show "puzzles you didn't finish"
+    // on the player's personal stats card.
+    player.skippedIds = [];
+    // Timestamp of the player's most recent score increment. Used as a
+    // tiebreaker in the leaderboard sort so that within a score+skips tie
+    // the player who reached the current score FIRST is ranked above
+    // those who caught up later. Zero means "hasn't scored yet this round".
+    player.lastScoreAt = 0;
     player.cursor = -1;
     player.currentPuzzleId = null;
     player.currentNumbers = null;
@@ -257,6 +266,7 @@ class Game {
     }
     p.score++;
     p.solvedCount++;
+    p.lastScoreAt = Date.now();
     const next = this._serveNext(p);
     return { ok: true, accepted: true, score: p.score, next, done: !!p.done };
   }
@@ -271,6 +281,11 @@ class Game {
       return { ok: false, reason: 'too-early', msRemaining: SKIP_LOCKOUT_MS - elapsed };
     }
     p.skippedCount++;
+    // Track which puzzle was skipped so the player can review the answer
+    // at round end. Capture BEFORE _serveNext clears currentPuzzleId.
+    if (typeof p.currentPuzzleId === 'number') {
+      p.skippedIds.push(p.currentPuzzleId);
+    }
     const next = this._serveNext(p);
     return { ok: true, next, done: !!p.done };
   }
@@ -304,9 +319,18 @@ class Game {
         score: p.score,
         solvedCount: p.solvedCount,
         skippedCount: p.skippedCount,
+        lastScoreAt: p.lastScoreAt || 0,
       }))
-      // Sort: highest score first, then fewer skips wins the tie.
-      .sort((a, b) => (b.score - a.score) || (a.skippedCount - b.skippedCount));
+      // Sort: highest score first, then fewer skips wins the tie, then
+      // whoever reached the current score earliest ranks above those who
+      // caught up later (lastScoreAt ascending). Players who haven't
+      // scored yet share lastScoreAt = 0, so they fall back to insertion
+      // order via Array's stable sort.
+      .sort((a, b) =>
+        (b.score - a.score)
+        || (a.skippedCount - b.skippedCount)
+        || (a.lastScoreAt - b.lastScoreAt)
+      );
     // Assign competition-style ranks so true ties share a rank (1, 1, 3).
     let prevScore = null;
     let prevSkips = null;
@@ -322,6 +346,34 @@ class Game {
       }
     });
     return typeof limit === 'number' ? arr.slice(0, limit) : arr;
+  }
+
+  /**
+   * Per-player end-of-round payload sent privately to each socket so the
+   * player can review puzzles they didn't finish. "Unfinished" means
+   * skipped during the round, plus the in-flight puzzle they were on
+   * when the timer expired (if any). Most recent unfinished first so the
+   * in-flight one (freshest in the player's head) appears at the top.
+   * Capped defensively at 50 entries — realistic max in a 5-min round
+   * is well under 20.
+   */
+  getPersonalFinal(playerId) {
+    const p = this.players.get(playerId);
+    if (!p) return { unfinishedIds: [] };
+    const unfinished = [];
+    // In-flight puzzle: present if the timer caught the player mid-puzzle
+    // (currentPuzzleId set AND they didn't just clear the queue). Goes
+    // first so it's the prominent entry on the card.
+    if (!p.done && typeof p.currentPuzzleId === 'number') {
+      unfinished.push(p.currentPuzzleId);
+    }
+    // Then skipped puzzles, most-recent first.
+    if (Array.isArray(p.skippedIds)) {
+      for (let i = p.skippedIds.length - 1; i >= 0; i--) {
+        unfinished.push(p.skippedIds[i]);
+      }
+    }
+    return { unfinishedIds: unfinished.slice(0, 50) };
   }
 
   /**
@@ -395,6 +447,9 @@ function makePlayer(id, name, socketId) {
     score: 0,
     solvedCount: 0,
     skippedCount: 0,
+    // Timestamp of the player's most recent score increment. Initialized
+    // to 0 here for shape; _initQueue resets it at the start of each round.
+    lastScoreAt: 0,
     // Per-round cursor into Game.sharedQueue
     cursor: -1,
     currentPuzzleId: null,

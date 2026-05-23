@@ -122,6 +122,14 @@ function mountTwentyFour(app, httpServer, opts) {
       podium: game.getPodium(),
       fullLeaderboard: game.getLeaderboard(),
     });
+    // Per-player private payload: list of puzzle ids each player didn't
+    // finish (skipped + in-flight at buzzer). Sent privately so a player's
+    // misses aren't visible to everyone via DevTools. Players without a
+    // live socket get the data via the reconnect snapshot below.
+    for (const player of game.players.values()) {
+      if (!player.socketId) continue;
+      ns.to(player.socketId).emit('you:final', game.getPersonalFinal(player.id));
+    }
   }
   function broadcastScores() {
     ns.emit('score:update', { leaderboard: game.getLeaderboard() });
@@ -232,6 +240,9 @@ function mountTwentyFour(app, httpServer, opts) {
       } else if (game.phase === PHASES.FINAL) {
         payload.podium = game.getPodium();
         payload.fullLeaderboard = game.getLeaderboard();
+        // Personal "puzzles you didn't finish" payload — same shape as
+        // the live `you:final` event so the client handler can reuse it.
+        payload.youFinal = game.getPersonalFinal(pid);
       }
       ack && ack(payload);
       broadcastLobby();

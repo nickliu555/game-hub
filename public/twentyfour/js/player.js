@@ -31,6 +31,10 @@
   const finalSolves = document.getElementById('finalSolves');
   const finalSkips = document.getElementById('finalSkips');
   const finalRankLine = document.getElementById('finalRankLine');
+  const unfinishedSection = document.getElementById('unfinishedSection');
+  const unfinishedToggle = document.getElementById('unfinishedToggle');
+  const unfinishedToggleLabel = document.getElementById('unfinishedToggleLabel');
+  const unfinishedList = document.getElementById('unfinishedList');
   const doneSolves = document.getElementById('doneSolves');
   const doneSkips = document.getElementById('doneSkips');
   const hostAbsentOverlay = document.getElementById('hostAbsentOverlay');
@@ -173,6 +177,16 @@
       clockOffset = payload.serverNow - Date.now();
     }
     const endsAt = (payload && payload.endsAt) || (Date.now() + 3000);
+    // New round starting — clear any leftover "didn't finish" state from
+    // the previous round so it doesn't bleed into this one.
+    unfinishedPayload = null;
+    revealedIds.clear();
+    if (unfinishedSection) unfinishedSection.hidden = true;
+    if (unfinishedList) {
+      unfinishedList.innerHTML = '';
+      unfinishedList.hidden = true;
+    }
+    if (unfinishedToggle) unfinishedToggle.setAttribute('aria-expanded', 'false');
     // Reset the round chip while we wait for the actual round start.
     pCountdown.textContent = '—';
     pCountdown.classList.remove('warn', 'urgent');
@@ -268,7 +282,9 @@
       } else if (res.phase === 'FINAL') {
         // Reconnecting into FINAL — the host's reveal moment has already
         // passed, so skip the "Look up!" interstitial and go straight to
-        // the personal stats card.
+        // the personal stats card. The server includes our personal
+        // "puzzles you didn't finish" payload in the same snapshot.
+        if (res.youFinal) unfinishedPayload = res.youFinal;
         showFinalStats(res);
       }
     });
@@ -317,6 +333,18 @@
   socket.on('state:final', function (f) {
     showFinalWait(f);
   });
+  // Private per-player payload: list of puzzle ids the player didn't
+  // finish (skipped + in-flight at buzzer). Arrives alongside state:final;
+  // we stash it and re-render the unfinished section if the stats card
+  // is already on screen.
+  socket.on('you:final', function (p) {
+    unfinishedPayload = p || { unfinishedIds: [] };
+    // Eagerly prefetch puzzles + solutions data so the reveal feels
+    // instant when the player taps it. Failure is non-fatal — render
+    // handles the error path.
+    loadLookupData().catch(function () {});
+    renderUnfinishedSection();
+  });
 
   // Duration of the host's "Time's up! → Now for the results…" splash. Kept
   // in sync with public/twentyfour/js/host.js showFinalIntro() so the phone's
@@ -325,6 +353,120 @@
   let finalWaitTimer = null;
   function cancelFinalWait() {
     if (finalWaitTimer) { clearTimeout(finalWaitTimer); finalWaitTimer = null; }
+  }
+
+  // ---------------- "Puzzles you didn't finish" section ----------------
+  // The server sends a private `you:final` payload listing puzzle ids the
+  // player engaged with but didn't solve. We render them as a collapsible
+  // list of tap-to-reveal solutions, sourced from the same static data
+  // files that Solo Practice uses. Data is fetched lazily and browser-
+  // cached after the first round.
+  let unfinishedPayload = null;     // { unfinishedIds: number[] }
+  let lookupData = null;            // { puzzles, solutions } once loaded
+  let lookupPromise = null;         // in-flight fetch promise (dedup)
+  let lookupFailed = false;
+  // Track which rows the player has already revealed so a re-render
+  // (e.g. on visibility change) doesn't collapse them back.
+  const revealedIds = new Set();
+
+  function loadLookupData() {
+    if (lookupData) return Promise.resolve(lookupData);
+    if (lookupPromise) return lookupPromise;
+    lookupPromise = Promise.all([
+      fetch('/twentyfour/data/puzzles.json').then(function (r) { return r.json(); }),
+      fetch('/twentyfour/data/solutions.json').then(function (r) { return r.json(); }),
+    ]).then(function (results) {
+      lookupData = { puzzles: results[0], solutions: results[1] };
+      lookupFailed = false;
+      return lookupData;
+    }).catch(function (err) {
+      lookupPromise = null;
+      lookupFailed = true;
+      throw err;
+    });
+    return lookupPromise;
+  }
+
+  function renderUnfinishedSection() {
+    if (!unfinishedSection) return;
+    const ids = (unfinishedPayload && Array.isArray(unfinishedPayload.unfinishedIds))
+      ? unfinishedPayload.unfinishedIds
+      : [];
+    if (ids.length === 0) {
+      unfinishedSection.hidden = true;
+      return;
+    }
+    unfinishedSection.hidden = false;
+    unfinishedToggleLabel.textContent = 'Puzzles you didn\'t finish (' + ids.length + ')';
+
+    // Build the rows. If lookup data isn't ready yet, render placeholders
+    // and re-render once the fetch resolves.
+    if (!lookupData) {
+      unfinishedList.innerHTML = ids.map(function (id) {
+        return '<div class="unfinished-row" data-id="' + id + '">'
+             +   '<div class="unfinished-numbers unfinished-numbers-loading">Loading…</div>'
+             + '</div>';
+      }).join('');
+      loadLookupData().then(function () {
+        renderUnfinishedSection();
+      }).catch(function () {
+        unfinishedList.innerHTML =
+          '<div class="unfinished-error">Couldn\'t load solutions — try refreshing.</div>';
+      });
+      return;
+    }
+    unfinishedList.innerHTML = ids.map(function (id) {
+      const nums = (lookupData.puzzles && id < lookupData.puzzles.length)
+        ? lookupData.puzzles[id]
+        : null;
+      const numHtml = nums
+        ? nums.map(function (n) { return '<span class="unfinished-chip">' + n + '</span>'; }).join('')
+        : '<span class="unfinished-chip unfinished-chip-missing">?</span>';
+      const revealed = revealedIds.has(id);
+      const solution = (lookupData.solutions && id < lookupData.solutions.length)
+        ? lookupData.solutions[id]
+        : null;
+      const revealHtml = revealed
+        ? '<div class="unfinished-solution">' + (solution ? escapeHtml(solution) : 'No clean solution available') + '</div>'
+        : '<button type="button" class="unfinished-reveal" data-id="' + id + '">Show solution</button>';
+      return '<div class="unfinished-row" data-id="' + id + '">'
+           +   '<div class="unfinished-numbers">' + numHtml + '</div>'
+           +   revealHtml
+           + '</div>';
+    }).join('');
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  if (unfinishedToggle && unfinishedList) {
+    unfinishedToggle.addEventListener('click', function () {
+      const expanded = unfinishedToggle.getAttribute('aria-expanded') === 'true';
+      const next = !expanded;
+      unfinishedToggle.setAttribute('aria-expanded', String(next));
+      unfinishedList.hidden = !next;
+      if (next) {
+        // Make sure rows are populated when first expanded (handles the
+        // case where the payload arrived but renderUnfinishedSection
+        // hasn't been called with lookupData yet).
+        if (!lookupData && !lookupFailed) {
+          loadLookupData().then(function () { renderUnfinishedSection(); })
+            .catch(function () { renderUnfinishedSection(); });
+        }
+      }
+    });
+    unfinishedList.addEventListener('click', function (e) {
+      const btn = e.target.closest('.unfinished-reveal');
+      if (!btn) return;
+      const id = parseInt(btn.dataset.id, 10);
+      if (!Number.isInteger(id)) return;
+      revealedIds.add(id);
+      renderUnfinishedSection();
+    });
   }
 
   function showFinalWait(f) {
@@ -377,6 +519,10 @@
     } else {
       finalSkips.textContent = '0';
     }
+    // Re-render the "puzzles you didn't finish" section. If the
+    // `you:final` payload hasn't arrived yet, this is a no-op until the
+    // listener fires.
+    renderUnfinishedSection();
   }
   function ordinal(n) {
     const s = ['th', 'st', 'nd', 'rd'];
