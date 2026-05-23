@@ -261,7 +261,10 @@ body.host {
 }
 .bar-row {
   display: grid;
-  grid-template-columns: 180px 1fr 60px;
+  /* Value column wide enough for "12,500" at 22px tabular-nums plus the
+     pulse animation's 1.35x scale-up. Old 60px was sized for 1-2 digit
+     scores back when each solve was +1. */
+  grid-template-columns: 180px 1fr 100px;
   align-items: center;
   gap: 12px;
 }
@@ -305,6 +308,12 @@ body.host {
   text-align: right;
   /* Default origin keeps the pulse from drifting the value off-axis. */
   transform-origin: center right;
+}
+/* Muted red when a player's running score has dropped below zero (skip
+   penalty outweighs their solves). Keeps the existing pulse animation
+   working — the keyframe's `color: inherit` lands back on this red. */
+.bar-value.negative {
+  color: #ff8a80;
 }
 /* Score increment pulse: brief scale-up + accent flash. Driven by the
    host JS toggling .pulse on the value cell whenever a player's score
@@ -366,6 +375,7 @@ body.host {
 .podium-spot .medal { font-size: 56px; line-height: 1; }
 .podium-spot .name { font-size: 22px; font-weight: 800; }
 .podium-spot .score { font-size: 26px; font-weight: 800; color: var(--accent); }
+.podium-spot .solves { font-size: 14px; font-weight: 600; color: var(--muted); margin-top: 2px; }
 .podium-spot .skips { font-size: 14px; font-weight: 600; color: var(--muted); margin-top: 2px; }
 .podium-spot .names { font-size: 16px; color: var(--muted); }
 .podium-spot.tie .name { font-size: 17px; }
@@ -389,7 +399,7 @@ body.host {
 }
 .leaderboard-row {
   display: grid;
-  grid-template-columns: 30px 1fr 60px 70px;
+  grid-template-columns: 30px 1fr 90px;
   gap: 10px;
   padding: 6px 0;
   font-size: 17px;
@@ -397,8 +407,8 @@ body.host {
 }
 .leaderboard-row:last-child { border-bottom: none; }
 .leaderboard-row .lb-rank { color: rgba(255,255,255,0.5); text-align: right; font-variant-numeric: tabular-nums; }
-.leaderboard-row .lb-skips { color: rgba(255,255,255,0.6); text-align: right; font-variant-numeric: tabular-nums; }
 .leaderboard-row .lb-score { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.leaderboard-row .lb-score.negative { color: #ff8a80; }
 .leaderboard-header {
   font-size: 11px;
   text-transform: uppercase;
@@ -409,7 +419,6 @@ body.host {
   margin-bottom: 4px;
 }
 .leaderboard-header .lb-rank,
-.leaderboard-header .lb-skips,
 .leaderboard-header .lb-score { font-weight: 600; color: rgba(255,255,255,0.5); }
 
 /* Pre-results splash overlay shown for ~4s when the round ends, before

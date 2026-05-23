@@ -11,8 +11,19 @@ const PHASES = {
 };
 
 const MAX_NAME_LEN = 20;
-const SKIP_LOCKOUT_MS = 20 * 1000;
+const SKIP_LOCKOUT_MS = 10 * 1000;
+// Kahoot/Trivia-style scoring: every solve awards 500-1000 points based on
+// how quickly the player solved (measured from when the puzzle was served).
+// Instant solve = 1000, ramps linearly down to 500 at SOLVE_TIME_LIMIT_MS,
+// flat 500 after that. Skips deduct a flat penalty. Negative scores allowed.
+const SOLVE_TIME_LIMIT_MS = 30 * 1000;
+const SKIP_PENALTY = 200;
 const DEFAULT_DURATION_MIN = 2;
+
+function pointsForSolve(responseMs) {
+  const clamped = Math.max(0, Math.min(responseMs, SOLVE_TIME_LIMIT_MS));
+  return Math.round(1000 * (1 - 0.5 * (clamped / SOLVE_TIME_LIMIT_MS)));
+}
 // Pre-round "Get ready" splash so players aren't yanked straight from the
 // lobby into puzzle #1. Mirrors trivia's INTRO phase exactly so players
 // hopping between games feel the same pre-round beat.
@@ -30,10 +41,12 @@ function fisherYates(a) {
 /**
  * Pure state machine for the "24" math game.
  *
- * Self-paced per-player puzzle queue. Round runs for a fixed duration; each
- * player gets +1 for every puzzle they solve. Ties are allowed (no
- * tiebreaker). Skipping a puzzle requires the player to have been on it for
- * at least SKIP_LOCKOUT_MS (server-authoritative).
+ * Self-paced per-player puzzle queue. Round runs for a fixed duration. Each
+ * solve awards Kahoot-style decay points (1000 instant → 500 at 20s, flat
+ * 500 after); each skip deducts SKIP_PENALTY. Negative scores allowed.
+ * Ties on exact score are broken by who reached that score first
+ * (lastScoreAt ascending). Skipping a puzzle requires the player to have
+ * been on it for at least SKIP_LOCKOUT_MS (server-authoritative).
  *
  * The transport layer (./index.js) is responsible for socket events,
  * broadcasting, and the per-player `puzzle:next` emission — this module just
@@ -247,10 +260,11 @@ class Game {
 
   /**
    * Player submitted a sequence of combine steps. We replay the steps with
-   * exact rational arithmetic; if the final tile equals 24 they get +1 and
-   * advance. If the steps don't reach 24, we tell the client "wrong" so it
-   * can show the shake/toast and re-render the puzzle from scratch (the
-   * server doesn't change cursor; same puzzle remains current).
+   * exact rational arithmetic; if the final tile equals 24 they earn Kahoot
+   * decay points based on how fast they solved and advance. If the steps
+   * don't reach 24, we tell the client "wrong" so it can show the
+   * shake/toast and re-render the puzzle from scratch (the server doesn't
+   * change cursor; same puzzle remains current).
    */
   submitSolve({ playerId, puzzleId, steps }) {
     if (this.phase !== PHASES.ROUND) return { ok: false, reason: 'round-over' };
@@ -264,11 +278,13 @@ class Game {
       // shake + auto-reset. We deliberately do NOT penalize.
       return { ok: true, accepted: false };
     }
-    p.score++;
+    const responseMs = Date.now() - (p.currentServedAt || Date.now());
+    const pointsAwarded = pointsForSolve(responseMs);
+    p.score += pointsAwarded;
     p.solvedCount++;
     p.lastScoreAt = Date.now();
     const next = this._serveNext(p);
-    return { ok: true, accepted: true, score: p.score, next, done: !!p.done };
+    return { ok: true, accepted: true, score: p.score, pointsAwarded, next, done: !!p.done };
   }
 
   requestSkip({ playerId, puzzleId }) {
@@ -281,13 +297,16 @@ class Game {
       return { ok: false, reason: 'too-early', msRemaining: SKIP_LOCKOUT_MS - elapsed };
     }
     p.skippedCount++;
+    // Flat penalty; negatives allowed so we don't clamp at zero.
+    p.score -= SKIP_PENALTY;
+    p.lastScoreAt = Date.now();
     // Track which puzzle was skipped so the player can review the answer
     // at round end. Capture BEFORE _serveNext clears currentPuzzleId.
     if (typeof p.currentPuzzleId === 'number') {
       p.skippedIds.push(p.currentPuzzleId);
     }
     const next = this._serveNext(p);
-    return { ok: true, next, done: !!p.done };
+    return { ok: true, penalty: SKIP_PENALTY, score: p.score, next, done: !!p.done };
   }
 
   // ---------------- Views / serialization ----------------
@@ -321,27 +340,27 @@ class Game {
         skippedCount: p.skippedCount,
         lastScoreAt: p.lastScoreAt || 0,
       }))
-      // Sort: highest score first, then fewer skips wins the tie, then
-      // whoever reached the current score earliest ranks above those who
-      // caught up later (lastScoreAt ascending). Players who haven't
-      // scored yet share lastScoreAt = 0, so they fall back to insertion
-      // order via Array's stable sort.
+      // Sort: highest score first, then whoever reached the current score
+      // earliest ranks above those who caught up later (lastScoreAt
+      // ascending). Players who haven't scored yet share lastScoreAt = 0,
+      // so they fall back to insertion order via Array's stable sort.
+      // Skip count is intentionally NOT in the sort — every skip is
+      // already baked into the score via SKIP_PENALTY.
       .sort((a, b) =>
         (b.score - a.score)
-        || (a.skippedCount - b.skippedCount)
         || (a.lastScoreAt - b.lastScoreAt)
       );
     // Assign competition-style ranks so true ties share a rank (1, 1, 3).
+    // With Kahoot scoring exact-score ties are rare but still possible
+    // (e.g. two players who haven't scored yet).
     let prevScore = null;
-    let prevSkips = null;
     let prevRank = 0;
     arr.forEach((p, i) => {
-      if (p.score === prevScore && p.skippedCount === prevSkips) {
+      if (p.score === prevScore) {
         p.rank = prevRank;
       } else {
         p.rank = i + 1;
         prevScore = p.score;
-        prevSkips = p.skippedCount;
         prevRank = p.rank;
       }
     });

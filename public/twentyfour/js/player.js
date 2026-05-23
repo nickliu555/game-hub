@@ -28,6 +28,10 @@
   const resetBtn = document.getElementById('resetBtn');
   const skipBtn = document.getElementById('skipBtn');
   const skipRemainingEl = document.getElementById('skipRemaining');
+  const decayBarFill = document.getElementById('decayBarFill');
+  const decayPoints = document.getElementById('decayPoints');
+  const scoreFloat = document.getElementById('scoreFloat');
+  const finalPoints = document.getElementById('finalPoints');
   const finalSolves = document.getElementById('finalSolves');
   const finalSkips = document.getElementById('finalSkips');
   const finalRankLine = document.getElementById('finalRankLine');
@@ -35,11 +39,34 @@
   const unfinishedToggle = document.getElementById('unfinishedToggle');
   const unfinishedToggleLabel = document.getElementById('unfinishedToggleLabel');
   const unfinishedList = document.getElementById('unfinishedList');
+  const donePoints = document.getElementById('donePoints');
   const doneSolves = document.getElementById('doneSolves');
   const doneSkips = document.getElementById('doneSkips');
   const hostAbsentOverlay = document.getElementById('hostAbsentOverlay');
 
   meName.textContent = localStorage.getItem('twentyfour.playerName') || '…';
+
+  // Kahoot/Trivia-style scoring helpers. Mirrors server constants.
+  const SOLVE_TIME_LIMIT_MS = 30 * 1000;
+  function formatScore(n) {
+    const v = (typeof n === 'number' && Number.isFinite(n)) ? n : 0;
+    return v.toLocaleString('en-US');
+  }
+  function setScoreDisplay(score) {
+    const v = (typeof score === 'number' && Number.isFinite(score)) ? score : 0;
+    meScore.textContent = formatScore(v);
+    meScore.classList.toggle('negative', v < 0);
+  }
+  // Spawn a transient "+N" / "−N" overlay next to the score chip. The
+  // element auto-removes after the CSS animation completes.
+  function showScoreFloat(delta) {
+    if (!scoreFloat || typeof delta !== 'number' || delta === 0) return;
+    const item = document.createElement('div');
+    item.className = 'score-float-item' + (delta < 0 ? ' negative' : '');
+    item.textContent = (delta > 0 ? '+' : '−') + Math.abs(delta);
+    scoreFloat.appendChild(item);
+    setTimeout(function () { item.remove(); }, 1200);
+  }
 
   function showView(name) {
     viewLobby.style.display = (name === 'lobby') ? 'flex' : 'none';
@@ -48,11 +75,9 @@
     viewFinalWait.style.display = (name === 'final-wait') ? 'flex' : 'none';
     viewFinal.style.display = (name === 'final') ? 'flex' : 'none';
     viewDone.style.display  = (name === 'done')  ? 'flex' : 'none';
-    // After the round timer ends the score chip and countdown are just
-    // noise — the personal stats card and the host leaderboard already
-    // show the score, and the timer reads 0:00 forever. Hide them on the
-    // final views, keep the name so the player still recognizes their
-    // device. Any other view restores the normal header.
+    // After the round timer ends, score and timer are redundant with the
+    // personal stats card + host leaderboard. Hide them so just the name
+    // remains centered. Any other view restores the normal three-part header.
     if (pHeader) {
       const ended = (name === 'final-wait' || name === 'final');
       pHeader.classList.toggle('header-end', ended);
@@ -76,8 +101,11 @@
     // which point `state:final` will swap them to the leaderboard view.
     const solves = (payload && typeof payload.solvedCount === 'number') ? payload.solvedCount : 0;
     const skips  = (payload && typeof payload.skippedCount === 'number') ? payload.skippedCount : 0;
+    const points = (payload && typeof payload.score === 'number') ? payload.score : 0;
+    if (donePoints) donePoints.textContent = formatScore(points);
     doneSolves.textContent = solves;
     doneSkips.textContent = skips;
+    stopDecayTick();
     showView('done');
   }
 
@@ -109,12 +137,21 @@
           return;
         }
         if (res.accepted) {
-          meScore.textContent = res.score;
+          setScoreDisplay(res.score);
+          if (typeof res.pointsAwarded === 'number') {
+            showScoreFloat(res.pointsAwarded);
+          }
           if (res.next) {
             // Tiny delay so the player sees the win flash before swapping.
             setTimeout(function () { loadPuzzle(res.next); }, 450);
           } else if (res.done) {
-            setTimeout(function () { showDone({ solvedCount: res.score }); }, 450);
+            setTimeout(function () {
+              showDone({
+                score: res.score,
+                solvedCount: undefined, // server doesn't include counts in solve ack; UI falls back to 0
+                skippedCount: undefined,
+              });
+            }, 450);
           }
         } else {
           // Accepted as a valid sequence but didn't equal 24 — shouldn't
@@ -133,7 +170,43 @@
     skipEligibleAt = payload.skipEligibleAt;
     engine.loadPuzzle(payload.numbers);
     updateSkipBtn();
+    startDecayTick();
     showView('puzzle');
+  }
+
+  // ---------------- Score decay bar ----------------
+  // Fill shrinks linearly from 100%→50% over SOLVE_TIME_LIMIT_MS, then
+  // holds at 50% so players can see they've hit the floor (still earning
+  // points, just no longer decaying). The live "N pts" label mirrors the
+  // exact number of points the player will earn if they solve right now,
+  // matching the server's pointsForSolve() formula. (Network latency
+  // between tap and server receipt may shave 1-4 points off the actual
+  // award; not worth surfacing to the player.)
+  let decayTimer = null;
+  function tickDecayBar() {
+    if (!decayBarFill) return;
+    if (!servedAt) {
+      decayBarFill.style.width = '100%';
+      if (decayPoints) decayPoints.textContent = '1,000';
+      return;
+    }
+    const elapsed = Math.max(0, serverNow() - servedAt);
+    const frac = Math.min(elapsed / SOLVE_TIME_LIMIT_MS, 1);
+    const pct = 100 - 50 * frac;
+    decayBarFill.style.width = pct.toFixed(1) + '%';
+    if (decayPoints) {
+      const pts = Math.round(1000 * (1 - 0.5 * frac));
+      decayPoints.textContent = formatScore(pts);
+    }
+    if (frac >= 1) stopDecayTick();
+  }
+  function startDecayTick() {
+    stopDecayTick();
+    tickDecayBar();
+    decayTimer = setInterval(tickDecayBar, 100);
+  }
+  function stopDecayTick() {
+    if (decayTimer) { clearInterval(decayTimer); decayTimer = null; }
   }
 
   function updateSkipBtn() {
@@ -146,7 +219,7 @@
       skipRemainingEl.textContent = '';
     }
   }
-  // The "skip" button has a server-enforced 20s lockout — keep the UI in
+  // The "skip" button has a server-enforced 10s lockout — keep the UI in
   // sync without polling the server.
   setInterval(updateSkipBtn, 250);
 
@@ -161,6 +234,8 @@
         updateSkipBtn();
         return;
       }
+      if (typeof res.score === 'number') setScoreDisplay(res.score);
+      if (typeof res.penalty === 'number') showScoreFloat(-res.penalty);
       if (res.next) loadPuzzle(res.next);
       else if (res.done) showDone(null);
     });
@@ -264,7 +339,7 @@
         return;
       }
       meName.textContent = res.player.name;
-      meScore.textContent = res.player.score || 0;
+      setScoreDisplay(res.player.score || 0);
       setHostPresent(res.hostPresent !== false);
 
       if (res.phase === 'LOBBY') {
@@ -328,7 +403,7 @@
     // Find ourselves in the leaderboard to keep the score chip up to date.
     if (!p || !p.leaderboard) return;
     const me = p.leaderboard.find(function (x) { return x.id === playerId; });
-    if (me) meScore.textContent = me.score;
+    if (me) setScoreDisplay(me.score);
   });
   socket.on('state:final', function (f) {
     showFinalWait(f);
@@ -472,6 +547,7 @@
   function showFinalWait(f) {
     cancelFinalWait();
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+    stopDecayTick();
     pCountdown.textContent = '0:00';
     pCountdown.classList.remove('warn');
     showView('final-wait');
@@ -484,18 +560,20 @@
   function showFinalStats(f) {
     cancelFinalWait();
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+    stopDecayTick();
     showView('final');
     pCountdown.textContent = '0:00';
     pCountdown.classList.remove('warn');
     // Small buzz to pull attention back to the phone for the personal recap.
     if (navigator.vibrate) { try { navigator.vibrate(40); } catch (_) {} }
-    // Pull our own row from the leaderboard so we can show real solved /
-    // skipped counts. (Score == solvedCount in this game, but read it from
-    // the explicit fields for clarity.)
+    // Pull our own row from the leaderboard so we can show real points,
+    // solved, and skipped counts.
     if (f && f.fullLeaderboard) {
       const me = f.fullLeaderboard.find(function (x) { return x.id === playerId; });
       if (me) {
-        finalSolves.textContent = (typeof me.solvedCount === 'number') ? me.solvedCount : me.score;
+        if (finalPoints) finalPoints.textContent = formatScore(me.score || 0);
+        setScoreDisplay(me.score || 0);
+        finalSolves.textContent = (typeof me.solvedCount === 'number') ? me.solvedCount : 0;
         finalSkips.textContent = (typeof me.skippedCount === 'number') ? me.skippedCount : 0;
         // Trust the server-assigned rank (competition style: ties share a
         // rank). Fall back to array position if the server didn't send one.

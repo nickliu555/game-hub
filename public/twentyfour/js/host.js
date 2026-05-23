@@ -404,8 +404,15 @@
   // redirect mid-animation instead of snapping.
   const prevScores = new Map();
   const FLIP_MS = 420;
+  function formatScore(n) {
+    const v = (typeof n === 'number' && Number.isFinite(n)) ? n : 0;
+    return v.toLocaleString('en-US');
+  }
   function applyScores(leaderboard) {
     const lb = (leaderboard || []).slice().sort(function (a, b) { return b.score - a.score; });
+    // Scale bars relative to the leader, with a small floor so a single
+    // 1000-point lead doesn't make a 950-point bar look identical.
+    // Negative scores render as 0% (empty track).
     const maxScore = Math.max(1, lb.length ? lb[0].score : 1);
 
     // 1. Snapshot current visual top per pid (captures in-flight transforms).
@@ -418,18 +425,15 @@
 
     // 2. Re-render.
     barsEl.innerHTML = lb.map(function (p) {
-      const pct = Math.round((p.score / maxScore) * 100);
-      const skipNote = (p.skippedCount > 0)
-        ? '<span class="bar-skips">· ' + p.skippedCount + ' skipped</span>'
-        : '';
+      const pct = Math.max(0, Math.round((p.score / maxScore) * 100));
+      const negClass = (p.score < 0) ? ' negative' : '';
       return (
         '<div class="bar-row" data-pid="' + p.id + '">' +
           '<div class="bar-name">' +
             '<span class="bar-name-text">' + escapeHtml(p.name) + '</span>' +
-            skipNote +
           '</div>' +
           '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>' +
-          '<div class="bar-value">' + p.score + '</div>' +
+          '<div class="bar-value' + negClass + '">' + formatScore(p.score) + '</div>' +
         '</div>'
       );
     }).join('');
@@ -530,16 +534,15 @@
     podium = podium || [];
     fullLb = fullLb || [];
     // The server sends a flat list of {rank, name, score} for the top three
-    // ranks (ties expanded). Group them here so each medal can show all
-    // tied players together.
+    // ranks (ties expanded). Group them so each medal can show tied
+    // players together. Solves/skips are intentionally NOT shown on the
+    // host — score is the only public number; players see the full
+    // breakdown on their personal recap card.
     const groups = [];
     const byRank = new Map();
     podium.forEach(function (p) {
       if (!byRank.has(p.rank)) {
-        // All players sharing a rank also share skippedCount by definition
-        // of competition rank (rank ties require both score AND skips to
-        // match), so it's safe to capture it once per group.
-        const g = { rank: p.rank, score: p.score, skippedCount: p.skippedCount || 0, players: [] };
+        const g = { rank: p.rank, score: p.score, players: [] };
         byRank.set(p.rank, g);
         groups.push(g);
       }
@@ -557,8 +560,7 @@
       ? '<div class="leaderboard-row leaderboard-header">' +
           '<div class="lb-rank">#</div>' +
           '<div>Name</div>' +
-          '<div class="lb-skips">Skips</div>' +
-          '<div class="lb-score">Solves</div>' +
+          '<div class="lb-score">Score</div>' +
         '</div>'
       : '';
     lbRows.innerHTML = headerRow + fullLb.map(function (p, i) {
@@ -569,12 +571,12 @@
       const rank = (typeof p.rank === 'number') ? p.rank : (i + 1);
       const prevRank = i > 0 ? fullLb[i - 1].rank : null;
       const rankLabel = (rank === prevRank) ? '' : rank;
+      const negClass = (p.score < 0) ? ' negative' : '';
       return (
         '<div class="leaderboard-row">' +
           '<div class="lb-rank">' + rankLabel + '</div>' +
           '<div>' + escapeHtml(p.name) + '</div>' +
-          '<div class="lb-skips">' + (p.skippedCount || 0) + '</div>' +
-          '<div class="lb-score">' + p.score + '</div>' +
+          '<div class="lb-score' + negClass + '">' + formatScore(p.score) + '</div>' +
         '</div>'
       );
     }).join('');
@@ -588,15 +590,13 @@
       : '<div class="name">' +
           group.players.map(function (p) { return escapeHtml(p.name); }).join(' · ') +
         '</div>';
-    const skips = group.skippedCount;
-    const skipsLabel = skips + (skips === 1 ? ' skip' : ' skips');
+    const scoreLabel = formatScore(group.score) + (group.score === 1 ? ' point' : ' points');
     return (
       '<div class="podium-spot ' + klass + (tie ? ' tie' : '') + '">' +
         '<div class="medal">' + medal + '</div>' +
         '<div class="rank">' + ordinal(group.rank) + (tie ? ' (tie)' : '') + '</div>' +
         nameHtml +
-        '<div class="score">' + group.score + (group.score === 1 ? ' solve' : ' solves') + '</div>' +
-        '<div class="skips">' + skipsLabel + '</div>' +
+        '<div class="score">' + scoreLabel + '</div>' +
       '</div>'
     );
   }

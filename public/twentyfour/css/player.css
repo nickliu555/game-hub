@@ -32,6 +32,7 @@ body.player {
   align-items: baseline;
   gap: 8px;
   min-width: 0;
+  position: relative; /* anchor for .score-float overlay */
 }
 .p-header .me .name {
   font-weight: 800;
@@ -49,6 +50,42 @@ body.player {
   font-weight: 800;
   font-size: 14px;
   font-variant-numeric: tabular-nums;
+  transition: background 0.2s;
+}
+.p-header .me .score.negative {
+  /* Muted red so going negative reads as "you lost ground" without
+     screaming. Matches the host's negative-score color treatment. */
+  background: #c44;
+}
+
+/* Transient "+N" / "−N" floaters that pop up next to the score chip on
+   solve/skip. Absolutely positioned over `.me`; pointer-events none so
+   they never block the layout. */
+.score-float {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  pointer-events: none;
+  z-index: 5;
+}
+.score-float-item {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--accent-deep, var(--accent));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  animation: score-float-rise 1.2s ease-out forwards;
+}
+.score-float-item.negative {
+  color: #c44;
+}
+@keyframes score-float-rise {
+  0%   { transform: translate(0, 0); opacity: 0; }
+  15%  { transform: translate(0, -4px); opacity: 1; }
+  100% { transform: translate(0, -38px); opacity: 0; }
 }
 .p-header .countdown {
   font-family: ui-monospace, Menlo, Monaco, monospace;
@@ -82,10 +119,10 @@ body.player {
   0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.55); }
   50% { transform: scale(1.12); box-shadow: 0 0 0 10px rgba(234, 88, 12, 0); }
 }
-/* After the round ends, the score and timer are redundant with the
-   personal stats card + host leaderboard. Hide them so the eye lands on
-   the rank reveal. The name stays so the player still recognizes the
-   device. `.p-header` grows the name into the freed space. */
+
+/* Results phase: hide the score chip and timer so only the name remains
+   (centered). Score is already prominent on the personal stats card and
+   on the host leaderboard — the header copies would be noise. */
 .p-header.header-end {
   justify-content: center;
 }
@@ -100,6 +137,43 @@ body.player {
 .p-header.header-end .me .name {
   max-width: 100%;
   text-align: center;
+}
+
+/* Score decay bar above the puzzle: a thin progress track paired with a
+   live "N pts" label so the bar's meaning is obvious at a glance. The
+   fill shrinks 100%→50% over the scoring window and the label number
+   shrinks with it. Subtle, not distracting — just enough of a cue that
+   speed = points. */
+.decay-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+.decay-bar {
+  flex: 1 1 auto;
+  height: 4px;
+  background: var(--surface);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.decay-bar-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-deep, var(--accent)));
+  border-radius: 999px;
+  transition: width 100ms linear;
+}
+.decay-bar-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft, var(--muted));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  /* Reserve width for the widest possible value ("1,000 pts") so the
+     bar's right edge doesn't twitch as the number changes width. */
+  min-width: 4.5em;
+  text-align: right;
 }
 
 
@@ -242,12 +316,27 @@ body.player {
 .controls button:hover:not(:disabled) { background: rgba(0,0,0,0.10); }
 .controls .btn-skip { background: var(--accent); color: #fff; }
 .controls .btn-skip:hover:not(:disabled) { background: var(--accent-deep); }
+/* Lock the skip button's height to the tallest state ("Skip" + countdown)
+   so it doesn't grow/shrink when the lockout expires. When the countdown
+   text is empty, the inner span collapses and "Skip" centers itself
+   vertically thanks to the flex layout. */
+.controls .btn-skip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+}
 .controls .skip-remaining {
   display: block;
   font-size: 11px;
   font-weight: 600;
+  line-height: 1.1;
   opacity: 0.9;
   margin-top: 1px;
+}
+.controls .skip-remaining:empty {
+  display: none;
 }
 
 /* Per-player final summary */
@@ -280,14 +369,19 @@ body.player {
 .final-card .stats {
   display: flex;
   justify-content: space-around;
-  gap: 12px;
+  gap: 8px;
   padding: 12px 0 18px;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--muted);
+}
+.final-card .stats > div {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
 }
 .final-card .stats .v {
   display: block;
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 800;
   color: var(--ink);
   font-variant-numeric: tabular-nums;

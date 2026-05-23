@@ -21,6 +21,7 @@
       <div class="me">
         <span class="name" id="meName">…</span>
         <span class="score" id="meScore">0</span>
+        <div class="score-float" id="scoreFloat" aria-hidden="true"></div>
       </div>
       <div class="countdown" id="pCountdown">—</div>
     </div>
@@ -46,6 +47,14 @@
 
     <!-- Active puzzle -->
     <div id="view-puzzle" style="display:none; flex:1; flex-direction:column; gap:12px; min-height:0;">
+      <!-- Score decay bar: shrinks 100%→50% over SOLVE_TIME_LIMIT_MS, then
+           holds at 50% so players can see they've bottomed out. The live
+           "N pts" label anchors the bar's meaning visually — it's the
+           number of points you'll earn if you solve right now. -->
+      <div class="decay-bar-row" id="decayBar" aria-hidden="true">
+        <div class="decay-bar"><div class="decay-bar-fill" id="decayBarFill"></div></div>
+        <div class="decay-bar-label"><span id="decayPoints">1,000</span> pts</div>
+      </div>
       <div class="numbers" id="numbers"></div>
       <div class="ops" id="ops">
         <button class="op" data-op="+" type="button">+</button>
@@ -69,6 +78,7 @@
         <h1>🎯 You solved them all!</h1>
         <div class="rank-line">Incredible. There are no more puzzles in this round.</div>
         <div class="stats">
+          <div><span class="v" id="donePoints">0</span>points</div>
           <div><span class="v" id="doneSolves">0</span>solved</div>
           <div><span class="v" id="doneSkips">0</span>skipped</div>
         </div>
@@ -92,6 +102,7 @@
         <h1>🏁 Time's up!</h1>
         <div class="rank-line" id="finalRankLine">Calculating…</div>
         <div class="stats">
+          <div><span class="v" id="finalPoints">0</span>points</div>
           <div><span class="v" id="finalSolves">0</span>solved</div>
           <div><span class="v" id="finalSkips">0</span>skipped</div>
         </div>

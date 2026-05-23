@@ -259,6 +259,7 @@ function mountTwentyFour(app, httpServer, opts) {
         ok: true,
         accepted: res.accepted,
         score: res.score,
+        pointsAwarded: res.pointsAwarded,
         next: res.next || null,
         done: !!res.done,
       });
@@ -278,14 +279,19 @@ function mountTwentyFour(app, httpServer, opts) {
       if (typeof puzzleId !== 'number') return ack && ack({ ok: false, reason: 'bad-puzzle' });
       const res = game.requestSkip({ playerId, puzzleId });
       if (!res.ok) return ack && ack(res);
-      ack && ack({ ok: true, next: res.next || null, done: !!res.done });
+      ack && ack({
+        ok: true,
+        penalty: res.penalty,
+        score: res.score,
+        next: res.next || null,
+        done: !!res.done,
+      });
       if (res.done) {
         const p = game.players.get(playerId);
         if (p) sendPuzzleTo(p);
       }
-      // Skip count is part of the leaderboard (tiebreaker + visible column on
-      // the host). Re-broadcast so all clients refresh — score:update is the
-      // existing channel for leaderboard data.
+      // Skip deducts SKIP_PENALTY from the player's score; re-broadcast so
+      // every client (host bars + other players) refreshes the leaderboard.
       broadcastScores();
     });
 
