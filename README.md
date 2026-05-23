@@ -27,9 +27,9 @@ Race to 24 with four numbers and the four operations (`+`, `−`, `×`, `÷`).
 1. The host picks a difficulty (easy / medium / hard / any) and a round length
 2. Everyone gets the same shuffled queue of puzzles on their phone
 3. Tap a number, an operator, then another number to combine them — repeat until one tile is left
-4. When that final tile equals **24**, you score a point and the next puzzle appears
-5. Stuck? After 20 seconds you can **Skip** for no points
-6. **Most puzzles solved when the timer hits zero wins**
+4. When that final tile equals **24**, you score and the next puzzle appears
+5. The **faster** you solve, the **more points** you earn — stuck puzzles can be **Skipped** for a small penalty
+6. **Highest total score** when the timer hits zero wins
 
 Also includes a **Solo Practice** mode — pick a difficulty and solve unlimited puzzles on your own, with a "Give Up" reveal that shows a worked solution.
 
