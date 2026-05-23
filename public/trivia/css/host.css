@@ -53,6 +53,14 @@ body.host {
   color: var(--ink, #1a1a1a);
   border-color: rgba(0, 0, 0, 0.18);
 }
+/* Muted state for the Reactions toggle — explicit so the red wins over
+   the light-theme panel overrides above. Matches 24 and Empire. */
+.game-topbar #muteReactionsBtn.is-muted,
+.game-topbar #muteReactionsBtn.is-muted:hover {
+  background: var(--gtb-danger);
+  color: #fff;
+  border-color: var(--gtb-danger);
+}
 
 /* Main view area */
 .host-main {

@@ -139,43 +139,6 @@ body.player {
   text-align: center;
 }
 
-/* Score decay bar above the puzzle: a thin progress track paired with a
-   live "N pts" label so the bar's meaning is obvious at a glance. The
-   fill shrinks 100%→50% over the scoring window and the label number
-   shrinks with it. Subtle, not distracting — just enough of a cue that
-   speed = points. */
-.decay-bar-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 0 0 auto;
-}
-.decay-bar {
-  flex: 1 1 auto;
-  height: 4px;
-  background: var(--surface);
-  border-radius: 999px;
-  overflow: hidden;
-}
-.decay-bar-fill {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--accent-deep, var(--accent)));
-  border-radius: 999px;
-  transition: width 100ms linear;
-}
-.decay-bar-label {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--ink-soft, var(--muted));
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  /* Reserve width for the widest possible value ("1,000 pts") so the
-     bar's right edge doesn't twitch as the number changes width. */
-  min-width: 4.5em;
-  text-align: right;
-}
-
 
 /* Vertically center the puzzle content (numbers grid + ops + controls) in
    the area below the header so the whole thing reads as a balanced block
@@ -669,3 +632,82 @@ body.player {
   color: var(--ink-soft);
   font-size: 13px;
 }
+
+/* ─── Reaction bar (lobby + final phases only) ───
+   Sticky-bottom bar of 6 emoji buttons. Tapping fires a floating burst
+   on the host screen + locks the bar for 10s. Hidden by default; the
+   player JS toggles `hidden` based on the current view. */
+.reaction-bar {
+  position: sticky;
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  margin-top: auto;
+  margin-bottom: 8px;
+  margin-left: 8px;
+  margin-right: 8px;
+  padding: 10px 8px 8px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 999px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.20);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 4px;
+  z-index: 5;
+}
+.reaction-bar[hidden] { display: none; }
+.reaction-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: none;
+  font-size: 30px;
+  line-height: 1;
+  padding: 10px 6px;
+  cursor: pointer;
+  border-radius: 999px;
+  transition: transform 0.08s ease, opacity 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+  flex: 1 1 0;
+  min-width: 0;
+}
+.reaction-btn:not(:disabled):active { transform: scale(1.25); }
+.reaction-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.reaction-cooldown {
+  position: absolute;
+  top: -22px;
+  right: 14px;
+  font-size: 11px;
+  color: white;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+@media (max-width: 600px) {
+  .reaction-bar {
+    padding: 12px 10px 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+  .reaction-btn { font-size: 30px; padding: 12px 0; }
+}
+@media (max-width: 380px) {
+  .reaction-btn { font-size: 26px; padding: 10px 0; }
+}
+@media (max-height: 600px) {
+  .reaction-bar { padding: 8px 8px 6px; }
+}
+
+/* Attribution color override for the in-game player view: the shared
+   `.player-attribution` rule in base.css uses white text (for the orange
+   join page), which is invisible on this view's pink-to-white gradient. */
+body.player .player-attribution {
+  color: var(--ink-soft);
+  opacity: 0.7;
+}
+body.player .player-attribution[hidden] { display: none; }

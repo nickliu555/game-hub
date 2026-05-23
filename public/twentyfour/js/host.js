@@ -34,6 +34,8 @@
 
   const fullscreenBtn = document.getElementById('fullscreenBtn');
   const resetBtn = document.getElementById('resetBtn');
+  const muteReactionsBtn = document.getElementById('muteReactionsBtn');
+  const reactionLayer = document.getElementById('reactionLayer');
 
   const sfxApplause = document.getElementById('sfx-applause');
 
@@ -121,10 +123,73 @@
     });
   }
 
+  // ---------------- Reactions (mute toggle + floating bursts) ----------------
+  // Host can globally pause player reactions; players see a "Reactions paused
+  // by host" pill until re-enabled. Floating emoji bursts arrive via the
+  // `host:reaction` event and animate from the bottom of the screen upward.
+  const REACTION_EMOJIS = ['😂', '🔥', '👀', '🎉', '😱', '😡'];
+  const REACTION_MAX_ON_SCREEN = 30;
+  let reactionsMuted = false;
+  function updateMuteReactionsBtn() {
+    if (!muteReactionsBtn) return;
+    if (reactionsMuted) {
+      muteReactionsBtn.textContent = '🔕 Reactions: Off';
+      muteReactionsBtn.classList.add('is-muted');
+      muteReactionsBtn.title = 'Player reactions are muted — click to allow';
+    } else {
+      muteReactionsBtn.textContent = '🔔 Reactions: On';
+      muteReactionsBtn.classList.remove('is-muted');
+      muteReactionsBtn.title = 'Click to mute all player reactions';
+    }
+  }
+  updateMuteReactionsBtn();
+  if (muteReactionsBtn) {
+    muteReactionsBtn.addEventListener('click', function () {
+      const next = !reactionsMuted;
+      socket.emit('host:setReactionsMuted', { muted: next }, function (res) {
+        if (res && res.ok) {
+          reactionsMuted = !!res.reactionsMuted;
+          updateMuteReactionsBtn();
+        }
+      });
+    });
+  }
+  function spawnReaction(index) {
+    if (!reactionLayer) return;
+    const emoji = REACTION_EMOJIS[index];
+    if (!emoji) return;
+    while (reactionLayer.children.length >= REACTION_MAX_ON_SCREEN) {
+      reactionLayer.removeChild(reactionLayer.firstChild);
+    }
+    const el = document.createElement('div');
+    el.className = 'reaction-emoji';
+    el.textContent = emoji;
+    el.style.left = (5 + Math.random() * 90) + '%';
+    const scale = 0.85 + Math.random() * 0.5;
+    el.style.fontSize = (44 * scale) + 'px';
+    el.style.animationDuration = (3.0 + Math.random() * 1.2) + 's';
+    el.addEventListener('animationend', function () {
+      if (el.parentNode) el.parentNode.removeChild(el);
+    });
+    reactionLayer.appendChild(el);
+  }
+  socket.on('host:reaction', function (payload) {
+    if (!payload || typeof payload.index !== 'number') return;
+    spawnReaction(payload.index);
+  });
+  socket.on('state:reactionsMuted', function (p) {
+    reactionsMuted = !!(p && p.muted);
+    updateMuteReactionsBtn();
+  });
+
   // ---------------- Boot ----------------
   socket.on('connect', function () {
     socket.emit('host:auth', {}, function (res) {
       if (!res || !res.ok) return;
+      // Initial mute state from server (covers host page refresh while
+      // reactions were already muted in a running game).
+      reactionsMuted = !!res.reactionsMuted;
+      updateMuteReactionsBtn();
       renderQR();
       renderLobby({ players: res.players });
       if (res.phase === 'LOBBY') show('lobby');

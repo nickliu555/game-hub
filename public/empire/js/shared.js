@@ -217,6 +217,14 @@
         document.body.classList.toggle('has-reaction-bar', !!visible);
     };
 
+    // Attribution credit visibility. Shown only during the "submission"
+    // (waiting-for-game-to-start) phase — hidden once the game is
+    // playing so it doesn't compete with the player's secret card.
+    Empire.setAttributionVisible = function (visible) {
+        const el = document.getElementById('playerAttribution');
+        if (el) el.hidden = !visible;
+    };
+
     // ─── View helpers ──────────────────────────────────────
     // Hides every element whose id starts with "view".
     Empire.hideAllViews = function () {

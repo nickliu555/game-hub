@@ -12,6 +12,8 @@ const HOST_ROOM = 'hosts';
 const PLAYER_ROOM = 'players';
 const INACTIVITY_RESET_MS = 60 * 60 * 1000; // 60 minutes
 const HOST_GRACE_MS = 15000;
+const REACTION_COUNT = 6;
+const REACTION_COOLDOWN_MS = 10 * 1000;
 
 /**
  * Mount the "24" math game onto the hub's Express app and HTTP server.
@@ -33,6 +35,11 @@ function mountTwentyFour(app, httpServer, opts) {
   let lastHostSeenAt = 0;
   let hostGraceTimer = null;
   let hostLeftIntentionally = false;
+  // Reactions: per-player cooldown tracker + host-side global mute toggle.
+  // Matches trivia's pattern; reset on game.reset() so a fresh game starts
+  // with no cooldowns and reactions un-muted.
+  let reactionsMuted = false;
+  const lastReactionAt = new Map(); // playerId -> ms timestamp
   function isHostPresent() {
     if (hostLeftIntentionally) return false;
     if (hostCount > 0) return true;
@@ -48,6 +55,8 @@ function mountTwentyFour(app, httpServer, opts) {
   setInterval(() => {
     if (Date.now() - lastActivity >= INACTIVITY_RESET_MS) {
       game.reset();
+      reactionsMuted = false;
+      lastReactionAt.clear();
       ns.emit('state:reset');
       console.log('[twentyfour] auto-reset after 60 minutes of inactivity.');
       touchActivity();
@@ -195,6 +204,7 @@ function mountTwentyFour(app, httpServer, opts) {
         player: { id: res.player.id, name: res.player.name, score: res.player.score },
         hostPresent: isHostPresent(),
         phase: game.phase,
+        reactionsMuted,
       });
       broadcastLobby();
       // If the round is already running, the player was given an initial
@@ -222,6 +232,7 @@ function mountTwentyFour(app, httpServer, opts) {
         phase: game.phase,
         hostPresent: isHostPresent(),
         total: game.players.size,
+        reactionsMuted,
       };
       if (game.phase === PHASES.ROUND) {
         payload.round = game.getRoundPublic();
@@ -310,6 +321,7 @@ function mountTwentyFour(app, httpServer, opts) {
         phase: game.phase,
         players: game.getLobbyPlayers(),
         puzzleCounts: counts(),
+        reactionsMuted,
       };
       if (game.phase === PHASES.ROUND) {
         payload.round = game.getRoundPublic();
@@ -372,18 +384,61 @@ function mountTwentyFour(app, httpServer, opts) {
     socket.on('host:reset', (_p, ack) => {
       if (!requireHost(ack)) return;
       game.reset();
+      reactionsMuted = false;
+      lastReactionAt.clear();
       ack && ack({ ok: true });
       ns.emit('state:reset');
+      ns.emit('state:reactionsMuted', { muted: reactionsMuted });
       broadcastLobby();
     });
 
     socket.on('host:leave', (_p, ack) => {
       if (!requireHost(ack)) return;
       game.reset();
+      reactionsMuted = false;
+      lastReactionAt.clear();
       hostLeftIntentionally = true;
       if (hostGraceTimer) { clearTimeout(hostGraceTimer); hostGraceTimer = null; }
       emitHostPresence(false);
       ack && ack({ ok: true });
+    });
+
+    // Host can mute all player reactions globally (e.g. if spammy or the
+    // host is mid-explanation). Players see a "Reactions paused by host"
+    // pill and the buttons disable; server-side rejects reaction events
+    // until un-muted.
+    socket.on('host:setReactionsMuted', ({ muted } = {}, ack) => {
+      if (!requireHost(ack)) return;
+      reactionsMuted = !!muted;
+      ack && ack({ ok: true, reactionsMuted });
+      ns.emit('state:reactionsMuted', { muted: reactionsMuted });
+    });
+
+    // Player reactions: relayed to the host as floating emoji bursts.
+    // Gated to lobby + final phases (the in-game round is too fast-paced
+    // for reactions, and the intro is just a countdown).
+    socket.on('player:reaction', ({ index } = {}, ack) => {
+      if (!playerId) return ack && ack({ ok: false, reason: 'not-joined' });
+      if (!isHostPresent()) return ack && ack({ ok: false, reason: 'host-absent' });
+      if (typeof index !== 'number' || index < 0 || index >= REACTION_COUNT) {
+        return ack && ack({ ok: false, reason: 'bad-index' });
+      }
+      if (game.phase !== PHASES.LOBBY && game.phase !== PHASES.FINAL) {
+        return ack && ack({ ok: false, reason: 'phase-closed' });
+      }
+      if (reactionsMuted) return ack && ack({ ok: false, reason: 'muted' });
+      const now = Date.now();
+      const last = lastReactionAt.get(playerId) || 0;
+      if (now - last < REACTION_COOLDOWN_MS) {
+        return ack && ack({
+          ok: false,
+          reason: 'cooldown',
+          retryInMs: REACTION_COOLDOWN_MS - (now - last),
+        });
+      }
+      lastReactionAt.set(playerId, now);
+      ack && ack({ ok: true });
+      ns.to(HOST_ROOM).emit('host:reaction', { index });
     });
 
     socket.on('disconnect', () => {

@@ -123,6 +123,7 @@
         if (showingReset) {
             Empire.hideAllViews();
             Empire.setReactionBarVisible(false);
+            Empire.setAttributionVisible(false);
             Empire.showView(resetType === 'newround' ? 'viewPlayerNewRound' : 'viewPlayerReset');
             return;
         }
@@ -145,6 +146,7 @@
             Empire.showCategoryBanner('done', state.category);
             renderSecretCard('Done');
             Empire.setReactionBarVisible(true);
+            Empire.setAttributionVisible(true);
             return;
         }
 
@@ -159,6 +161,7 @@
             if (prevPhase !== 'playing') resetSecretCard('Game');
             renderSecretCard('Game');
             Empire.setReactionBarVisible(true);
+            Empire.setAttributionVisible(false);
             return;
         }
     }

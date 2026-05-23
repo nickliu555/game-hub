@@ -28,8 +28,6 @@
   const resetBtn = document.getElementById('resetBtn');
   const skipBtn = document.getElementById('skipBtn');
   const skipRemainingEl = document.getElementById('skipRemaining');
-  const decayBarFill = document.getElementById('decayBarFill');
-  const decayPoints = document.getElementById('decayPoints');
   const scoreFloat = document.getElementById('scoreFloat');
   const finalPoints = document.getElementById('finalPoints');
   const finalSolves = document.getElementById('finalSolves');
@@ -47,7 +45,6 @@
   meName.textContent = localStorage.getItem('twentyfour.playerName') || '…';
 
   // Kahoot/Trivia-style scoring helpers. Mirrors server constants.
-  const SOLVE_TIME_LIMIT_MS = 30 * 1000;
   function formatScore(n) {
     const v = (typeof n === 'number' && Number.isFinite(n)) ? n : 0;
     return v.toLocaleString('en-US');
@@ -82,6 +79,19 @@
       const ended = (name === 'final-wait' || name === 'final');
       pHeader.classList.toggle('header-end', ended);
     }
+    // Reactions are allowed in social/idle phases only — never during
+    // the intro countdown, active puzzles, or the "you solved them all"
+    // lockout view. setReactionsAllowed() is a no-op until the DOM refs
+    // are wired up at the bottom of this IIFE, but reads the right state.
+    if (typeof setReactionsAllowed === 'function') {
+      const allow = (name === 'lobby' || name === 'final-wait' || name === 'final');
+      setReactionsAllowed(allow);
+      // Attribution credit only during the lobby (pre-game wait). Once
+      // the round is underway or the final stats card is up, the line
+      // would just compete with content the player actually cares about.
+      const attribution = document.getElementById('playerAttribution');
+      if (attribution) attribution.hidden = (name !== 'lobby');
+    }
   }
 
   // Live player count shown in the lobby waiting view. Mirrors Empire/Trivia.
@@ -105,7 +115,6 @@
     if (donePoints) donePoints.textContent = formatScore(points);
     doneSolves.textContent = solves;
     doneSkips.textContent = skips;
-    stopDecayTick();
     showView('done');
   }
 
@@ -170,43 +179,7 @@
     skipEligibleAt = payload.skipEligibleAt;
     engine.loadPuzzle(payload.numbers);
     updateSkipBtn();
-    startDecayTick();
     showView('puzzle');
-  }
-
-  // ---------------- Score decay bar ----------------
-  // Fill shrinks linearly from 100%→50% over SOLVE_TIME_LIMIT_MS, then
-  // holds at 50% so players can see they've hit the floor (still earning
-  // points, just no longer decaying). The live "N pts" label mirrors the
-  // exact number of points the player will earn if they solve right now,
-  // matching the server's pointsForSolve() formula. (Network latency
-  // between tap and server receipt may shave 1-4 points off the actual
-  // award; not worth surfacing to the player.)
-  let decayTimer = null;
-  function tickDecayBar() {
-    if (!decayBarFill) return;
-    if (!servedAt) {
-      decayBarFill.style.width = '100%';
-      if (decayPoints) decayPoints.textContent = '1,000';
-      return;
-    }
-    const elapsed = Math.max(0, serverNow() - servedAt);
-    const frac = Math.min(elapsed / SOLVE_TIME_LIMIT_MS, 1);
-    const pct = 100 - 50 * frac;
-    decayBarFill.style.width = pct.toFixed(1) + '%';
-    if (decayPoints) {
-      const pts = Math.round(1000 * (1 - 0.5 * frac));
-      decayPoints.textContent = formatScore(pts);
-    }
-    if (frac >= 1) stopDecayTick();
-  }
-  function startDecayTick() {
-    stopDecayTick();
-    tickDecayBar();
-    decayTimer = setInterval(tickDecayBar, 100);
-  }
-  function stopDecayTick() {
-    if (decayTimer) { clearInterval(decayTimer); decayTimer = null; }
   }
 
   function updateSkipBtn() {
@@ -341,6 +314,10 @@
       meName.textContent = res.player.name;
       setScoreDisplay(res.player.score || 0);
       setHostPresent(res.hostPresent !== false);
+      // Initial mute state from the reconnect ack — covers the case where
+      // we (re)load mid-game after the host already muted reactions.
+      reactionsMutedByHost = !!res.reactionsMuted;
+      updateReactionButtonState();
 
       if (res.phase === 'LOBBY') {
         setLobbyPlayerCount(res.total);
@@ -547,7 +524,6 @@
   function showFinalWait(f) {
     cancelFinalWait();
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
-    stopDecayTick();
     pCountdown.textContent = '0:00';
     pCountdown.classList.remove('warn');
     showView('final-wait');
@@ -560,7 +536,6 @@
   function showFinalStats(f) {
     cancelFinalWait();
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
-    stopDecayTick();
     showView('final');
     pCountdown.textContent = '0:00';
     pCountdown.classList.remove('warn');
@@ -607,4 +582,97 @@
     const v = n % 100;
     return n + (s[(v - 20) % 10] || s[v] || s[0]);
   }
+
+  // ---------------- Reactions ----------------
+  // Floating emoji bursts sent to the host screen. Mirrors trivia's
+  // implementation: 6 emojis, 10s per-player cooldown (persisted to
+  // localStorage so a refresh doesn't grant a free reaction), host can
+  // globally mute. Gated to lobby + final views via showView() below.
+  const REACTION_COOLDOWN_MS_CLIENT = 10 * 1000;
+  const REACTION_LS_KEY = 'twentyfour.lastReactionAt';
+  const reactionBar = document.getElementById('reactionBar');
+  const reactionCooldownEl = document.getElementById('reactionCooldown');
+  const reactionBtns = reactionBar
+    ? Array.prototype.slice.call(reactionBar.querySelectorAll('.reaction-btn'))
+    : [];
+  let reactionsAllowed = false;
+  let reactionUntilMs = 0;
+  let reactionCountdownTimer = null;
+  let reactionsMutedByHost = false;
+
+  function setReactionsAllowed(allowed) {
+    reactionsAllowed = allowed;
+    if (!reactionBar) return;
+    reactionBar.hidden = !allowed;
+    document.body.classList.toggle('has-reaction-bar', !!allowed);
+    updateReactionButtonState();
+  }
+  function updateReactionButtonState() {
+    if (!reactionBar) return;
+    const now = Date.now();
+    const onCooldown = now < reactionUntilMs;
+    const disabled = !reactionsAllowed || onCooldown || reactionsMutedByHost;
+    reactionBtns.forEach(function (b) { b.disabled = disabled; });
+    if (reactionsMutedByHost && reactionsAllowed) {
+      reactionCooldownEl.hidden = false;
+      reactionCooldownEl.textContent = 'Reactions paused by host';
+    } else if (onCooldown && reactionsAllowed) {
+      const sec = Math.ceil((reactionUntilMs - now) / 1000);
+      reactionCooldownEl.hidden = false;
+      reactionCooldownEl.textContent = sec + 's';
+    } else {
+      reactionCooldownEl.hidden = true;
+    }
+  }
+  function startReactionCountdown() {
+    if (reactionCountdownTimer) clearInterval(reactionCountdownTimer);
+    updateReactionButtonState();
+    reactionCountdownTimer = setInterval(function () {
+      if (Date.now() >= reactionUntilMs) {
+        clearInterval(reactionCountdownTimer);
+        reactionCountdownTimer = null;
+      }
+      updateReactionButtonState();
+    }, 250);
+  }
+  (function restoreReactionCooldown() {
+    const stored = parseInt(localStorage.getItem(REACTION_LS_KEY) || '0', 10);
+    if (!stored) return;
+    const elapsed = Date.now() - stored;
+    if (elapsed < REACTION_COOLDOWN_MS_CLIENT) {
+      reactionUntilMs = stored + REACTION_COOLDOWN_MS_CLIENT;
+    } else {
+      localStorage.removeItem(REACTION_LS_KEY);
+    }
+  })();
+  if (Date.now() < reactionUntilMs) {
+    startReactionCountdown();
+  }
+  if (reactionBar) {
+    reactionBar.addEventListener('click', function (e) {
+      const btn = e.target.closest('.reaction-btn');
+      if (!btn || btn.disabled) return;
+      const idx = parseInt(btn.dataset.reaction, 10);
+      if (isNaN(idx)) return;
+      const now = Date.now();
+      reactionUntilMs = now + REACTION_COOLDOWN_MS_CLIENT;
+      localStorage.setItem(REACTION_LS_KEY, String(now));
+      startReactionCountdown();
+      socket.emit('player:reaction', { index: idx }, function (res) {
+        if (res && !res.ok && res.reason === 'cooldown' && res.retryInMs) {
+          const ackNow = Date.now();
+          reactionUntilMs = ackNow + res.retryInMs;
+          localStorage.setItem(
+            REACTION_LS_KEY,
+            String(ackNow + res.retryInMs - REACTION_COOLDOWN_MS_CLIENT)
+          );
+          startReactionCountdown();
+        }
+      });
+    });
+  }
+  socket.on('state:reactionsMuted', function (p) {
+    reactionsMutedByHost = !!(p && p.muted);
+    updateReactionButtonState();
+  });
 })();

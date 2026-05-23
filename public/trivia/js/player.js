@@ -21,9 +21,18 @@
   let lastResult = null;
   let lobbyTotalPlayers = 0;
 
+  // Attribution credit visibility. Shown only in the LOBBY phase so it
+  // doesn't compete with question/result/final content. render() hides
+  // it for every non-lobby state; renderLobbyWaiting() re-shows it.
+  const attributionEl = document.getElementById('playerAttribution');
+  function setAttributionVisible(visible) {
+    if (attributionEl) attributionEl.hidden = !visible;
+  }
+
   // ---------------- Rendering ----------------
   function render(html) {
     elView.innerHTML = '<div class="state-card">' + html + '</div>';
+    setAttributionVisible(false);
   }
 
   function renderLobbyWaiting() {
@@ -40,6 +49,7 @@
       countLine +
       '<p style="margin-top:14px; color: var(--muted); font-size: 14px;">Keep this tab open.</p>'
     );
+    setAttributionVisible(true);
   }
 
   // ---------------- Intro ----------------

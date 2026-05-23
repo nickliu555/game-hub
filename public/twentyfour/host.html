@@ -29,6 +29,7 @@
           <div class="gtb-settings-panel" id="settingsPanel" hidden>
 
             <button id="fullscreenBtn" class="gtb-btn" type="button" title="Toggle fullscreen">⛶ Fullscreen</button>
+            <button id="muteReactionsBtn" class="gtb-btn" type="button" data-gtb-settings-keep-open title="Mute player reactions">🔔 Reactions: On</button>
             <div class="gtb-divider"></div>
             <button id="resetBtn" class="gtb-btn gtb-btn-danger" type="button" title="Reset the whole game">Reset game</button>
           </div>
@@ -101,7 +102,6 @@
       <div class="chart-card">
         <div class="chart-header">
           <h2>Live leaderboard</h2>
-          <span class="chart-unit">Solves this round</span>
         </div>
         <div class="bars" id="bars"></div>
       </div>
@@ -122,6 +122,9 @@
   <div class="final-intro-overlay" id="finalIntroOverlay" hidden>
     <div class="fi-text" id="finalIntroText">⏰ Time's up!</div>
   </div>
+
+  <!-- Floating reaction emojis from players (lobby + final phases). -->
+  <div class="reaction-layer" id="reactionLayer" aria-hidden="true"></div>
 
   <audio id="sfx-applause" src="/twentyfour/assets/sounds/applause.mp3" preload="auto"></audio>
 

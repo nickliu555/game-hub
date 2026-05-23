@@ -47,14 +47,6 @@
 
     <!-- Active puzzle -->
     <div id="view-puzzle" style="display:none; flex:1; flex-direction:column; gap:12px; min-height:0;">
-      <!-- Score decay bar: shrinks 100%→50% over SOLVE_TIME_LIMIT_MS, then
-           holds at 50% so players can see they've bottomed out. The live
-           "N pts" label anchors the bar's meaning visually — it's the
-           number of points you'll earn if you solve right now. -->
-      <div class="decay-bar-row" id="decayBar" aria-hidden="true">
-        <div class="decay-bar"><div class="decay-bar-fill" id="decayBarFill"></div></div>
-        <div class="decay-bar-label"><span id="decayPoints">1,000</span> pts</div>
-      </div>
       <div class="numbers" id="numbers"></div>
       <div class="ops" id="ops">
         <button class="op" data-op="+" type="button">+</button>
@@ -118,6 +110,21 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- Attribution: visible only in lobby + final phases (in-round is too busy). -->
+  <div class="player-attribution" id="playerAttribution" hidden>Developed by Nick Liu (with help from Claude)</div>
+
+  <!-- Reaction bar: visible during lobby + final phases only.
+       In-round (puzzle/done) is intentionally too busy for reactions. -->
+  <div class="reaction-bar" id="reactionBar" hidden>
+    <button type="button" class="reaction-btn" data-reaction="0" aria-label="laugh">😂</button>
+    <button type="button" class="reaction-btn" data-reaction="1" aria-label="fire">🔥</button>
+    <button type="button" class="reaction-btn" data-reaction="2" aria-label="eyes">👀</button>
+    <button type="button" class="reaction-btn" data-reaction="3" aria-label="party">🎉</button>
+    <button type="button" class="reaction-btn" data-reaction="4" aria-label="shock">😱</button>
+    <button type="button" class="reaction-btn" data-reaction="5" aria-label="angry">😡</button>
+    <div class="reaction-cooldown" id="reactionCooldown" hidden></div>
   </div>
 
   <!-- Host absent overlay -->
