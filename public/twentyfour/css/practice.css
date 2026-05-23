@@ -42,7 +42,10 @@ body.practice {
   cursor: pointer;
   transition: background 0.15s;
 }
-.practice-back:hover { background: rgba(0, 0, 0, 0.10); }
+.practice-back:active { transform: scale(0.97); }
+@media (hover: hover) {
+  .practice-back:hover { background: rgba(0, 0, 0, 0.10); }
+}
 .practice-brand {
   font-weight: 800;
   font-size: 17px;
@@ -107,7 +110,9 @@ body.practice {
   transition: transform 0.08s, border-color 0.15s, background 0.15s;
   font-family: var(--font-sans);
 }
-.diff-card:hover { border-color: var(--accent); }
+@media (hover: hover) {
+  .diff-card:hover { border-color: var(--accent); }
+}
 .diff-card.selected {
   background: #FFF6D4;
   border-color: var(--gold);
@@ -136,7 +141,9 @@ body.practice {
   cursor: pointer;
   transition: background 0.15s, transform 0.08s;
 }
-#startBtn:hover:not(:disabled) { background: var(--accent-deep); }
+@media (hover: hover) {
+  #startBtn:hover:not(:disabled) { background: var(--accent-deep); }
+}
 #startBtn:active:not(:disabled) { transform: scale(0.98); }
 #startBtn:disabled { opacity: 0.5; cursor: wait; }
 
@@ -192,7 +199,9 @@ body.practice {
   font-family: inherit;
   transition: background 0.15s, border-color 0.15s;
 }
-.stat-button:hover { background: rgba(0, 0, 0, 0.08); border-color: rgba(0, 0, 0, 0.14); }
+@media (hover: hover) {
+  .stat-button:hover { background: rgba(0, 0, 0, 0.08); border-color: rgba(0, 0, 0, 0.14); }
+}
 .stat-button:active { transform: scale(0.97); }
 .stat-button .stat-value { font-size: 15px; }
 .stat-caret { font-size: 11px; color: var(--ink-soft); margin-left: 1px; }
@@ -213,8 +222,10 @@ body.practice {
   color: var(--ink);
   font-weight: 700;
 }
-.controls .btn-give-up:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.12);
+@media (hover: hover) {
+  .controls .btn-give-up:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.12);
+  }
 }
 
 /* ---------------- Answer view ---------------- */
@@ -275,7 +286,9 @@ body.practice {
   cursor: pointer;
   transition: background 0.15s, transform 0.08s;
 }
-#nextBtn:hover { background: var(--accent-deep); }
+@media (hover: hover) {
+  #nextBtn:hover { background: var(--accent-deep); }
+}
 #nextBtn:active { transform: scale(0.98); }
 
 /* ---------------- Exit confirmation overlay ---------------- */
@@ -358,12 +371,14 @@ body.practice {
   background: rgba(0, 0, 0, 0.06);
   color: var(--ink);
 }
-.exit-actions .btn-secondary:hover { background: rgba(0, 0, 0, 0.10); }
 .exit-actions .btn-primary {
   background: var(--accent);
   color: #fff;
 }
-.exit-actions .btn-primary:hover:not(:disabled) { background: var(--accent-deep); }
+@media (hover: hover) {
+  .exit-actions .btn-secondary:hover { background: rgba(0, 0, 0, 0.10); }
+  .exit-actions .btn-primary:hover:not(:disabled) { background: var(--accent-deep); }
+}
 .exit-actions .btn-primary:disabled {
   opacity: 0.45;
   cursor: not-allowed;

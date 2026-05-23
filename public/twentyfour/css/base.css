@@ -90,11 +90,13 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 800; letter-spacing: -0
   margin-bottom: 10px;
   transition: background 0.15s, transform 0.08s;
 }
-.player-attribution .practice-link:hover {
-  background: rgba(255, 255, 255, 0.20);
-}
 .player-attribution .practice-link:active {
   transform: scale(0.97);
+}
+@media (hover: hover) {
+  .player-attribution .practice-link:hover {
+    background: rgba(255, 255, 255, 0.20);
+  }
 }
 
 button, .btn-ghost {
@@ -111,9 +113,11 @@ button, .btn-ghost {
   display: inline-block;
   transition: transform 0.08s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
-button:hover:not(:disabled), .btn-ghost:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
 button:active:not(:disabled) { transform: translateY(0); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
+@media (hover: hover) {
+  button:hover:not(:disabled), .btn-ghost:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+}
 
 .btn-primary { background: var(--accent); color: #fff; }
 .btn-accent  { background: var(--gold); color: var(--ink); }

@@ -129,10 +129,15 @@ body.join {
   box-shadow: 0 6px 16px rgba(234, 88, 12, 0.35);
   transition: transform 0.08s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
-.host-absent-card .overlay-practice-link:hover,
 .host-absent-card .overlay-practice-link:focus-visible {
   background: var(--accent-deep);
   box-shadow: 0 8px 22px rgba(234, 88, 12, 0.45);
+}
+@media (hover: hover) {
+  .host-absent-card .overlay-practice-link:hover {
+    background: var(--accent-deep);
+    box-shadow: 0 8px 22px rgba(234, 88, 12, 0.45);
+  }
 }
 .host-absent-card .overlay-practice-link:active {
   transform: translateY(1px);

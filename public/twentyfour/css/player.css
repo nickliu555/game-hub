@@ -313,9 +313,11 @@ body.player {
   color: var(--ink);
   font-weight: 700;
 }
-.controls button:hover:not(:disabled) { background: rgba(0,0,0,0.10); }
 .controls .btn-skip { background: var(--accent); color: #fff; }
-.controls .btn-skip:hover:not(:disabled) { background: var(--accent-deep); }
+@media (hover: hover) {
+  .controls button:hover:not(:disabled) { background: rgba(0,0,0,0.10); }
+  .controls .btn-skip:hover:not(:disabled) { background: var(--accent-deep); }
+}
 /* Lock the skip button's height to the tallest state ("Skip" + countdown)
    so it doesn't grow/shrink when the lockout expires. When the countdown
    text is empty, the inner span collapses and "Skip" centers itself
@@ -575,7 +577,6 @@ body.player {
   color: var(--ink);
   cursor: pointer;
 }
-.unfinished-toggle:hover { border-color: var(--accent); }
 .unfinished-toggle-chevron {
   font-size: 14px;
   color: var(--ink-soft);
@@ -583,6 +584,9 @@ body.player {
 }
 .unfinished-toggle[aria-expanded="true"] .unfinished-toggle-chevron {
   transform: rotate(180deg);
+}
+@media (hover: hover) {
+  .unfinished-toggle:hover { border-color: var(--accent); }
 }
 .unfinished-list {
   display: flex;
@@ -646,7 +650,9 @@ body.player {
   font-size: 12px;
   cursor: pointer;
 }
-.unfinished-reveal:hover { background: var(--accent-deep); }
+@media (hover: hover) {
+  .unfinished-reveal:hover { background: var(--accent-deep); }
+}
 .unfinished-solution {
   flex-shrink: 0;
   font-family: ui-monospace, Menlo, Monaco, monospace;
