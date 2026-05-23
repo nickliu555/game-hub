@@ -50,16 +50,16 @@ const games = [
         color: '#F97316',
         playerCount: '1–20+',
         duration: '1–5 min',
-        description: 'Players each get the same shuffled puzzle queue of 4 numbers. Combine numbers with +, −, ×, ÷ to reach exactly 24. Self-paced — solve one and the next one appears. Most puzzles solved when time runs out wins.',
+        description: 'Players each get the same shuffled puzzle queue of 4 numbers. Combine numbers with +, −, ×, ÷ to reach exactly 24. The faster you solve, the more points you earn. Highest total score when time runs out wins.',
         rules: [
             'The host opens the game on a shared screen (TV, laptop, etc.)',
             'Players scan the QR code on their phones and enter a name',
             'Host picks difficulty (easy / medium / hard / any) and round length',
             'When the round starts, everyone gets the same shuffled queue of puzzles',
             'Tap a number, an operator, then another number to combine them — repeat until one tile is left',
-            'When that final tile equals 24, you earn a point and the next puzzle appears',
-            'Stuck? After 20 seconds you can Skip (no points)',
-            'When the timer hits zero, the player with the most solves wins'
+            'When that final tile equals 24, you score and the next puzzle appears',
+            'The faster you solve, the more points you earn — stuck puzzles can be Skipped for a small penalty',
+            'When the timer hits zero, the highest total score wins'
         ],
         hostPath: '/twentyfour/host',
         playPath: '/twentyfour/play',
