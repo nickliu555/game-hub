@@ -1,8 +1,10 @@
 'use strict';
 
 // Spawn N fake players that join the lobby of one (or all) of the hub games.
-// Players only JOIN the lobby — they don't play. Connections stay open until
-// you press Ctrl+C, so the host lobby page keeps showing the chips.
+// For TRIVIA the players can also auto-answer each question (see below), so
+// you can load-test the full play loop, not just the lobby. For empire and
+// twentyfour the players still only JOIN. Connections stay open until you
+// press Ctrl+C, so the host lobby/play pages keep showing the chips.
 //
 // IMPORTANT: a host must already be on the game's host page, otherwise the
 // server rejects joins with "host-absent" (trivia/twentyfour) or
@@ -21,6 +23,23 @@
 //   game  (arg 1 / GAME):  empire | trivia | twentyfour | all   (default: all)
 //   count (arg 2 / COUNT): number of players per game            (default: 10)
 //   URL   (env):           server base URL              (default: http://localhost:3000)
+//
+// Trivia auto-answer (env, ignored by empire/twentyfour):
+//   ANSWER:         A | B | C | D | random | off    (default: random)
+//                  - A/B/C/D  → every player always picks that choice
+//                  - random   → each player picks a random choice per question
+//                  - off/none → players join but never answer (lobby only)
+//   ANSWER_MIN_MS:  earliest a player may answer after choices appear (default: 500)
+//   ANSWER_MAX_MS:  latest a player may answer after choices appear  (default: 2500)
+//                  (MAX_ANSWER_DELAY_MS is accepted as an alias for ANSWER_MAX_MS.)
+//   Each player rolls a uniformly-random delay in [ANSWER_MIN_MS, ANSWER_MAX_MS]
+//   before submitting, so answers arrive spread across that time span. The
+//   delay is clamped to the question's own timer so nobody answers too late.
+//
+//   Examples:
+//     ANSWER=random ANSWER_MIN_MS=1000 ANSWER_MAX_MS=8000 node scripts/sim-players.js trivia 50
+//     ANSWER=A node scripts/sim-players.js trivia 30
+//     ANSWER=off node scripts/sim-players.js trivia 30   # lobby only
 
 const { io } = require('socket.io-client');
 const crypto = require('crypto');
@@ -42,6 +61,25 @@ if (!Number.isInteger(COUNT) || COUNT < 1) {
 }
 
 const targets = rawGame === 'all' ? GAMES.slice() : [rawGame];
+
+// ---- Trivia auto-answer config -------------------------------------------
+// ANSWER picks the choice strategy; ANSWER_MIN_MS..ANSWER_MAX_MS is the time
+// span across which players submit (each rolls a random delay in that range).
+const ANSWER_MODE = (process.env.ANSWER || 'RANDOM').toUpperCase();
+const ANSWER_ENABLED = !['OFF', 'NONE', 'NO', '0', 'FALSE'].includes(ANSWER_MODE);
+const ANSWER_MIN_MS = Math.max(0, parseInt(process.env.ANSWER_MIN_MS || '500', 10) || 0);
+const ANSWER_MAX_MS = Math.max(
+  ANSWER_MIN_MS,
+  parseInt(process.env.ANSWER_MAX_MS || process.env.MAX_ANSWER_DELAY_MS || '2500', 10) || ANSWER_MIN_MS
+);
+
+// Map the ANSWER setting → a choice index (0=A, 1=B, 2=C, 3=D). 'random'
+// (and any unrecognized value) re-rolls per question so the distribution
+// across players/questions is spread out.
+function chooseAnswerIndex() {
+  const idx = { A: 0, B: 1, C: 2, D: 3 }[ANSWER_MODE];
+  return typeof idx === 'number' ? idx : Math.floor(Math.random() * 4);
+}
 
 // ---- Name / word generators ----------------------------------------------
 const FIRST = [
@@ -108,11 +146,18 @@ function nextWord(game) {
 
 // ---- Trackers ------------------------------------------------------------
 const sockets = [];
-const stats = {}; // game -> { joined, failed }
-for (const g of targets) stats[g] = { joined: 0, failed: 0 };
+const stats = {}; // game -> { joined, failed, answered }
+for (const g of targets) stats[g] = { joined: 0, failed: 0, answered: 0 };
 
 console.log(`Spawning ${COUNT} player(s) into: ${targets.join(', ')}  (server: ${URL})`);
-console.log('Players will stay in the lobby until you press Ctrl+C.\n');
+if (targets.includes('trivia')) {
+  if (ANSWER_ENABLED) {
+    console.log(`Trivia auto-answer: mode=${ANSWER_MODE}, delay span=${ANSWER_MIN_MS}-${ANSWER_MAX_MS}ms after choices appear.`);
+  } else {
+    console.log('Trivia auto-answer: OFF (players join the lobby only).');
+  }
+}
+console.log('Players will stay connected until you press Ctrl+C.\n');
 
 // Print a one-time hint when connections look like the server isn't running.
 let printedServerDownHint = false;
@@ -151,6 +196,34 @@ function joinSocketGame(game) {
       console.warn(`x [${game}] ${name} connect_error:`, err.message);
       hintIfServerDown(err);
     });
+
+    // Trivia auto-answer: when choices appear (state:question), each player
+    // waits a random delay inside [ANSWER_MIN_MS, ANSWER_MAX_MS] — clamped to
+    // the question's own timer — then submits its chosen answer. The
+    // `answered` set guards against double-submitting if state:question is
+    // re-broadcast (e.g. on a late host reconnect).
+    if (game === 'trivia' && ANSWER_ENABLED) {
+      const answered = new Set();
+      s.on('state:question', (q) => {
+        if (!q || !q.id || answered.has(q.id)) return;
+        answered.add(q.id);
+        // Clamp the chosen delay to the remaining question window so the
+        // answer lands before the timer expires (leave a 250ms safety buffer).
+        let maxDelay = ANSWER_MAX_MS;
+        if (typeof q.endsAt === 'number' && typeof q.serverNow === 'number') {
+          const windowMs = q.endsAt - q.serverNow - 250;
+          if (windowMs > 0) maxDelay = Math.min(maxDelay, windowMs);
+        }
+        const lo = Math.min(ANSWER_MIN_MS, maxDelay);
+        const delay = lo + Math.floor(Math.random() * Math.max(0, maxDelay - lo));
+        setTimeout(() => {
+          const choiceIndex = chooseAnswerIndex();
+          s.emit('player:answer', { questionId: q.id, choiceIndex }, (res) => {
+            if (res && res.ok) stats[game].answered++;
+          });
+        }, delay);
+      });
+    }
 
     sockets.push(s);
   }
@@ -240,7 +313,12 @@ process.on('SIGTERM', shutdown);
 // ---- Heartbeat -----------------------------------------------------------
 setInterval(() => {
   const summary = targets
-    .map((g) => `${g}: ${stats[g].joined} joined, ${stats[g].failed} failed`)
+    .map((g) => {
+      const base = `${g}: ${stats[g].joined} joined, ${stats[g].failed} failed`;
+      return (g === 'trivia' && ANSWER_ENABLED)
+        ? `${base}, ${stats[g].answered} answered`
+        : base;
+    })
     .join('  |  ');
   process.stdout.write(`  ... ${summary}. Ctrl+C to disconnect.\r`);
 }, 2000);

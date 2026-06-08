@@ -650,11 +650,21 @@
   function podiumStep(klass, medal, group) {
     if (!group) return '<div class="podium-spot ' + klass + '"></div>';
     const tie = group.players.length > 1;
-    const nameHtml = group.players.length === 1
-      ? '<div class="name">' + escapeHtml(group.players[0].name) + '</div>'
-      : '<div class="name">' +
-          group.players.map(function (p) { return escapeHtml(p.name); }).join(' · ') +
+    let nameHtml;
+    if (!tie) {
+      nameHtml = '<div class="name">' + escapeHtml(group.players[0].name) + '</div>';
+    } else {
+      // Cap visible names so a large tie can never overflow the fixed-height
+      // card; surface the rest as "…and N more".
+      const VISIBLE_MAX = 2;
+      const visible = group.players.slice(0, VISIBLE_MAX);
+      const overflow = group.players.length - visible.length;
+      nameHtml =
+        '<div class="names">' +
+          visible.map(function (p) { return '<div class="name">' + escapeHtml(p.name) + '</div>'; }).join('') +
+          (overflow > 0 ? '<div class="more">…and ' + overflow + ' more</div>' : '') +
         '</div>';
+    }
     const scoreLabel = formatScore(group.score) + (group.score === 1 ? ' point' : ' points');
     return (
       '<div class="podium-spot ' + klass + (tie ? ' tie' : '') + '">' +

@@ -5,6 +5,12 @@ body.host {
   color: #fff;
   min-height: 100vh;
   height: 100vh;
+  /* Clip at the viewport so a long final leaderboard can't push the page
+     taller than the screen. With this, the flex chain below
+     (.host-container -> .final -> .leaderboard-full) shrinks the scores
+     panel to fit and it scrolls internally instead of bleeding off the
+     bottom edge. Narrow screens re-enable normal page scroll below. */
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -368,11 +374,20 @@ body.host {
   text-align: center;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 6px;
   box-shadow: var(--shadow-strong);
   transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.podium-spot.first { transform: translateY(-30px); }
+/* Fixed per-tier heights (bottom-aligned by the grid) so the podium is
+   always the same size and stays a real stepped podium — gold tallest,
+   then silver, then bronze — no matter how many players are tied in a
+   tier. Content is bounded by podiumStep (max 2 names + "…and N more")
+   and `overflow: hidden` is a safety net so a tier can never grow. */
+.podium-spot.first  { height: 295px; overflow: hidden; }
+.podium-spot.second { height: 265px; overflow: hidden; }
+.podium-spot.third  { height: 240px; overflow: hidden; }
 .podium-spot .rank {
   font-size: 14px;
   font-weight: 800;
@@ -385,7 +400,8 @@ body.host {
 .podium-spot .score { font-size: 26px; font-weight: 800; color: var(--accent); }
 .podium-spot .solves { font-size: 14px; font-weight: 600; color: var(--muted); margin-top: 2px; }
 .podium-spot .skips { font-size: 14px; font-weight: 600; color: var(--muted); margin-top: 2px; }
-.podium-spot .names { font-size: 16px; color: var(--muted); }
+.podium-spot .names { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.podium-spot .more { font-size: 14px; font-style: italic; color: var(--muted); }
 .podium-spot.tie .name { font-size: 17px; }
 
 .leaderboard-full {
@@ -461,7 +477,7 @@ body.host {
 /* Smaller laptop screens collapse the lobby into a single column. */
 @media (max-width: 900px) {
   .lobby { grid-template-columns: 1fr; grid-template-rows: none; padding: 18px; }
-  body.host { height: auto; }
+  body.host { height: auto; overflow: visible; }
   .round-header .countdown { font-size: 42px; }
 }
 

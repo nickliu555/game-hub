@@ -67,6 +67,12 @@ body.host {
   flex: 1;
   display: grid;
   grid-template-areas: 'stack';
+  /* Explicit 1fr row so the single stacked cell is constrained to this
+     element's height instead of growing to the tallest stacked view's
+     content. Without it, #view-final's `height: 100%` resolves against
+     the content-sized row (e.g. a 100-row scoreboard) and the full-lb
+     flex-shrink/scroll never kicks in — letting it bleed off the bottom. */
+  grid-template-rows: minmax(0, 1fr);
   align-items: center;
   justify-items: center;
   padding: 28px;
@@ -565,7 +571,33 @@ body.host {
 .reveal-actions { text-align: center; margin-top: 24px; }
 
 /* ---- Final / Podium ---- */
-.final-view { text-align: center; color: white; }
+/* The final view must fit inside its grid cell (.host-main row). Without
+   this, with many players the full scoreboard makes the centered .view
+   taller than the cell — and since .host-main centers it vertically, the
+   overflow is split: "Congratulations" disappears above the topbar and
+   "Full scores" bleeds below the bottom edge. Stretching #view-final to
+   fill the cell gives .final-view a definite height so .full-lb's
+   `flex: 1` can shrink the box (with internal scroll) instead of growing
+   to the natural size of the full row list. */
+#view-final {
+  align-self: stretch;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+.final-view {
+  text-align: center; color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  height: 100%;
+  min-height: 0;
+}
+.final-view > h2,
+.final-view > .results-intro,
+.final-view > .podium { flex: 0 0 auto; }
+.final-view > .full-lb { flex: 1 1 auto; min-height: 0; }
 .final-view h2 {
   font-weight: 800; font-size: clamp(40px, 5vw, 72px); margin: 0 0 30px;
   color: var(--gold);
@@ -579,6 +611,12 @@ body.host {
 }
 .podium {
   display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;
+  width: 100%;
+  /* Cards bottom-align so the per-tier fixed heights below produce a real
+     stepped podium (gold tallest, then silver, then bronze) every time —
+     tied or untied. Content is hard-bounded by the podiumCell renderer
+     (max 2 names + overflow line) so cards never exceed their height;
+     effectively the heights are static regardless of tie count. */
   align-items: end; max-width: 900px; margin: 0 auto 30px;
 }
 
@@ -598,11 +636,26 @@ body.host {
 .final-view.pre-reveal .podium,
 .final-view.pre-reveal .full-lb { display: none; }
 .final-view.pre-reveal h2 { display: none; }
+/* During pre-reveal the intro is the only visible child; center it in the
+   available height instead of pinning it to the top. */
+.final-view.pre-reveal { justify-content: center; }
+/* Once the intro fades out, fully remove it from flex flow — otherwise its
+   reserved height stays between the title and podium, creating a gap that
+   pushes the whole final view down. */
+.final-view:not(.pre-reveal) .results-intro { display: none; }
 .podium-step {
   background: var(--surface); color: var(--ink);
   border-radius: var(--radius); padding: 24px 16px;
   box-shadow: var(--shadow-strong);
   position: relative;
+  /* Fixed-height tiers (.place-1/2/3) + centered content => untied cards
+     have even whitespace top/bottom and tied multi-name cards fill more
+     of the card, but both read as intentionally proportioned. */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   opacity: 0; transform: translateY(40px);
   transition: opacity 0.6s ease, transform 0.6s cubic-bezier(.2,.9,.25,1);
 }
@@ -668,9 +721,13 @@ body.host {
   from { transform: scale(1); }
   to   { transform: scale(1.12); }
 }
-.podium-step.place-1 { background: linear-gradient(180deg, #fff 0%, #fff6d4 100%); padding-top: 36px; }
-.podium-step.place-2 { background: linear-gradient(180deg, #fff 0%, #f0eaf8 100%); }
-.podium-step.place-3 { background: linear-gradient(180deg, #fff 0%, #fde6e9 100%); }
+/* Fixed step heights so the podium is always the same size and gold is
+   always 30px taller than silver, which is 25px taller than bronze —
+   regardless of how many tied members a tier holds. `overflow: hidden`
+   is a safety net for unexpectedly long content. */
+.podium-step.place-1 { background: linear-gradient(180deg, #fff 0%, #fff6d4 100%); padding-top: 36px; height: 295px; overflow: hidden; }
+.podium-step.place-2 { background: linear-gradient(180deg, #fff 0%, #f0eaf8 100%); height: 265px; overflow: hidden; }
+.podium-step.place-3 { background: linear-gradient(180deg, #fff 0%, #fde6e9 100%); height: 240px; overflow: hidden; }
 
 .podium-step .suspense-label {
   display: block;
@@ -711,9 +768,15 @@ body.host {
 .podium-step.revealed.place-3 { box-shadow: 0 0 0 3px #f5b8c0, var(--shadow-strong); }
 
 .full-lb {
+  width: 100%;
   max-width: 700px; margin: 0 auto; background: var(--surface); color: var(--ink);
   border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); text-align: left;
-  max-height: 45vh; overflow-y: auto;
+  /* Flex sizing (.final-view > .full-lb { flex: 1 1 auto; min-height: 0 })
+     handles height: the box fills whatever vertical space remains under
+     the title + podium and scrolls internally for long lists. No
+     max-height — that would prevent flex from shrinking it on short host
+     windows and let it bleed past the bottom again. */
+  overflow-y: auto;
   opacity: 0;
   transform: translateY(12px);
   transition: opacity 0.6s ease, transform 0.6s ease;
