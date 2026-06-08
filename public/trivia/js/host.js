@@ -524,6 +524,14 @@
   // ---------------- Sting overlay ----------------
   var STING_VISIBLE_MS = 2200;
   var STING_FADE_MS = 350;
+  // Wall-clock deadline (Date.now() ms) by which whichever sting is
+  // currently on screen should be fully cleared. Used by the
+  // visibilitychange watchdog below to force-clear a stuck overlay if
+  // the tab was hidden through the entire show/hide window. Shared by
+  // playSting() ("Time's up!" / "Let's see the answers!") and
+  // showFinalQuestionSting() ("🏆 Final Question!") — these are mutually
+  // exclusive in the game state machine, so a single deadline is safe.
+  var stingClearAt = 0;
   function playSting(reason, done) {
     var overlay = document.getElementById('stingOverlay');
     var textEl = document.getElementById('stingText');
@@ -538,7 +546,16 @@
     textEl.textContent = copy;
     overlay.classList.remove('timeout', 'all-answered');
     overlay.classList.add(reason);
-    requestAnimationFrame(function () { overlay.classList.add('visible'); });
+    // Add .visible SYNCHRONOUSLY. Previously this used requestAnimationFrame,
+    // but rAF callbacks do NOT fire while the tab is hidden, whereas the
+    // cleanup setTimeouts below DO still fire (throttled). When the tab was
+    // hidden across the whole sting window, the cleanup ran with .visible
+    // never added; on tab-return the queued rAF finally added .visible with
+    // no cleanup left — leaving the overlay stuck. The CSS transition still
+    // fires from a synchronous class add (overlay is a permanent opacity:0
+    // node, so toggling .visible is a clean 0→1 transition).
+    overlay.classList.add('visible');
+    stingClearAt = Date.now() + STING_VISIBLE_MS + STING_FADE_MS;
     if (reason === 'all-answered') playRevealChime();
     if (typeof done === 'function') {
       setTimeout(done, STING_VISIBLE_MS - STING_FADE_MS);
@@ -830,6 +847,9 @@
     document.body.classList.remove('host-final-intro-fading');
     // Show the splash.
     ov.classList.add('visible', 'final-question');
+    // Arm the shared watchdog so this splash can't get stuck on screen
+    // either if the tab was hidden through its entire 5.2s lifecycle.
+    stingClearAt = Date.now() + 5200;
     // After the hold, start the splash leaving AND fade the prompt content in
     // at the same moment so it feels like one continuous transition.
     setTimeout(function () {
@@ -842,6 +862,26 @@
       document.body.classList.remove('host-final-intro', 'host-final-intro-fading');
     }, 5200);
   }
+
+  // Watchdog: if the host tab was hidden through an entire sting lifetime,
+  // tab-visibility races can leave the overlay stuck on screen. The
+  // synchronous .visible adds above prevent the primary failure mode; this
+  // is belt-and-suspenders for any future timing path. When the tab becomes
+  // visible AFTER the sting's expected clear-by deadline (+500ms grace so
+  // the normal cleanup setTimeout wins during a brief tab-flip), force-clear
+  // every sting class on the overlay AND the body classes the final-question
+  // splash sets. Class removal is idempotent, so over-cleanup is safe.
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') return;
+    if (stingClearAt === 0) return;
+    if (Date.now() < stingClearAt + 500) return; // still inside expected window
+    var overlay = document.getElementById('stingOverlay');
+    if (overlay) {
+      overlay.classList.remove('visible', 'timeout', 'all-answered', 'final-question');
+    }
+    document.body.classList.remove('host-final-intro', 'host-final-intro-fading');
+    stingClearAt = 0;
+  });
 
   // ---------------- Reveal ----------------
   function renderReveal(r) {
@@ -866,13 +906,19 @@
       const isCorrect = i === r.correctIndex;
       const colorVar = ['--ans-a','--ans-b','--ans-c','--ans-d'][i];
       const choiceText = (q.choices && q.choices[i]) || '';
+      // Same escaped string powers the element content, the native `title`
+      // fallback tooltip, and the `data-full` attribute used by the CSS
+      // hover bubble (host.css). escapeHtml() covers " and ' so it's safe.
+      const choiceEsc = escapeHtml(choiceText);
       const indicator = isCorrect
         ? '<div class="row-indicator correct-check" aria-label="Correct answer">✓</div>'
         : '<div class="row-indicator" aria-hidden="true"></div>';
       return (
         '<div class="bar-row ' + (isCorrect ? 'correct' : '') + '">' +
           '<div class="shape" style="color: var(' + colorVar + ')">' + shapeHTML(i) + '</div>' +
-          '<div class="choice-text">' + escapeHtml(choiceText) + '</div>' +
+          // tabindex=0 lets keyboard users Tab to each row to surface the
+          // tooltip via :focus (mirrors the :hover reveal).
+          '<div class="choice-text" title="' + choiceEsc + '" data-full="' + choiceEsc + '" tabindex="0">' + choiceEsc + '</div>' +
           '<div class="bar"><div class="bar-fill" style="width:' + pct.toFixed(1) + '%; background: var(' + colorVar + ')"></div></div>' +
           '<div class="count">' + count + '</div>' +
           indicator +
@@ -938,13 +984,24 @@
   }
 
   function runPodiumReveal(f) {
-    var p = f.podium || [];
-    var p1 = p[0], p2 = p[1], p3 = p[2];
+    // `podiumGroups` buckets players by DISTINCT rank (up to 3 groups), so
+    // a tied group at any spot is rendered together in one card with a TIE
+    // pill and medals follow rank. Fall back to the legacy flat `podium`
+    // array (one player per group) if the server didn't send groups.
+    var groups = (f && f.podiumGroups) || [];
+    if (groups.length === 0 && f && f.podium && f.podium.length) {
+      groups = f.podium.map(function (e) {
+        return { rank: e.rank, score: e.score, players: [{ id: e.id, name: e.name }] };
+      });
+    }
+    var g1 = groups[0]; // rank 1 (winner group)
+    var g2 = groups[1]; // next distinct rank (may be undefined on a big tie)
+    var g3 = groups[2];
 
     podium.innerHTML =
-      podiumCell('place-2', '🥈', p2) +
-      podiumCell('place-1', '🥇', p1) +
-      podiumCell('place-3', '🥉', p3);
+      podiumCell('place-2', '🥈', g2) +
+      podiumCell('place-1', '🥇', g1) +
+      podiumCell('place-3', '🥉', g3);
 
     fullLb.innerHTML =
       '<h3 style="margin-top:0;">Full scores</h3>' +
@@ -960,33 +1017,40 @@
     fullLb.classList.remove('visible');
 
     var steps = podium.querySelectorAll('.podium-step');
-    var revealQueue = [
-      { el: steps[2], entry: p3, tier: 3, label: 'Third place is…',  isWinner: false },
-      { el: steps[0], entry: p2, tier: 2, label: 'Second place is…', isWinner: false },
-      { el: steps[1], entry: p1, tier: 1, label: 'And the winner is…', isWinner: true  },
-    ];
+    // steps[0] = 2nd slot, steps[1] = 1st slot, steps[2] = 3rd slot.
+    // Build the reveal queue bottom-up by rank, skipping any rank group
+    // that doesn't exist (so a giant rank-1 tie just reveals one card).
+    function suspenseLabel(tier, tied) {
+      if (tier === 3) return tied ? 'Tied for third are…' : 'Third place is…';
+      if (tier === 2) return tied ? 'Tied for second are…' : 'Second place is…';
+      return tied ? 'And tied for the win are…' : 'And the winner is…';
+    }
+    var revealQueue = [];
+    if (g3) revealQueue.push({ el: steps[2], group: g3, tier: 3, label: suspenseLabel(3, g3.players.length > 1), isWinner: false });
+    if (g2) revealQueue.push({ el: steps[0], group: g2, tier: 2, label: suspenseLabel(2, g2.players.length > 1), isWinner: false });
+    if (g1) revealQueue.push({ el: steps[1], group: g1, tier: 1, label: suspenseLabel(1, g1.players.length > 1), isWinner: true  });
 
     revealQueue.forEach(function (slot) {
       if (!slot.el) return;
       slot.el.classList.add('suspense');
-      var nameEl = slot.el.querySelector('.name');
+      var namesList = slot.el.querySelector('.names-list');
       var scoreEl = slot.el.querySelector('.score');
-      if (nameEl) {
-        nameEl.dataset.finalName = nameEl.textContent;
-        nameEl.innerHTML = '<span class="suspense-label">' + slot.label + '</span><span class="suspense-dots"><span></span><span></span><span></span></span>';
+      if (namesList) {
+        namesList.dataset.finalHtml = namesList.innerHTML;
+        namesList.innerHTML = '<span class="suspense-label">' + slot.label + '</span><span class="suspense-dots"><span></span><span></span><span></span></span>';
       }
       if (scoreEl) {
-        scoreEl.dataset.finalScore = (slot.entry && slot.entry.score) || 0;
+        scoreEl.dataset.finalScore = (slot.group && slot.group.score) || 0;
         scoreEl.textContent = '';
       }
     });
 
+    var WINNER_SCORE_MS = 700;
+    var WINNER_HOLD_MS  = 300;
     var cursor = 400;
     revealQueue.forEach(function (slot) {
-      if (!slot.el || !slot.entry) return;
+      if (!slot.el || !slot.group) return;
 
-      var WINNER_SCORE_MS = 700;
-      var WINNER_HOLD_MS  = 300;
       var rollDur = slot.isWinner
         ? (SUSPENSE_MS + WINNER_SCORE_MS + WINNER_HOLD_MS) / 1000
         : SUSPENSE_MS / 1000;
@@ -994,17 +1058,22 @@
         slot.el.classList.add('visible');
         var stopRoll = playDrumroll(rollDur);
         setTimeout(function () {
-          var nameEl = slot.el.querySelector('.name');
+          var namesList = slot.el.querySelector('.names-list');
           var scoreEl = slot.el.querySelector('.score');
           var finalScore = scoreEl ? parseInt(scoreEl.dataset.finalScore || '0', 10) : 0;
 
+          function restoreNames() {
+            if (!namesList) return;
+            namesList.innerHTML = namesList.dataset.finalHtml || '';
+            var nameEls = namesList.querySelectorAll('.name');
+            nameEls.forEach(function (n, idx) {
+              n.style.animationDelay = (idx * 0.15) + 's';
+              n.classList.add('revealed');
+            });
+          }
+
           if (slot.isWinner) {
-            // Reveal the name immediately (same as other tiers) so it
-            // doesn't feel like lag — the drama is the score count-up.
-            if (nameEl) {
-              nameEl.textContent = nameEl.dataset.finalName || (slot.entry.name || '');
-              nameEl.classList.add('revealed');
-            }
+            restoreNames();
             slot.el.classList.remove('suspense');
             slot.el.classList.add('revealed');
             if (scoreEl) {
@@ -1025,10 +1094,7 @@
             }, WINNER_SCORE_MS + WINNER_HOLD_MS);
           } else {
             if (typeof stopRoll === 'function') stopRoll();
-            if (nameEl) {
-              nameEl.textContent = nameEl.dataset.finalName || (slot.entry.name || '');
-              nameEl.classList.add('revealed');
-            }
+            restoreNames();
             slot.el.classList.remove('suspense');
             slot.el.classList.add('revealed');
             playCheerChord(slot.tier);
@@ -1054,13 +1120,31 @@
     requestAnimationFrame(step);
   }
 
-  function podiumCell(klass, medal, entry) {
-    if (!entry) return '<div class="podium-step ' + klass + '"></div>';
+  function podiumCell(klass, medal, group) {
+    // Empty placeholder keeps the gold card centered in the 3-column grid
+    // when a rank tier has no group (e.g. 5 tied for 1st → no rank-2 group).
+    if (!group) return '<div class="podium-step ' + klass + ' empty-slot"></div>';
+    var tied = group.players.length > 1;
+    // Cap visible names on the card; surface the rest as "…and N more".
+    var VISIBLE_MAX = 2;
+    var visible = group.players.slice(0, VISIBLE_MAX);
+    var overflow = group.players.length - visible.length;
+    var namesHtml =
+      '<div class="names-list">' +
+        visible.map(function (p) {
+          return '<div class="name">' + escapeHtml(p.name) + '</div>';
+        }).join('') +
+        (overflow > 0
+          ? '<div class="more-count">…and ' + overflow + ' more</div>'
+          : '') +
+      '</div>';
+    var pillHtml = tied ? '<div class="tie-pill">TIE</div>' : '';
     return (
-      '<div class="podium-step ' + klass + '">' +
+      '<div class="podium-step ' + klass + (tied ? ' tied' : '') + '">' +
+        pillHtml +
         '<div class="medal">' + medal + '</div>' +
-        '<div class="name">' + escapeHtml(entry.name) + '</div>' +
-        '<div class="score">' + entry.score + ' pts</div>' +
+        namesHtml +
+        '<div class="score">' + group.score + ' pts</div>' +
       '</div>'
     );
   }

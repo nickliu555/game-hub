@@ -331,16 +331,58 @@ class Game {
   }
 
   getLeaderboard(limit) {
-    const arr = Array.from(this.players.values())
-      .map((p) => ({ id: p.id, name: p.name, score: p.score, lastTs: p.lastScoringAnswerTs }))
+    // Sort by score desc. Tiebreak by name (case-insensitive) so the
+    // display order among tied players is deterministic and fair — NOT
+    // biased by join order or who happened to answer earliest. The
+    // alphabetical sort is PURELY cosmetic: every player with the same
+    // score gets the SAME rank below; alphabetical only decides which
+    // name appears above the other when scores tie.
+    const sorted = Array.from(this.players.values())
+      .map((p) => ({ id: p.id, name: p.name, score: p.score }))
       .sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;
-        const at = a.lastTs || Infinity;
-        const bt = b.lastTs || Infinity;
-        return at - bt;
-      })
-      .map((p, i) => ({ rank: i + 1, id: p.id, name: p.name, score: p.score }));
-    return typeof limit === 'number' ? arr.slice(0, limit) : arr;
+        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      });
+
+    // Standard competition ranking ("1224"): every player with the same
+    // score gets the same rank; the next distinct score skips ahead by
+    // the size of the tie group. e.g. scores [1000, 900, 900, 800] yield
+    // ranks [1, 2, 2, 4]. Replaces the old timestamp-tiebreaker logic
+    // where ties were silently broken by who answered first.
+    const ranked = [];
+    for (let i = 0; i < sorted.length; i++) {
+      const p = sorted[i];
+      const rank = (i > 0 && sorted[i - 1].score === p.score)
+        ? ranked[i - 1].rank
+        : i + 1;
+      ranked.push({ rank, id: p.id, name: p.name, score: p.score });
+    }
+    return typeof limit === 'number' ? ranked.slice(0, limit) : ranked;
+  }
+
+  // Buckets players into up to 3 podium GROUPS by DISTINCT rank — not by
+  // player count. Returns: [{ rank, score, players: [{id, name}, ...] }].
+  // With ties this can yield fewer than 3 groups (e.g. 5 players tied for
+  // 1st returns a single group of 5; no silver/bronze). Used by the host's
+  // final podium so medals follow rank, and tied players share a card.
+  getPodiumGroups() {
+    const full = this.getLeaderboard();
+    if (full.length === 0) return [];
+    const groups = [];
+    for (const row of full) {
+      const last = groups[groups.length - 1];
+      if (last && last.rank === row.rank) {
+        last.players.push({ id: row.id, name: row.name });
+      } else {
+        if (groups.length >= 3) break;
+        groups.push({
+          rank: row.rank,
+          score: row.score,
+          players: [{ id: row.id, name: row.name }],
+        });
+      }
+    }
+    return groups;
   }
 
   getLobbyPlayers() {
@@ -351,21 +393,47 @@ class Game {
     }));
   }
 
+  // Points this player needs to overtake the next-higher SCORE on the
+  // leaderboard. Returns null when they're in first place (or tied for the
+  // top score with nobody above them). `leaderboard` is optional — pass a
+  // pre-computed one to avoid re-sorting.
+  getPointsToNextPlace(playerId, leaderboard) {
+    const p = this.players.get(playerId);
+    if (!p) return null;
+    const lb = Array.isArray(leaderboard) ? leaderboard : this.getLeaderboard();
+    const idx = lb.findIndex((e) => e.id === playerId);
+    if (idx <= 0) return null;
+    for (let i = idx - 1; i >= 0; i--) {
+      if (lb[i].score > p.score) {
+        return (lb[i].score - p.score) + 1;
+      }
+    }
+    return null;
+  }
+
   getPlayerResult(playerId) {
     const p = this.players.get(playerId);
     const q = this.getCurrentQuestion();
     if (!p || !q) return null;
     const a = p.answers.find((x) => x.questionId === q.id);
     const lb = this.getLeaderboard();
-    const rank = lb.findIndex((e) => e.id === playerId) + 1;
+    // Use the competition rank stored on the leaderboard row, NOT the
+    // array index — with ties the index is just alphabetical position.
+    const idx = lb.findIndex((e) => e.id === playerId);
+    const rank = idx >= 0 ? lb[idx].rank : (lb.length || 1);
+    // True when at least one other player shares this rank. The client
+    // uses this to show "You are tied at #N" instead of "You are #N".
+    const tied = lb.filter((e) => e.rank === rank).length > 1;
     return {
       questionId: q.id,
       answered: !!a,
       wasCorrect: a ? a.wasCorrect : false,
       pointsEarned: a ? a.points : 0,
       totalScore: p.score,
-      rank: rank || lb.length,
+      rank,
+      tied,
       totalPlayers: lb.length,
+      pointsToNextPlace: this.getPointsToNextPlace(playerId, lb),
       isLastQuestion: this.currentIndex === this.questions.length - 1,
     };
   }

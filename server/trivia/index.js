@@ -154,7 +154,7 @@ function mountTrivia(app, httpServer, opts) {
   }
   function broadcastFinal() {
     const lb = game.getLeaderboard();
-    ns.emit('state:final', { podium: lb.slice(0, 3), fullLeaderboard: lb });
+    ns.emit('state:final', { podium: lb.slice(0, 3), podiumGroups: game.getPodiumGroups(), fullLeaderboard: lb });
   }
   function broadcastAnswerCount() {
     ns.to(HOST_ROOM).emit('host:answerCount', {
@@ -314,7 +314,7 @@ function mountTrivia(app, httpServer, opts) {
         }
       } else if (game.phase === PHASES.FINAL) {
         const lb = game.getLeaderboard();
-        socket.emit('state:final', { podium: lb.slice(0, 3), fullLeaderboard: lb });
+        socket.emit('state:final', { podium: lb.slice(0, 3), podiumGroups: game.getPodiumGroups(), fullLeaderboard: lb });
       }
     });
 

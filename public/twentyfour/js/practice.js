@@ -8,7 +8,9 @@
   // difficulty; we filter+shuffle the matching pool into a session queue
   // and serve puzzles one at a time using the shared puzzle-engine.js.
   //
-  // - Timer runs continuously from Start (no pause).
+  // - Timer pauses when play is blocked: during a Give Up reveal, while
+  //   the tab is hidden, and while the change-difficulty or exit summary
+  //   overlay is open.
   // - Solved counter increments on engine onSolve.
   // - Give Up reveals the worked solution from solutions[puzzle.id] and
   //   shows a Next button. Give Up does NOT increment the counter.
@@ -240,6 +242,7 @@
     });
     updateDiffApplyState();
     diffOverlay.hidden = false;
+    reconcileTimer();
   });
 
   changeDifficultyPicker.addEventListener('click', function (e) {
@@ -255,6 +258,7 @@
   diffCancelBtn.addEventListener('click', function () {
     diffOverlay.hidden = true;
     pendingDifficulty = null;
+    reconcileTimer();
   });
 
   diffApplyBtn.addEventListener('click', function () {
@@ -262,6 +266,7 @@
     if (!pendingDifficulty || pendingDifficulty === selectedDifficulty) {
       diffOverlay.hidden = true;
       pendingDifficulty = null;
+      reconcileTimer();
       return;
     }
     if (poolSize(pendingDifficulty) === 0) {
@@ -269,6 +274,7 @@
       // but bail safely without disturbing the session if it ever happens.
       diffOverlay.hidden = true;
       pendingDifficulty = null;
+      reconcileTimer();
       return;
     }
     selectedDifficulty = pendingDifficulty;
@@ -332,11 +338,16 @@
     if (timerHandle) { clearInterval(timerHandle); timerHandle = null; }
   }
   // Recompute whether the timer should be actively accumulating. Called
-  // on every view change and visibility change. If we transition from
-  // active → paused, fold the current segment into accumulatedMs. If we
-  // transition from paused → active, start a fresh segment.
+  // on every view change, visibility change, and overlay open/close. If we
+  // transition from active → paused, fold the current segment into
+  // accumulatedMs. If we transition from paused → active, start a fresh
+  // segment.
   function reconcileTimer() {
-    const want = viewActive && pageVisible;
+    // An open overlay (change-difficulty or exit summary) blocks play, so
+    // the timer pauses while either modal is up — same treatment as a
+    // hidden tab or the Give Up reveal.
+    const modalOpen = !diffOverlay.hidden || !exitOverlay.hidden;
+    const want = viewActive && pageVisible && !modalOpen;
     const isAccumulating = activeSegmentStart !== 0;
     if (want && !isAccumulating) {
       activeSegmentStart = Date.now();
@@ -398,9 +409,11 @@
     exitTime.textContent = formatTime(elapsedSec());
     exitStats.hidden = false;
     exitOverlay.hidden = false;
+    reconcileTimer();
   });
   exitStayBtn.addEventListener('click', function () {
     exitOverlay.hidden = true;
+    reconcileTimer();
   });
   exitLeaveBtn.addEventListener('click', function () {
     window.location.href = getBackTarget();

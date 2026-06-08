@@ -4,6 +4,7 @@ body.host {
   background: linear-gradient(160deg, var(--bg) 0%, var(--bg-deep) 100%);
   color: #fff;
   min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
 }
@@ -15,6 +16,7 @@ body.host {
   flex: 1;
   display: grid;
   grid-template-columns: 1.1fr 1fr;
+  grid-template-rows: minmax(0, 1fr);
   gap: 32px;
   padding: 28px 32px 40px;
   min-height: 0;
@@ -143,8 +145,10 @@ body.host {
   flex: 1;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  grid-auto-rows: max-content;
   gap: 12px;
   overflow-y: auto;
+  min-height: 0;
   padding: 6px 4px 6px 0;
   align-content: start;
 }
@@ -456,7 +460,8 @@ body.host {
 
 /* Smaller laptop screens collapse the lobby into a single column. */
 @media (max-width: 900px) {
-  .lobby { grid-template-columns: 1fr; padding: 18px; }
+  .lobby { grid-template-columns: 1fr; grid-template-rows: none; padding: 18px; }
+  body.host { height: auto; }
   .round-header .countdown { font-size: 42px; }
 }
 

@@ -248,6 +248,14 @@ body.player.urgent .urgent-bar {
 .result-wrong   { color: var(--warn); }
 .result-points  { font-size: 42px; font-weight: 800; margin: 10px 0; }
 .result-rank    { color: var(--ink-soft); }
+.result-next-place {
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  margin-top: 4px;
+  opacity: 0.85;
+}
 
 html { touch-action: manipulation; }
 

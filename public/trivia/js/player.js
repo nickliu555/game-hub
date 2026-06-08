@@ -150,11 +150,14 @@
     const correct = res.wasCorrect;
     const pts = res.pointsEarned;
     const rank = res.rank;
-    const total = res.totalPlayers;
+    const pointsToNextPlace = res.pointsToNextPlace;
     const klass = correct ? 'result-correct' : 'result-wrong';
     const heading = res.answered
       ? (correct ? 'Correct! 🎉' : 'Not quite…')
       : 'Too slow!';
+    const showNextPlace = !res.isLastQuestion
+      && typeof pointsToNextPlace === 'number'
+      && pointsToNextPlace > 0;
     elView.innerHTML =
       '<div class="state-card">' +
         '<h2 class="' + klass + '">' + heading + '</h2>' +
@@ -163,7 +166,12 @@
           : '<p>No answer recorded.</p>') +
         (res.isLastQuestion
           ? '<p class="result-rank">Final results coming up on the big screen…</p>'
-          : '<p class="result-rank">You are <strong>#' + rank + '</strong> of ' + total + '</p>') +
+          : (res.tied
+              ? '<p class="result-rank">You are tied at <strong>#' + rank + '</strong></p>'
+              : '<p class="result-rank">You are <strong>#' + rank + '</strong></p>')) +
+        (showNextPlace
+          ? '<p class="result-next-place">↑ ' + pointsToNextPlace + ' pts to next place</p>'
+          : '') +
       '</div>';
   }
 

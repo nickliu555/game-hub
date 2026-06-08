@@ -4,7 +4,8 @@
   "description": "Game Hub - Multiplayer party games for phones and a shared screen",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "sim": "node scripts/sim-players.js"
   },
   "dependencies": {
     "dotenv": "^17.3.1",
@@ -13,5 +14,8 @@
     "nanoid": "^3.3.7",
     "qrcode": "^1.5.3",
     "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.3"
   }
 }
