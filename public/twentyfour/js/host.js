@@ -262,6 +262,11 @@
   });
   socket.on('state:reset', function () {
     stopIntroTimer();
+    // Kill the round countdown too, otherwise it keeps ticking toward the
+    // old roundEndsAt and fires the final-5s beeps after we're back in lobby.
+    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+    roundEndsAt = 0;
+    lastTickSec = null;
     show('lobby');
     barsEl.innerHTML = '';
     podiumEl.innerHTML = '';
