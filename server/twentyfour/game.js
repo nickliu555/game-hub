@@ -14,14 +14,21 @@ const MAX_NAME_LEN = 20;
 const SKIP_LOCKOUT_MS = 10 * 1000;
 // Kahoot/Trivia-style scoring: every solve awards 500-1000 points based on
 // how quickly the player solved (measured from when the puzzle was served).
-// Instant solve = 1000, ramps linearly down to 500 at SOLVE_TIME_LIMIT_MS,
-// flat 500 after that. Skips deduct a flat penalty. Negative scores allowed.
+// The first SOLVE_GRACE_MS is "free" — full 1000 points — so players aren't
+// penalized for the time it takes to read the four numbers and tap out a
+// solution. After the grace window, points ramp linearly down to 500 over
+// SOLVE_TIME_LIMIT_MS (so 500 is reached at grace + limit), flat 500 after.
+// Skips deduct a flat penalty. Negative scores allowed.
+const SOLVE_GRACE_MS = 2 * 1000;
 const SOLVE_TIME_LIMIT_MS = 30 * 1000;
 const SKIP_PENALTY = 200;
 const DEFAULT_DURATION_MIN = 2;
 
 function pointsForSolve(responseMs) {
-  const clamped = Math.max(0, Math.min(responseMs, SOLVE_TIME_LIMIT_MS));
+  // Subtract the grace window first so solves inside it stay at full points,
+  // then decay over SOLVE_TIME_LIMIT_MS.
+  const effective = Math.max(0, responseMs - SOLVE_GRACE_MS);
+  const clamped = Math.min(effective, SOLVE_TIME_LIMIT_MS);
   return Math.round(1000 * (1 - 0.5 * (clamped / SOLVE_TIME_LIMIT_MS)));
 }
 // Pre-round "Get ready" splash so players aren't yanked straight from the
@@ -42,8 +49,9 @@ function fisherYates(a) {
  * Pure state machine for the "24" math game.
  *
  * Self-paced per-player puzzle queue. Round runs for a fixed duration. Each
- * solve awards Kahoot-style decay points (1000 instant → 500 at 20s, flat
- * 500 after); each skip deducts SKIP_PENALTY. Negative scores allowed.
+ * solve awards Kahoot-style decay points (1000 for the first SOLVE_GRACE_MS,
+ * then ramping down to 500 over SOLVE_TIME_LIMIT_MS, flat 500 after); each
+ * skip deducts SKIP_PENALTY. Negative scores allowed.
  * Ties on exact score are broken by who reached that score first
  * (lastScoreAt ascending). Skipping a puzzle requires the player to have
  * been on it for at least SKIP_LOCKOUT_MS (server-authoritative).
