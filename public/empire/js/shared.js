@@ -15,6 +15,11 @@
     // localStorage key holding the player's current submission for the
     // active round. Shape: { round, gameId, name, word }.
     Empire.SUBMISSION_KEY = 'empire_submitted';
+    // Separate, long-lived key for just the player's name. This
+    // outlives clearSubmission() (which fires on reset / new round /
+    // kick / server restart) so /join can always pre-fill the name the
+    // player last used.
+    Empire.NAME_KEY = 'empire_player_name';
 
     Empire.getSavedSubmission = function () {
         try {
@@ -32,10 +37,26 @@
         try {
             localStorage.setItem(Empire.SUBMISSION_KEY, JSON.stringify(data));
         } catch (_) { /* quota / disabled storage — ignore */ }
+        // Mirror the name into its own key so it survives a later
+        // clearSubmission().
+        if (data && data.name) Empire.saveName(data.name);
     };
 
     Empire.clearSubmission = function () {
         try { localStorage.removeItem(Empire.SUBMISSION_KEY); } catch (_) {}
+    };
+
+    // ─── Player-name persistence (survives clearSubmission) ──
+    Empire.saveName = function (name) {
+        try {
+            const n = (name || '').trim();
+            if (n) localStorage.setItem(Empire.NAME_KEY, n);
+        } catch (_) { /* quota / disabled storage — ignore */ }
+    };
+
+    Empire.getSavedName = function () {
+        try { return localStorage.getItem(Empire.NAME_KEY) || ''; }
+        catch (_) { return ''; }
     };
 
     // True when the saved submission still belongs to the current

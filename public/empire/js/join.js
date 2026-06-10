@@ -28,12 +28,16 @@
     async function init() {
         // Restore name input + pink theme from a prior visit. We
         // intentionally do NOT preload the word input — the user
-        // re-types their secret each round.
+        // re-types their secret each round. Prefer the current
+        // submission's name, but fall back to the long-lived saved
+        // name (which survives a reset / new round that cleared the
+        // submission record).
         const saved = Empire.getSavedSubmission();
-        if (saved && saved.name) {
+        const savedName = (saved && saved.name) || Empire.getSavedName();
+        if (savedName) {
             const nameInput = document.getElementById('playerName');
-            if (nameInput) nameInput.value = saved.name;
-            Empire.checkEasterEgg(saved.name);
+            if (nameInput) nameInput.value = savedName;
+            Empire.checkEasterEgg(savedName);
         }
 
         // Fast path: if we already have a valid in-flight submission
