@@ -95,7 +95,7 @@ function createFreshState() {
         shuffledWords: [],     // randomized once on game start
         round: 1,              // increments on each reset so clients detect it
         category: '',          // optional category set by host
-        aiBotEnabled: false,   // toggle for AI decoy word
+        botCount: 0,           // number of AI decoy words (0–10)
         reactionsMuted: false, // host can mute all player reactions
         gameId: SERVER_GAME_ID, // stable for entire server lifetime
     };
@@ -164,7 +164,7 @@ function getPublicState() {
         playerUrl,
         round: gameState.round,
         category: gameState.category,
-        aiBotEnabled: gameState.aiBotEnabled,
+        botCount: gameState.botCount,
         reactionsMuted: gameState.reactionsMuted,
         gameId: gameState.gameId,
         hostPresent: isHostPresent(),
@@ -353,16 +353,18 @@ app.post('/api/empire/category', (req, res) => {
     res.json({ ok: true });
 });
 
-// Toggle AI Bot (host only)
+// Set AI Bot count (host only)
+const MAX_BOTS = 10;
 app.post('/api/empire/ai-bot', (req, res) => {
     touchActivity();
     if (gameState.phase !== 'submission') {
-        return res.status(400).json({ error: 'Can only toggle AI Bot during submission phase.' });
+        return res.status(400).json({ error: 'Can only change AI Bots during submission phase.' });
     }
-    const { enabled } = req.body;
-    gameState.aiBotEnabled = !!enabled;
+    let count = parseInt(req.body && req.body.count, 10);
+    if (!Number.isFinite(count)) count = 0;
+    gameState.botCount = Math.max(0, Math.min(MAX_BOTS, count));
     broadcast();
-    res.json({ ok: true });
+    res.json({ ok: true, botCount: gameState.botCount });
 });
 
 // Send a reaction (players)
@@ -401,22 +403,25 @@ app.post('/api/empire/start', async (req, res) => {
         return res.status(400).json({ error: 'Need at least 2 players.' });
     }
 
-    // Generate AI Bot word if enabled (before shuffling)
-    if (gameState.aiBotEnabled) {
+    // Generate AI Bot decoy words if requested (before shuffling)
+    if (gameState.botCount > 0) {
         try {
-            const aiWord = await generateAiBotWord(
+            const aiWords = await generateAiBotWords(
                 gameState.submissions.map(s => s.word),
                 gameState.category,
-                gameState.groqApiKey
+                gameState.groqApiKey,
+                gameState.botCount
             );
-            if (aiWord) {
+            for (const aiWord of aiWords) {
                 gameState.submissions.push({ player: 'AI Bot 🤖', word: aiWord, isBot: true });
-                console.log(`AI Bot word generated: "${aiWord}"`);
+            }
+            if (aiWords.length) {
+                console.log(`AI Bot words generated (${aiWords.length}/${gameState.botCount}): ${aiWords.map(w => `"${w}"`).join(', ')}`);
             } else {
-                console.warn('AI Bot word generation returned null, proceeding without it.');
+                console.warn('AI Bot word generation returned none, proceeding without bots.');
             }
         } catch (e) {
-            console.error('AI Bot word generation failed, proceeding without it:', e.message);
+            console.error('AI Bot word generation failed, proceeding without bots:', e.message);
         }
     }
 
@@ -490,19 +495,21 @@ app.post('/api/empire/full-reset', (req, res) => {
 
 // ─── Groq API helpers ───────────────────────────────────────
 
-async function generateAiBotWord(existingWords, category, apiKey) {
-    if (!apiKey) return null;
+async function generateAiBotWords(existingWords, category, apiKey, count) {
+    if (!apiKey || count <= 0) return [];
 
     const existingList = existingWords.map(w => `"${w}"`).join(', ');
+    // Ask for enough candidates to comfortably fill `count` distinct decoys.
+    const numCandidates = Math.max(10, count * 2);
     let categoryInstruction;
     if (category) {
-        categoryInstruction = `The category for this round is: "${category}". Generate 10 words or short phrases that fit this category.`;
+        categoryInstruction = `The category for this round is: "${category}". Generate ${numCandidates} words or short phrases that fit this category.`;
     } else {
-        categoryInstruction = `There is no category set. Generate 10 random interesting words or short phrases that would be fun for a party game.`;
+        categoryInstruction = `There is no category set. Generate ${numCandidates} random interesting words or short phrases that would be fun for a party game.`;
     }
 
     const prompt = `You are generating decoy word candidates for a party game called "Empire".
-Players have each submitted a secret word. You need to generate a list of 10 candidate words — one will be randomly selected and mixed in to throw off the other players. The decoy must BLEND IN with the real player words so nobody can tell which one is fake.
+Players have each submitted a secret word. You need to generate a list of ${numCandidates} candidate words — ${count} will be randomly selected and mixed in to throw off the other players. The decoys must BLEND IN with the real player words so nobody can tell which ones are fake.
 
 ${categoryInstruction}
 
@@ -538,7 +545,7 @@ Rules:
 - Include variety — different picks within the same energy
 
 Respond ONLY with valid JSON (no markdown, no extra text):
-{"detected_subgenre": "the specific narrow sub-genre/style/era you identified from the player words", "words": ["word1", "word2", "word3", "word4", "word5", "word6", "word7", "word8", "word9", "word10"]}`;
+{"detected_subgenre": "the specific narrow sub-genre/style/era you identified from the player words", "words": ["word1", "word2", "...up to ${numCandidates} candidates"]}`;
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
@@ -553,30 +560,38 @@ Respond ONLY with valid JSON (no markdown, no extra text):
                 model: 'llama-3.3-70b-versatile',
                 messages: [{ role: 'user', content: prompt }],
                 temperature: 0.9,
-                max_tokens: 300,
+                max_tokens: 600,
                 seed: Math.floor(Math.random() * 2147483647)
             }),
             signal: controller.signal,
         });
 
-        if (!resp.ok) return null;
+        if (!resp.ok) return [];
 
         const data = await resp.json();
         const text = data.choices[0].message.content.trim();
         const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) return null;
+        if (!jsonMatch) return [];
         const parsed = JSON.parse(jsonMatch[0]);
         if (parsed.detected_subgenre) console.log(`AI Bot detected vibe: "${parsed.detected_subgenre}"`);
         const candidates = (parsed.words || [])
             .map(w => (w || '').trim().toLowerCase())
             .filter(w => w && !existingWords.some(e => e.toLowerCase() === w));
-        if (!candidates.length) return null;
-        // Randomly pick one candidate server-side
-        const pick = candidates[Math.floor(Math.random() * candidates.length)];
-        return pick;
+        if (!candidates.length) return [];
+        // Shuffle candidates and pick up to `count` distinct decoys (no dupes).
+        for (let i = candidates.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+        }
+        const picks = [];
+        for (const c of candidates) {
+            if (picks.length >= count) break;
+            if (!picks.includes(c)) picks.push(c);
+        }
+        return picks;
     } catch (e) {
         console.error('AI Bot word generation error:', e);
-        return null;
+        return [];
     } finally {
         clearTimeout(timeout);
     }

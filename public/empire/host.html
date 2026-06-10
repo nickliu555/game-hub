@@ -306,7 +306,7 @@
         .ai-bot-toggle-row {
             display: flex;
             align-items: center;
-            justify-content: center;
+            justify-content: space-between;
             gap: 12px;
             margin-top: 15px;
             padding: 14px 16px;
@@ -332,42 +332,44 @@
             color: #666;
             font-size: 11px;
         }
-        .ai-bot-switch {
-            position: relative;
-            width: 48px;
-            height: 26px;
+        .bot-stepper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
             flex-shrink: 0;
         }
-        .ai-bot-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-        .ai-bot-switch .slider {
-            position: absolute;
+        .bot-step-btn {
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            border: 2px solid #5a3a3a;
+            background: #2a1f1f;
+            color: #d4a844;
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1;
             cursor: pointer;
-            inset: 0;
-            background: #3a2a2a;
-            border-radius: 26px;
-            transition: background 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, border-color 0.2s, opacity 0.2s;
         }
-        .ai-bot-switch .slider::before {
-            content: '';
-            position: absolute;
-            height: 20px;
-            width: 20px;
-            left: 3px;
-            bottom: 3px;
-            background: #888;
-            border-radius: 50%;
-            transition: transform 0.3s, background 0.3s;
-        }
-        .ai-bot-switch input:checked + .slider {
+        .bot-step-btn:hover:not(:disabled) {
             background: #8b1a1a;
+            border-color: #8b1a1a;
+            color: #fff;
         }
-        .ai-bot-switch input:checked + .slider::before {
-            transform: translateX(22px);
-            background: #d4a844;
+        .bot-step-btn:disabled {
+            opacity: 0.35;
+            cursor: default;
+        }
+        .bot-count-value {
+            min-width: 22px;
+            text-align: center;
+            color: #d4a844;
+            font-size: 18px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
         }
 
         /* ─── Timer Display ─── */
@@ -1230,13 +1232,14 @@
 
                     <div class="ai-bot-toggle-row" id="aiBotToggleRow">
                         <div class="ai-bot-toggle-label">
-                            <span class="title">🤖 AI Bot</span>
-                            <span class="subtitle">Adds a decoy word to throw off players</span>
+                            <span class="title">🤖 AI Bots</span>
+                            <span class="subtitle">Add decoy words to throw off players</span>
                         </div>
-                        <label class="ai-bot-switch">
-                            <input type="checkbox" id="aiBotToggle" onchange="toggleAiBot(this.checked)">
-                            <span class="slider"></span>
-                        </label>
+                        <div class="bot-stepper">
+                            <button type="button" class="bot-step-btn" id="botMinus" onclick="changeBotCount(-1)" aria-label="Fewer bots">−</button>
+                            <span class="bot-count-value" id="botCountValue">0</span>
+                            <button type="button" class="bot-step-btn" id="botPlus" onclick="changeBotCount(1)" aria-label="More bots">+</button>
+                        </div>
                     </div>
                 </div>
 
@@ -1394,6 +1397,8 @@
             speechSynthesis.onvoiceschanged = () => { cachedVoice = null; getBestVoice(); };
         }
         let editingCategory = false;
+        const MAX_BOTS = 10;
+        let botCount = 0;
         let spinnerPlayers = [];
         let spinnerDone = false;
         let knownHostGameId = null;
@@ -1688,11 +1693,9 @@
                 if (!editingCategory) {
                     updateCategoryDisplay();
                 }
-                // Sync AI Bot toggle
-                const aiBotToggle = document.getElementById('aiBotToggle');
-                const aiBotRow = document.getElementById('aiBotToggleRow');
-                aiBotToggle.checked = !!state.aiBotEnabled;
-                aiBotRow.classList.toggle('active', !!state.aiBotEnabled);
+                // Sync AI Bot count
+                botCount = Math.max(0, Math.min(MAX_BOTS, parseInt(state.botCount, 10) || 0));
+                renderBotStepper();
                 return;
             }
             if (state.phase === 'playing') {
@@ -2183,19 +2186,30 @@
             }).catch(() => {});
         }
 
-        async function toggleAiBot(enabled) {
-            document.getElementById('aiBotToggleRow').classList.toggle('active', enabled);
+        async function changeBotCount(delta) {
+            const next = Math.max(0, Math.min(MAX_BOTS, botCount + delta));
+            if (next === botCount) return;
+            const prev = botCount;
+            botCount = next;
+            renderBotStepper();
             try {
                 await fetch('/api/empire/ai-bot', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ enabled })
+                    body: JSON.stringify({ count: botCount })
                 });
             } catch (e) {
                 // Revert on failure
-                document.getElementById('aiBotToggle').checked = !enabled;
-                document.getElementById('aiBotToggleRow').classList.toggle('active', !enabled);
+                botCount = prev;
+                renderBotStepper();
             }
+        }
+
+        function renderBotStepper() {
+            document.getElementById('botCountValue').textContent = botCount;
+            document.getElementById('aiBotToggleRow').classList.toggle('active', botCount > 0);
+            document.getElementById('botMinus').disabled = botCount <= 0;
+            document.getElementById('botPlus').disabled = botCount >= MAX_BOTS;
         }
 
         document.addEventListener('DOMContentLoaded', () => {
