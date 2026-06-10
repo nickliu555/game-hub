@@ -130,6 +130,27 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
+            max-height: 48vh;
+            overflow-y: auto;
+        }
+        .words-grid, #attributionContainer {
+            scrollbar-width: thin;
+            scrollbar-color: #5a2a2a #1c1c1c;
+        }
+        .words-grid::-webkit-scrollbar, #attributionContainer::-webkit-scrollbar {
+            width: 8px;
+        }
+        .words-grid::-webkit-scrollbar-track, #attributionContainer::-webkit-scrollbar-track {
+            background: #1c1c1c;
+            border-radius: 4px;
+        }
+        .words-grid::-webkit-scrollbar-thumb, #attributionContainer::-webkit-scrollbar-thumb {
+            background: #5a2a2a;
+            border-radius: 4px;
+        }
+        #attributionContainer {
+            max-height: 48vh;
+            overflow-y: auto;
         }
 
         .word-chip {
