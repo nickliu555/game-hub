@@ -50,7 +50,7 @@ const games = [
         color: '#F97316',
         playerCount: '1–20+',
         duration: '1–5 min',
-        description: 'Players each get the same shuffled puzzle queue of 4 numbers. Combine numbers with +, −, ×, ÷ to reach exactly 24. The faster you solve, the more points you earn. Highest total score when time runs out wins.',
+        description: 'Combine four numbers with +, −, ×, ÷ to reach exactly 24. Play Sprint (solve your own stream of puzzles for points before time runs out) or Race (everyone gets the same problem and the first to solve it wins the point — first to the target score wins).',
         rules: [
             'The host opens the game on a shared screen (TV, laptop, etc.)',
             'Players scan the QR code on their phones and enter a name',

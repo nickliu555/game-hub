@@ -160,8 +160,51 @@
   let timerHandle = null;
   let solvedCount = 0;
   let gaveUpCount = 0;
+  // Name of the currently shown view ('setup' | 'puzzle' | 'answer'), tracked
+  // so the session can be persisted/restored across a page refresh.
+  let currentViewName = 'setup';
+
+  // ---------------- Session persistence ----------------
+  // Practice state lives only in memory, so a refresh used to dump the player
+  // back on the difficulty picker. We snapshot the active session to
+  // sessionStorage (per-tab, survives refresh) and restore it on boot so the
+  // player stays on the same puzzle. The in-puzzle combine progress is not
+  // restored — the puzzle reloads fresh — but the queue, stats, timer, and
+  // current puzzle/answer view are preserved.
+  const SESSION_KEY = 'twentyfour.practice.session';
+
+  function saveSession() {
+    if (currentPuzzleId === null) return; // nothing active to save
+    try {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+        v: 1,
+        difficulty: selectedDifficulty,
+        queue: queue,
+        cursor: cursor,
+        currentPuzzleId: currentPuzzleId,
+        solvedCount: solvedCount,
+        gaveUpCount: gaveUpCount,
+        elapsedMs: currentElapsedMs(),
+        view: currentViewName,
+      }));
+    } catch (_) { /* private mode / quota — ignore */ }
+  }
+  function clearSession() {
+    try { sessionStorage.removeItem(SESSION_KEY); } catch (_) {}
+  }
+  function loadSession() {
+    try {
+      const raw = sessionStorage.getItem(SESSION_KEY);
+      if (!raw) return null;
+      const s = JSON.parse(raw);
+      if (!s || s.v !== 1 || !Array.isArray(s.queue)
+          || typeof s.currentPuzzleId !== 'number') return null;
+      return s;
+    } catch (_) { return null; }
+  }
 
   function showView(name) {
+    currentViewName = name;
     viewSetup.hidden = name !== 'setup';
     viewPuzzle.hidden = name !== 'puzzle';
     viewAnswer.hidden = name !== 'answer';
@@ -183,6 +226,7 @@
       // counter and advance after a short delay so the player sees it.
       solvedCount++;
       paintStats();
+      saveSession();
       setTimeout(serveNext, 500);
     },
   });
@@ -301,17 +345,17 @@
     const numbers = puzzles[currentPuzzleId];
     engine.loadPuzzle(numbers);
     showView('puzzle');
+    saveSession();
   }
 
   // ---------------- Give up ----------------
-  giveUpBtn.addEventListener('click', function () {
-    if (engine.isLocked()) return;
-    if (currentPuzzleId === null) return;
-    gaveUpCount++;
-    engine.lock();
-    const numbers = puzzles[currentPuzzleId];
-    const expr = (solutions && currentPuzzleId < solutions.length)
-      ? solutions[currentPuzzleId]
+  // Paint the worked-solution card for a puzzle. Shared by the Give Up
+  // button and session restore (so a refresh on the answer view comes back
+  // to the same reveal).
+  function renderAnswer(puzzleId) {
+    const numbers = puzzles[puzzleId];
+    const expr = (solutions && puzzleId < solutions.length)
+      ? solutions[puzzleId]
       : null;
     answerNumbers.textContent = 'Using ' + numbers.join(', ');
     if (expr) {
@@ -321,7 +365,16 @@
       answerExpr.textContent = '—';
       answerNote.hidden = false;
     }
+  }
+
+  giveUpBtn.addEventListener('click', function () {
+    if (engine.isLocked()) return;
+    if (currentPuzzleId === null) return;
+    gaveUpCount++;
+    engine.lock();
+    renderAnswer(currentPuzzleId);
     showView('answer');
+    saveSession();
   });
 
   nextBtn.addEventListener('click', function () {
@@ -362,9 +415,12 @@
     reconcileTimer();
   }
   function elapsedSec() {
+    return Math.floor(currentElapsedMs() / 1000);
+  }
+  function currentElapsedMs() {
     let total = accumulatedMs;
     if (activeSegmentStart) total += (Date.now() - activeSegmentStart);
-    return Math.floor(total / 1000);
+    return total;
   }
   function formatTime(totalSec) {
     const h = Math.floor(totalSec / 3600);
@@ -391,13 +447,19 @@
     document.addEventListener('visibilitychange', function () {
       pageVisible = !document.hidden;
       reconcileTimer();
+      // Persist the folded timer so a refresh after backgrounding is accurate.
+      saveSession();
     });
   }
+  // pagehide fires on refresh/navigation (more reliable than beforeunload on
+  // mobile Safari) — snapshot the latest timer value before the page unloads.
+  window.addEventListener('pagehide', function () { saveSession(); });
 
   // ---------------- Back / exit overlay ----------------
   backBtn.addEventListener('click', function () {
     // Nothing accomplished yet → just navigate away.
     if (solvedCount === 0 && gaveUpCount === 0) {
+      clearSession();
       window.location.href = getBackTarget();
       return;
     }
@@ -416,11 +478,44 @@
     reconcileTimer();
   });
   exitLeaveBtn.addEventListener('click', function () {
+    clearSession();
     window.location.href = getBackTarget();
   });
 
   // ---------------- Boot ----------------
-  loadData().catch(function (err) {
+  // Restore an in-progress session (refresh-safe) once puzzle data is ready;
+  // otherwise stay on the difficulty picker.
+  function restoreSession(s) {
+    selectedDifficulty = s.difficulty || 'easy';
+    queue = s.queue;
+    cursor = (typeof s.cursor === 'number') ? s.cursor : 0;
+    currentPuzzleId = s.currentPuzzleId;
+    solvedCount = (typeof s.solvedCount === 'number') ? s.solvedCount : 0;
+    gaveUpCount = (typeof s.gaveUpCount === 'number') ? s.gaveUpCount : 0;
+    accumulatedMs = (typeof s.elapsedMs === 'number') ? s.elapsedMs : 0;
+    activeSegmentStart = 0;
+    paintStats();
+    paintDifficultyChip();
+    startTimer();
+    if (s.view === 'answer') {
+      engine.lock();
+      renderAnswer(currentPuzzleId);
+      showView('answer');
+    } else {
+      engine.loadPuzzle(puzzles[currentPuzzleId]);
+      showView('puzzle');
+    }
+  }
+
+  loadData().then(function () {
+    const saved = loadSession();
+    // Guard against a stale snapshot pointing past the loaded puzzle set.
+    if (saved && saved.currentPuzzleId < puzzles.length) {
+      restoreSession(saved);
+    } else if (saved) {
+      clearSession();
+    }
+  }).catch(function (err) {
     console.error('[practice] failed to load data:', err);
     setupError.textContent = 'Could not load puzzle data. Try refreshing.';
     setupError.hidden = false;

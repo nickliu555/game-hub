@@ -82,10 +82,18 @@ button, .btn-ghost {
   font-weight: 700;
   text-decoration: none;
   display: inline-block;
+  /* Button labels shouldn't be text-selectable (long-press on mobile pops up
+     the copy/share menu and feels broken in a game). */
+  -webkit-user-select: none;
+  user-select: none;
   transition: transform 0.08s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 button:active:not(:disabled) { transform: translateY(0); }
-button:disabled { opacity: 0.5; cursor: not-allowed; }
+/* iOS ignores `touch-action` on DISABLED controls, so rapidly tapping a button
+   that disables mid-spam (e.g. answer buttons after submitting) registers as a
+   double-tap zoom. Making disabled buttons non-interactive lets the tap fall
+   through to the container behind them, which keeps touch-action: manipulation. */
+button:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
 @media (hover: hover) {
   button:hover:not(:disabled), .btn-ghost:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
 }

@@ -1,13 +1,18 @@
 'use strict';
 
-const { buildQueue } = require('./puzzles');
-const { replay } = require('./solver');
+const { buildQueue, solutionFor } = require('./puzzles');
+const { replay, describeSolution } = require('./solver');
 
 const PHASES = {
   LOBBY: 'LOBBY',
   INTRO: 'INTRO',
   ROUND: 'ROUND',
   FINAL: 'FINAL',
+  // Race mode: everyone faces the SAME problem; first correct solve wins a
+  // point. RACE_PROBLEM = problem live, RACE_REVEAL = solution shown while we
+  // wait for the host (or the auto-advance timer) to move to the next problem.
+  RACE_PROBLEM: 'RACE_PROBLEM',
+  RACE_REVEAL: 'RACE_REVEAL',
 };
 
 const MAX_NAME_LEN = 20;
@@ -23,6 +28,20 @@ const SOLVE_GRACE_MS = 2 * 1000;
 const SOLVE_TIME_LIMIT_MS = 30 * 1000;
 const SKIP_PENALTY = 200;
 const DEFAULT_DURATION_MIN = 2;
+
+// ---- Race mode ----
+// First player to a correct solution scores a flat 1 point; first to
+// TARGET_SCORE wins. Each problem has a required time limit; if it expires
+// with no winner the canonical solution is revealed and no points are awarded.
+const DEFAULT_TARGET_SCORE = 5;
+const MIN_TARGET_SCORE = 3;
+const MAX_TARGET_SCORE = 15;
+const DEFAULT_PROBLEM_TIME_SEC = 60;
+const MIN_PROBLEM_TIME_SEC = 30;
+const MAX_PROBLEM_TIME_SEC = 120;
+// When auto-advance is enabled, the reveal holds for this long before the
+// game automatically moves to the next problem (host can still advance early).
+const RACE_AUTO_ADVANCE_MS = 10 * 1000;
 
 function pointsForSolve(responseMs) {
   // Subtract the grace window first so solves inside it stay at full points,
@@ -79,6 +98,29 @@ class Game {
     // Every player advances through this same list at their own pace, so
     // puzzle #N is the same puzzle for everyone (fair scoring).
     this.sharedQueue = [];
+
+    // ---------------- Race mode ----------------
+    this.mode = 'sprint'; // 'sprint' (timed self-paced) | 'race' (first-to-solve)
+    this.targetScore = DEFAULT_TARGET_SCORE;
+    this.problemTimeLimitMs = DEFAULT_PROBLEM_TIME_SEC * 1000;
+    // 0 = wait for host click; RACE_AUTO_ADVANCE_MS = auto-advance the reveal.
+    this.autoAdvanceMs = 0;
+    this.raceQueue = [];
+    this.raceIndex = -1;
+    // Total race problems served this game (race is synchronized, so the same
+    // for every player). Surfaced on the player recap as "rounds played".
+    this.raceRoundsPlayed = 0;
+    this.currentRacePuzzle = null; // { id, numbers } — ONE shared order for all
+    this.problemStartTs = 0;
+    this.problemEndsAt = 0;
+    this.raceWinnerId = null;
+    this.raceWinningSolution = null; // expression string shown on the reveal
+    this.raceRevealReason = null; // 'solved' | 'timeout'
+    this.revealEndsAt = 0; // absolute ts when auto-advance fires (0 = off)
+    this._problemTimer = null;
+    this._raceRevealTimer = null;
+    this.onRaceProblemEnd = null; // wired by transport: timeout → reveal broadcast
+    this.onRaceRevealEnd = null; // wired by transport: auto-advance → next problem
   }
 
   // ---------------- Names / players ----------------
@@ -148,17 +190,30 @@ class Game {
 
   // ---------------- Round control ----------------
 
-  start({ difficulty, durationMin } = {}) {
+  start({ mode, difficulty, durationMin, targetScore, problemTimeLimitSec, autoAdvance } = {}) {
     if (this.phase !== PHASES.LOBBY) return { ok: false, reason: 'already-started' };
     if (this.players.size === 0) return { ok: false, reason: 'no-players' };
     const diff = ['easy', 'medium', 'hard', 'any'].includes(difficulty)
       ? difficulty
       : 'any';
-    const mins = Number.isFinite(durationMin) && durationMin > 0
-      ? durationMin
-      : DEFAULT_DURATION_MIN;
     this.difficulty = diff;
-    this.durationMs = Math.round(mins * 60 * 1000);
+    this.mode = mode === 'race' ? 'race' : 'sprint';
+    this.autoAdvanceMs = autoAdvance ? RACE_AUTO_ADVANCE_MS : 0;
+    if (this.mode === 'race') {
+      const ts = Number.isFinite(targetScore)
+        ? Math.min(MAX_TARGET_SCORE, Math.max(MIN_TARGET_SCORE, Math.round(targetScore)))
+        : DEFAULT_TARGET_SCORE;
+      const secs = Number.isFinite(problemTimeLimitSec)
+        ? Math.min(MAX_PROBLEM_TIME_SEC, Math.max(MIN_PROBLEM_TIME_SEC, Math.round(problemTimeLimitSec)))
+        : DEFAULT_PROBLEM_TIME_SEC;
+      this.targetScore = ts;
+      this.problemTimeLimitMs = secs * 1000;
+    } else {
+      const mins = Number.isFinite(durationMin) && durationMin > 0
+        ? durationMin
+        : DEFAULT_DURATION_MIN;
+      this.durationMs = Math.round(mins * 60 * 1000);
+    }
     // Settings are locked in NOW, but the round timer + queue + puzzle
     // serves are deferred until _endIntro() so the "Get ready" countdown
     // is pure leeway and doesn't eat into playable time.
@@ -182,22 +237,45 @@ class Game {
   _endIntro() {
     if (this.phase !== PHASES.INTRO) return;
     if (this._introTimer) { clearTimeout(this._introTimer); this._introTimer = null; }
+    if (this.mode === 'race') {
+      this._startRace();
+    } else {
+      this._startSprint();
+    }
+    if (typeof this.onIntroEnd === 'function') {
+      try { this.onIntroEnd(); } catch (_) {}
+    }
+  }
+
+  _startSprint() {
     this.roundStartTs = Date.now();
     this.roundEndsAt = this.roundStartTs + this.durationMs;
     this.phase = PHASES.ROUND;
     // ONE shared shuffled queue for the whole round so every player faces
     // the same puzzles in the same order. They just advance through it at
-    // their own pace.
-    this.sharedQueue = buildQueue(this.difficulty);
+    // their own pace. Each entry's on-screen number order is shuffled ONCE
+    // here (fresh objects, so the shared POOLS are never mutated) so puzzle
+    // #N looks pixel-identical on every screen.
+    this.sharedQueue = buildQueue(this.difficulty).map((p) => ({
+      id: p.id,
+      numbers: fisherYates(p.numbers.slice()),
+    }));
     // Wipe per-round state on every player and serve them puzzle #1.
     for (const player of this.players.values()) {
       this._initQueue(player);
       this._serveNext(player);
     }
     this._armRoundTimer();
-    if (typeof this.onIntroEnd === 'function') {
-      try { this.onIntroEnd(); } catch (_) {}
+  }
+
+  _startRace() {
+    this.raceQueue = buildQueue(this.difficulty);
+    this.raceIndex = -1;
+    this.raceRoundsPlayed = 0;
+    for (const player of this.players.values()) {
+      this._initQueue(player);
     }
+    this._serveRaceProblem();
   }
 
   _armRoundTimer() {
@@ -257,10 +335,10 @@ class Game {
       return null;
     }
     const puzzle = this.sharedQueue[player.cursor];
-    // Shuffle the on-screen order of the 4 numbers per player so the same
-    // puzzle doesn't look pixel-identical on two adjacent screens. The math
-    // is unchanged — it's the same 4 numbers, same target, same difficulty.
-    player.currentNumbers = fisherYates(puzzle.numbers.slice());
+    // The on-screen order was shuffled ONCE when the shared queue was built
+    // (in _startSprint), so every player sees the identical order for puzzle
+    // #N. We just hand out a copy here — the math is unchanged.
+    player.currentNumbers = puzzle.numbers.slice();
     player.currentPuzzleId = puzzle.id;
     player.currentServedAt = Date.now();
     return this.getPuzzlePayloadFor(player.id);
@@ -317,6 +395,142 @@ class Game {
     return { ok: true, penalty: SKIP_PENALTY, score: p.score, next, done: !!p.done };
   }
 
+  // ---------------- Race mode control ----------------
+
+  _clearRaceTimers() {
+    if (this._problemTimer) { clearTimeout(this._problemTimer); this._problemTimer = null; }
+    if (this._raceRevealTimer) { clearTimeout(this._raceRevealTimer); this._raceRevealTimer = null; }
+  }
+
+  /**
+   * Serve the next shared race problem to everyone. The four numbers are
+   * shuffled ONCE here so the host spectator screen and every player see the
+   * identical board. Arms the per-problem countdown; if it expires with no
+   * winner we fall into the reveal with the canonical solution.
+   */
+  _serveRaceProblem() {
+    this._clearRaceTimers();
+    this.raceIndex++;
+    if (this.raceIndex >= this.raceQueue.length) {
+      // Practically unreachable (pool is 454+ per difficulty, target ≤ 15),
+      // but reshuffle defensively so the race never runs dry.
+      this.raceQueue = buildQueue(this.difficulty);
+      this.raceIndex = 0;
+    }
+    const entry = this.raceQueue[this.raceIndex];
+    this.raceRoundsPlayed++;
+    this.currentRacePuzzle = {
+      id: entry.id,
+      numbers: fisherYates(entry.numbers.slice()),
+    };
+    this.raceWinnerId = null;
+    this.raceWinningSolution = null;
+    this.raceRevealReason = null;
+    this.revealEndsAt = 0;
+    this.problemStartTs = Date.now();
+    this.problemEndsAt = this.problemStartTs + this.problemTimeLimitMs;
+    this.phase = PHASES.RACE_PROBLEM;
+    this._problemTimer = setTimeout(() => {
+      this._problemTimer = null;
+      this._endRaceProblem('timeout');
+    }, this.problemTimeLimitMs + 50);
+  }
+
+  /**
+   * Player submitted a candidate solution to the current race problem. The
+   * FIRST valid solve (server arrival order) wins the point. Later correct
+   * solves for the same problem are rejected as 'too-late'. Wrong combines
+   * that don't reach 24 are a no-op (client shakes locally).
+   */
+  submitRaceSolve({ playerId, puzzleId, steps }) {
+    if (this.phase !== PHASES.RACE_PROBLEM) return { ok: false, reason: 'not-live' };
+    const p = this.players.get(playerId);
+    if (!p) return { ok: false, reason: 'unknown-player' };
+    if (!this.currentRacePuzzle || this.currentRacePuzzle.id !== puzzleId) {
+      return { ok: false, reason: 'stale-puzzle' };
+    }
+    if (this.raceWinnerId) return { ok: true, accepted: false, reason: 'too-late' };
+    const res = replay(this.currentRacePuzzle.numbers, steps);
+    if (!res.ok) return { ok: false, reason: res.reason };
+    if (!res.reached24) {
+      // Valid combines but not 24 — don't end the problem, let them retry.
+      return { ok: true, accepted: false };
+    }
+    this.raceWinnerId = p.id;
+    this.raceRevealReason = 'solved';
+    // Show the winner's actual solution; fall back to the canonical string
+    // if for some reason we can't render their steps.
+    this.raceWinningSolution =
+      describeSolution(this.currentRacePuzzle.numbers, steps) || solutionFor(puzzleId);
+    p.score += 1;
+    p.solvedCount += 1;
+    p.lastScoreAt = Date.now();
+    this._enterRaceReveal();
+    return {
+      ok: true,
+      accepted: true,
+      won: true,
+      score: p.score,
+      gameOver: p.score >= this.targetScore,
+    };
+  }
+
+  /** Per-problem timer fired with no winner → reveal the canonical solution. */
+  _endRaceProblem(reason) {
+    if (this.phase !== PHASES.RACE_PROBLEM) return;
+    if (this._problemTimer) { clearTimeout(this._problemTimer); this._problemTimer = null; }
+    this.raceWinnerId = null;
+    this.raceRevealReason = reason || 'timeout';
+    this.raceWinningSolution = solutionFor(
+      this.currentRacePuzzle ? this.currentRacePuzzle.id : -1
+    );
+    this._enterRaceReveal();
+    if (typeof this.onRaceProblemEnd === 'function') {
+      try { this.onRaceProblemEnd(); } catch (_) {}
+    }
+  }
+
+  /** Enter the reveal phase; arm auto-advance when enabled. */
+  _enterRaceReveal() {
+    this.phase = PHASES.RACE_REVEAL;
+    if (this._problemTimer) { clearTimeout(this._problemTimer); this._problemTimer = null; }
+    if (this.autoAdvanceMs > 0) {
+      this.revealEndsAt = Date.now() + this.autoAdvanceMs;
+      this._raceRevealTimer = setTimeout(() => {
+        this._raceRevealTimer = null;
+        if (typeof this.onRaceRevealEnd === 'function') {
+          try { this.onRaceRevealEnd(); } catch (_) {}
+        }
+      }, this.autoAdvanceMs);
+    } else {
+      this.revealEndsAt = 0;
+    }
+  }
+
+  /**
+   * Advance from the reveal: if anyone has reached the target score the game
+   * ends (FINAL), otherwise serve the next problem. Called by the host's
+   * "Next problem" action AND by the auto-advance timer — both go through
+   * here so manual and automatic paths are identical. The transport layer
+   * inspects the returned phase to decide what to broadcast.
+   */
+  nextRaceProblem() {
+    if (this.phase !== PHASES.RACE_REVEAL) return { ok: false, reason: 'not-reveal' };
+    if (this._raceRevealTimer) { clearTimeout(this._raceRevealTimer); this._raceRevealTimer = null; }
+    let champion = null;
+    for (const p of this.players.values()) {
+      if (p.score >= this.targetScore && (!champion || p.lastScoreAt < champion.lastScoreAt)) {
+        champion = p;
+      }
+    }
+    if (champion) {
+      this.phase = PHASES.FINAL;
+      return { ok: true, phase: PHASES.FINAL };
+    }
+    this._serveRaceProblem();
+    return { ok: true, phase: PHASES.RACE_PROBLEM };
+  }
+
   // ---------------- Views / serialization ----------------
 
   getRoundPublic() {
@@ -335,6 +549,45 @@ class Game {
       serverNow: Date.now(),
       durationMs: INTRO_DURATION_MS,
       difficulty: this.difficulty,
+    };
+  }
+
+  /** Public payload for the current live race problem (host + all players). */
+  getRacePayload() {
+    if (!this.currentRacePuzzle) return null;
+    return {
+      puzzleId: this.currentRacePuzzle.id,
+      numbers: this.currentRacePuzzle.numbers.slice(),
+      endsAt: this.problemEndsAt,
+      serverNow: Date.now(),
+      problemNumber: this.raceIndex + 1,
+      targetScore: this.targetScore,
+      difficulty: this.difficulty,
+      autoAdvance: this.autoAdvanceMs > 0,
+      leaderboard: this.getLeaderboard(),
+    };
+  }
+
+  /** Public payload for the race reveal (winner / canonical solution). */
+  getRaceReveal() {
+    const winner = this.raceWinnerId ? this.players.get(this.raceWinnerId) : null;
+    const lb = this.getLeaderboard();
+    // Leaderboard is sorted score desc then earliest-to-reach, so the first
+    // entry at/above target is the champion.
+    const champ = lb.find((p) => p.score >= this.targetScore) || null;
+    return {
+      puzzleId: this.currentRacePuzzle ? this.currentRacePuzzle.id : null,
+      numbers: this.currentRacePuzzle ? this.currentRacePuzzle.numbers.slice() : [],
+      winner: winner ? { id: winner.id, name: winner.name } : null,
+      solution: this.raceWinningSolution || null,
+      reason: this.raceRevealReason || 'timeout',
+      leaderboard: lb,
+      targetScore: this.targetScore,
+      gameOver: !!champ,
+      championName: champ ? champ.name : null,
+      revealEndsAt: this.revealEndsAt || 0,
+      serverNow: Date.now(),
+      autoAdvance: this.autoAdvanceMs > 0,
     };
   }
 
@@ -452,15 +705,31 @@ class Game {
   reset() {
     if (this._roundTimer) { clearTimeout(this._roundTimer); this._roundTimer = null; }
     if (this._introTimer) { clearTimeout(this._introTimer); this._introTimer = null; }
+    this._clearRaceTimers();
     this.phase = PHASES.LOBBY;
     this.players = new Map();
     this.difficulty = 'any';
+    this.mode = 'sprint';
     this.durationMs = DEFAULT_DURATION_MIN * 60 * 1000;
     this.roundStartTs = 0;
     this.roundEndsAt = 0;
     this.introStartTs = 0;
     this.introEndsAt = 0;
     this.sharedQueue = [];
+    // Race state
+    this.targetScore = DEFAULT_TARGET_SCORE;
+    this.problemTimeLimitMs = DEFAULT_PROBLEM_TIME_SEC * 1000;
+    this.autoAdvanceMs = 0;
+    this.raceQueue = [];
+    this.raceIndex = -1;
+    this.raceRoundsPlayed = 0;
+    this.currentRacePuzzle = null;
+    this.problemStartTs = 0;
+    this.problemEndsAt = 0;
+    this.raceWinnerId = null;
+    this.raceWinningSolution = null;
+    this.raceRevealReason = null;
+    this.revealEndsAt = 0;
   }
 }
 
@@ -495,4 +764,10 @@ module.exports = {
   MAX_NAME_LEN,
   SKIP_LOCKOUT_MS,
   DEFAULT_DURATION_MIN,
+  DEFAULT_TARGET_SCORE,
+  MIN_TARGET_SCORE,
+  MAX_TARGET_SCORE,
+  DEFAULT_PROBLEM_TIME_SEC,
+  MIN_PROBLEM_TIME_SEC,
+  MAX_PROBLEM_TIME_SEC,
 };

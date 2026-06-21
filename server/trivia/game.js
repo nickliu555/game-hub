@@ -21,6 +21,19 @@ const PROMPT_DURATION_MS = 3000;
 // after the splash fades.
 const FINAL_PROMPT_EXTRA_MS = 5050;
 
+// When the host enables "Auto-advance", the reveal screen stays up for this
+// long before the game automatically progresses to the next question.
+const REVEAL_AUTO_ADVANCE_MS = 10 * 1000;
+// On a `timeout` / `all-answered` end, the host page plays a ~2.7s "sting"
+// animation BEFORE the reveal screen (and its countdown) actually appears
+// (see STING_VISIBLE_MS in public/trivia/js/host.js: 120 + 2200 + 350). The
+// server's auto-advance clock starts the instant the question ends, so without
+// compensating for the sting the reveal would only be *visible* for ~7.3s.
+// Delay the auto-advance window by the sting duration for those reasons so the
+// reveal stays on screen for the full REVEAL_AUTO_ADVANCE_MS. A manual host
+// advance (reason 'host') shows the reveal immediately, so it gets no delay.
+const REVEAL_STING_MS = 2670;
+
 /**
  * Single-room trivia game state machine. Same flow & API as the wedding
  * quiz original, with one key difference: questions are loaded *after*
@@ -38,9 +51,13 @@ class Game {
     this.currentEndsAt = 0;
     this._questionTimer = null;
     this._phaseTimer = null;
+    this._revealTimer = null;
+    this.autoAdvanceMs = 0;
+    this.revealEndsAt = 0;
     this.onQuestionTimeout = null;
     this.onIntroEnd = null;
     this.onPromptEnd = null;
+    this.onRevealEnd = null;
   }
 
   /** Replace the question list. Called by the transport layer right before start(). */
@@ -130,9 +147,10 @@ class Game {
 
   // ---------------- Game progression ----------------
 
-  start() {
+  start({ autoAdvance } = {}) {
     if (this.phase !== PHASES.LOBBY) return { ok: false, reason: 'already-started' };
     if (!this.questions || this.questions.length === 0) return { ok: false, reason: 'no-questions' };
+    this.autoAdvanceMs = autoAdvance ? REVEAL_AUTO_ADVANCE_MS : 0;
     this.currentIndex = -1;
     return this._enterIntro();
   }
@@ -222,6 +240,7 @@ class Game {
   _clearTimers() {
     if (this._questionTimer) { clearTimeout(this._questionTimer); this._questionTimer = null; }
     if (this._phaseTimer) { clearTimeout(this._phaseTimer); this._phaseTimer = null; }
+    if (this._revealTimer) { clearTimeout(this._revealTimer); this._revealTimer = null; }
   }
 
   _endQuestion(reason) {
@@ -229,6 +248,29 @@ class Game {
     this._clearTimers();
     this.phase = PHASES.REVEAL;
     this.lastEndReason = reason || 'host';
+    // Optional auto-advance: after the reveal has been on screen for a few
+    // seconds, automatically progress to the next question (host can still
+    // click Next early). Server-authoritative so all clients stay in sync.
+    if (this.autoAdvanceMs > 0) {
+      // Compensate for the host-side sting animation that delays the reveal
+      // screen appearing (timeout / all-answered only) so the reveal is
+      // *visible* for the full auto-advance window.
+      const stingDelay =
+        (this.lastEndReason === 'timeout' || this.lastEndReason === 'all-answered')
+          ? REVEAL_STING_MS
+          : 0;
+      const holdMs = this.autoAdvanceMs + stingDelay;
+      this.revealEndsAt = Date.now() + holdMs;
+      this._revealTimer = setTimeout(() => {
+        this._revealTimer = null;
+        this.revealEndsAt = 0;
+        if (typeof this.onRevealEnd === 'function') {
+          try { this.onRevealEnd(); } catch (_) {}
+        }
+      }, holdMs);
+    } else {
+      this.revealEndsAt = 0;
+    }
     if (typeof this.onQuestionTimeout === 'function') {
       try { this.onQuestionTimeout(); } catch (_) {}
     }
@@ -456,6 +498,8 @@ class Game {
     this.currentIndex = -1;
     this.currentStartTs = 0;
     this.currentEndsAt = 0;
+    this.autoAdvanceMs = 0;
+    this.revealEndsAt = 0;
   }
 }
 

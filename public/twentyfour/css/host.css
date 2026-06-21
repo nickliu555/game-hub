@@ -110,6 +110,9 @@ body.host {
   flex-direction: column;
   gap: 4px;
 }
+/* The `hidden` attribute must win over the display rule above (mode-specific
+   config rows are toggled via el.hidden in host.js). */
+.lobby-config .config-row[hidden] { display: none; }
 .lobby-config .config-row label {
   font-size: 12px;
   font-weight: 700;
@@ -606,3 +609,241 @@ body.host {
   85%  { transform: translateY(-90vh)  rotate(6deg)  scale(1);   opacity: 1; }
   100% { transform: translateY(-105vh) rotate(0deg)  scale(0.85); opacity: 0; }
 }
+
+/* ---------------- Mode toggle (lobby) ---------------- */
+.lobby-config .config-row.mode-row { grid-column: 1 / -1; }
+.mode-toggle {
+  display: inline-flex;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 4px;
+  gap: 4px;
+}
+.mode-toggle .mode-opt {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 700;
+  font-size: 14px;
+  padding: 9px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.mode-toggle .mode-opt.active {
+  background: var(--gold);
+  color: var(--ink);
+}
+.lobby-config .config-row.config-row-check {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.config-row-check label {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+.config-row-check input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+/* ---------------- Race view ---------------- */
+.view.race.active { display: flex; flex-direction: column; }
+.race {
+  flex: 1;
+  position: relative;
+  padding: 24px 32px 28px;
+  gap: 18px;
+  min-height: 0;
+}
+.race-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.race-meta { display: flex; align-items: center; gap: 10px; }
+.race-header .difficulty-pill,
+.race-header .race-problem-num,
+.race-header .race-target-badge {
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.race-header .race-target-badge { background: rgba(234, 88, 12, 0.85); border-color: transparent; }
+.race-header .countdown {
+  font-family: ui-monospace, Menlo, Monaco, monospace;
+  font-size: 44px;
+  font-weight: 800;
+  color: #fff;
+  min-width: 110px;
+  text-align: center;
+}
+.race-header .countdown.warn { color: var(--gold); }
+
+.race-stage {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 20px;
+  min-height: 0;
+}
+.race-problem-card {
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--ink);
+  border-radius: 18px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 48px;
+  box-shadow: var(--shadow-strong);
+}
+.race-numbers {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: clamp(20px, 3vw, 40px);
+  justify-content: center;
+  align-items: center;
+}
+.race-numbers .race-num {
+  width: clamp(120px, 13vw, 170px);
+  height: clamp(120px, 13vw, 170px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink);
+  color: #fff;
+  border-radius: 22px;
+  font-size: clamp(58px, 7.5vw, 92px);
+  font-weight: 900;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.24);
+}
+.race-status {
+  font-size: 20px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.55);
+}
+.race-board {
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--ink);
+  border-radius: 18px;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: var(--shadow-strong);
+  overflow-y: auto;
+  min-height: 0;
+}
+.race-board h2 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(0, 0, 0, 0.55);
+}
+.race-leaderboard { display: flex; flex-direction: column; gap: 8px; }
+.race-lb-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 17px;
+}
+.race-lb-score {
+  font-variant-numeric: tabular-nums;
+  background: var(--ink);
+  color: #fff;
+  min-width: 34px;
+  text-align: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+/* Reveal overlay (between race problems) */
+.race-reveal-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(3px);
+  z-index: 20;
+}
+.race-reveal-overlay[hidden] { display: none; }
+.race-reveal-card {
+  background: #fff;
+  color: var(--ink);
+  border-radius: 24px;
+  padding: 48px 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 26px;
+  box-shadow: var(--shadow-strong);
+  max-width: 760px;
+  text-align: center;
+}
+.rr-title {
+  margin: 0;
+  font-size: 42px;
+  font-weight: 900;
+}
+.rr-title.timeout { color: var(--accent); }
+.race-numbers.small {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  grid-template-columns: none;
+}
+.race-numbers.small .race-num {
+  width: 88px;
+  height: 88px;
+  font-size: 44px;
+  border-radius: 16px;
+}
+.rr-solution {
+  font-size: 32px;
+  font-weight: 800;
+  font-family: ui-monospace, Menlo, Monaco, monospace;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 14px 26px;
+  border-radius: 14px;
+}
+.race-reveal-card .btn-start {
+  background: var(--gold);
+  color: var(--ink);
+  font-size: 24px;
+  padding: 18px 44px;
+}
+.race-reveal-card .btn-start:disabled { opacity: 0.5; cursor: default; }
+.rr-auto {
+  font-size: 17px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.55);
+}
+
+@media (max-width: 900px) {
+  .race-stage { grid-template-columns: 1fr; }
+}
+

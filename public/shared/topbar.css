@@ -78,6 +78,10 @@
   cursor: pointer;
   text-decoration: none;
   white-space: nowrap;
+  /* Topbar buttons are a mix of <a> and <button>; keep their labels from
+     being text-selectable (long-press menu) on touch devices. */
+  -webkit-user-select: none;
+  user-select: none;
   width: auto;
   flex: 0 0 auto;
   display: inline-flex;

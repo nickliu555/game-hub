@@ -64,6 +64,16 @@
       </div>
     </div>
 
+    <!-- Race reveal: shown between race problems (winner + solution) -->
+    <div id="view-race-reveal" style="display:none; flex:1; flex-direction:column;">
+      <div class="race-reveal-card">
+        <div class="rr-title" id="prTitle">Solved!</div>
+        <div class="rr-numbers" id="prNumbers"></div>
+        <div class="rr-solution" id="prSolution"></div>
+        <div class="rr-status" id="prStatus">Waiting for host…</div>
+      </div>
+    </div>
+
     <!-- Cleared the whole queue mid-round -->
     <div id="view-done" style="display:none; flex:1; flex-direction:column;">
       <div class="final-card">
@@ -82,7 +92,7 @@
          host screen for the podium reveal before personal stats appear. -->
     <div id="view-final-wait" style="display:none; flex:1; flex-direction:column;">
       <div class="final-wait">
-        <div class="final-wait-hint">⏰ Time's up!</div>
+        <div class="final-wait-hint" id="finalWaitHint">⏰ Time's up!</div>
         <h1 class="final-wait-title">Look up at the host screen!</h1>
         <p class="final-wait-sub">Results coming up…</p>
       </div>
@@ -99,12 +109,12 @@
     <!-- Final per-player summary -->
     <div id="view-final" style="display:none; flex:1; flex-direction:column;">
       <div class="final-card">
-        <h1>🏁 Time's up!</h1>
+        <h1 id="finalTitle">🏁 Time's up!</h1>
         <div class="rank-line" id="finalRankLine">Calculating…</div>
         <div class="stats">
-          <div><span class="v" id="finalPoints">0</span>points</div>
-          <div><span class="v" id="finalSolves">0</span>solved</div>
-          <div><span class="v" id="finalSkips">0</span>skipped</div>
+          <div><span class="v" id="finalPoints">0</span><span id="finalPointsLabel">points</span></div>
+          <div><span class="v" id="finalSolves">0</span><span id="finalSolvesLabel">solved</span></div>
+          <div id="finalStatSkips"><span class="v" id="finalSkips">0</span>skipped</div>
         </div>
         <p style="color:var(--ink-soft); font-size:14px;">Check the host's screen for the leaderboard.</p>
         <!-- Collapsible "review the ones you didn't finish" — populated

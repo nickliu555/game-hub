@@ -19,6 +19,11 @@
   const viewFinal = document.getElementById('view-final');
   const viewDone = document.getElementById('view-done');
   const viewKicked = document.getElementById('view-kicked');
+  const viewRaceReveal = document.getElementById('view-race-reveal');
+  const prTitle = document.getElementById('prTitle');
+  const prNumbers = document.getElementById('prNumbers');
+  const prSolution = document.getElementById('prSolution');
+  const prStatus = document.getElementById('prStatus');
   const pIntroCountdown = document.getElementById('pIntroCountdown');
   const lobbyPlayerCount = document.getElementById('lobbyPlayerCount');
   const lobbyPlayerCountValue = document.getElementById('lobbyPlayerCountValue');
@@ -73,6 +78,7 @@
     viewFinalWait.style.display = (name === 'final-wait') ? 'flex' : 'none';
     viewFinal.style.display = (name === 'final') ? 'flex' : 'none';
     viewDone.style.display  = (name === 'done')  ? 'flex' : 'none';
+    if (viewRaceReveal) viewRaceReveal.style.display = (name === 'race-reveal') ? 'flex' : 'none';
     if (viewKicked) viewKicked.style.display = (name === 'kicked') ? 'flex' : 'none';
     // After the round timer ends, score and timer are redundant with the
     // personal stats card + host leaderboard. Hide them so just the name
@@ -127,6 +133,9 @@
   let currentPuzzleId = null;
   let servedAt = 0;
   let skipEligibleAt = 0;
+  // Race mode: everyone solves the same problem; first correct solve wins.
+  let raceMode = false;
+  let currentRacePuzzleId = null;
 
   const engine = window.PuzzleEngine.create({
     numbersEl: numbersEl,
@@ -134,6 +143,27 @@
     undoBtn: undoBtn,
     resetBtn: resetBtn,
     onSolve: function (steps) {
+      if (raceMode) {
+        // Race: submit to server; first valid solve wins the point. The
+        // authoritative reveal arrives via state:raceReveal for everyone.
+        socket.emit('player:raceSolve', { puzzleId: currentRacePuzzleId, steps: steps }, function (res) {
+          if (!res || !res.ok) {
+            engine.reset();
+            engine.unlock();
+            return;
+          }
+          if (res.accepted) {
+            // We solved it (won or not). Stay locked; reveal will swap views.
+            if (typeof res.score === 'number') setScoreDisplay(res.score);
+          } else if (res.reason === 'too-late') {
+            // Someone beat us / time ran out. Stay locked; reveal incoming.
+          } else {
+            engine.reset();
+            engine.unlock();
+          }
+        });
+        return;
+      }
       // Engine has locked itself and shown the win flash. Reflect the lock
       // on the (engine-external) skip button immediately so the player
       // can't tap Skip during the ~450ms before the next puzzle loads.
@@ -176,12 +206,129 @@
   });
 
   function loadPuzzle(payload) {
+    raceMode = false;
+    if (skipBtn) skipBtn.style.display = '';
     currentPuzzleId = payload.puzzleId;
     servedAt = payload.servedAt;
     skipEligibleAt = payload.skipEligibleAt;
     engine.loadPuzzle(payload.numbers);
     updateSkipBtn();
     showView('puzzle');
+  }
+
+  // ---------------- Race mode (player-side) ----------------
+  let raceEndsAt = 0;
+  let raceTimer = null;
+  let raceLastBuzzSec = -1;
+  function stopRaceCountdown() {
+    if (raceTimer) { clearInterval(raceTimer); raceTimer = null; }
+  }
+  function tickRaceCountdown() {
+    const ms = Math.max(0, raceEndsAt - serverNow());
+    const totalSec = Math.ceil(ms / 1000);
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    pCountdown.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+    const warn = totalSec <= 10 && totalSec > 5;
+    const urgent = totalSec <= 5 && totalSec > 0;
+    pCountdown.classList.toggle('warn', warn);
+    pCountdown.classList.toggle('urgent', urgent);
+    if (totalSec !== raceLastBuzzSec) {
+      raceLastBuzzSec = totalSec;
+      if (navigator.vibrate) {
+        if (totalSec === 10) navigator.vibrate(80);
+        else if (totalSec === 5) navigator.vibrate([60, 40, 60]);
+        else if (urgent) navigator.vibrate(40);
+      }
+    }
+    if (ms <= 0) {
+      stopRaceCountdown();
+      pCountdown.classList.remove('warn', 'urgent');
+    }
+  }
+  function applyRaceProblem(p) {
+    if (!p) return;
+    raceMode = true;
+    if (typeof p.serverNow === 'number') clockOffset = p.serverNow - Date.now();
+    currentRacePuzzleId = p.puzzleId;
+    // Keep our score chip (= points) in sync from the leaderboard.
+    if (p.leaderboard) {
+      const me = p.leaderboard.find(function (x) { return x.id === playerId; });
+      if (me) setScoreDisplay(me.score || 0);
+    }
+    if (skipBtn) skipBtn.style.display = 'none';
+    engine.loadPuzzle(p.numbers);
+    engine.unlock();
+    showView('puzzle');
+    raceEndsAt = p.endsAt;
+    raceLastBuzzSec = -1;
+    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+    tickRaceCountdown();
+    stopRaceCountdown();
+    raceTimer = setInterval(tickRaceCountdown, 250);
+  }
+  function applyRaceReveal(r) {
+    if (!r) return;
+    raceMode = true;
+    if (typeof r.serverNow === 'number') clockOffset = r.serverNow - Date.now();
+    stopRaceCountdown();
+    engine.lock();
+    if (r.leaderboard) {
+      const me = r.leaderboard.find(function (x) { return x.id === playerId; });
+      if (me) setScoreDisplay(me.score || 0);
+    }
+    const iWon = r.winner && r.winner.id === playerId;
+    if (prTitle) {
+      if (iWon) {
+        prTitle.textContent = '🎉 You got it!';
+        prTitle.className = 'rr-title win';
+      } else if (r.winner && r.winner.name) {
+        prTitle.textContent = r.winner.name + ' got it!';
+        prTitle.className = 'rr-title';
+      } else {
+        prTitle.textContent = "⏱ Time's up";
+        prTitle.className = 'rr-title timeout';
+      }
+    }
+    if (prNumbers) {
+      prNumbers.innerHTML = (r.numbers || []).map(function (n) {
+        return '<span class="rr-num">' + n + '</span>';
+      }).join('');
+    }
+    if (prSolution) prSolution.textContent = r.solution ? ('Solution: ' + r.solution) : '';
+    if (prStatus) {
+      if (r.gameOver) {
+        prStatus.textContent = '🏁 Game over — look up!';
+      } else if (r.autoAdvance && r.revealEndsAt) {
+        startRaceAutoCountdown(r.revealEndsAt, function (left) {
+          prStatus.textContent = 'Next problem in ' + left + 's…';
+        });
+      } else {
+        prStatus.textContent = 'Waiting for host…';
+      }
+    }
+    showView('race-reveal');
+  }
+  let raceAutoTimer = null;
+  function stopRaceAuto() {
+    if (raceAutoTimer) { clearTimeout(raceAutoTimer); raceAutoTimer = null; }
+  }
+  // Boundary-aligned auto-advance countdown — schedules each update to land just
+  // after the next whole-second boundary instead of on a fixed interval. Both
+  // the host and player use the same server-synced clock (serverNow) and the
+  // same absolute deadline (revealEndsAt), so the number flips at the same
+  // wall-clock instant on every device. A fixed-interval tick could leave one
+  // display up to ~200ms stale, making the host and player briefly disagree.
+  function startRaceAutoCountdown(revealEndsAt, render) {
+    stopRaceAuto();
+    (function step() {
+      const remainingMs = revealEndsAt - serverNow();
+      const left = Math.max(0, Math.ceil(remainingMs / 1000));
+      render(left);
+      if (remainingMs <= 0) { stopRaceAuto(); return; }
+      const msToBoundary = remainingMs - (left - 1) * 1000;
+      raceAutoTimer = setTimeout(step, Math.max(20, msToBoundary + 15));
+    })();
   }
 
   function updateSkipBtn() {
@@ -223,6 +370,9 @@
   }
   function renderIntro(payload) {
     stopIntroTimer();
+    stopRaceCountdown();
+    stopRaceAuto();
+    raceMode = false;
     if (payload && typeof payload.serverNow === 'number') {
       clockOffset = payload.serverNow - Date.now();
     }
@@ -333,6 +483,10 @@
         if (res.done) showDone(res.done);
         else if (res.currentPuzzle) loadPuzzle(res.currentPuzzle);
         else showView('lobby'); // shouldn't happen, but be defensive
+      } else if (res.phase === 'RACE_PROBLEM') {
+        applyRaceProblem(res.raceProblem);
+      } else if (res.phase === 'RACE_REVEAL') {
+        applyRaceReveal(res.raceReveal);
       } else if (res.phase === 'FINAL') {
         // Reconnecting into FINAL — the host's reveal moment has already
         // passed, so skip the "Look up!" interstitial and go straight to
@@ -353,6 +507,9 @@
   socket.on('state:reset', function () {
     // Host reset the game — kick us back to join.
     cancelFinalWait();
+    stopRaceCountdown();
+    stopRaceAuto();
+    raceMode = false;
     const savedName = localStorage.getItem('twentyfour.playerName') || '';
     if (savedName) localStorage.setItem('twentyfour.rejoinName', savedName);
     localStorage.removeItem('twentyfour.playerId');
@@ -377,10 +534,20 @@
   }
   socket.on('state:round', function (r) {
     stopIntroTimer();
+    stopRaceCountdown();
+    stopRaceAuto();
+    raceMode = false;
     applyRound(r);
   });
   socket.on('state:intro', function (p) {
     renderIntro(p);
+  });
+  socket.on('state:raceProblem', function (p) {
+    stopIntroTimer();
+    applyRaceProblem(p);
+  });
+  socket.on('state:raceReveal', function (r) {
+    applyRaceReveal(r);
   });
   socket.on('puzzle:next', function (p) {
     stopIntroTimer();
@@ -411,10 +578,13 @@
     renderUnfinishedSection();
   });
 
-  // Duration of the host's "Time's up! → Now for the results…" splash. Kept
-  // in sync with public/twentyfour/js/host.js showFinalIntro() so the phone's
-  // "Look up!" card swaps to personal stats just as the host reveals podium.
+  // Duration of the host's splash before the podium appears. Kept in sync with
+  // public/twentyfour/js/host.js showFinalIntro() so the phone's "Look up!" card
+  // swaps to personal stats just as the host reveals the podium. Race is a
+  // single beat ("We have a winner!"); sprint is two beats ("Time's up!" →
+  // "Now for the results…").
   const FINAL_WAIT_MS = 3800;
+  const RACE_FINAL_WAIT_MS = 2400;
   let finalWaitTimer = null;
   function cancelFinalWait() {
     if (finalWaitTimer) { clearTimeout(finalWaitTimer); finalWaitTimer = null; }
@@ -536,14 +706,21 @@
 
   function showFinalWait(f) {
     cancelFinalWait();
+    stopRaceCountdown();
+    stopRaceAuto();
+    const wasRace = raceMode;
+    raceMode = false;
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
     pCountdown.textContent = '0:00';
     pCountdown.classList.remove('warn');
+    // Race ends on a winner, not a clock — so don't flash "Time's up!" there.
+    const finalWaitHint = document.getElementById('finalWaitHint');
+    if (finalWaitHint) finalWaitHint.textContent = wasRace ? '🏁 We have a winner!' : '⏰ Time\'s up!';
     showView('final-wait');
     finalWaitTimer = setTimeout(function () {
       finalWaitTimer = null;
       showFinalStats(f);
-    }, FINAL_WAIT_MS);
+    }, wasRace ? RACE_FINAL_WAIT_MS : FINAL_WAIT_MS);
   }
 
   function showFinalStats(f) {
@@ -556,13 +733,30 @@
     if (navigator.vibrate) { try { navigator.vibrate(40); } catch (_) {} }
     // Pull our own row from the leaderboard so we can show real points,
     // solved, and skipped counts.
+    const isRace = !!(f && f.mode === 'race');
+    const solvesLabel = document.getElementById('finalSolvesLabel');
+    const statSkips = document.getElementById('finalStatSkips');
+    const finalTitle = document.getElementById('finalTitle');
+    // Race ends when someone hits the target score, not on a clock — so the
+    // "Time's up!" header only makes sense for the timed Sprint mode.
+    if (finalTitle) finalTitle.textContent = isRace ? '🏁 Final results' : '🏁 Time\'s up!';
     if (f && f.fullLeaderboard) {
       const me = f.fullLeaderboard.find(function (x) { return x.id === playerId; });
       if (me) {
         if (finalPoints) finalPoints.textContent = formatScore(me.score || 0);
         setScoreDisplay(me.score || 0);
-        finalSolves.textContent = (typeof me.solvedCount === 'number') ? me.solvedCount : 0;
-        finalSkips.textContent = (typeof me.skippedCount === 'number') ? me.skippedCount : 0;
+        if (isRace) {
+          // Race: a "point" IS a round won, so points == solved and there are
+          // no skips. Show points + total rounds played instead.
+          finalSolves.textContent = (typeof f.raceRounds === 'number') ? f.raceRounds : 0;
+          if (solvesLabel) solvesLabel.textContent = 'rounds played';
+          if (statSkips) statSkips.hidden = true;
+        } else {
+          finalSolves.textContent = (typeof me.solvedCount === 'number') ? me.solvedCount : 0;
+          if (solvesLabel) solvesLabel.textContent = 'solved';
+          finalSkips.textContent = (typeof me.skippedCount === 'number') ? me.skippedCount : 0;
+          if (statSkips) statSkips.hidden = false;
+        }
         // Trust the server-assigned rank (competition style: ties share a
         // rank). Fall back to array position if the server didn't send one.
         const rank = (typeof me.rank === 'number') ? me.rank : (f.fullLeaderboard.indexOf(me) + 1);

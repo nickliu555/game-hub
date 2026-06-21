@@ -8,7 +8,11 @@ body.practice {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  /* Disable double-tap-to-zoom (iOS Safari ignores user-scalable=no).
+     touch-action does NOT inherit, so it's also applied to descendants below. */
+  touch-action: manipulation;
 }
+body.practice * { touch-action: manipulation; }
 
 .practice-shell {
   flex: 1;

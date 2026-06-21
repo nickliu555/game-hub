@@ -524,7 +524,11 @@ body {
     min-height: 100dvh;
     overscroll-behavior-y: contain;
     -webkit-text-size-adjust: 100%;
+    /* Disable double-tap-to-zoom (iOS Safari ignores user-scalable=no).
+       touch-action does NOT inherit, so it's also applied to descendants below. */
+    touch-action: manipulation;
 }
+body.player-page * { touch-action: manipulation; }
 body.player-page .container {
     background: transparent;
     border: none;

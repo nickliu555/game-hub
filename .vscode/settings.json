@@ -11,6 +11,7 @@
         "/^node -e \"const a=require\\('\\./server/twentyfour/puzzles\\.json'\\); console\\.log\\('count:',a\\.length, 'first:', JSON\\.stringify\\(a\\[0\\]\\), 'last:', JSON\\.stringify\\(a\\[a\\.length-1\\]\\)\\)\"$/": {
             "approve": true,
             "matchCommandLine": true
-        }
+        },
+        "diff": true
     }
 }

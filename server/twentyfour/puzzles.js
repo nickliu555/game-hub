@@ -11,6 +11,22 @@ const RAW = JSON.parse(
   fs.readFileSync(path.join(__dirname, 'puzzles.json'), 'utf8')
 );
 
+// Canonical solution strings, indexed by puzzle id (same index as RAW). Used
+// for the Race-mode reveal when a problem times out with no winner. Lives in
+// the public assets folder (also served to clients); we read it directly so
+// the server has an authoritative copy.
+const SOLUTIONS = JSON.parse(
+  fs.readFileSync(
+    path.join(__dirname, '..', '..', 'public', 'twentyfour', 'data', 'solutions.json'),
+    'utf8'
+  )
+);
+
+function solutionFor(id) {
+  if (!Number.isInteger(id) || id < 0 || id >= SOLUTIONS.length) return null;
+  return SOLUTIONS[id] || null;
+}
+
 function partition(list) {
   const n = list.length;
   // Floor-based thirds so any remainder accumulates in `hard` (the last
@@ -62,4 +78,4 @@ function counts() {
   };
 }
 
-module.exports = { buildQueue, counts };
+module.exports = { buildQueue, counts, solutionFor };

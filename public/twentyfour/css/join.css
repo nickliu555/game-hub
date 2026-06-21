@@ -5,15 +5,24 @@ body.join {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  /* Disable double-tap-to-zoom (iOS Safari ignores user-scalable=no).
+     touch-action does NOT inherit, so it's also applied to descendants below. */
+  touch-action: manipulation;
   padding: 20px;
   padding-top: calc(20px + env(safe-area-inset-top, 0px));
-  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  /* Keep the attribution snug to the very bottom so it sits in the same
+     spot as the in-game player page (which pins it at bottom: 4px). */
+  padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
   max-width: 520px;
   margin: 0 auto;
   -webkit-user-select: none;
   user-select: none;
   background: linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
 }
+/* Drop the footer's own bottom padding so the text lands at the very bottom
+   edge, matching body.player's fixed attribution position (no jump on join). */
+body.join .player-attribution { padding-bottom: 0; }
+
 
 .join-brand {
   text-align: center;

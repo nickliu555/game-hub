@@ -12,13 +12,30 @@ body.join, body.player {
   margin: 0 auto;
   -webkit-user-select: none;
   user-select: none;
+  /* Disable double-tap-to-zoom (iOS Safari ignores user-scalable=no).
+     touch-action does NOT inherit, so it's also applied to descendants below. */
+  touch-action: manipulation;
   color: white;
 }
+body.join *, body.player * { touch-action: manipulation; }
 
 /* Center the join-stack vertically on tall phones (matches Empire's
    pattern). Scoped to body.join so the in-game player page keeps its
    default top-aligned flow for view-fill behavior. */
 body.join { /* hero block owns vertical centering now */ }
+
+/* Pin the join-page attribution to the very bottom, identical to the in-game
+   player page (and Empire), so the text doesn't jump position between the
+   join screen and the player screen. Fixed positioning makes this immune to
+   the body padding overrides in the mobile media queries below. */
+body.join .player-attribution {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+  padding: 0 12px;
+  pointer-events: none;
+}
 
 /* ---- Join page ---- */
 .join-brand {

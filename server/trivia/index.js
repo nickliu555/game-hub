@@ -144,6 +144,9 @@ function mountTrivia(app, httpServer, opts) {
       leaderboardTop5: game.getLeaderboard(5),
       isLastQuestion: game.currentIndex === game.questions.length - 1,
       endReason: game.lastEndReason || 'host',
+      autoAdvance: game.autoAdvanceMs > 0,
+      revealEndsAt: game.revealEndsAt || 0,
+      serverNow: Date.now(),
     };
     ns.emit('state:reveal', payload);
     for (const p of game.players.values()) {
@@ -166,6 +169,20 @@ function mountTrivia(app, httpServer, opts) {
   game.onQuestionTimeout = () => broadcastReveal();
   game.onIntroEnd = () => broadcastPrompt();
   game.onPromptEnd = () => broadcastQuestion();
+  // Auto-advance: the reveal timer fired, progress to the next phase.
+  game.onRevealEnd = () => { advanceAndBroadcast(); };
+
+  // Advance the game one step and broadcast the resulting phase. Shared by
+  // the host's manual "Next" button and the optional auto-advance timer.
+  function advanceAndBroadcast() {
+    const res = game.advance();
+    if (!res.ok) return res;
+    if (res.phase === PHASES.PROMPT) broadcastPrompt();
+    else if (res.phase === PHASES.QUESTION) broadcastQuestion();
+    else if (res.phase === PHASES.REVEAL) broadcastReveal();
+    else if (res.phase === PHASES.FINAL) broadcastFinal();
+    return res;
+  }
 
   // ---------------- Socket handlers ----------------
   ns.on('connection', (socket) => {
@@ -342,7 +359,7 @@ function mountTrivia(app, httpServer, opts) {
       try {
         const list = await fetchQuestions({ amount, category, difficulty, timeLimitSec });
         game.setQuestions(list);
-        const res = game.start();
+        const res = game.start({ autoAdvance: !!opts.autoAdvance });
         if (!res.ok) return ack && ack(res);
         ack && ack({ ok: true });
         broadcastLobby();
@@ -359,13 +376,13 @@ function mountTrivia(app, httpServer, opts) {
     socket.on('host:next', (_p, ack) => {
       if (!requireHost(ack)) return;
       touchActivity();
-      const res = game.advance();
+      const res = advanceAndBroadcast();
       if (!res.ok) return ack && ack(res);
-      if (res.phase === PHASES.PROMPT) { broadcastPrompt(); ack && ack({ ok: true, advanced: 'prompt' }); }
-      else if (res.phase === PHASES.QUESTION) { broadcastQuestion(); ack && ack({ ok: true, advanced: 'question' }); }
-      else if (res.phase === PHASES.REVEAL) { broadcastReveal(); ack && ack({ ok: true, advanced: 'reveal' }); }
-      else if (res.phase === PHASES.FINAL) { broadcastFinal(); ack && ack({ ok: true, advanced: 'final' }); }
-      else { ack && ack({ ok: true }); }
+      if (res.phase === PHASES.PROMPT) ack && ack({ ok: true, advanced: 'prompt' });
+      else if (res.phase === PHASES.QUESTION) ack && ack({ ok: true, advanced: 'question' });
+      else if (res.phase === PHASES.REVEAL) ack && ack({ ok: true, advanced: 'reveal' });
+      else if (res.phase === PHASES.FINAL) ack && ack({ ok: true, advanced: 'final' });
+      else ack && ack({ ok: true });
     });
 
     socket.on('host:kick', ({ playerId: pid }, ack) => {

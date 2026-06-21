@@ -57,6 +57,13 @@
           <div class="player-empty">Waiting for players to join…</div>
         </div>
         <div class="lobby-config">
+          <div class="config-row mode-row">
+            <label>Mode</label>
+            <div class="mode-toggle" id="modeToggle" role="tablist">
+              <button type="button" class="mode-opt active" data-mode="sprint" role="tab">Sprint</button>
+              <button type="button" class="mode-opt" data-mode="race" role="tab">Race</button>
+            </div>
+          </div>
           <div class="config-row">
             <label for="diffSelect">Difficulty</label>
             <select id="diffSelect">
@@ -66,7 +73,7 @@
               <option value="any">Any</option>
             </select>
           </div>
-          <div class="config-row">
+          <div class="config-row" data-mode-group="sprint">
             <label for="durSelect">Round length</label>
             <select id="durSelect">
               <option value="1">1:00</option>
@@ -75,6 +82,24 @@
               <option value="3">3:00</option>
               <option value="5">5:00</option>
             </select>
+          </div>
+          <div class="config-row" data-mode-group="race" hidden>
+            <label for="targetSelect">First to</label>
+            <select id="targetSelect"></select>
+          </div>
+          <div class="config-row" data-mode-group="race" hidden>
+            <label for="probTimeSelect">Time per problem</label>
+            <select id="probTimeSelect">
+              <option value="30">30s</option>
+              <option value="45">45s</option>
+              <option value="60" selected>60s</option>
+              <option value="90">90s</option>
+              <option value="120">120s</option>
+            </select>
+          </div>
+          <div class="config-row config-row-check" data-mode-group="race" hidden>
+            <label for="autoAdvanceCheck">Auto-advance after 10s</label>
+            <input type="checkbox" id="autoAdvanceCheck" />
           </div>
         </div>
         <div class="start-row">
@@ -91,6 +116,38 @@
         <h1 class="intro-title">Get ready</h1>
         <div class="intro-countdown" id="introCountdown">4</div>
         <p class="intro-sub">Phones up — first puzzle coming in</p>
+      </div>
+    </section>
+
+    <!-- ============ RACE (everyone same problem) ============ -->
+    <section class="view race" id="view-race">
+      <div class="race-header">
+        <div class="race-meta">
+          <span class="difficulty-pill" id="raceDiffPill">Medium</span>
+          <span class="race-problem-num" id="raceProblemNum">Problem 1</span>
+        </div>
+        <div class="race-target-badge" id="raceTargetBadge">First to 5</div>
+        <div class="countdown" id="raceCountdown">1:00</div>
+      </div>
+      <div class="race-stage">
+        <div class="race-problem-card">
+          <div class="race-numbers" id="raceNumbers"></div>
+          <div class="race-status" id="raceStatus">First to make 24 wins the point</div>
+        </div>
+        <div class="race-board">
+          <h2>Scores</h2>
+          <div class="race-leaderboard" id="raceLeaderboard"></div>
+        </div>
+      </div>
+      <!-- Reveal overlay: winner + solution, advance to next problem. -->
+      <div class="race-reveal-overlay" id="raceRevealOverlay" hidden>
+        <div class="race-reveal-card">
+          <div class="rr-title" id="rrTitle">Solved!</div>
+          <div class="race-numbers small" id="rrNumbers"></div>
+          <div class="rr-solution" id="rrSolution"></div>
+          <button id="rrNextBtn" class="btn-start">Next problem →</button>
+          <div class="rr-auto" id="rrAuto" hidden></div>
+        </div>
       </div>
     </section>
 
@@ -137,14 +194,13 @@
     <div class="gtb-help-modal">
       <button class="gtb-help-modal-close" type="button" data-gtb-help-close aria-label="Close help">&times;</button>
       <h2><span class="brand-24" style="background:#EA580C">24</span> The Game</h2>
-      <p>Players race to make <strong>24</strong> using all four numbers and any of the four operations (+ − × ÷). Each puzzle uses every number exactly once. Highest score when the timer hits zero wins.</p>
+      <p>Players race to make <strong>24</strong> using all four numbers and any of the four operations (+ − × ÷). Each puzzle uses every number exactly once.</p>
       <ol>
         <li>Players scan the QR code to join from their phone</li>
-        <li>Pick a <strong>difficulty</strong> and a <strong>round length</strong>, then hit Start</li>
+        <li>Pick a <strong>mode</strong>, a <strong>difficulty</strong>, then hit Start</li>
+        <li><strong>Sprint:</strong> everyone solves their own stream of puzzles for a set time — the <strong>faster</strong> you solve the <strong>more points</strong> you earn, and highest total when the timer hits zero wins. Stuck? <strong>Skip</strong> for a small penalty</li>
+        <li><strong>Race:</strong> everyone gets the <strong>same problem</strong> at once and the <strong>first to solve it</strong> wins the point. First to your chosen target score wins. Each problem has a time limit; if it runs out the answer is revealed and play moves on</li>
         <li>On their phone: tap a number, tap an operator, tap another number to combine them</li>
-        <li>Combine until only one tile is left — if it equals 24, you score and the next puzzle appears</li>
-        <li>The <strong>faster</strong> you solve, the <strong>more points</strong> you earn. Stuck? You can <strong>Skip</strong> for a small penalty</li>
-        <li><strong>Highest total score</strong> when the timer hits zero wins</li>
       </ol>
     </div>
   </div>

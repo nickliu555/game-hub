@@ -12,6 +12,7 @@
     final: document.getElementById('view-final'),
   };
   function show(name) {
+    if (name !== 'reveal' && typeof stopRevealAuto === 'function') stopRevealAuto();
     const currentName = Object.keys(views).find(function (k) {
       return views[k].classList.contains('active');
     });
@@ -68,6 +69,7 @@
   const diffSelect = document.getElementById('diffSelect');
   const countSelect = document.getElementById('countSelect');
   const timeSelect = document.getElementById('timeSelect');
+  const autoAdvanceCheck = document.getElementById('autoAdvanceCheck');
   const loadingOverlay = document.getElementById('loadingOverlay');
 
   const qIndex = document.getElementById('qIndex');
@@ -311,6 +313,7 @@
       difficulty: diffSelect.value || null,
       amount: parseInt(countSelect.value, 10) || 10,
       timeLimitSec: parseInt(timeSelect.value, 10) || 20,
+      autoAdvance: !!(autoAdvanceCheck && autoAdvanceCheck.checked),
     };
     setLoading(true);
     socket.emit('host:start', opts, function (res) {
@@ -886,6 +889,7 @@
   // ---------------- Reveal ----------------
   function renderReveal(r) {
     stopQTimer();
+    stopRevealAuto();
     show('reveal');
 
     const q = currentQ || { prompt: '', choices: ['', '', '', ''] };
@@ -950,9 +954,29 @@
       nextBtn.classList.remove('btn-accent');
       nextBtn.classList.add('btn-primary');
     }
+
+    // Auto-advance countdown: the server fires after revealEndsAt; reflect
+    // the remaining seconds in the button label so the host knows it's coming
+    // (they can still click early).
+    if (r.autoAdvance && r.revealEndsAt) {
+      var baseLabel = nextBtn.textContent;
+      var tick = function () {
+        var left = Math.max(0, Math.ceil((r.revealEndsAt - serverNow()) / 1000));
+        nextBtn.textContent = baseLabel + ' (' + left + 's)';
+        if (left <= 0) stopRevealAuto();
+      };
+      tick();
+      revealAutoTimer = setInterval(tick, 250);
+    }
+  }
+
+  var revealAutoTimer = null;
+  function stopRevealAuto() {
+    if (revealAutoTimer) { clearInterval(revealAutoTimer); revealAutoTimer = null; }
   }
 
   nextBtn.addEventListener('click', function () {
+    stopRevealAuto();
     socket.emit('host:next', {}, function () {});
   });
 
@@ -1179,6 +1203,12 @@
   socket.on('state:reveal', function (r) {
     var reason = r && r.endReason;
     stopQTimer();
+    // Sync the clock NOW, while r.serverNow is fresh. On the timeout/
+    // all-answered path renderReveal is delayed ~2.7s by the sting animation;
+    // syncing inside that delayed call would skew the offset by the sting
+    // duration and throw off the auto-advance countdown (it would read ~12s
+    // and fire at ~3s instead of counting 10→0).
+    if (r && typeof r.serverNow === 'number') clockOffset = r.serverNow - Date.now();
     if (reason === 'timeout' || reason === 'all-answered') {
       Object.keys(views).forEach(function (k) {
         views[k].classList.remove('active', 'fading-out');

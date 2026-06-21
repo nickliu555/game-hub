@@ -93,9 +93,17 @@ button {
     font-size: 16px;
     font-weight: 600;
     cursor: pointer;
+    /* Button labels shouldn't be text-selectable (long-press on mobile pops up
+       the copy/share menu and feels broken in a game). */
+    -webkit-user-select: none;
+    user-select: none;
     transition: all 0.3s;
     width: 100%;
 }
+/* iOS ignores touch-action on disabled controls; make any disabled button
+   non-interactive so spam-tapping it (e.g. reaction buttons on cooldown)
+   doesn't trigger double-tap zoom. */
+button:disabled { pointer-events: none; }
 
 .btn-primary {
     background: linear-gradient(135deg, #8b1a1a, #a52a2a);
@@ -111,6 +119,9 @@ button {
     cursor: not-allowed;
     transform: none;
     box-shadow: none;
+    /* iOS ignores touch-action on disabled controls; make them non-interactive
+       so spam-tapping a disabled button doesn't trigger double-tap zoom. */
+    pointer-events: none;
 }
 
 .btn-secondary {

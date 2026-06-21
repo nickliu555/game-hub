@@ -128,8 +128,58 @@ function _solve(tiles) {
   return false;
 }
 
+/**
+ * Render a sequence of combine steps as a human-readable expression string
+ * (e.g. "(6+2)×(2+1)"). Mirrors replay()'s combine model exactly: tile `aId`
+ * is the left operand, `bId` the right, and the result replaces `bId`.
+ * Operators use × and / to match the curated solutions file. Parentheses are
+ * added only where precedence/associativity require them.
+ *
+ *   numbers : [a, b, c, d]
+ *   steps   : [ { aId, op, bId }, ... ]
+ *
+ * Returns the expression string, or null if the steps are malformed.
+ */
+function describeSolution(numbers, steps) {
+  if (!Array.isArray(numbers) || numbers.length !== 4) return null;
+  if (!Array.isArray(steps)) return null;
+  const SYMBOL = { '+': '+', '-': '-', '*': '×', '/': '/' };
+  const PREC = { '+': 1, '-': 1, '*': 2, '/': 2 };
+  // Each tile: { str, prec } — prec is the precedence of the outermost op
+  // in its expression (3 = bare number, 2 = ×/÷, 1 = +/−).
+  const tiles = new Map();
+  for (let i = 0; i < 4; i++) {
+    if (!Number.isFinite(numbers[i])) return null;
+    tiles.set(i, { str: String(numbers[i]), prec: 3 });
+  }
+  for (const step of steps) {
+    if (!step || typeof step !== 'object') return null;
+    const { aId, op, bId } = step;
+    if (!Number.isInteger(aId) || !Number.isInteger(bId)) return null;
+    if (aId === bId) return null;
+    if (!tiles.has(aId) || !tiles.has(bId)) return null;
+    const sym = SYMBOL[op];
+    const prec = PREC[op];
+    if (!sym) return null;
+    const a = tiles.get(aId);
+    const b = tiles.get(bId);
+    // Left operand: parenthesize only if it binds looser than this op.
+    const left = a.prec < prec ? `(${a.str})` : a.str;
+    // Right operand: also parenthesize on equal precedence for the
+    // non-associative ops (− and /) to preserve meaning, e.g. a-(b-c).
+    const right = (b.prec < prec || (b.prec === prec && (op === '-' || op === '/')))
+      ? `(${b.str})`
+      : b.str;
+    tiles.delete(aId);
+    tiles.set(bId, { str: `${left}${sym}${right}`, prec });
+  }
+  if (tiles.size !== 1) return null;
+  return tiles.values().next().value.str;
+}
+
 module.exports = {
   replay,
+  describeSolution,
   hasSolution,
   // exported for tests
   rFromInt,

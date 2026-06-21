@@ -130,6 +130,8 @@ function mountTwentyFour(app, httpServer, opts) {
     ns.emit('state:final', {
       podium: game.getPodium(),
       fullLeaderboard: game.getLeaderboard(),
+      mode: game.mode,
+      raceRounds: game.raceRoundsPlayed,
     });
     // Per-player private payload: list of puzzle ids each player didn't
     // finish (skipped + in-flight at buzzer). Sent privately so a player's
@@ -142,6 +144,27 @@ function mountTwentyFour(app, httpServer, opts) {
   }
   function broadcastScores() {
     ns.emit('score:update', { leaderboard: game.getLeaderboard() });
+  }
+
+  // ---- Race mode broadcasts ----
+  function broadcastRaceProblem() {
+    const payload = game.getRacePayload();
+    if (payload) ns.emit('state:raceProblem', payload);
+  }
+  function broadcastRaceReveal() {
+    ns.emit('state:raceReveal', game.getRaceReveal());
+    broadcastScores();
+  }
+  // Shared advance path for BOTH the host "Next problem" button and the
+  // auto-advance timer, so manual and automatic transitions are identical.
+  function advanceRace() {
+    const res = game.nextRaceProblem();
+    if (!res.ok) return;
+    if (res.phase === PHASES.FINAL) {
+      broadcastFinal();
+    } else if (res.phase === PHASES.RACE_PROBLEM) {
+      broadcastRaceProblem();
+    }
   }
   function sendPuzzleTo(player) {
     if (!player || !player.socketId) return;
@@ -169,11 +192,26 @@ function mountTwentyFour(app, httpServer, opts) {
   // round timer and served puzzle #1 to every player — push the matching
   // socket events so clients leave the "Get ready" splash.
   game.onIntroEnd = () => {
+    if (game.mode === 'race') {
+      // Race: everyone gets the SAME first problem; no per-player serve.
+      broadcastRaceProblem();
+      broadcastScores();
+      return;
+    }
     broadcastRound();
     broadcastScores();
     for (const player of game.players.values()) {
       sendPuzzleTo(player);
     }
+  };
+
+  // Race: a problem timed out with no winner — reveal the canonical solution.
+  game.onRaceProblemEnd = () => {
+    broadcastRaceReveal();
+  };
+  // Race: the reveal's auto-advance timer fired — move to the next problem.
+  game.onRaceRevealEnd = () => {
+    advanceRace();
   };
 
   // ---------------- Socket handlers ----------------
@@ -248,9 +286,15 @@ function mountTwentyFour(app, httpServer, opts) {
         }
       } else if (game.phase === PHASES.INTRO) {
         payload.intro = game.getIntroPublic();
+      } else if (game.phase === PHASES.RACE_PROBLEM) {
+        payload.raceProblem = game.getRacePayload();
+      } else if (game.phase === PHASES.RACE_REVEAL) {
+        payload.raceReveal = game.getRaceReveal();
       } else if (game.phase === PHASES.FINAL) {
         payload.podium = game.getPodium();
         payload.fullLeaderboard = game.getLeaderboard();
+        payload.mode = game.mode;
+        payload.raceRounds = game.raceRoundsPlayed;
         // Personal "puzzles you didn't finish" payload — same shape as
         // the live `you:final` event so the client handler can reuse it.
         payload.youFinal = game.getPersonalFinal(pid);
@@ -319,6 +363,7 @@ function mountTwentyFour(app, httpServer, opts) {
       const payload = {
         ok: true,
         phase: game.phase,
+        mode: game.mode,
         players: game.getLobbyPlayers(),
         puzzleCounts: counts(),
         reactionsMuted,
@@ -328,6 +373,10 @@ function mountTwentyFour(app, httpServer, opts) {
         payload.leaderboard = game.getLeaderboard();
       } else if (game.phase === PHASES.INTRO) {
         payload.intro = game.getIntroPublic();
+      } else if (game.phase === PHASES.RACE_PROBLEM) {
+        payload.raceProblem = game.getRacePayload();
+      } else if (game.phase === PHASES.RACE_REVEAL) {
+        payload.raceReveal = game.getRaceReveal();
       } else if (game.phase === PHASES.FINAL) {
         payload.podium = game.getPodium();
         payload.fullLeaderboard = game.getLeaderboard();
@@ -340,6 +389,10 @@ function mountTwentyFour(app, httpServer, opts) {
         socket.emit('score:update', { leaderboard: game.getLeaderboard() });
       } else if (game.phase === PHASES.INTRO) {
         socket.emit('state:intro', game.getIntroPublic());
+      } else if (game.phase === PHASES.RACE_PROBLEM) {
+        socket.emit('state:raceProblem', game.getRacePayload());
+      } else if (game.phase === PHASES.RACE_REVEAL) {
+        socket.emit('state:raceReveal', game.getRaceReveal());
       } else if (game.phase === PHASES.FINAL) {
         socket.emit('state:final', {
           podium: game.getPodium(),
@@ -359,16 +412,63 @@ function mountTwentyFour(app, httpServer, opts) {
     socket.on('host:start', (payload, ack) => {
       if (!requireHost(ack)) return;
       touchActivity();
-      const { difficulty, durationMin } = payload || {};
-      const res = game.start({ difficulty, durationMin });
+      const {
+        mode,
+        difficulty,
+        durationMin,
+        targetScore,
+        problemTimeLimitSec,
+        autoAdvance,
+      } = payload || {};
+      const res = game.start({
+        mode,
+        difficulty,
+        durationMin,
+        targetScore: targetScore != null ? Number(targetScore) : undefined,
+        problemTimeLimitSec: problemTimeLimitSec != null ? Number(problemTimeLimitSec) : undefined,
+        autoAdvance: !!autoAdvance,
+      });
       if (!res.ok) return ack && ack(res);
       ack && ack({ ok: true });
       broadcastLobby();
       // Hold everyone on a "Get ready" countdown for a few seconds before
-      // the round actually starts. The matching `state:round` + per-player
-      // `puzzle:next` are emitted from game.onIntroEnd above when the
+      // the round actually starts. The matching state events (round/race
+      // problem + scores) are emitted from game.onIntroEnd above when the
       // server-side intro timer elapses.
       broadcastIntro();
+    });
+
+    // Race: first correct solve to the current problem wins the point.
+    socket.on('player:raceSolve', ({ puzzleId, steps } = {}, ack) => {
+      touchActivity();
+      if (!playerId) return ack && ack({ ok: false, reason: 'not-joined' });
+      if (!isHostPresent()) return ack && ack({ ok: false, reason: 'host-absent' });
+      if (typeof puzzleId !== 'number') return ack && ack({ ok: false, reason: 'bad-puzzle' });
+      const res = game.submitRaceSolve({ playerId, puzzleId, steps });
+      if (!res.ok) return ack && ack(res);
+      ack && ack({
+        ok: true,
+        accepted: !!res.accepted,
+        won: !!res.won,
+        score: res.score,
+        gameOver: !!res.gameOver,
+        reason: res.reason,
+      });
+      if (res.accepted) {
+        // First valid solve — reveal the winner + solution to everyone.
+        broadcastRaceReveal();
+      }
+    });
+
+    // Race: host advances from the reveal to the next problem (or results).
+    socket.on('host:nextProblem', (_p, ack) => {
+      if (!requireHost(ack)) return;
+      touchActivity();
+      if (game.phase !== PHASES.RACE_REVEAL) {
+        return ack && ack({ ok: false, reason: 'not-reveal' });
+      }
+      ack && ack({ ok: true });
+      advanceRace();
     });
 
     socket.on('host:kick', ({ playerId: pid } = {}, ack) => {

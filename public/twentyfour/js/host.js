@@ -8,6 +8,7 @@
     lobby: document.getElementById('view-lobby'),
     intro: document.getElementById('view-intro'),
     round: document.getElementById('view-round'),
+    race: document.getElementById('view-race'),
     final: document.getElementById('view-final'),
   };
   function show(name) {
@@ -23,6 +24,26 @@
   const startBtn = document.getElementById('startBtn');
   const diffSelect = document.getElementById('diffSelect');
   const durSelect = document.getElementById('durSelect');
+
+  // Race-mode lobby config
+  const modeToggle = document.getElementById('modeToggle');
+  const targetSelect = document.getElementById('targetSelect');
+  const probTimeSelect = document.getElementById('probTimeSelect');
+  const autoAdvanceCheck = document.getElementById('autoAdvanceCheck');
+
+  // Race view
+  const raceDiffPill = document.getElementById('raceDiffPill');
+  const raceProblemNum = document.getElementById('raceProblemNum');
+  const raceTargetBadge = document.getElementById('raceTargetBadge');
+  const raceCountdownEl = document.getElementById('raceCountdown');
+  const raceNumbersEl = document.getElementById('raceNumbers');
+  const raceLeaderboardEl = document.getElementById('raceLeaderboard');
+  const raceRevealOverlay = document.getElementById('raceRevealOverlay');
+  const rrTitle = document.getElementById('rrTitle');
+  const rrNumbers = document.getElementById('rrNumbers');
+  const rrSolution = document.getElementById('rrSolution');
+  const rrNextBtn = document.getElementById('rrNextBtn');
+  const rrAuto = document.getElementById('rrAuto');
 
   const diffPill = document.getElementById('diffPill');
   const countdownEl = document.getElementById('countdown');
@@ -196,9 +217,18 @@
       else if (res.phase === 'INTRO') {
         renderIntro(res.intro);
       } else if (res.phase === 'ROUND') {
+        activeMode = 'sprint';
         show('round');
         applyRound(res.round);
         applyScores(res.leaderboard);
+      } else if (res.phase === 'RACE_PROBLEM') {
+        activeMode = 'race';
+        show('race');
+        applyRaceProblem(res.raceProblem);
+      } else if (res.phase === 'RACE_REVEAL') {
+        activeMode = 'race';
+        show('race');
+        applyRaceReveal(res.raceReveal);
       } else if (res.phase === 'FINAL') {
         show('final');
         renderFinal(res.podium, res.fullLeaderboard);
@@ -265,6 +295,10 @@
     // Kill the round countdown too, otherwise it keeps ticking toward the
     // old roundEndsAt and fires the final-5s beeps after we're back in lobby.
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+    stopRaceCountdown();
+    stopRaceAuto();
+    if (raceRevealOverlay) raceRevealOverlay.hidden = true;
+    activeMode = null;
     roundEndsAt = 0;
     lastTickSec = null;
     show('lobby');
@@ -274,21 +308,66 @@
     renderLobby({ players: [] });
   });
 
+  // ---------------- Mode toggle (Sprint / Race) ----------------
+  let currentMode = 'sprint'; // selected in lobby
+  let activeMode = null; // mode of the running game (set when it starts)
+  // Populate "First to N points" (3..15).
+  if (targetSelect && !targetSelect.options.length) {
+    for (let n = 3; n <= 15; n++) {
+      const opt = document.createElement('option');
+      opt.value = String(n);
+      opt.textContent = n + ' point' + (n === 1 ? '' : 's');
+      if (n === 5) opt.selected = true;
+      targetSelect.appendChild(opt);
+    }
+  }
+  function setMode(m) {
+    currentMode = (m === 'race') ? 'race' : 'sprint';
+    if (modeToggle) {
+      modeToggle.querySelectorAll('.mode-opt').forEach(function (b) {
+        b.classList.toggle('active', b.getAttribute('data-mode') === currentMode);
+      });
+    }
+    document.querySelectorAll('[data-mode-group]').forEach(function (el) {
+      el.hidden = el.getAttribute('data-mode-group') !== currentMode;
+    });
+    startBtn.textContent = currentMode === 'race' ? 'Start race' : 'Start round';
+  }
+  if (modeToggle) {
+    modeToggle.addEventListener('click', function (e) {
+      const b = e.target.closest('.mode-opt');
+      if (!b) return;
+      setMode(b.getAttribute('data-mode'));
+    });
+  }
+  setMode('sprint');
+
   // ---------------- Start ----------------
   startBtn.addEventListener('click', function () {
     // First user click is also the audio-context unlock — call it before
     // we kick off the round so the fanfare actually plays.
     unlockAudio();
     startBtn.disabled = true;
-    socket.emit('host:start', {
-      difficulty: diffSelect.value,
-      durationMin: parseFloat(durSelect.value),
-    }, function (res) {
+    const opts = currentMode === 'race'
+      ? {
+          mode: 'race',
+          difficulty: diffSelect.value,
+          targetScore: parseInt(targetSelect.value, 10),
+          problemTimeLimitSec: parseInt(probTimeSelect.value, 10),
+          autoAdvance: !!(autoAdvanceCheck && autoAdvanceCheck.checked),
+        }
+      : {
+          mode: 'sprint',
+          difficulty: diffSelect.value,
+          durationMin: parseFloat(durSelect.value),
+        };
+    socket.emit('host:start', opts, function (res) {
       if (!res || !res.ok) {
         startBtn.disabled = false;
         showToast((res && res.reason) || 'Could not start');
         return;
       }
+      activeMode = currentMode;
       playStartFanfare();
     });
   });
@@ -434,6 +513,7 @@
 
   socket.on('state:round', function (r) {
     stopIntroTimer();
+    activeMode = 'sprint';
     show('round');
     applyRound(r);
     // Server sends a separate score:update with the initial all-zeros board.
@@ -460,6 +540,145 @@
     introTimer = setInterval(tick, 200);
   }
   socket.on('state:intro', function (p) { renderIntro(p); });
+
+  // ---------------- Race mode ----------------
+  let raceCountdownTimer = null;
+  let raceEndsAt = 0;
+  let raceLastTickSec = null;
+  let raceAutoTimer = null;
+  function stopRaceCountdown() {
+    if (raceCountdownTimer) { clearInterval(raceCountdownTimer); raceCountdownTimer = null; }
+  }
+  function stopRaceAuto() {
+    if (raceAutoTimer) { clearTimeout(raceAutoTimer); raceAutoTimer = null; }
+  }
+  // Boundary-aligned auto-advance countdown. Instead of a fixed-interval tick
+  // (which can leave a display up to one interval stale and make the host and
+  // player briefly disagree by 1s near a whole-second boundary), this schedules
+  // each update to land just after the next whole-second boundary. Both screens
+  // use the same server-synced clock (serverNow) and the same absolute deadline
+  // (revealEndsAt), so the number now flips at the same wall-clock instant on
+  // every device.
+  function startRaceAutoCountdown(revealEndsAt, render) {
+    stopRaceAuto();
+    (function step() {
+      const remainingMs = revealEndsAt - serverNow();
+      const left = Math.max(0, Math.ceil(remainingMs / 1000));
+      render(left);
+      if (remainingMs <= 0) { stopRaceAuto(); return; }
+      // Time until `left` ticks down by one = distance to the (left-1) boundary.
+      const msToBoundary = remainingMs - (left - 1) * 1000;
+      raceAutoTimer = setTimeout(step, Math.max(20, msToBoundary + 15));
+    })();
+  }
+  function renderRaceNumbers(el, nums) {
+    if (!el) return;
+    el.innerHTML = (nums || []).map(function (n) {
+      return '<div class="race-num">' + n + '</div>';
+    }).join('');
+  }
+  function renderRaceLeaderboard(lb) {
+    if (!raceLeaderboardEl) return;
+    const rows = (lb || []).slice().sort(function (a, b) {
+      return (b.score - a.score) || ((a.lastScoreAt || 0) - (b.lastScoreAt || 0));
+    });
+    raceLeaderboardEl.innerHTML = rows.map(function (p) {
+      return (
+        '<div class="race-lb-row">' +
+          '<span class="race-lb-name">' + escapeHtml(p.name) + '</span>' +
+          '<span class="race-lb-score">' + (p.score || 0) + '</span>' +
+        '</div>'
+      );
+    }).join('');
+  }
+  function tickRaceCountdown() {
+    const ms = Math.max(0, raceEndsAt - serverNow());
+    const totalSec = Math.ceil(ms / 1000);
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    if (raceCountdownEl) {
+      raceCountdownEl.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+      raceCountdownEl.classList.toggle('warn', totalSec <= 10 && totalSec > 0);
+    }
+    if (totalSec >= 0 && totalSec <= 5 && totalSec !== raceLastTickSec) {
+      raceLastTickSec = totalSec;
+      playTick(totalSec);
+    }
+    if (ms <= 0) stopRaceCountdown();
+  }
+  function applyRaceProblem(p) {
+    if (!p) return;
+    if (typeof p.serverNow === 'number') clockOffset = p.serverNow - Date.now();
+    if (raceDiffPill) raceDiffPill.textContent = (p.difficulty || 'any').toUpperCase();
+    if (raceProblemNum) raceProblemNum.textContent = 'Problem ' + (p.problemNumber || 1);
+    if (raceTargetBadge) raceTargetBadge.textContent = 'First to ' + (p.targetScore || 5);
+    renderRaceNumbers(raceNumbersEl, p.numbers);
+    renderRaceLeaderboard(p.leaderboard);
+    if (raceRevealOverlay) raceRevealOverlay.hidden = true;
+    stopRaceAuto();
+    raceEndsAt = p.endsAt;
+    raceLastTickSec = null;
+    tickRaceCountdown();
+    stopRaceCountdown();
+    raceCountdownTimer = setInterval(tickRaceCountdown, 250);
+  }
+  function applyRaceReveal(r) {
+    if (!r) return;
+    if (typeof r.serverNow === 'number') clockOffset = r.serverNow - Date.now();
+    stopRaceCountdown();
+    renderRaceLeaderboard(r.leaderboard);
+    renderRaceNumbers(rrNumbers, r.numbers);
+    if (rrTitle) {
+      if (r.winner && r.winner.name) {
+        rrTitle.textContent = '🎉 ' + r.winner.name + ' got it!';
+        rrTitle.classList.remove('timeout');
+      } else {
+        rrTitle.textContent = "⏱ Time's up — nobody solved it";
+        rrTitle.classList.add('timeout');
+      }
+    }
+    if (rrSolution) rrSolution.textContent = r.solution ? ('Solution: ' + r.solution) : '';
+    if (rrNextBtn) {
+      rrNextBtn.disabled = false;
+      rrNextBtn.textContent = r.gameOver ? 'See results →' : 'Next problem →';
+    }
+    if (raceRevealOverlay) raceRevealOverlay.hidden = false;
+    stopRaceAuto();
+    if (rrAuto) {
+      if (r.autoAdvance && r.revealEndsAt) {
+        rrAuto.hidden = false;
+        startRaceAutoCountdown(r.revealEndsAt, function (left) {
+          rrAuto.textContent = 'Next in ' + left + 's…';
+        });
+      } else {
+        rrAuto.hidden = true;
+        rrAuto.textContent = '';
+      }
+    }
+  }
+  socket.on('state:raceProblem', function (p) {
+    stopIntroTimer();
+    activeMode = 'race';
+    show('race');
+    applyRaceProblem(p);
+  });
+  socket.on('state:raceReveal', function (r) {
+    activeMode = 'race';
+    show('race');
+    applyRaceReveal(r);
+    // Ding when the popup announces a winner. Only on the live event (not the
+    // reconnect snapshot, which calls applyRaceReveal directly) and only when
+    // someone actually solved it — a timeout reveal stays silent.
+    if (r && r.winner && r.winner.name) playCorrectChime();
+  });
+  if (rrNextBtn) {
+    rrNextBtn.addEventListener('click', function () {
+      rrNextBtn.disabled = true;
+      socket.emit('host:nextProblem', {}, function (res) {
+        if (!res || !res.ok) rrNextBtn.disabled = false;
+      });
+    });
+  }
 
   // ---------------- Scoreboard (bar chart) ----------------
   // Render a bar per player; widths animate via CSS transition. We sort
@@ -567,6 +786,9 @@
   // ---------------- Final ----------------
   socket.on('state:final', function (f) {
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+    stopRaceCountdown();
+    stopRaceAuto();
+    if (raceRevealOverlay) raceRevealOverlay.hidden = true;
     showFinalIntro(function () {
       show('final');
       renderFinal(f && f.podium, f && f.fullLeaderboard);
@@ -575,17 +797,31 @@
     });
   });
 
-  // Two-beat splash: "Time's up!" → "Now for the results…" before podium reveal.
+  // Splash before the podium. Race already announces "We have a winner!" so it
+  // stays a single beat; sprint adds a "Now for the results…" beat after the
+  // "Time's up!" line.
   function showFinalIntro(onDone) {
     const ov = document.getElementById('finalIntroOverlay');
     const txt = document.getElementById('finalIntroText');
     if (!ov || !txt) { onDone && onDone(); return; }
     txt.classList.remove('swap');
-    txt.textContent = '⏰ Time\'s up!';
     ov.hidden = false;
     // Force reflow so the opacity transition runs from 0.
     void ov.offsetWidth;
     ov.classList.add('visible');
+
+    if (activeMode === 'race') {
+      // Single beat: hold "We have a winner!" then fade straight to the podium.
+      txt.textContent = '🏆 We have a winner!';
+      setTimeout(function () {
+        if (onDone) onDone();
+        ov.classList.remove('visible');
+      }, 2400);
+      setTimeout(function () { ov.hidden = true; }, 3000);
+      return;
+    }
+
+    txt.textContent = '⏰ Time\'s up!';
     // Halfway through, fade the text and swap it.
     setTimeout(function () { txt.classList.add('swap'); }, 1800);
     setTimeout(function () {
@@ -690,6 +926,50 @@
   function safePlay(el) {
     if (!el) return;
     try { el.currentTime = 0; el.play().catch(function () {}); } catch (e) {}
+  }
+
+  // Cheerful "correct answer!" chime that lands when the "got it!" popup
+  // appears. A quick ascending major arpeggio (G5 → C6 → E6) that resolves up
+  // into a brief ringing G6, giving a bright "ding-ding-ding, correct!" feel.
+  // Reuses the existing Web Audio context (getAudioCtx, defined above) so we
+  // don't need to ship another asset. NOTE: kept distinct from playDing() (the
+  // lobby join ding) — do NOT rename this to playDing or it will hoist over it.
+  function playCorrectChime() {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state !== 'running') {
+      ctx.resume().catch(function () {});
+      if (ctx.state !== 'running') return;
+    }
+    const t = ctx.currentTime;
+    // [frequency, startOffset, duration, peakGain]. The first three are short
+    // staccato steps; the final note rings a little longer to land the resolve.
+    const notes = [
+      [784.0, 0.00, 0.13, 0.32], // G5
+      [1046.5, 0.10, 0.13, 0.34], // C6
+      [1318.5, 0.20, 0.13, 0.36], // E6
+      [1568.0, 0.32, 0.45, 0.40], // G6 — sustained resolve
+    ];
+    notes.forEach(function (note) {
+      const freq = note[0];
+      const start = t + note[1];
+      const dur = note[2];
+      const peak = note[3];
+      // Two stacked oscillators (sine + soft triangle an octave down) give a
+      // warmer, bell-like tone than a bare beep.
+      [['sine', freq, peak], ['triangle', freq / 2, peak * 0.35]].forEach(function (v) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = v[0];
+        osc.frequency.value = v[1];
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(v[2], start + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + dur + 0.03);
+      });
+    });
   }
   function confettiBurst() {
     const colors = ['#F97316', '#FFD200', '#FFFFFF', '#9A3412', '#FDBA74'];
