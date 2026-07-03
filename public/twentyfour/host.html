@@ -60,8 +60,8 @@
           <div class="config-row mode-row">
             <label>Mode</label>
             <div class="mode-toggle" id="modeToggle" role="tablist">
-              <button type="button" class="mode-opt active" data-mode="sprint" role="tab">Sprint</button>
-              <button type="button" class="mode-opt" data-mode="race" role="tab">Race</button>
+              <button type="button" class="mode-opt active" data-mode="race" role="tab">Race</button>
+              <button type="button" class="mode-opt" data-mode="sprint" role="tab">Sprint</button>
             </div>
           </div>
           <div class="config-row">
@@ -73,7 +73,7 @@
               <option value="any">Any</option>
             </select>
           </div>
-          <div class="config-row" data-mode-group="sprint">
+          <div class="config-row" data-mode-group="sprint" hidden>
             <label for="durSelect">Round length</label>
             <select id="durSelect">
               <option value="1">1:00</option>
@@ -83,11 +83,11 @@
               <option value="5">5:00</option>
             </select>
           </div>
-          <div class="config-row" data-mode-group="race" hidden>
+          <div class="config-row" data-mode-group="race">
             <label for="targetSelect">First to</label>
             <select id="targetSelect"></select>
           </div>
-          <div class="config-row" data-mode-group="race" hidden>
+          <div class="config-row" data-mode-group="race">
             <label for="probTimeSelect">Time per problem</label>
             <select id="probTimeSelect">
               <option value="30">30s</option>
@@ -97,13 +97,13 @@
               <option value="120">120s</option>
             </select>
           </div>
-          <div class="config-row config-row-check" data-mode-group="race" hidden>
+          <div class="config-row config-row-check" data-mode-group="race">
             <label for="autoAdvanceCheck">Auto-advance after 10s</label>
             <input type="checkbox" id="autoAdvanceCheck" />
           </div>
         </div>
         <div class="start-row">
-          <button id="startBtn" class="btn-start" disabled>Start round</button>
+          <button id="startBtn" class="btn-start" disabled>Start race</button>
         </div>
       </div>
       <div class="lobby-attribution">Developed by Nick Liu (with help from Claude)</div>

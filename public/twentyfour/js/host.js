@@ -309,7 +309,7 @@
   });
 
   // ---------------- Mode toggle (Sprint / Race) ----------------
-  let currentMode = 'sprint'; // selected in lobby
+  let currentMode = 'race'; // selected in lobby
   let activeMode = null; // mode of the running game (set when it starts)
   // Populate "First to N points" (3..15).
   if (targetSelect && !targetSelect.options.length) {
@@ -340,7 +340,7 @@
       setMode(b.getAttribute('data-mode'));
     });
   }
-  setMode('sprint');
+  setMode('race');
 
   // ---------------- Start ----------------
   startBtn.addEventListener('click', function () {
