@@ -5,7 +5,10 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "sim": "node scripts/sim-players.js"
+    "sim": "node scripts/sim-players.js",
+    "gen:herdmind": "node scripts/gen-herdmind-questions.js",
+    "test:herdmind": "node scripts/test-herdmind.js",
+    "itest:herdmind": "node scripts/itest-herdmind.js"
   },
   "dependencies": {
     "dotenv": "^17.3.1",

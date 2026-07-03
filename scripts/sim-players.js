@@ -44,7 +44,7 @@
 const { io } = require('socket.io-client');
 const crypto = require('crypto');
 
-const GAMES = ['empire', 'trivia', 'twentyfour'];
+const GAMES = ['empire', 'trivia', 'twentyfour', 'herdmind'];
 
 // ---- Parse args ----------------------------------------------------------
 const rawGame = (process.argv[2] || process.env.GAME || 'all').toLowerCase();
@@ -79,6 +79,18 @@ const ANSWER_MAX_MS = Math.max(
 function chooseAnswerIndex() {
   const idx = { A: 0, B: 1, C: 2, D: 3 }[ANSWER_MODE];
   return typeof idx === 'number' ? idx : Math.floor(Math.random() * 4);
+}
+
+// ---- Herd Mind auto-answer config -------------------------------------------
+// HERD=clump  → most players pick from a small shared pool so herds form
+//              (with the occasional unique answer → Pink Cow action).
+// HERD=spread → each player picks a random distinct-ish word.
+const HERD_MODE = (process.env.HERD || 'CLUMP').toUpperCase();
+const HERD_CLUMP_POOL = ['dog', 'cat', 'pizza', 'blue', 'apple'];
+function herdAnswer() {
+  if (HERD_MODE === 'SPREAD') return WORDS[Math.floor(Math.random() * WORDS.length)];
+  if (Math.random() < 0.82) return HERD_CLUMP_POOL[Math.floor(Math.random() * HERD_CLUMP_POOL.length)];
+  return 'oddone' + Math.floor(Math.random() * 100000);
 }
 
 // ---- Name / word generators ----------------------------------------------
@@ -225,6 +237,27 @@ function joinSocketGame(game) {
       });
     }
 
+    // Herd Mind: type a short answer when a question opens (clump/spread).
+    if (game === 'herdmind' && ANSWER_ENABLED) {
+      const answered = new Set();
+      s.on('state:question', (q) => {
+        if (!q || !q.id || answered.has(q.id)) return;
+        answered.add(q.id);
+        let maxDelay = ANSWER_MAX_MS;
+        if (typeof q.endsAt === 'number' && typeof q.serverNow === 'number') {
+          const windowMs = q.endsAt - q.serverNow - 250;
+          if (windowMs > 0) maxDelay = Math.min(maxDelay, windowMs);
+        }
+        const lo = Math.min(ANSWER_MIN_MS, maxDelay);
+        const delay = lo + Math.floor(Math.random() * Math.max(0, maxDelay - lo));
+        setTimeout(() => {
+          s.emit('player:answer', { questionId: q.id, answer: herdAnswer() }, (res) => {
+            if (res && res.ok) stats[game].answered++;
+          });
+        }, delay);
+      });
+    }
+
     sockets.push(s);
   }
 }
@@ -315,7 +348,7 @@ setInterval(() => {
   const summary = targets
     .map((g) => {
       const base = `${g}: ${stats[g].joined} joined, ${stats[g].failed} failed`;
-      return (g === 'trivia' && ANSWER_ENABLED)
+      return ((g === 'trivia' || g === 'herdmind') && ANSWER_ENABLED)
         ? `${base}, ${stats[g].answered} answered`
         : base;
     })

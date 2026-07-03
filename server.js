@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 const games = require('./games');
 const mountTrivia = require('./server/trivia');
 const mountTwentyFour = require('./server/twentyfour');
+const mountHerdMind = require('./server/herdmind');
 const app = express();
 
 app.set('trust proxy', 1);
@@ -748,6 +749,9 @@ mountTrivia(app, httpServer, { getPublicBaseUrl });
 
 // Mount the "24" math game (Socket.IO namespace + REST endpoints + page routes).
 mountTwentyFour(app, httpServer, { getPublicBaseUrl });
+
+// Mount the "Herd Mind" game (Socket.IO namespace + REST endpoints + page routes).
+mountHerdMind(app, httpServer, { getPublicBaseUrl });
 
 httpServer.listen(PORT, '0.0.0.0', () => {
     console.log('');

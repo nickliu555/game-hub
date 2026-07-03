@@ -68,6 +68,27 @@ const games = [
         // link on the hub card so it doesn't compete with the host CTA.
         practicePath: '/twentyfour/practice?from=hub',
     },
+    {
+        id: 'herdmind',
+        name: 'Herd Mind',
+        tagline: 'Match the herd, dodge the Pink Cow',
+        emoji: '🐄',
+        color: '#8B5E4C',
+        playerCount: '3–20+',
+        duration: '10–20 min',
+        description: 'Everyone answers the same open question on their phone. Score by giving the MOST POPULAR answer — match the herd! Give a one-of-a-kind answer and you\'re stuck with the Pink Cow… and you can\'t win while you\'re holding it.',
+        rules: [
+            'The host opens the game on a shared screen (TV, laptop, etc.)',
+            'Players scan the QR code on their phones and enter a name',
+            'Each round a question appears — everyone secretly types an answer before the timer ends',
+            'Everyone who gives the most popular answer earns a point — match the herd!',
+            'Give a completely unique answer and you\'re landed with the Pink Cow 🐄',
+            'You can\'t win while holding the Pink Cow — pass it on by making someone else the odd one out',
+            'First to the target score (without the cow) wins the herd!'
+        ],
+        hostPath: '/herdmind/host',
+        playPath: '/herdmind/play',
+    },
 ];
 
 module.exports = games;
