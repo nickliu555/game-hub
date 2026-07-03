@@ -75,6 +75,7 @@
   }
 
   // ---- Lobby ----
+  var MIN_PLAYERS = 3;
   var lastLobbyCount = -1;
   function renderLobby(s) {
     var players = (s && s.players) || [];
@@ -86,6 +87,8 @@
       return '<div class="' + cls + '" data-pid="' + escapeHtml(p.id) + '" title="Click to remove">' + escapeHtml(p.name) + '</div>';
     }).join('');
     if (typeof s.total === 'number') answersTotal.textContent = s.total;
+    // Match the other games: just gray out Start until the minimum is met.
+    startBtn.disabled = players.length < MIN_PLAYERS;
   }
   playerList.addEventListener('click', function (e) {
     var chip = e.target.closest('.player-chip');
@@ -106,7 +109,9 @@
     }, function (res) {
       startBtn.disabled = false;
       if (!res || !res.ok) {
-        startError.textContent = 'Could not start. Please try again.';
+        startError.textContent = (res && res.reason === 'not-enough-players')
+          ? 'Need at least 3 players to start'
+          : 'Could not start. Please try again.';
         startError.hidden = false;
       }
     });

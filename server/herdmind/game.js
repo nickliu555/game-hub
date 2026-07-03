@@ -29,6 +29,7 @@ const PHASES = {
 
 const MAX_NAME_LEN = 20;
 const MAX_ANSWER_LEN = 40;
+const MIN_PLAYERS = 3;
 const INTRO_DURATION_MS = 4000;
 const INTRO_GO_HOLD_MS = 1100;
 const REVEAL_AUTO_ADVANCE_MS = 12 * 1000;
@@ -153,6 +154,7 @@ class Game {
 
   start({ timeLimitSec, targetScore, autoAdvance } = {}) {
     if (this.phase !== PHASES.LOBBY) return { ok: false, reason: 'already-started' };
+    if (this.players.size < MIN_PLAYERS) return { ok: false, reason: 'not-enough-players', min: MIN_PLAYERS };
     const t = parseInt(timeLimitSec, 10);
     this.timeLimitSec = (t >= 5 && t <= 120) ? t : 20;
     const target = parseInt(targetScore, 10);
@@ -592,4 +594,4 @@ class Game {
   }
 }
 
-module.exports = { Game, PHASES, MAX_NAME_LEN, MAX_ANSWER_LEN, INTRO_DURATION_MS, DEFAULT_TARGET };
+module.exports = { Game, PHASES, MAX_NAME_LEN, MAX_ANSWER_LEN, MIN_PLAYERS, INTRO_DURATION_MS, DEFAULT_TARGET };
