@@ -102,6 +102,8 @@
   startBtn.addEventListener('click', function () {
     startError.hidden = true;
     startBtn.disabled = true;
+    // Unlock audio on this user gesture so the fanfare can play on success.
+    unlockAudio();
     socket.emit('host:start', {
       timeLimitSec: parseInt(timeSelect.value, 10),
       targetScore: parseInt(targetSelect.value, 10),
@@ -113,6 +115,8 @@
           ? 'Need at least 3 players to start'
           : 'Could not start. Please try again.';
         startError.hidden = false;
+      } else {
+        playStartFanfare();
       }
     });
   });
@@ -634,7 +638,7 @@
     });
   });
 
-  // ---- Audio (lobby join ding + applause via Web Audio) ----
+  // ---- Audio (start fanfare via Web Audio, matches Trivia/24) ----
   var audioCtx = null;
   function getAudioCtx() {
     if (audioCtx) return audioCtx;
@@ -643,17 +647,63 @@
     audioCtx = new Ctor();
     return audioCtx;
   }
+  function unlockAudio() {
+    var ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') ctx.resume().catch(function () {});
+    try {
+      var t = ctx.currentTime;
+      var osc = ctx.createOscillator(), gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, t);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t); osc.stop(t + 0.001);
+    } catch (e) {}
+  }
+  // Cheerful rising C-E-G fanfare — used for BOTH game start and player join.
+  function playStartFanfare() {
+    var ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state !== 'running') {
+      ctx.resume().catch(function () {});
+      if (ctx.state !== 'running') return;
+    }
+    var t0 = ctx.currentTime;
+    var notes = [
+      { freq: 523.25, start: 0.00, dur: 0.22 }, // C5
+      { freq: 659.25, start: 0.14, dur: 0.22 }, // E5
+      { freq: 783.99, start: 0.28, dur: 0.55 }, // G5
+    ];
+    notes.forEach(function (n) {
+      [
+        { type: 'triangle', freq: n.freq,       vol: 0.45 },
+        { type: 'sine',     freq: n.freq * 0.5, vol: 0.18 },
+      ].forEach(function (layer) {
+        var osc = ctx.createOscillator(), gain = ctx.createGain();
+        osc.type = layer.type;
+        osc.frequency.value = layer.freq;
+        var t = t0 + n.start;
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(layer.vol, t + 0.015);
+        gain.gain.setValueAtTime(layer.vol, t + n.dur - 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + n.dur);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t); osc.stop(t + n.dur + 0.05);
+      });
+    });
+  }
+  // Two-note join ding — matches the other games' lobby-join sound.
   function playDing() {
     var ctx = getAudioCtx();
     if (!ctx || ctx.state !== 'running') return;
-    var t = ctx.currentTime;
     var osc = ctx.createOscillator(), gain = ctx.createGain();
-    osc.type = 'sine'; osc.frequency.value = 880;
-    gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
     osc.connect(gain).connect(ctx.destination);
-    osc.start(t); osc.stop(t + 0.32);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.setValueAtTime(1174.66, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.4);
   }
   function playApplause() {
     var ctx = getAudioCtx();

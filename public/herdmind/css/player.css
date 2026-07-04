@@ -156,8 +156,10 @@ body.player.urgent .urgent-bar { opacity: 1; animation: urgentDrain 5s linear fo
 .reaction-cooldown[hidden] { display: none; }
 
 /* Attribution: pinned to the very bottom of the viewport (like the other
-   games) so it sits below the reaction bar and never floats mid-screen. */
-body.player .player-attribution {
+   games) so it sits below the reaction bar and never floats mid-screen.
+   Applies to both the join screen and the player screen. */
+body.player .player-attribution,
+body.join .player-attribution {
   position: fixed;
   left: 0;
   right: 0;
