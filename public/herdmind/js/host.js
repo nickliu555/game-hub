@@ -476,7 +476,7 @@
       var names = g.members.map(function (m) { return m.name; }).join(', ');
       var isCow = g.size === 1 && r.cowMovedTo && g.members[0] && g.members[0].playerId === r.cowMovedTo;
       var cls = 'herd-row' + (g.isMajority ? ' majority' : '') + (isCow ? ' cow' : '');
-      var tag = g.isMajority ? ' <span class="cow-tag" style="color:var(--good)">🏆 herd</span>' : (isCow ? ' <span class="cow-tag">🐄</span>' : '');
+      var tag = g.isMajority ? ' <span class="cow-tag" style="color:var(--good)">🏆</span>' : (isCow ? ' <span class="cow-tag">🐄</span>' : '');
       return '<div class="' + cls + '">' +
                '<div><div class="herd-label">' + escapeHtml(g.label) + tag + '</div>' +
                '<div class="herd-names">' + escapeHtml(names) + '</div></div>' +
