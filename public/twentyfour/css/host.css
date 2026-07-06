@@ -19,9 +19,12 @@ body.host {
 
 /* ---------------- Lobby ---------------- */
 .lobby {
-  flex: 1;
+  flex: 0 1 auto;
+  height: calc(48vw + 120px);
+  max-height: 100%;
+  margin-block: auto;
   display: grid;
-  grid-template-columns: 1.1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   grid-template-rows: minmax(0, 1fr);
   gap: 32px;
   padding: 28px 32px 40px;
@@ -61,6 +64,8 @@ body.host {
   flex-direction: column;
   justify-content: center;
   align-items: center;
+  min-height: 0;
+  overflow: hidden;
 }
 .qr-card .qr-title {
   font-size: 36px;
@@ -78,8 +83,14 @@ body.host {
   padding: 14px;
   border-radius: var(--radius);
   line-height: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  aspect-ratio: 1 / 1;
+  max-width: 100%;
+  max-height: 100%;
+  box-sizing: border-box;
 }
-.qr-card svg { width: 420px; height: 420px; max-width: 60vh; max-height: 60vh; }
+.qr-card svg { display: block; width: 100%; height: 100%; }
 .qr-card .qr-url {
   margin-top: 18px;
   font-family: ui-monospace, Menlo, Monaco, monospace;
@@ -479,7 +490,8 @@ body.host {
 
 /* Smaller laptop screens collapse the lobby into a single column. */
 @media (max-width: 900px) {
-  .lobby { grid-template-columns: 1fr; grid-template-rows: none; padding: 18px; }
+  .lobby { grid-template-columns: 1fr; grid-template-rows: none; padding: 18px; height: auto; max-height: none; margin-block: 0; }
+  .qr-card #qrSlot { width: min(100%, 70vh); }
   body.host { height: auto; overflow: visible; }
   .round-header .countdown { font-size: 42px; }
 }

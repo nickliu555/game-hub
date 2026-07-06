@@ -128,15 +128,26 @@ body.host {
 }
 
 /* ---- Lobby ---- */
+/* Fill the available height so both panels stretch to the SAME height and the
+   QR shrinks to fit — renders consistently on every screen size/aspect ratio. */
+#view-lobby {
+  align-self: stretch;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
 .lobby-grid {
+  flex: 1;
+  min-height: 0;
+  /* Cap card height (scaled to width) so cards don't stretch super-tall in
+     fullscreen — keeps the QR-to-card fill ratio consistent. */
+  max-height: calc(48vw + 120px);
   display: grid;
-  grid-template-columns: 1.1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 40px;
   align-items: stretch;
-}
-@media (max-width: 900px) {
-  .lobby-grid { grid-template-columns: 1fr; gap: 20px; }
-  .players-panel { height: auto; max-height: 70vh; }
 }
 .qr-panel {
   background: var(--surface);
@@ -148,14 +159,26 @@ body.host {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  min-height: 0;
+  overflow: hidden;
 }
-.qr-panel h2 { margin: 0 0 4px; font-size: 44px; color: var(--accent-deep); }
-.qr-panel p  { color: var(--ink-soft); margin: 0 0 16px; font-size: 20px; }
-.qr-panel img { background: white; padding: 12px; border-radius: var(--radius); display: block; margin: 0 auto; width: 420px; height: 420px; max-width: 60vh; max-height: 60vh; }
+.qr-panel h2 { margin: 0 0 4px; font-size: 44px; color: var(--accent-deep); flex: 0 0 auto; }
+.qr-panel p  { color: var(--ink-soft); margin: 0 0 16px; font-size: 20px; flex: 0 0 auto; }
+.qr-panel img {
+  background: white; padding: 12px; border-radius: var(--radius);
+  display: block; margin: 8px auto;
+  align-self: center;
+  flex: 1 1 auto; min-height: 0;
+  width: auto; height: auto;
+  max-width: 100%; max-height: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+}
 .qr-panel .join-url {
   margin-top: 14px;
   font-size: 22px; font-weight: 700; color: var(--accent);
   word-break: break-all;
+  flex: 0 0 auto;
 }
 
 .players-panel {
@@ -164,8 +187,16 @@ body.host {
   border-radius: var(--radius);
   padding: 24px;
   box-shadow: var(--shadow);
-  height: 78vh;
+  min-height: 0;
   display: flex; flex-direction: column;
+}
+@media (max-width: 900px) {
+  /* Narrow/portrait host window: stack the panels and let the lobby scroll. */
+  .host-main { overflow-y: auto; align-items: start; }
+  #view-lobby { height: auto; display: block; }
+  .lobby-grid { grid-template-columns: 1fr; gap: 20px; max-height: none; }
+  .qr-panel { overflow: visible; }
+  .qr-panel img { width: min(100%, 70vh); max-height: none; }
 }
 .players-panel .header {
   display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;
@@ -183,7 +214,7 @@ body.host {
   grid-auto-rows: max-content;
   gap: 8px;
   align-content: start;
-  min-height: 60px;
+  min-height: 0;
 }
 .player-list:empty::after {
   content: 'Waiting for players to join…';
