@@ -33,6 +33,26 @@ Race to 24 with four numbers and the four operations (`+`, `−`, `×`, `÷`).
 
 Also includes a **Solo Practice** mode — pick a difficulty and solve unlimited puzzles on your own, with a "Give Up" reveal that shows a worked solution.
 
+### 🐄 Herd Mind
+Everyone answers the same open question — score by matching the herd, and dodge the Pink Cow.
+
+1. Each round, a question appears and everyone secretly types an answer before the timer ends
+2. Everyone who gives the **most popular** answer earns a point — match the herd!
+3. Give a completely **unique** answer and you're landed with the **Pink Cow** 🐄
+4. You **can't win while holding the Pink Cow** — pass it on by making someone else the odd one out
+5. **First to the target score (without the cow) wins the herd!**
+
+### 🔠 Noggle
+A Boggle-style word hunt on a shared, randomly shaken letter grid.
+
+1. The host picks a board size (**4×4**, **5×5**, or **6×6**) and a time limit
+2. When the round starts, everyone sees the **exact same shaken grid** on their phone
+3. **Trace** a word by dragging across connecting letters — horizontal, vertical, or diagonal neighbours (or tap tiles one by one)
+4. No reusing the same tile twice in one word, and words must be in the dictionary
+5. Longer words score more (`3–4 = 1`, `5 = 2`, `6 = 3`, `7 = 5`, `8+ = 11`); the **"Qu"** tile counts as two letters
+6. Minimum word length is **3** on 4×4 and **4** on the bigger boards
+7. **When the timer hits zero, scores are revealed podium-style — highest total wins!**
+
 ## How It Works
 
 1. **The host** opens Game Hub on a laptop or TV screen and picks a game
