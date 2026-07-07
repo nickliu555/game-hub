@@ -21,7 +21,7 @@ Fast-paced multiple-choice trivia with live scoring. Questions come from the Ope
 4. After each question, see the answer bar chart and the Top 5 leaderboard
 5. **After the final question, the podium reveals the top 3**
 
-### 🔢 24
+### 24
 Race to 24 with four numbers and the four operations (`+`, `−`, `×`, `÷`).
 
 1. The host picks a difficulty (easy / medium / hard / any) and a round length
