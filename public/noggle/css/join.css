@@ -1,0 +1,99 @@
+/* === Boggle join page (mobile) === */
+
+body.join {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: linear-gradient(170deg, var(--bg) 0%, var(--bg-deep) 100%);
+  color: #fff;
+  padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom);
+}
+/* Kill iOS double-tap zoom on every tappable element (touch-action doesn't
+   inherit, so target html/body themselves plus all descendants). */
+html, body.join { touch-action: manipulation; }
+body.join * { touch-action: manipulation; }
+
+.join-brand {
+  align-self: stretch;
+  margin-top: 42px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  font-size: 30px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.join-hero {
+  flex: 1;
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+  gap: 6px;
+}
+.join-hero h1 { font-size: 34px; margin: 0; }
+.join-hero p { color: rgba(255,255,255,0.8); font-size: 17px; margin: 0 0 18px; }
+
+.join-form { display: flex; flex-direction: column; gap: 14px; text-align: left; }
+.join-form label { font-size: 14px; font-weight: 700; color: rgba(255,255,255,0.85); }
+.join-form input {
+  font-family: inherit;
+  font-size: 20px;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  border: 2px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.96);
+  color: var(--ink);
+  font-weight: 700;
+  width: 100%;
+}
+.join-form input:focus { outline: none; border-color: var(--accent); }
+.join-form .btn-primary { width: 100%; padding: 16px; font-size: 18px; margin-top: 4px; }
+.error-msg { color: #FFD9D6; font-weight: 700; font-size: 15px; min-height: 20px; text-align: center; }
+
+.player-attribution {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+  padding: 14px 12px 18px;
+}
+
+/* Host-absent / round-locked overlays. */
+.host-absent-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(18, 62, 51, 0.97);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 24px;
+}
+.host-absent-overlay[hidden] { display: none; }
+.host-absent-card {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 20px;
+  padding: 32px 26px;
+  text-align: center;
+  max-width: 360px;
+}
+.host-absent-card .icon { font-size: 40px; margin-bottom: 12px; }
+.host-absent-card .title { font-size: 24px; font-weight: 800; margin-bottom: 10px; }
+.host-absent-card .sub { color: rgba(255,255,255,0.8); font-size: 15px; line-height: 1.5; }
+.pulse-dot {
+  display: inline-block;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-right: 6px;
+  animation: pulseDot 1.4s ease-in-out infinite;
+}
+@keyframes pulseDot { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }

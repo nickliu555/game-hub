@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Noggle · Host</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="/shared/iris-preload.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/topbar.css" />
+  <link rel="stylesheet" href="/shared/modal.css" />
+  <link rel="stylesheet" href="/shared/iris.css" />
+  <link rel="stylesheet" href="/noggle/css/base.css" />
+  <link rel="stylesheet" href="/noggle/css/host.css" />
+  <script src="/shared/topbar.js" defer></script>
+  <script src="/shared/modal.js" defer></script>
+  <script src="/shared/iris.js" defer></script>
+</head>
+<body class="host">
+  <div class="host-container">
+    <div class="game-topbar">
+      <span class="gtb-brand"><span class="brand-bg">🔠</span> Noggle</span>
+      <div class="gtb-controls">
+        <a href="/" id="hubBtn" class="gtb-btn" title="Back to hub (resets game)">← Hub</a>
+        <button class="gtb-btn" type="button" data-gtb-help-open="helpOverlay" title="How to play">? Help</button>
+        <div class="gtb-settings-wrapper">
+          <button class="gtb-btn" type="button" data-gtb-settings-toggle aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️ Settings</button>
+          <div class="gtb-settings-panel" id="settingsPanel" hidden>
+            <button id="fullscreenBtn" class="gtb-btn" type="button" title="Toggle fullscreen">⛶ Fullscreen</button>
+            <button id="muteReactionsBtn" class="gtb-btn" type="button" data-gtb-settings-keep-open title="Mute player reactions">🔔 Reactions: On</button>
+            <div class="gtb-divider"></div>
+            <button id="resetBtn" class="gtb-btn gtb-btn-danger" type="button" title="Reset the whole game">Reset game</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ LOBBY ============ -->
+    <section class="view active lobby" id="view-lobby">
+      <div class="lobby-grid">
+        <div class="lobby-left">
+          <div class="qr-card">
+            <div class="qr-title">Scan to join</div>
+            <div class="qr-sub">Or type the URL below on your phone</div>
+            <div id="qrSlot"><svg viewBox="0 0 1 1"></svg></div>
+            <div class="qr-url" id="joinUrl"></div>
+          </div>
+        </div>
+
+        <div class="lobby-right">
+          <div class="lobby-header">
+            <div class="brand"><span class="brand-bg">🔠</span> Noggle</div>
+            <div class="player-count"><span id="playerCount">0</span> players</div>
+          </div>
+          <div class="player-grid" id="playerGrid">
+            <div class="player-empty">Waiting for players to join…</div>
+          </div>
+          <div class="lobby-config">
+            <div class="config-row">
+              <label>Board size</label>
+              <div class="size-toggle" id="sizeToggle" role="tablist">
+                <button type="button" class="size-opt active" data-size="4" role="tab">4×4</button>
+                <button type="button" class="size-opt" data-size="5" role="tab">5×5</button>
+                <button type="button" class="size-opt" data-size="6" role="tab">6×6</button>
+              </div>
+            </div>
+            <div class="config-row">
+              <label for="timeSelect">Time limit</label>
+              <select id="timeSelect">
+                <option value="60">1:00</option>
+                <option value="120" selected>2:00</option>
+                <option value="180">3:00</option>
+                <option value="240">4:00</option>
+                <option value="300">5:00</option>
+              </select>
+            </div>
+            <div class="config-hint" id="configHint">Minimum word length: 3 letters</div>
+          </div>
+          <div class="start-row">
+            <button id="startBtn" class="btn-start" disabled>Start game</button>
+          </div>
+        </div>
+      </div>
+      <div class="lobby-attribution">Developed by Nick Liu (with help from Claude)</div>
+    </section>
+
+    <!-- ============ INTRO (Get Ready countdown) ============ -->
+    <section class="view intro" id="view-intro">
+      <div class="intro-view">
+        <div class="intro-hint">Get your eyes ready…</div>
+        <h1 class="intro-title">Get ready</h1>
+        <div class="intro-countdown" id="introCountdown">4</div>
+        <p class="intro-sub">Shuffling the letter board…</p>
+      </div>
+    </section>
+
+    <!-- ============ ROUND ============ -->
+    <section class="view round" id="view-round">
+      <div class="round-header">
+        <div class="size-pill" id="sizePill">4×4</div>
+        <h2 class="round-title">Find as many words as you can!</h2>
+        <div class="countdown" id="countdown">3:00</div>
+      </div>
+      <div class="round-stage">
+        <div class="board-wrap">
+          <div class="b-board" id="hostBoard"></div>
+        </div>
+        <div class="counts-panel">
+          <h2>Live scores</h2>
+          <div class="counts-list" id="countsList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FINAL ============ -->
+    <section class="view final" id="view-final">
+      <h1>🏆 Results 🏆</h1>
+      <div class="podium" id="podium"></div>
+      <div class="final-lower">
+        <div class="leaderboard-full" id="leaderboardFull">
+          <h3>Full leaderboard</h3>
+          <div id="lbRows"></div>
+        </div>
+        <div class="board-recap">
+          <h3>The board</h3>
+          <div class="recap-scroll">
+            <div class="b-board recap" id="recapBoard"></div>
+            <div class="recap-stats" id="recapStats"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Pre-results splash: shown for a few seconds when the round ends. -->
+  <div class="final-intro-overlay" id="finalIntroOverlay" hidden>
+    <div class="fi-text" id="finalIntroText">⏰ Time's up!</div>
+  </div>
+
+  <!-- Floating reaction emojis from players (lobby + final phases). -->
+  <div class="reaction-layer" id="reactionLayer" aria-hidden="true"></div>
+
+  <audio id="sfx-applause" src="/noggle/assets/sounds/applause.mp3" preload="auto"></audio>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/noggle/js/host.js"></script>
+
+  <!-- Help modal -->
+  <div class="gtb-help-overlay" id="helpOverlay">
+    <div class="gtb-help-modal">
+      <button class="gtb-help-modal-close" type="button" data-gtb-help-close aria-label="Close help">&times;</button>
+      <h2><span class="brand-bg">🔠</span> Noggle</h2>
+      <p>Everyone gets the <strong>same shaken letter grid</strong>. Race the clock to find as many words as you can — the player with the highest score wins.</p>
+      <ol>
+        <li>Players scan the QR code to join from their phone</li>
+        <li>Pick a <strong>board size</strong> (4×4, 5×5, 6×6) and a <strong>time limit</strong>, then hit Start</li>
+        <li>On their phone, players <strong>trace a word</strong> by dragging across connecting letters — horizontal, vertical, or diagonal neighbours (you can also tap tiles one by one)</li>
+        <li>No tile may be reused within a single word, and the word must be in the dictionary</li>
+        <li>Longer words score more: <strong>3–4 = 1, 5 = 2, 6 = 3, 7 = 5, 8+ = 11</strong> points. The "Qu" tile counts as two letters</li>
+        <li>Minimum length is 3 letters on 4×4, and 4 letters on the bigger boards</li>
+        <li>When the timer hits zero, scores are revealed podium-style — highest total wins!</li>
+      </ol>
+    </div>
+  </div>
+</body>
+</html>

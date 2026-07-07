@@ -295,6 +295,7 @@
     // Kill the round countdown too, otherwise it keeps ticking toward the
     // old roundEndsAt and fires the final-5s beeps after we're back in lobby.
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+    cancelFinalBeeps();
     stopRaceCountdown();
     stopRaceAuto();
     if (raceRevealOverlay) raceRevealOverlay.hidden = true;
@@ -455,6 +456,13 @@
   let roundEndsAt = 0;
   let lastTickSec = null;
   let clockOffset = 0;
+  // Final-countdown beeps are pre-scheduled on the AudioContext clock (below)
+  // rather than fired from the 250ms display poll — the first beep after a long
+  // audio-idle stretch was arriving late (audio graph cold-start), making the
+  // 5->4 gap noticeably shorter than the rest.
+  let beepArmTimer = null;
+  let scheduledBeepNodes = [];
+  const BEEP_LEAD_MS = 250; // arm the schedule this long before the 5s mark
   function serverNow() { return Date.now() + clockOffset; }
   function applyRound(round) {
     if (!round) return;
@@ -467,6 +475,7 @@
     tickCountdown();
     if (countdownTimer) clearInterval(countdownTimer);
     countdownTimer = setInterval(tickCountdown, 250);
+    scheduleFinalBeeps(roundEndsAt);
   }
   function tickCountdown() {
     const ms = Math.max(0, roundEndsAt - serverNow());
@@ -475,25 +484,19 @@
     const s = totalSec % 60;
     countdownEl.textContent = m + ':' + (s < 10 ? '0' : '') + s;
     countdownEl.classList.toggle('warn', totalSec <= 10 && totalSec > 0);
-    if (totalSec >= 0 && totalSec <= 5 && totalSec !== lastTickSec) {
-      lastTickSec = totalSec;
-      playTick(totalSec);
-    }
     if (ms <= 0 && countdownTimer) {
       clearInterval(countdownTimer);
       countdownTimer = null;
     }
   }
 
-  // Final-5-seconds beep + long timeout beep (matches Trivia).
-  function playTick(secLeft) {
+  // Final-5-seconds beep + long timeout beep (matches Trivia). Accepts an
+  // optional absolute AudioContext time so beeps can be pre-scheduled.
+  function playTick(secLeft, atTime) {
     const ctx = getAudioCtx();
     if (!ctx) return;
-    if (ctx.state !== 'running') {
-      ctx.resume().catch(function () {});
-      if (ctx.state !== 'running') return;
-    }
-    const t = ctx.currentTime;
+    if (ctx.state !== 'running') ctx.resume().catch(function () {});
+    const t = (typeof atTime === 'number') ? atTime : ctx.currentTime;
     const isFinal = secLeft === 0;
     const vol = isFinal ? 1.0 : 0.4 + (5 - secLeft) * 0.14;
     const freq = isFinal ? 1320 : 880;
@@ -509,6 +512,38 @@
     osc.connect(gain).connect(ctx.destination);
     osc.start(t);
     osc.stop(t + dur + 0.02);
+    scheduledBeepNodes.push(osc);
+  }
+
+  // Pre-schedule the final 5->0 beeps for a given absolute end time on the
+  // sample-accurate audio clock, so they land at perfectly even 1s intervals
+  // regardless of setInterval jitter or audio cold-start latency.
+  function cancelFinalBeeps() {
+    if (beepArmTimer) { clearTimeout(beepArmTimer); beepArmTimer = null; }
+    scheduledBeepNodes.forEach(function (o) { try { o.stop(0); o.disconnect(); } catch (_) {} });
+    scheduledBeepNodes = [];
+  }
+  function scheduleFinalBeeps(endsAt) {
+    cancelFinalBeeps();
+    const msLeft = endsAt - serverNow();
+    if (msLeft <= 0) return;
+    const msUntilArm = msLeft - 5000 - BEEP_LEAD_MS;
+    beepArmTimer = setTimeout(function () { armFinalBeeps(endsAt); }, Math.max(0, msUntilArm));
+  }
+  function armFinalBeeps(endsAt) {
+    beepArmTimer = null;
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state !== 'running') ctx.resume().catch(function () {});
+    const now = ctx.currentTime;
+    const secLeftNow = (endsAt - serverNow()) / 1000;
+    const t5 = now + (secLeftNow - 5);
+    for (let s = 5; s >= 1; s--) {
+      const at = t5 + (5 - s);
+      if (at >= now - 0.03) playTick(s, Math.max(now, at));
+    }
+    const atFinal = t5 + 5;
+    if (atFinal >= now - 0.03) playTick(0, Math.max(now, atFinal));
   }
 
   socket.on('state:round', function (r) {
@@ -600,10 +635,6 @@
       raceCountdownEl.textContent = m + ':' + (s < 10 ? '0' : '') + s;
       raceCountdownEl.classList.toggle('warn', totalSec <= 10 && totalSec > 0);
     }
-    if (totalSec >= 0 && totalSec <= 5 && totalSec !== raceLastTickSec) {
-      raceLastTickSec = totalSec;
-      playTick(totalSec);
-    }
     if (ms <= 0) stopRaceCountdown();
   }
   function applyRaceProblem(p) {
@@ -621,11 +652,13 @@
     tickRaceCountdown();
     stopRaceCountdown();
     raceCountdownTimer = setInterval(tickRaceCountdown, 250);
+    scheduleFinalBeeps(raceEndsAt);
   }
   function applyRaceReveal(r) {
     if (!r) return;
     if (typeof r.serverNow === 'number') clockOffset = r.serverNow - Date.now();
     stopRaceCountdown();
+    cancelFinalBeeps();
     renderRaceLeaderboard(r.leaderboard);
     renderRaceNumbers(rrNumbers, r.numbers);
     if (rrTitle) {

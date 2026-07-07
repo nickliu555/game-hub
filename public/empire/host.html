@@ -1404,6 +1404,11 @@
         let timerRemaining = 30;
         let timerInterval = null;
         let timerRunning = false;
+        // Final-countdown beeps are pre-scheduled on the AudioContext clock so
+        // the first beep isn't delayed by audio graph cold-start (which made
+        // the 5->4 gap shorter than the rest).
+        let scheduledBeepNodes = [];
+        let finalBeepsScheduled = false;
 
         // Pick the best available English voice for browser TTS
         let cachedVoice = null;
@@ -2480,14 +2485,21 @@
                 timerRemaining = timerDuration;
             }
             timerRunning = true;
+            finalBeepsScheduled = false;
             document.getElementById('btnTimerPlay').textContent = 'Pause';
             document.getElementById('btnTimerFsPlay').textContent = 'Pause';
             timerUpdateDisplay();
             timerInterval = setInterval(() => {
                 timerRemaining--;
                 timerUpdateDisplay();
+                // Pre-schedule the last-5s beeps ~1s early (at the 6s mark) so
+                // the first beep isn't late from audio cold-start; they play on
+                // the sample-accurate audio clock at even 1s intervals.
+                if (timerRemaining <= 6 && timerRemaining > 0 && !finalBeepsScheduled) {
+                    finalBeepsScheduled = true;
+                    scheduleFinalBeeps(timerRemaining);
+                }
                 if (timerRemaining <= 5 && timerRemaining > 0) {
-                    playTick(timerRemaining);
                     timerFlashScreen('tick');
                 }
                 if (timerRemaining <= 0) {
@@ -2505,6 +2517,7 @@
             timerRunning = false;
             clearInterval(timerInterval);
             timerInterval = null;
+            cancelFinalBeeps();
         }
 
         function timerReset() {
@@ -2567,10 +2580,10 @@
             }
         });
 
-        function playTick(secsLeft) {
+        function playTick(secsLeft, atTime) {
             const ctx = getAudioCtx();
             if (ctx.state === 'suspended') return;
-            const t = ctx.currentTime;
+            const t = (typeof atTime === 'number') ? atTime : ctx.currentTime;
             // Match Trivia's last-5s warning sound exactly: a clean 880 Hz
             // sine pip for ticks 5→1, and a louder 1320 Hz pip at 0.
             const isFinal = secsLeft === 0;
@@ -2588,6 +2601,25 @@
             osc.connect(gain).connect(ctx.destination);
             osc.start(t);
             osc.stop(t + dur + 0.02);
+            scheduledBeepNodes.push(osc);
+        }
+
+        // Pre-schedule the final beeps (5..1) relative to the current seconds
+        // remaining, on the sample-accurate audio clock. Cancelled on
+        // pause/reset/expiry via cancelFinalBeeps().
+        function cancelFinalBeeps() {
+            finalBeepsScheduled = false;
+            scheduledBeepNodes.forEach((o) => { try { o.stop(0); o.disconnect(); } catch (_) {} });
+            scheduledBeepNodes = [];
+        }
+        function scheduleFinalBeeps(remainingNow) {
+            const ctx = getAudioCtx();
+            if (ctx.state === 'suspended') return;
+            const now = ctx.currentTime;
+            for (let s = Math.min(5, remainingNow); s >= 1; s--) {
+                const at = now + (remainingNow - s);
+                if (at >= now - 0.02) playTick(s, Math.max(now, at));
+            }
         }
 
         function playTimerEnd() {

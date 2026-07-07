@@ -8,6 +8,7 @@ const games = require('./games');
 const mountTrivia = require('./server/trivia');
 const mountTwentyFour = require('./server/twentyfour');
 const mountHerdMind = require('./server/herdmind');
+const mountBoggle = require('./server/noggle');
 const app = express();
 
 app.set('trust proxy', 1);
@@ -753,6 +754,9 @@ mountTwentyFour(app, httpServer, { getPublicBaseUrl });
 // Mount the "Herd Mind" game (Socket.IO namespace + REST endpoints + page routes).
 mountHerdMind(app, httpServer, { getPublicBaseUrl });
 
+// Mount the Boggle word game (Socket.IO namespace + REST endpoints + page routes).
+mountBoggle(app, httpServer, { getPublicBaseUrl });
+
 httpServer.listen(PORT, '0.0.0.0', () => {
     console.log('');
     console.log('═══════════════════════════════════════════');
@@ -761,13 +765,12 @@ httpServer.listen(PORT, '0.0.0.0', () => {
     if (process.env.RENDER_EXTERNAL_URL) {
         console.log(`  Live at: ${process.env.RENDER_EXTERNAL_URL}`);
     } else {
-        console.log(`  Hub:          http://localhost:${PORT}`);
-        console.log(`  Empire Host:  http://localhost:${PORT}/empire/host`);
-        console.log(`  Empire Join:  http://${LOCAL_IP}:${PORT}/empire/join`);
-        console.log(`  Trivia Host:  http://localhost:${PORT}/trivia/host`);
-        console.log(`  Trivia Play:  http://${LOCAL_IP}:${PORT}/trivia/play`);
-        console.log(`  24 Host:      http://localhost:${PORT}/twentyfour/host`);
-        console.log(`  24 Play:      http://${LOCAL_IP}:${PORT}/twentyfour/play`);
+        console.log(`  Hub:            http://localhost:${PORT}`);
+        console.log(`  Empire Host:    http://localhost:${PORT}/empire/host`);
+        console.log(`  Trivia Host:    http://localhost:${PORT}/trivia/host`);
+        console.log(`  24 Host:        http://localhost:${PORT}/twentyfour/host`);
+        console.log(`  Herd Mind Host: http://localhost:${PORT}/herdmind/host`);
+        console.log(`  Noggle Host:    http://localhost:${PORT}/noggle/host`);
     }
     console.log('═══════════════════════════════════════════');
     console.log('');

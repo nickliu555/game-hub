@@ -60,7 +60,9 @@
 
                 card.innerHTML = `
                     <div class="game-card-header">
-                        <span class="game-emoji">${esc(game.emoji)}</span>
+                        <span class="game-emoji">${game.badgeText
+                            ? `<span class="game-badge" style="background:${esc(game.color || '#666')}">${esc(game.badgeText)}</span>`
+                            : esc(game.emoji)}</span>
                         <div class="game-info">
                             <div class="game-name">${esc(game.name)}</div>
                             <div class="game-tagline">${esc(game.tagline)}</div>

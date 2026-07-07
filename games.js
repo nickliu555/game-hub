@@ -47,6 +47,9 @@ const games = [
         name: '24',
         tagline: 'Race to 24 with four numbers and four operations',
         emoji: '🔢',
+        // Render a styled text badge (the orange "24" mark used on the game's
+        // own pages) on the hub card instead of a plain emoji.
+        badgeText: '24',
         color: '#F97316',
         playerCount: '1–20+',
         duration: '1–5 min',
@@ -88,6 +91,28 @@ const games = [
         ],
         hostPath: '/herdmind/host',
         playPath: '/herdmind/play',
+    },
+    {
+        id: 'noggle',
+        name: 'Noggle',
+        tagline: 'Find as many words as you can in the letter grid',
+        emoji: '🔠',
+        color: '#1E5F4F',
+        playerCount: '1–20+',
+        duration: '3–5 min',
+        description: 'Everyone gets the SAME randomly shaken letter grid on their phone. Race the clock to trace as many words as you can — letters must connect in a chain (any of the 8 directions). Longer words score more. Official word-hunt rules and scoring, on boards from 4×4 up to 6×6.',
+        rules: [
+            'The host opens the game on a shared screen (TV, laptop, etc.)',
+            'Players scan the QR code on their phones and enter a name',
+            'Host picks the board size (4×4, 5×5, or 6×6) and the time limit',
+            'When the round starts, everyone sees the exact same shaken grid',
+            'Trace a word by dragging across connected letters — horizontal, vertical, or diagonal neighbours',
+            'No reusing the same tile twice in one word; words must be in the dictionary',
+            'Longer words score more (3–4=1, 5=2, 6=3, 7=5, 8+=11 points); the "Qu" tile counts as two letters',
+            'When the timer hits zero, scores are revealed podium-style — highest total wins!'
+        ],
+        hostPath: '/noggle/host',
+        playPath: '/noggle/play',
     },
 ];
 
