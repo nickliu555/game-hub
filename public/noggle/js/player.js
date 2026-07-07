@@ -173,6 +173,12 @@
         return '<div class="b-tile" data-r="' + r + '" data-c="' + c + '">' + escapeHtml(disp) + '</div>';
       }).join('');
     }).join('');
+    // Overlay SVG for the trace connection line (drawn on top of the tiles,
+    // pointer-events:none so it never blocks the drag). Rebuilt with the board.
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'trace-layer');
+    svg.id = 'traceLayer';
+    playerBoard.appendChild(svg);
   }
 
   // ---------------- Trace input ----------------
@@ -234,6 +240,41 @@
     const has = path.length > 0;
     clearBtn.disabled = !has;
     submitBtn.disabled = !has;
+    updateTraceLine();
+  }
+
+  // Draw the connecting line through the centres of the traced tiles into the
+  // board's SVG overlay. Coordinates are the tiles' offsets within the board
+  // (their offsetParent), matched by the SVG viewBox, so it stays aligned at
+  // any board size.
+  function updateTraceLine() {
+    const svg = document.getElementById('traceLayer');
+    if (!svg) return;
+    const w = playerBoard.clientWidth;
+    const h = playerBoard.clientHeight;
+    if (!w || !h) { svg.innerHTML = ''; return; }
+    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    if (path.length === 0) { svg.innerHTML = ''; return; }
+    const pts = [];
+    for (let i = 0; i < path.length; i++) {
+      const p = path[i];
+      const t = playerBoard.querySelector('.b-tile[data-r="' + p.r + '"][data-c="' + p.c + '"]');
+      if (!t) continue;
+      pts.push([t.offsetLeft + t.offsetWidth / 2, t.offsetTop + t.offsetHeight / 2]);
+    }
+    if (!pts.length) { svg.innerHTML = ''; return; }
+    const strokeW = Math.max(6, w * 0.045);
+    let inner = '';
+    if (pts.length >= 2) {
+      const d = pts.map(function (pt, i) { return (i === 0 ? 'M' : 'L') + pt[0].toFixed(1) + ' ' + pt[1].toFixed(1); }).join(' ');
+      inner += '<path d="' + d + '" fill="none" stroke="#B47A17" stroke-opacity="0.85" stroke-width="' + strokeW.toFixed(1) + '" stroke-linecap="round" stroke-linejoin="round"/>';
+    }
+    // A dot at each node; the last one (current tile) is emphasised.
+    pts.forEach(function (pt, i) {
+      const r = (i === pts.length - 1) ? strokeW * 0.85 : strokeW * 0.5;
+      inner += '<circle cx="' + pt[0].toFixed(1) + '" cy="' + pt[1].toFixed(1) + '" r="' + r.toFixed(1) + '" fill="#B47A17" fill-opacity="0.9"/>';
+    });
+    svg.innerHTML = inner;
   }
   function displayWord(w) {
     // Render QU tiles as "Qu" within the uppercase word for readability.
