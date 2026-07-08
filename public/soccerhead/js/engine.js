@@ -68,7 +68,7 @@
   // A loftier boot: a big upward component so you can chip the ball up and over
   // a defender. Softer forward drive + a longer cooldown so it's a deliberate
   // shot, not a rapid-fire cannon that keepers can't react to.
-  const KICK_DUR = 0.30, KICK_CD = 0.52, FOOT_R = 30, KICK_VX = 730, KICK_VY = 950, KICK_LIFT = 190;
+  const KICK_DUR = 0.30, KICK_CD = 0.52, FOOT_R = 30, KICK_VX = 830, KICK_VY = 1040, KICK_LIFT = 190;
 
   // ---- Goal keep-out ----
   // An attacker can't crowd the mouth of the goal they're attacking, so you
