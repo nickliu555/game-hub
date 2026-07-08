@@ -26,6 +26,7 @@
         '<div class="icon">🔠</div>' +
         '<div class="title">' + title + '</div>' +
         '<div class="sub"><span class="pulse-dot"></span>' + sub + '</div>' +
+        '<a class="overlay-practice-link" href="/noggle/practice?from=join">Practice solo →</a>' +
       '</div>';
     document.body.appendChild(ov);
     return ov;

@@ -113,6 +113,7 @@ const games = [
         ],
         hostPath: '/noggle/host',
         playPath: '/noggle/play',
+        practicePath: '/noggle/practice?from=hub',
     },
     {
         id: 'soccerhead',

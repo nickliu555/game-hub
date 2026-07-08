@@ -6,7 +6,8 @@ const QRCode = require('qrcode');
 
 const { Game, PHASES } = require('./game');
 const { isBlocked } = require('./profanity');
-const { VALID_SIZES, DEFAULT_TIME_SEC, MIN_TIME_SEC, MAX_TIME_SEC, MIN_WORD_LEN } = require('./dice');
+const { solveBoardWords } = require('./dictionary');
+const { VALID_SIZES, DEFAULT_TIME_SEC, MIN_TIME_SEC, MAX_TIME_SEC, MIN_WORD_LEN, generateBoard } = require('./dice');
 
 const HOST_ROOM = 'hosts';
 const PLAYER_ROOM = 'players';
@@ -74,6 +75,11 @@ function mountBoggle(app, httpServer, opts) {
   app.get('/noggle/play', (_req, res) => {
     res.sendFile(path.join(__dirname, '..', '..', 'public', 'noggle', 'player.html'));
   });
+  // Solo practice mode — no socket connection; the client hunts words on a
+  // freshly shaken board with an open-ended (count-up) timer.
+  app.get('/noggle/practice', (_req, res) => {
+    res.sendFile(path.join(__dirname, '..', '..', 'public', 'noggle', 'practice.html'));
+  });
 
   // ---------------- REST endpoints ----------------
   app.get('/api/noggle/config', (_req, res) => {
@@ -86,6 +92,17 @@ function mountBoggle(app, httpServer, opts) {
       maxTimeSec: MAX_TIME_SEC,
       minWordLen: MIN_WORD_LEN,
     });
+  });
+
+  // Solo practice: shake a fresh board and return it with the full solved word
+  // list (word -> points) so the client can validate + reveal entirely offline.
+  app.get('/api/noggle/practice/board', (req, res) => {
+    let size = Number(req.query.size);
+    if (!VALID_SIZES.includes(size)) size = VALID_SIZES[0];
+    const minWordLen = MIN_WORD_LEN[size];
+    const grid = generateBoard(size);
+    const { words, totalWords, maxScore } = solveBoardWords(grid, minWordLen);
+    res.json({ ok: true, size, minWordLen, grid, words, totalWords, maxScore });
   });
 
   app.get('/api/noggle/qr', async (req, res) => {

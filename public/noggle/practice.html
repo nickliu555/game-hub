@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Noggle · Practice</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#1E5F4F">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/noggle/css/base.css" />
+  <link rel="stylesheet" href="/noggle/css/player.css" />
+  <link rel="stylesheet" href="/noggle/css/practice.css" />
+</head>
+<body class="player practice">
+  <div class="practice-shell">
+    <!-- Top bar: back + centered title + spacer -->
+    <div class="practice-header">
+      <button class="practice-back" id="backBtn" type="button" aria-label="Back">← Back</button>
+      <div class="practice-brand"><span class="brand-bg">🔠</span> Solo Practice</div>
+      <span class="practice-spacer" aria-hidden="true"></span>
+    </div>
+
+    <!-- Setup view: pick board size -->
+    <div class="practice-view" id="view-setup">
+      <div class="setup-hero">
+        <h1>Practice Mode</h1>
+        <p>Pick a board size and find as many words as you can — no time limit. The timer counts up so you can push for a personal best.</p>
+      </div>
+      <div class="size-picker" id="sizePicker">
+        <button class="size-card selected" data-size="4" type="button">
+          <span class="size-label">4×4</span>
+          <span class="size-sub">Classic · 3+ letters</span>
+        </button>
+        <button class="size-card" data-size="5" type="button">
+          <span class="size-label">5×5</span>
+          <span class="size-sub">Big · 4+ letters</span>
+        </button>
+        <button class="size-card" data-size="6" type="button">
+          <span class="size-label">6×6</span>
+          <span class="size-sub">Super · 4+ letters</span>
+        </button>
+      </div>
+      <button id="startBtn" class="btn-primary" type="button">Start Practicing</button>
+      <p class="setup-loading" id="setupLoading" hidden>Shaking the board…</p>
+      <p class="setup-error" id="setupError" hidden></p>
+    </div>
+
+    <!-- Active board view -->
+    <div class="practice-view" id="view-play" hidden>
+      <div class="practice-stats">
+        <div class="stat">
+          <span class="stat-icon">⏱</span>
+          <span class="stat-value" id="timerDisplay">0:00</span>
+        </div>
+        <div class="stat">
+          <span class="stat-icon">✓</span>
+          <span class="stat-value"><span id="foundCount">0</span>/<span id="totalCount">0</span></span>
+        </div>
+        <div class="stat">
+          <span class="stat-icon">★</span>
+          <span class="stat-value"><span id="scoreDisplay">0</span>/<span id="maxScoreDisplay">0</span></span>
+        </div>
+        <button class="stat stat-button" id="sizeChip" type="button" aria-label="Change board size">
+          <span class="stat-value" id="sizeDisplay">4×4</span>
+          <span class="stat-icon stat-caret">▾</span>
+        </button>
+      </div>
+
+      <div class="word-strip">
+        <div class="current-word empty" id="currentWord">Trace a word</div>
+        <div class="word-feedback" id="wordFeedback"></div>
+      </div>
+      <div class="board-holder">
+        <div class="b-board" id="playerBoard"></div>
+      </div>
+      <div class="found-section">
+        <div class="found-header">
+          <span>Your words</span>
+          <button type="button" class="found-reveal" id="revealBtn">See all words</button>
+        </div>
+        <div class="found-list" id="foundList"></div>
+      </div>
+      <div class="play-actions">
+        <button type="button" class="btn-ghost pa-btn" id="newBoardBtn">🔀 New Board</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reveal-all-words overlay -->
+  <div class="practice-overlay" id="revealOverlay" hidden>
+    <div class="overlay-card">
+      <h2>All words on this board</h2>
+      <p class="reveal-summary" id="revealSummary"></p>
+      <div class="reveal-list" id="revealList"></div>
+      <div class="overlay-actions">
+        <button id="revealCloseBtn" class="btn-secondary" type="button">Keep looking</button>
+        <button id="revealNewBtn" class="btn-primary" type="button">New Board →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change-size overlay -->
+  <div class="practice-overlay" id="sizeOverlay" hidden>
+    <div class="overlay-card">
+      <h2>Change board size</h2>
+      <div class="size-picker" id="changeSizePicker">
+        <button class="size-card" data-size="4" type="button">
+          <span class="size-label">4×4</span>
+          <span class="size-sub">Classic · 3+</span>
+        </button>
+        <button class="size-card" data-size="5" type="button">
+          <span class="size-label">5×5</span>
+          <span class="size-sub">Big · 4+</span>
+        </button>
+        <button class="size-card" data-size="6" type="button">
+          <span class="size-label">6×6</span>
+          <span class="size-sub">Super · 4+</span>
+        </button>
+      </div>
+      <p class="overlay-note">Switching shakes a fresh board of the new size.</p>
+      <div class="overlay-actions">
+        <button id="sizeCancelBtn" class="btn-secondary" type="button">Cancel</button>
+        <button id="sizeApplyBtn" class="btn-primary" type="button">Shake it</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/noggle/js/practice.js"></script>
+</body>
+</html>

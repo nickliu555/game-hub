@@ -53,6 +53,18 @@ A Boggle-style word hunt on a shared, randomly shaken letter grid.
 6. Minimum word length is **3** on 4×4 and **4** on the bigger boards
 7. **When the timer hits zero, scores are revealed podium-style — highest total wins!**
 
+Also includes a **Solo Practice** mode — pick a board size and hunt for words on a freshly shaken grid with no time limit (a count-up timer tracks your run). Tap **See all words** to reveal everything on the board and see how many you found.
+
+### ⚽ Soccer Head
+A fast, physics-y arcade soccer showdown played on the shared screen, with each phone as a live controller.
+
+1. It's **1v1** — one player on Team Red, one on Team Blue (or add a **CPU** opponent to play solo)
+2. The host sets the match length (**0:30–2:00**), then hits Start
+3. Your phone becomes a controller: **left/right** to move, **jump** and **kick** on the right
+4. **Double-tap** left or right for a quick **dash** (short cooldown) — dash into the ball for a power shot
+5. Head, body, or boot the ball into the opponent's net to score
+6. **Highest score when the timer hits zero wins — a tie goes to sudden-death golden goal**
+
 ## How It Works
 
 1. **The host** opens Game Hub on a laptop or TV screen and picks a game

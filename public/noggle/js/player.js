@@ -24,8 +24,6 @@
   const playerBoard = document.getElementById('playerBoard');
   const currentWordEl = document.getElementById('currentWord');
   const wordFeedbackEl = document.getElementById('wordFeedback');
-  const clearBtn = document.getElementById('clearBtn');
-  const submitBtn = document.getElementById('submitBtn');
   const foundList = document.getElementById('foundList');
   const foundCountEl = document.getElementById('foundCount');
 
@@ -237,9 +235,6 @@
       currentWordEl.textContent = 'Trace a word';
       currentWordEl.classList.add('empty');
     }
-    const has = path.length > 0;
-    clearBtn.disabled = !has;
-    submitBtn.disabled = !has;
     updateTraceLine();
   }
 
@@ -341,9 +336,6 @@
     if (e.pointerId !== activePointer) return;
     dragging = false; activePointer = null; dragStart = null;
   });
-
-  clearBtn.addEventListener('click', clearPath);
-  submitBtn.addEventListener('click', submitPath);
 
   let feedbackTimer = null;
   function setFeedback(kind, text) {

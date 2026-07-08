@@ -64,6 +64,18 @@ body.join * { touch-action: manipulation; }
   font-size: 11px;
   padding: 14px 12px 18px;
 }
+.player-attribution .practice-link {
+  display: inline-block;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  margin-bottom: 10px;
+}
+.player-attribution .practice-link:active { transform: scale(0.97); }
 
 /* Host-absent / round-locked overlays. */
 .host-absent-overlay {
@@ -88,6 +100,18 @@ body.join * { touch-action: manipulation; }
 .host-absent-card .icon { font-size: 40px; margin-bottom: 12px; }
 .host-absent-card .title { font-size: 24px; font-weight: 800; margin-bottom: 10px; }
 .host-absent-card .sub { color: rgba(255,255,255,0.8); font-size: 15px; line-height: 1.5; }
+.host-absent-card .overlay-practice-link {
+  display: inline-block;
+  margin-top: 20px;
+  padding: 12px 22px;
+  background: var(--accent);
+  color: #1A1A1A;
+  font-weight: 800;
+  font-size: 15px;
+  text-decoration: none;
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+}
 .pulse-dot {
   display: inline-block;
   width: 9px; height: 9px;

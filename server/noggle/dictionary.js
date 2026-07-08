@@ -125,4 +125,57 @@ function boardStats(board, minLen) {
   return { totalWords: found.size, maxScore, bestWord, bestPoints };
 }
 
-module.exports = { isWord, boardStats, loadWords };
+/**
+ * Solve the board and return the FULL word list (word -> points) plus totals.
+ * Used by solo Practice mode, which validates the player's traced words on the
+ * client against this set and can reveal everything at the end. Word length is
+ * measured in letters (the 'QU' tile is two).
+ *
+ * @param {string[][]} board
+ * @param {number} minLen minimum letter length (Qu = 2)
+ * @returns {{ words: Object<string, number>, totalWords: number, maxScore: number }}
+ */
+function solveBoardWords(board, minLen) {
+  const root = buildTrie();
+  const size = board.length;
+  const found = new Set();
+
+  const dfs = (r, c, visited, node, word) => {
+    const tile = board[r][c];
+    const next = descend(node, tile);
+    if (!next) return;
+    const w = word + tile;
+    if (next.$ && w.length >= minLen) found.add(w);
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        const nr = r + dr;
+        const nc = c + dc;
+        if (nr < 0 || nr >= size || nc < 0 || nc >= size) continue;
+        const key = nr * size + nc;
+        if (visited.has(key)) continue;
+        visited.add(key);
+        dfs(nr, nc, visited, next, w);
+        visited.delete(key);
+      }
+    }
+  };
+
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      const visited = new Set([r * size + c]);
+      dfs(r, c, visited, root, '');
+    }
+  }
+
+  const words = {};
+  let maxScore = 0;
+  for (const w of found) {
+    const pts = pointsForWord(w.length);
+    words[w] = pts;
+    maxScore += pts;
+  }
+  return { words, totalWords: found.size, maxScore };
+}
+
+module.exports = { isWord, boardStats, solveBoardWords, loadWords };
