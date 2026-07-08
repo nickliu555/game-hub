@@ -153,9 +153,10 @@
       }
       this.ball.x = W / 2;
       this.ball.y = 210;
-      // Give the conceding team a fair restart: nudge the ball toward the goal
-      // they attack (red attacks +x, blue -x), rather than the scorer's favour.
-      this.ball.vx = towardTeam === 'red' ? 60 : towardTeam === 'blue' ? -60 : 0;
+      // Bounce the ball toward the player who just conceded so they get first
+      // touch — toward their own side of the pitch (red spawns left, blue right).
+      // At the very start (towardTeam null) it just drops dead centre.
+      this.ball.vx = towardTeam === 'red' ? -170 : towardTeam === 'blue' ? 170 : 0;
       this.ball.vy = 0;
       this.ball.spin = 0;
       this.ball.hold = 0;

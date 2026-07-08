@@ -57,8 +57,13 @@
   let dashCooldownUntil = 0;
   let dashRingTimer = null;
   const activePointers = new Map(); // pointerId -> code
+  // Once kicked, this screen is terminal — ignore any later lobby/match
+  // broadcasts (the socket stays in the room briefly and would otherwise yank
+  // us back to the lobby view).
+  let kicked = false;
 
   function showView(name) {
+    if (kicked && name !== 'kicked') return;
     Object.keys(views).forEach(function (k) {
       if (views[k]) views[k].style.display = (k === name) ? '' : 'none';
     });
@@ -134,6 +139,7 @@
   });
   socket.on('player:rejected', function (p) {
     if (p && p.reason === 'kicked') {
+      kicked = true;
       localStorage.removeItem('soccerhead.playerId');
       releaseAll();
       showView('kicked');

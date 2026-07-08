@@ -186,8 +186,8 @@ body.host {
   font-weight: 600;
 }
 
-.lobby-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.config-hint { font-size: 14px; color: rgba(255,255,255,0.72); }
+.lobby-foot { display: flex; align-items: center; gap: 16px; }
+.config-hint { font-size: 14px; color: rgba(255,255,255,0.72); margin-left: auto; text-align: right; }
 .btn-start {
   background: var(--accent);
   color: #14202B;
