@@ -114,6 +114,28 @@ const games = [
         hostPath: '/noggle/host',
         playPath: '/noggle/play',
     },
+    {
+        id: 'soccerhead',
+        name: 'Soccer Head',
+        tagline: 'Big-head 2D soccer — your phone is the controller',
+        emoji: '⚽',
+        color: '#0E3A5F',
+        playerCount: '1–2 (+CPU)',
+        duration: '1–4 min',
+        description: 'A fast, physics-y arcade soccer showdown. The match plays out on the shared screen while each player uses their phone as a live controller — move, jump, and kick in real time. Go head-to-head 1v1, or add a CPU opponent to play solo. Highest score when the timer ends wins; a tie triggers sudden-death golden goal.',
+        rules: [
+            'The host opens the game on a shared screen (TV, laptop, etc.)',
+            'Players scan the QR code on their phones and enter a name',
+            'It\'s 1v1 — one player on Team Red, one on Team Blue (or add a CPU opponent)',
+            'The host sets the match length (1–4 min), then hits Start',
+            'Your phone becomes a controller: left/right to move, jump and kick on the right',
+            'Double-tap left or right for a quick dash (short cooldown)',
+            'Head, body, or boot the ball into the opponent\'s net to score',
+            'Highest score when the timer hits zero wins — a tie goes to sudden-death golden goal',
+        ],
+        hostPath: '/soccerhead/host',
+        playPath: '/soccerhead/play',
+    },
 ];
 
 module.exports = games;

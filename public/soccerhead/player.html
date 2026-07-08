@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Soccer Head · Play</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0E3A5F">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/soccerhead/css/base.css" />
+  <link rel="stylesheet" href="/soccerhead/css/player.css" />
+</head>
+<body class="player">
+  <div class="player-shell">
+
+    <!-- Lobby waiting -->
+    <div class="view-wait" id="view-lobby">
+      <div class="team-badge" id="lobbyTeamBadge">RED</div>
+      <div class="pulse">⚽</div>
+      <div class="wait-title" id="lobbyName">You're in!</div>
+      <div class="wait-sub">Waiting for the host to start the match…</div>
+    </div>
+
+    <!-- Controller (during a match) -->
+    <div id="view-controller" style="display:none;">
+      <!-- HUD -->
+      <div class="hud">
+        <div class="hud-score">
+          <span class="s-red" id="scoreRed">0</span>
+          <span class="s-sep">–</span>
+          <span class="s-blue" id="scoreBlue">0</span>
+        </div>
+        <div class="hud-clock" id="hudClock">0:00</div>
+        <div class="hud-you" id="hudYou">You're on <b>Red</b></div>
+      </div>
+
+      <!-- Gamepad -->
+      <div class="pad" id="pad">
+        <div class="pad-left">
+          <button type="button" class="mv-btn" id="btnLeft" data-btn="0" aria-label="Move left">
+            <span class="glyph">◀</span>
+            <span class="dash-ring" id="dashLeft"></span>
+          </button>
+          <button type="button" class="mv-btn" id="btnRight" data-btn="1" aria-label="Move right">
+            <span class="glyph">▶</span>
+            <span class="dash-ring" id="dashRight"></span>
+          </button>
+        </div>
+        <div class="pad-right">
+          <button type="button" class="act-btn act-jump" id="btnJump" data-btn="2" aria-label="Jump">
+            <span class="a-label">JUMP</span>
+          </button>
+          <button type="button" class="act-btn act-kick" id="btnKick" data-btn="3" aria-label="Kick">
+            <span class="a-label">KICK</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Pre-play / between-goal overlay -->
+      <div class="ctrl-overlay" id="ctrlOverlay" hidden>
+        <div class="co-count" id="coCount">3</div>
+        <div class="co-text" id="coText">Get ready…</div>
+      </div>
+
+      <!-- Goal / sudden-death flash -->
+      <div class="flash" id="flash" hidden><span id="flashText">GOAL!</span></div>
+    </div>
+
+    <!-- Final result -->
+    <div class="view-wait" id="view-final" style="display:none;">
+      <div class="final-emoji" id="finalEmoji">🏆</div>
+      <h1 class="final-title" id="finalTitle">You win!</h1>
+      <div class="final-score" id="finalScore">Red 0 – 0 Blue</div>
+      <div class="wait-sub">Look up at the host screen for the result.</div>
+    </div>
+
+    <!-- Removed by host -->
+    <div class="view-wait" id="view-kicked" style="display:none;">
+      <div class="kick-icon" aria-hidden="true">🚪</div>
+      <div class="wait-title">You were removed by the host.</div>
+      <div class="wait-sub">You can rejoin if the game is still open.</div>
+      <button type="button" class="btn-primary" id="kickRejoinBtn" style="margin-top:18px;">Rejoin</button>
+    </div>
+  </div>
+
+  <!-- Rotate hint (portrait during a match) -->
+  <div class="rotate-hint" id="rotateHint" hidden>
+    <div class="rot-icon">📱↻</div>
+    <div class="rot-text">Rotate your phone sideways for the best controls</div>
+  </div>
+
+  <div class="player-attribution" id="playerAttribution">Developed by Nick Liu (with help from Claude)</div>
+
+  <!-- Host absent overlay -->
+  <div class="host-absent-overlay" id="hostAbsentOverlay" hidden>
+    <div class="host-absent-card">
+      <div class="icon">⚽</div>
+      <div class="title">No game in progress</div>
+      <div class="sub">
+        <span class="pulse-dot"></span>
+        The host isn't here right now. This page will unlock automatically when they return.
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/soccerhead/js/player.js"></script>
+</body>
+</html>

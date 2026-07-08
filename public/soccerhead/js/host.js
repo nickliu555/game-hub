@@ -1,0 +1,679 @@
+(function () {
+  'use strict';
+
+  const socket = io('/soccerhead', { transports: ['polling', 'websocket'] });
+
+  // ---------------- Tunables ----------------
+  const FIXED_DT = 1 / 120;          // physics step
+  const MAX_STEPS = 20;              // guard against long frames
+  const COUNTDOWN_FROM = 3;
+  const COUNTDOWN_START_FROM = 5;    // longer count on the very first kickoff so players can settle in
+  const COUNTDOWN_STEP_MS = 850;
+  const GOAL_CELEBRATE_MS = 2400;
+  const CLOCK_EMIT_MS = 250;
+
+  // ---------------- Element refs ----------------
+  const views = {
+    lobby: document.getElementById('view-lobby'),
+    match: document.getElementById('view-match'),
+    final: document.getElementById('view-final'),
+  };
+  function show(name) {
+    Object.keys(views).forEach(function (k) { views[k].classList.toggle('active', k === name); });
+  }
+
+  const qrSlot = document.getElementById('qrSlot');
+  const joinUrlEl = document.getElementById('joinUrl');
+  const playerCountEl = document.getElementById('playerCount');
+  const playerCapEl = document.getElementById('playerCap');
+  const addBotBtn = document.getElementById('addBotBtn');
+  const durRange = document.getElementById('durRange');
+  const durVal = document.getElementById('durVal');
+  const slotsRed = document.getElementById('slotsRed');
+  const slotsBlue = document.getElementById('slotsBlue');
+  const colRed = document.getElementById('colRed');
+  const colBlue = document.getElementById('colBlue');
+  const configHint = document.getElementById('configHint');
+  const startBtn = document.getElementById('startBtn');
+
+  const canvas = document.getElementById('pitch');
+  const sbRedName = document.getElementById('sbRedName');
+  const sbBlueName = document.getElementById('sbBlueName');
+  const sbRedScore = document.getElementById('sbRedScore');
+  const sbBlueScore = document.getElementById('sbBlueScore');
+  const sbClock = document.getElementById('sbClock');
+  const sbTag = document.getElementById('sbTag');
+  const countOverlay = document.getElementById('countOverlay');
+  const coNum = document.getElementById('coNum');
+  const goalBanner = document.getElementById('goalBanner');
+  const gbText = document.getElementById('gbText');
+  const gbSub = document.getElementById('gbSub');
+
+  const finalTrophy = document.getElementById('finalTrophy');
+  const finalHeading = document.getElementById('finalHeading');
+  const fsRed = document.getElementById('fsRed');
+  const fsBlue = document.getElementById('fsBlue');
+  const finalRosters = document.getElementById('finalRosters');
+  const playAgainBtn = document.getElementById('playAgainBtn');
+
+  const fullscreenBtn = document.getElementById('fullscreenBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  // ---------------- Modal helpers (match other games) ----------------
+  function showInlineConfirm(message, onYes, opts) {
+    if (typeof window.showConfirm !== 'function') {
+      if (window.confirm(message)) onYes && onYes();
+      return;
+    }
+    const okLabel = (opts && opts.okLabel) || 'Yes';
+    window.showConfirm(message, okLabel, opts || {}).then(function (ok) { if (ok) onYes && onYes(); });
+  }
+  function showToast(message) {
+    if (typeof window.showToast === 'function' && window.showToast !== showToast) { window.showToast(message); return; }
+    const t = document.createElement('div');
+    t.className = 'inline-toast';
+    t.textContent = message;
+    document.body.appendChild(t);
+    setTimeout(function () { t.classList.add('visible'); }, 10);
+    setTimeout(function () { t.classList.remove('visible'); setTimeout(function () { t.remove(); }, 300); }, 3000);
+  }
+
+  // ---------------- Wake Lock ----------------
+  let wakeLock = null;
+  async function acquireWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', function () { wakeLock = null; });
+    } catch (e) { wakeLock = null; }
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && wakeLock === null) acquireWakeLock();
+  });
+  acquireWakeLock();
+
+  // ---------------- Fullscreen ----------------
+  fullscreenBtn && fullscreenBtn.addEventListener('click', function () {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(function () {});
+    else document.exitFullscreen();
+  });
+  document.addEventListener('fullscreenchange', function () {
+    if (!fullscreenBtn) return;
+    fullscreenBtn.textContent = document.fullscreenElement ? '⛶ Exit' : '⛶ Fullscreen';
+  });
+
+  // ---------------- Reset + Hub ----------------
+  resetBtn && resetBtn.addEventListener('click', function () {
+    showInlineConfirm('Reset the entire game? All players will be kicked.', function () {
+      socket.emit('host:reset', {});
+    }, { okLabel: 'Reset', danger: true });
+  });
+  const hubBtn = document.getElementById('hubBtn');
+  if (hubBtn) {
+    hubBtn.addEventListener('click', function (e) {
+      e.preventDefault();
+      const origin = { clientX: e.clientX, clientY: e.clientY, currentTarget: hubBtn };
+      showInlineConfirm('Leaving will reset the game and kick all players. Go back to the hub?', function () {
+        let navigated = false;
+        const go = function () {
+          if (navigated) return;
+          navigated = true;
+          if (window.Iris && typeof window.Iris.transitionTo === 'function') {
+            window.Iris.transitionTo('/', origin, { emoji: '🎮', name: 'Game Hub', color: '#1b2838' });
+          } else { window.location.href = '/'; }
+        };
+        socket.emit('host:leave', {}, go);
+        setTimeout(go, 600);
+      }, { okLabel: 'Leave & Reset', danger: true });
+    });
+  }
+
+  // ---------------- Audio (WebAudio, no external assets) ----------------
+  let audioCtx = null;
+  function getAudioCtx() {
+    if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) {} }
+    return audioCtx;
+  }
+  function unlockAudio() { const c = getAudioCtx(); if (c && c.state === 'suspended') c.resume(); }
+  // First interaction anywhere unlocks audio so the lobby join ding can play.
+  document.addEventListener('pointerdown', unlockAudio, { once: true });
+  // A friendly two-note ding when a new player joins the lobby (matches the
+  // other games' host lobby ding).
+  function playJoinDing() {
+    const c = getAudioCtx(); if (!c || c.state === 'suspended') return;
+    const o = c.createOscillator(); const g = c.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(880, c.currentTime);
+    o.frequency.setValueAtTime(1174.66, c.currentTime + 0.08);
+    g.gain.setValueAtTime(0.3, c.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.4);
+    o.connect(g); g.connect(c.destination);
+    o.start(c.currentTime); o.stop(c.currentTime + 0.4);
+  }
+  function blip(freq, dur, type, gain, when) {
+    const c = getAudioCtx(); if (!c) return;
+    const t = when || c.currentTime;
+    const o = c.createOscillator(); const g = c.createGain();
+    o.type = type || 'sine'; o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain || 0.2, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(c.destination);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  function playWhistle() {
+    const c = getAudioCtx(); if (!c) return;
+    blip(1650, 0.16, 'square', 0.12);
+    blip(2100, 0.16, 'square', 0.1, c.currentTime + 0.05);
+  }
+  function playKick() { blip(150, 0.09, 'triangle', 0.22); }
+  function playGoal() {
+    const c = getAudioCtx(); if (!c) return;
+    const base = c.currentTime;
+    [523, 659, 784, 1047].forEach(function (f, i) { blip(f, 0.35, 'sawtooth', 0.14, base + i * 0.08); });
+    // crowd noise burst
+    try {
+      const dur = 1.0;
+      const buf = c.createBuffer(1, c.sampleRate * dur, c.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+      const src = c.createBufferSource(); src.buffer = buf;
+      const g = c.createGain(); g.gain.value = 0.08;
+      const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1000;
+      src.connect(f); f.connect(g); g.connect(c.destination);
+      src.start();
+    } catch (_) {}
+  }
+
+  // ---------------- Lobby state ----------------
+  let lobby = { mode: '1v1', durationSec: 90, capacity: 2, perTeam: 1, total: 0, teams: { red: [], blue: [] }, canStart: false };
+  const teamOf = {}; // pid -> 'red'|'blue'
+  let lastLobbyHumanTotal = -1; // for the join ding (edge-detect new arrivals)
+
+  function fmtClock(ms) {
+    const total = Math.max(0, Math.ceil(ms / 1000));
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  function fmtDur(sec) { const m = Math.floor(sec / 60); const s = sec % 60; return m + ':' + (s < 10 ? '0' : '') + s; }
+
+  function renderQR() {
+    fetch('/api/soccerhead/config')
+      .then(function (r) { return r.json(); })
+      .then(function (cfg) {
+        const url = (cfg && cfg.joinUrl) || (window.location.origin + '/soccerhead/join');
+        joinUrlEl.textContent = url.replace(/^https?:\/\//, '');
+        return fetch('/api/soccerhead/qr?url=' + encodeURIComponent(url));
+      })
+      .then(function (r) { return r.text(); })
+      .then(function (svg) { qrSlot.innerHTML = svg; })
+      .catch(function () {});
+  }
+
+  function chip(p, team) {
+    const el = document.createElement('div');
+    el.className = 'player-chip' + (p.connected === false ? ' disconnected' : '') + (p.isBot ? ' is-bot' : '');
+    el.draggable = true;
+    el.dataset.pid = p.id;
+    const label = document.createElement('span');
+    label.className = 'chip-name';
+    label.textContent = p.name;
+    const kick = document.createElement('button');
+    kick.className = 'chip-kick';
+    kick.type = 'button';
+    kick.textContent = '✕';
+    kick.title = p.isBot ? 'Remove CPU' : 'Remove player';
+    kick.addEventListener('click', function (e) {
+      e.stopPropagation();
+      socket.emit('host:kick', { playerId: p.id });
+    });
+    el.appendChild(label);
+    el.appendChild(kick);
+    // Click-to-swap (touch-host fallback).
+    el.addEventListener('click', function () {
+      const to = team === 'red' ? 'blue' : 'red';
+      socket.emit('host:assign', { playerId: p.id, team: to });
+    });
+    el.addEventListener('dragstart', function (e) {
+      el.classList.add('dragging');
+      try { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; } catch (_) {}
+    });
+    el.addEventListener('dragend', function () { el.classList.remove('dragging'); });
+    return el;
+  }
+
+  function renderLobby(l) {
+    if (!l) return;
+    lobby = l;
+    // Ding when a new (human) player joins the lobby.
+    const humanTotal = l.teams.red.concat(l.teams.blue).filter(function (p) { return !p.isBot; }).length;
+    if (lastLobbyHumanTotal >= 0 && humanTotal > lastLobbyHumanTotal) playJoinDing();
+    lastLobbyHumanTotal = humanTotal;
+    // Counts.
+    playerCountEl.textContent = l.total;
+    playerCapEl.textContent = l.capacity;
+    // Duration.
+    durRange.value = l.durationSec;
+    durVal.textContent = fmtDur(l.durationSec);
+    // Teams.
+    Object.keys(teamOf).forEach(function (k) { delete teamOf[k]; });
+    function fill(slotEl, arr, team) {
+      slotEl.innerHTML = '';
+      arr.forEach(function (p) { teamOf[p.id] = team; slotEl.appendChild(chip(p, team)); });
+      for (let i = arr.length; i < l.perTeam; i++) {
+        const e = document.createElement('div');
+        e.className = 'slot-empty';
+        e.textContent = 'Open spot';
+        slotEl.appendChild(e);
+      }
+    }
+    fill(slotsRed, l.teams.red, 'red');
+    fill(slotsBlue, l.teams.blue, 'blue');
+    // Start + hint.
+    startBtn.disabled = !l.canStart;
+    if (addBotBtn) addBotBtn.disabled = l.total >= l.capacity;
+    if (l.total < l.capacity) configHint.textContent = '';
+    else if (!l.canStart) configHint.textContent = 'Teams must be even to start.';
+    else configHint.textContent = '';
+  }
+
+  // Drop zones.
+  [colRed, colBlue].forEach(function (col) {
+    const team = col.dataset.team;
+    col.addEventListener('dragover', function (e) { e.preventDefault(); col.classList.add('drag-over'); });
+    col.addEventListener('dragleave', function () { col.classList.remove('drag-over'); });
+    col.addEventListener('drop', function (e) {
+      e.preventDefault();
+      col.classList.remove('drag-over');
+      let pid = '';
+      try { pid = e.dataTransfer.getData('text/plain'); } catch (_) {}
+      if (pid) socket.emit('host:assign', { playerId: pid, team: team });
+    });
+  });
+
+  addBotBtn && addBotBtn.addEventListener('click', function () {
+    socket.emit('host:addBot', {}, function (res) {
+      if (res && !res.ok) showToast(res.reason === 'game-full' ? 'The match is already full.' : 'Could not add a CPU.');
+    });
+  });
+  let durTimer = null;
+  durRange.addEventListener('input', function () {
+    durVal.textContent = fmtDur(Number(durRange.value));
+    if (durTimer) clearTimeout(durTimer);
+    durTimer = setTimeout(function () {
+      socket.emit('host:setDuration', { durationSec: Number(durRange.value) });
+    }, 120);
+  });
+
+  startBtn.addEventListener('click', function () {
+    unlockAudio();
+    socket.emit('host:start', {}, function (res) {
+      if (!res || !res.ok) { showToast('Can\'t start yet — teams must be full and even.'); return; }
+      startMatch(res.roster, res.durationSec, res.mode, null);
+    });
+  });
+
+  // ---------------- Match engine ----------------
+  let world = null, renderer = null, rafId = null, lastFrame = 0, acc = 0;
+  let matchState = 'idle'; // idle | countdown | play | goal | ended
+  let redScore = 0, blueScore = 0, clockMs = 0, sudden = false;
+  let durationSec = 90, mode = '1v1', roster = [];
+  let redNames = 'Red', blueNames = 'Blue';
+  let lastClockEmit = 0;
+  let countdownTimer = null;
+  let prevKick = {}; // pid -> bool (kick-sound edge detection)
+  let botIds = [];   // roster ids driven locally by the CPU AI
+  let botState = {}; // per-bot AI scratch state
+
+  function rosterNames(team) {
+    const names = roster.filter(function (r) { return r.team === team; }).map(function (r) { return r.name; });
+    if (!names.length) return team === 'red' ? 'Red' : 'Blue';
+    return names.join(' & ');
+  }
+
+  function startMatch(rost, durSec, m, initial) {
+    roster = rost || [];
+    mode = m || '1v1';
+    durationSec = durSec || 90;
+    redScore = initial ? initial.red : 0;
+    blueScore = initial ? initial.blue : 0;
+    clockMs = initial ? initial.clockMs : durationSec * 1000;
+    sudden = initial ? !!initial.sudden : false;
+    redNames = rosterNames('red');
+    blueNames = rosterNames('blue');
+    sbRedName.textContent = redNames.length > 18 ? 'Red' : redNames;
+    sbBlueName.textContent = blueNames.length > 18 ? 'Blue' : blueNames;
+
+    world = new window.SoccerHead.World({ mode: mode });
+    world.setRoster(roster);
+    world.frozen = true;
+    renderer = new window.SoccerHeadRender.Renderer(canvas, world);
+    prevKick = {};
+    // Any roster entry flagged isBot is driven locally by the CPU AI.
+    botIds = roster.filter(function (r) { return r.isBot; }).map(function (r) { return r.id; });
+    botState = {};
+    botIds.forEach(function (id) { botState[id] = { jumpCd: 0, holdJump: 0 }; });
+
+    show('match');
+    // Canvas now has layout size — size the renderer to it.
+    requestAnimationFrame(function () { renderer.resize(); });
+    updateScoreboard();
+    startLoop();
+    beginCountdown(null, COUNTDOWN_START_FROM);
+  }
+
+  function startLoop() {
+    if (rafId) cancelAnimationFrame(rafId);
+    lastFrame = performance.now();
+    acc = 0;
+    rafId = requestAnimationFrame(loop);
+  }
+  function stopLoop() { if (rafId) { cancelAnimationFrame(rafId); rafId = null; } }
+
+  function loop(now) {
+    rafId = requestAnimationFrame(loop);
+    let dt = (now - lastFrame) / 1000;
+    lastFrame = now;
+    if (dt > 0.1) dt = 0.1;
+
+    if (matchState === 'play' && world) {
+      driveBots(dt);
+      acc += dt;
+      let steps = 0;
+      let scored = null;
+      while (acc >= FIXED_DT && steps < MAX_STEPS) {
+        scored = world.step(FIXED_DT);
+        acc -= FIXED_DT;
+        steps++;
+        if (scored) break;
+      }
+      detectKickSfx();
+      if (scored) { onGoal(scored); }
+      else {
+        // A stuck ball was just lifted clear — cue it so players notice.
+        if (world.pendingBallDrop) {
+          const d = world.pendingBallDrop; world.pendingBallDrop = null;
+          renderer && renderer.spawnBurst(d.x, d.y + 24, '#ffd54a', 12, 240);
+          blip(720, 0.08, 'square', 0.12);
+          blip(960, 0.09, 'square', 0.1, getAudioCtx() ? getAudioCtx().currentTime + 0.06 : 0);
+        }
+        // Advance the match clock in real time.
+        clockMs -= dt * 1000;
+        if (!sudden && clockMs <= 0) { clockMs = 0; handleTimeUp(); }
+        updateScoreboard();
+        const t = now;
+        if (t - lastClockEmit >= CLOCK_EMIT_MS) {
+          lastClockEmit = t;
+          socket.emit('host:clock', { ms: Math.max(0, clockMs), sudden: sudden });
+        }
+      }
+    }
+
+    if (renderer) renderer.render(dt);
+  }
+
+  function detectKickSfx() {
+    if (!world) return;
+    for (const p of world.players) {
+      const on = p.kick > 0;
+      if (on && !prevKick[p.id]) {
+        playKick();
+        renderer && renderer.spawnKick(p.x + p.facing * 44, p.y - 26);
+      }
+      prevKick[p.id] = on;
+    }
+  }
+
+  // ---------------- CPU / bot AI (driven locally on the host) ----------------
+  function driveBots(dt) {
+    if (!world || !botIds.length) return;
+    for (let i = 0; i < botIds.length; i++) {
+      const p = world.byId.get(botIds[i]);
+      if (!p) continue;
+      botThink(p, botState[p.id] || (botState[p.id] = { jumpCd: 0, holdJump: 0 }), dt);
+    }
+  }
+  function botThink(p, st, dt) {
+    // Human-like reaction: refresh the decision every ~70–130ms and hold it in
+    // between (so the bot isn't a frame-perfect wall — it's beatable and reads
+    // as "thinking"). Timers still tick every frame.
+    if (st.holdJump > 0) st.holdJump -= dt;
+    if (st.jumpCd > 0) st.jumpCd -= dt;
+    st.react = (st.react || 0) - dt;
+    if (st.react <= 0) {
+      st.react = 0.07 + Math.random() * 0.06;
+      botDecide(p, st);
+    }
+    world.setInput(p.id, 0, st.moveDir < 0);
+    world.setInput(p.id, 1, st.moveDir > 0);
+    world.setInput(p.id, 3, !!st.kick);
+    if (st.wantJump && p.grounded && st.jumpCd <= 0) { st.holdJump = 0.22; st.jumpCd = 0.6; st.wantJump = false; }
+    world.setInput(p.id, 2, st.holdJump > 0);
+    if (st.wantDash && p.dashCd <= 0 && p.dash <= 0) { world.dash(p.id, p.facing); st.wantDash = false; }
+  }
+
+  function botDecide(p, st) {
+    const b = world.ball;
+    const Wd = world.field.W;
+    const facing = p.facing;                 // red +1 attacks right, blue -1 attacks left
+    const ownGoalX = facing === 1 ? 0 : Wd;
+
+    // Who is closer to the ball? (press vs hold)
+    let opp = null;
+    for (let i = 0; i < world.players.length; i++) {
+      const q = world.players[i];
+      if (q.team !== p.team) { opp = q; break; }
+    }
+    const dist = Math.abs(b.x - p.x);
+    const oppDist = opp ? Math.abs(b.x - opp.x) : 9999;
+    const amCloser = dist <= oppDist + 20;
+
+    // Forwardness: 0 at our own goal, Wd at the opponent's goal.
+    const ballFwd = facing * (b.x - ownGoalX);
+    const ballOnOwnHalf = ballFwd < Wd * 0.5;
+    // Press if we can win it OR it threatens our half; else retreat and guard.
+    const commit = amCloser || ballOnOwnHalf;
+    let desiredFwd = ballFwd - 44;           // goal-side of the ball
+    if (!commit) {
+      desiredFwd = Math.min(desiredFwd, Wd * 0.30); // drop into our own third
+      desiredFwd = Math.max(desiredFwd, Wd * 0.14);
+    }
+    desiredFwd = Math.max(12, Math.min(Wd * 0.78, desiredFwd));
+    const desiredX = ownGoalX + facing * desiredFwd + (Math.random() * 2 - 1) * 12; // small aim error
+
+    const dx = desiredX - p.x;
+    st.moveDir = dx < -10 ? -1 : dx > 10 ? 1 : 0;
+
+    const inFront = facing * (b.x - p.x) > -16;
+    const reachable = b.y > p.y - 150;
+    st.kick = dist < 82 && inFront && reachable && Math.random() < 0.9; // occasional mistime
+
+    st.wantJump = b.y < p.y - 120 && dist < 105 && b.vy > -60;
+
+    const ahead = facing * (b.x - p.x);
+    const inAtkHalf = ballFwd > Wd * 0.5;
+    st.wantDash = commit && amCloser && inAtkHalf && ahead > 55 && ahead < 190 && Math.abs(b.y - p.y) < 130;
+  }
+
+  function beginCountdown(concedeTeam, fromN) {
+    matchState = 'countdown';
+    if (world) { world.kickoff(concedeTeam); world.frozen = true; }
+    goalBanner.hidden = true;
+    updateScoreboard();
+    if (countdownTimer) clearInterval(countdownTimer);
+    let n = fromN || COUNTDOWN_FROM;
+    function showN(v) {
+      countOverlay.hidden = false;
+      coNum.textContent = v;
+      coNum.style.animation = 'none'; void coNum.offsetWidth; coNum.style.animation = '';
+      socket.emit('host:countdown', { n: v });
+      blip(440, 0.1, 'square', 0.12);
+    }
+    showN(n);
+    countdownTimer = setInterval(function () {
+      n--;
+      if (n >= 1) { showN(n); }
+      else { clearInterval(countdownTimer); countdownTimer = null; beginPlay(); }
+    }, COUNTDOWN_STEP_MS);
+  }
+
+  function beginPlay() {
+    countOverlay.hidden = true;
+    matchState = 'play';
+    if (world) world.frozen = false;
+    acc = 0;
+    lastFrame = performance.now();
+    lastClockEmit = 0;
+    socket.emit('host:play', {});
+    playWhistle();
+  }
+
+  function onGoal(team) {
+    matchState = 'goal';
+    if (world) world.frozen = true;
+    if (team === 'red') redScore++; else blueScore++;
+    updateScoreboard();
+    // Banner + fx: the scorer's name is the headline; "GOAL!!" is the topper.
+    gbText.textContent = (team === 'red' ? redNames : blueNames);
+    gbText.style.color = team === 'red' ? 'var(--red-soft)' : 'var(--blue-soft)';
+    if (gbSub) gbSub.textContent = 'GOAL!!';
+    goalBanner.hidden = false;
+    gbText.style.animation = 'none'; void gbText.offsetWidth; gbText.style.animation = '';
+    if (gbSub) { gbSub.style.animation = 'none'; void gbSub.offsetWidth; gbSub.style.animation = ''; }
+    if (renderer && world) {
+      const col = team === 'red' ? '#E43B3B' : '#2F7DE0';
+      renderer.spawnGoal(world.ball.x, world.ball.y, col);
+    }
+    playGoal();
+    socket.emit('host:goal', { team: team, red: redScore, blue: blueScore });
+
+    setTimeout(function () {
+      goalBanner.hidden = true;
+      if (sudden) { endMatch(team); return; }
+      if (clockMs <= 0) { endMatch(redScore > blueScore ? 'red' : blueScore > redScore ? 'blue' : null); return; }
+      const concede = team === 'red' ? 'blue' : 'red';
+      beginCountdown(concede);
+    }, GOAL_CELEBRATE_MS);
+  }
+
+  function handleTimeUp() {
+    if (redScore === blueScore) {
+      // Golden goal.
+      sudden = true;
+      socket.emit('host:sudden', {});
+      socket.emit('host:clock', { ms: 0, sudden: true });
+      updateScoreboard();
+      playWhistle();
+      // Brief announce banner.
+      gbText.textContent = 'SUDDEN DEATH';
+      gbText.style.color = 'var(--accent)';
+      if (gbSub) gbSub.textContent = '';
+      goalBanner.hidden = false;
+      gbText.style.animation = 'none'; void gbText.offsetWidth; gbText.style.animation = '';
+      setTimeout(function () { if (matchState === 'play') goalBanner.hidden = true; }, 1600);
+    } else {
+      endMatch(redScore > blueScore ? 'red' : 'blue');
+    }
+  }
+
+  function endMatch(winner) {
+    matchState = 'ended';
+    if (world) world.frozen = true;
+    socket.emit('host:matchEnd', { winner: winner, red: redScore, blue: blueScore });
+    playWhistle();
+    setTimeout(playGoal, 200);
+    setTimeout(function () { stopLoop(); renderFinal({ winner: winner, red: redScore, blue: blueScore }); }, 1600);
+  }
+
+  function updateScoreboard() {
+    sbRedScore.textContent = redScore;
+    sbBlueScore.textContent = blueScore;
+    sbClock.textContent = sudden ? '0:00' : fmtClock(clockMs);
+    sbClock.classList.toggle('urgent', !sudden && clockMs <= 10000);
+    sbTag.hidden = !sudden;
+  }
+
+  function renderFinal(d) {
+    const winner = d.winner;
+    fsRed.textContent = d.red;
+    fsBlue.textContent = d.blue;
+    if (!winner) { finalTrophy.textContent = '🤝'; finalHeading.textContent = 'It\'s a draw!'; }
+    else {
+      finalTrophy.textContent = '🏆';
+      finalHeading.textContent = 'Team ' + (winner === 'red' ? 'Red' : 'Blue') + ' wins!';
+      finalHeading.style.color = winner === 'red' ? 'var(--red-soft)' : 'var(--blue-soft)';
+    }
+    finalRosters.innerHTML = '';
+    ['red', 'blue'].forEach(function (team) {
+      const col = document.createElement('div');
+      col.className = 'fr-col';
+      const title = document.createElement('div');
+      title.className = 'fr-title';
+      title.style.color = team === 'red' ? 'var(--red-soft)' : 'var(--blue-soft)';
+      title.textContent = team === 'red' ? 'Red' : 'Blue';
+      col.appendChild(title);
+      roster.filter(function (r) { return r.team === team; }).forEach(function (r) {
+        const n = document.createElement('div'); n.textContent = r.name; col.appendChild(n);
+      });
+      finalRosters.appendChild(col);
+    });
+    show('final');
+  }
+
+  playAgainBtn.addEventListener('click', function () {
+    socket.emit('host:reset', {});
+  });
+
+  // ---------------- Input relay from players ----------------
+  socket.on('in', function (d) { if (world && d) world.setInput(d.id, d.c, d.d === 1); });
+  socket.on('dash', function (d) { if (world && d) world.dash(d.id, d.dir); });
+  socket.on('player:dropped', function (d) {
+    if (!world || !d) return;
+    const p = world.byId.get(d.id);
+    if (p) { p.connected = false; world.clearInputs(d.id); }
+  });
+  socket.on('player:rejoined', function (d) {
+    if (!world || !d) return;
+    const p = world.byId.get(d.id);
+    if (p) p.connected = true;
+  });
+
+  // ---------------- Boot ----------------
+  socket.on('connect', function () {
+    socket.emit('host:auth', {}, function (res) {
+      if (!res || !res.ok) return;
+      renderQR();
+      renderLobby(res.lobby);
+      if (res.phase === 'LOBBY') show('lobby');
+      else if (res.phase === 'PLAYING' && res.match) {
+        // Host refreshed mid-match: resume from a fresh kickoff, preserving
+        // the cached score + clock (physics positions can't be restored).
+        startMatch(res.match.roster, res.match.durationSec, res.match.mode, {
+          red: res.match.redScore, blue: res.match.blueScore,
+          clockMs: res.match.clockMs, sudden: res.match.sudden,
+        });
+      } else if (res.phase === 'FINAL' && res.match) {
+        roster = res.match.roster || [];
+        redScore = res.match.redScore; blueScore = res.match.blueScore;
+        renderFinal({ winner: res.match.winner, red: res.match.redScore, blue: res.match.blueScore });
+      }
+      if (window.Iris && typeof window.Iris.ready === 'function') window.Iris.ready();
+    });
+  });
+
+  socket.on('state:lobby', function (l) {
+    if (l && l.phase === 'LOBBY') { renderLobby(l); if (!views.match.classList.contains('active') && !views.final.classList.contains('active')) show('lobby'); }
+  });
+  socket.on('state:reset', function () {
+    stopLoop();
+    matchState = 'idle';
+    world = null; renderer = null;
+    redScore = blueScore = 0; sudden = false;
+    lastLobbyHumanTotal = -1;
+    show('lobby');
+  });
+
+  // ---------------- Resize ----------------
+  window.addEventListener('resize', function () { if (renderer) renderer.resize(); });
+})();

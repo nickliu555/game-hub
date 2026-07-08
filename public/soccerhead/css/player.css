@@ -1,0 +1,220 @@
+/* Soccer Head · player controller — a fullscreen, no-scroll gamepad.
+   The control surface uses touch-action:none (it is NOT a scrolling page), so
+   pinch-zoom and double-tap-zoom are impossible while playing — players hammer
+   these buttons constantly. */
+html, body { height: 100%; }
+body.player {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: linear-gradient(160deg, var(--bg) 0%, var(--bg-deep) 100%);
+  color: #fff;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+/* Belt-and-suspenders: no gesture zoom anywhere on the controller. */
+body.player * { touch-action: none; }
+
+.player-shell { position: fixed; inset: 0; }
+body.player[data-team="red"] { --me: var(--red); --me-deep: var(--red-deep); --me-soft: var(--red-soft); }
+body.player[data-team="blue"] { --me: var(--blue); --me-deep: var(--blue-deep); --me-soft: var(--blue-soft); }
+
+/* ---------------- Waiting / lobby / final ---------------- */
+.view-wait {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 28px;
+  gap: 6px;
+}
+.team-badge {
+  font-weight: 900;
+  font-size: 15px;
+  letter-spacing: 0.14em;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: var(--me, var(--red));
+  color: #fff;
+  margin-bottom: 8px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+}
+.view-wait .pulse { font-size: 62px; animation: bob 1.6s ease-in-out infinite; }
+@keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+.wait-title { font-size: 24px; font-weight: 800; }
+.wait-sub { color: rgba(255,255,255,0.75); font-size: 15px; max-width: 300px; line-height: 1.5; }
+.kick-icon { font-size: 60px; margin-bottom: 6px; }
+.final-emoji { font-size: 72px; }
+.final-title { font-size: 30px; margin: 6px 0; }
+.final-score { font-size: 18px; font-weight: 700; color: rgba(255,255,255,0.9); margin-bottom: 8px; }
+
+/* ---------------- Controller ---------------- */
+#view-controller { position: absolute; inset: 0; display: flex; flex-direction: column; }
+
+/* The player screen is JUST the gamepad — score, clock and team label live on
+   the host screen, so the HUD is hidden to keep the controller uncluttered. */
+.hud { display: none; }
+.hud-legacy {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px calc(6px + env(safe-area-inset-top)) 16px;
+  padding-top: max(10px, env(safe-area-inset-top));
+}
+.hud-score { font-size: 26px; font-weight: 900; letter-spacing: 0.02em; }
+.hud-score .s-red { color: var(--red-soft); }
+.hud-score .s-blue { color: var(--blue-soft); }
+.hud-score .s-sep { color: rgba(255,255,255,0.5); margin: 0 6px; }
+.hud-clock {
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  background: rgba(0,0,0,0.28);
+  padding: 4px 14px;
+  border-radius: 999px;
+  justify-self: center;
+}
+.hud-clock.urgent { color: #ffd0d0; animation: clockPulse 0.5s ease-in-out infinite; }
+.hud-clock.sudden { color: var(--accent); background: rgba(244,196,48,0.16); }
+@keyframes clockPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+.hud-you { font-size: 12px; text-align: right; color: rgba(255,255,255,0.72); justify-self: end; }
+.hud-you b { color: var(--me-soft, #fff); }
+
+.pad {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  padding: max(14px, env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
+  gap: 16px;
+}
+/* Both halves are identical: two equal, full-height pill buttons. Left half =
+   move ◀ ▶, right half = Jump + Kick. Big symmetric targets, easy to thumb. */
+.pad-left, .pad-right {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 14px;
+  min-height: 0;
+  min-width: 0;
+}
+
+.mv-btn, .act-btn {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  align-self: stretch;
+  border: none;
+  border-radius: 26px;
+  color: #fff;
+  font-weight: 900;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 7px 0 rgba(0,0,0,0.32), inset 0 2px 8px rgba(255,255,255,0.16);
+  transition: transform 0.05s ease, box-shadow 0.05s ease, filter 0.05s ease;
+  -webkit-tap-highlight-color: transparent;
+  padding: 0;
+}
+
+.mv-btn { background: linear-gradient(180deg, #43617a, #2a3f52); }
+.mv-btn .glyph { font-size: clamp(40px, 11vh, 72px); line-height: 1; pointer-events: none; }
+
+.act-btn { font-size: clamp(16px, 3.4vh, 24px); letter-spacing: 0.05em; }
+.act-btn .a-label { pointer-events: none; }
+.act-btn::before { font-size: clamp(34px, 9vh, 58px); line-height: 1; pointer-events: none; }
+.act-jump { background: radial-gradient(circle at 40% 28%, var(--good), #1c8a4f); }
+.act-jump::before { content: '▲'; }
+.act-kick { background: radial-gradient(circle at 40% 28%, var(--accent), var(--accent-deep)); color: #2a1e00; }
+.act-kick::before { content: '👟'; }
+
+.mv-btn.pressed, .act-btn.pressed {
+  transform: translateY(5px);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.32), inset 0 2px 10px rgba(0,0,0,0.28);
+  filter: brightness(1.12);
+}
+
+/* Dash cooldown ring: a sweeping overlay that shrinks as it recharges. */
+.dash-ring {
+  position: absolute;
+  left: 8px; top: 8px;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: conic-gradient(rgba(244,196,48,0.9) var(--pct, 0deg), rgba(255,255,255,0.12) 0deg);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+.dash-ring.charging { opacity: 1; }
+.mv-btn.dashed { animation: dashFlash 0.35s ease; }
+@keyframes dashFlash { 0% { filter: brightness(2); } 100% { filter: brightness(1.12); } }
+
+/* ---------------- Overlays ---------------- */
+.ctrl-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 24, 40, 0.72);
+  backdrop-filter: blur(2px);
+  z-index: 20;
+  gap: 8px;
+  /* Visual only — let touches fall through to the gamepad so players can hold
+     left/right during the countdown and start moving the instant play begins. */
+  pointer-events: none;
+}
+.ctrl-overlay[hidden] { display: none; }
+.co-count { font-size: 90px; font-weight: 900; line-height: 1; animation: pop 0.3s ease; }
+.co-text { font-size: 18px; font-weight: 700; color: rgba(255,255,255,0.85); }
+@keyframes pop { 0% { transform: scale(0.4); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+.flash {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+  pointer-events: none;
+}
+.flash[hidden] { display: none; }
+.flash span {
+  font-size: 64px;
+  font-weight: 900;
+  color: var(--accent);
+  text-shadow: 0 4px 0 rgba(0,0,0,0.35);
+  animation: goalPop 0.5s cubic-bezier(.2,1.4,.4,1);
+}
+@keyframes goalPop { 0% { transform: scale(0.2) rotate(-8deg); opacity: 0; } 60% { transform: scale(1.15) rotate(3deg); } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+
+/* ---------------- Rotate hint ---------------- */
+.rotate-hint {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 24, 40, 0.92);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  z-index: 40;
+  text-align: center;
+  padding: 30px;
+}
+.rotate-hint[hidden] { display: none; }
+.rot-icon { font-size: 60px; animation: rotWiggle 1.6s ease-in-out infinite; }
+@keyframes rotWiggle { 0%,100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
+.rot-text { font-size: 18px; font-weight: 700; max-width: 320px; }
+
+.player-attribution { color: rgba(255,255,255,0.45); }
+body.player.playing .player-attribution { display: none; }
