@@ -36,7 +36,7 @@
   const MODE_SCALE = { '1v1': 1, '2v2': 1.2 };
   // Goal opening height per mode (fixed pixels, NOT scaled by the field box) —
   // 2v2 gets a taller net. Falls back to GOAL_H for any unknown mode.
-  const MODE_GOAL_H = { '1v1': 320, '2v2': 360 };
+  const MODE_GOAL_H = { '1v1': 330, '2v2': 360 };
 
   // ---- Ball ----
   const BALL_R = 22;
@@ -78,12 +78,6 @@
   // a defender. Softer forward drive + a longer cooldown so it's a deliberate
   // shot, not a rapid-fire cannon that keepers can't react to.
   const KICK_DUR = 0.30, KICK_CD = 0.52, FOOT_R = 30, KICK_VX = 940, KICK_VY = 1160, KICK_LIFT = 190;
-
-  // ---- Goal keep-out ----
-  // An attacker can't crowd the mouth of the goal they're attacking, so you
-  // can't shove a defender back into their own net. Only limits the approach to
-  // the OPPONENT'S goal — you can still retreat fully into your own end.
-  const GOAL_KEEPOUT = 140;
 
   function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
@@ -275,17 +269,6 @@
       // Side walls.
       if (p.x < HALF_W) { p.x = HALF_W; if (p.vx < 0) p.vx = 0; }
       if (p.x > this.W - HALF_W) { p.x = this.W - HALF_W; if (p.vx > 0) p.vx = 0; }
-
-      // Goal keep-out: don't let an attacker crowd the mouth of the goal they
-      // attack (red attacks the right goal, blue the left), so nobody can be
-      // shoved back into their own net. The defender's own approach is free.
-      if (p.team === 'red') {
-        const limit = (this.W - GOAL_DEPTH) - GOAL_KEEPOUT - HALF_W;
-        if (p.x > limit) { p.x = limit; if (p.vx > 0) p.vx = 0; }
-      } else {
-        const limit = GOAL_DEPTH + GOAL_KEEPOUT + HALF_W;
-        if (p.x < limit) { p.x = limit; if (p.vx < 0) p.vx = 0; }
-      }
 
       // Own crossbar bonk (goalie jumping under the bar).
       this._playerBarClamp(p);

@@ -613,8 +613,10 @@
 
     setTimeout(function () {
       goalBanner.hidden = true;
-      if (sudden) { endMatch(team); return; }
-      if (clockMs <= 0) { endMatch(redScore > blueScore ? 'red' : blueScore > redScore ? 'blue' : null); return; }
+      // The goal fanfare already played in onGoal, so end the match without a
+      // second one (pass afterGoal=true) to avoid a doubled goal sound.
+      if (sudden) { endMatch(team, true); return; }
+      if (clockMs <= 0) { endMatch(redScore > blueScore ? 'red' : blueScore > redScore ? 'blue' : null, true); return; }
       const concede = team === 'red' ? 'blue' : 'red';
       beginCountdown(concede);
     }, GOAL_CELEBRATE_MS);
@@ -645,12 +647,14 @@
     }
   }
 
-  function endMatch(winner) {
+  function endMatch(winner, afterGoal) {
     matchState = 'ended';
     if (world) world.frozen = true;
     socket.emit('host:matchEnd', { winner: winner, red: redScore, blue: blueScore });
     playWhistle();
-    setTimeout(playGoal, 200);
+    // Only play the victory fanfare when the match ends on the clock; if it
+    // ended on a goal, onGoal already played it (avoids a double goal sound).
+    if (!afterGoal) setTimeout(playGoal, 200);
     setTimeout(function () { stopLoop(); renderFinal({ winner: winner, red: redScore, blue: blueScore }); }, 1600);
   }
 

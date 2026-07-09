@@ -9,6 +9,7 @@
   'use strict';
 
   const SKIN = ['#f2c69b', '#d99a6c', '#a56a43', '#8a5a3b', '#f7d9b8'];
+  const HAIR = ['#2b1d12', '#120d0a', '#5b3a1e', '#caa25a', '#7a4a2a'];
 
   function lerp(a, b, t) { return a + (b - a) * t; }
 
@@ -106,6 +107,15 @@
       g.moveTo(f.W / 2, f.GROUND_Y);
       g.lineTo(f.W / 2, f.H);
       g.stroke();
+      // Centre spot.
+      g.fillStyle = 'rgba(255,255,255,0.5)';
+      g.beginPath(); g.arc(f.W / 2, f.GROUND_Y + (f.H - f.GROUND_Y) * 0.5, 4, 0, Math.PI * 2); g.fill();
+      // Goal-area lines near each net so the pitch reads as a real field.
+      g.strokeStyle = 'rgba(255,255,255,0.4)';
+      g.lineWidth = 2.5;
+      for (const gx of [f.GOAL_DEPTH + 120, f.W - f.GOAL_DEPTH - 120]) {
+        g.beginPath(); g.moveTo(gx, f.GROUND_Y); g.lineTo(gx, f.H); g.stroke();
+      }
 
       // Goals (frame + net) drawn into the background.
       this._drawGoal(g, 'left');
@@ -204,6 +214,13 @@
 
       ctx.drawImage(this.bg, 0, 0);
 
+      // Soft vignette for depth (darkens the field edges, not the players).
+      const vg = ctx.createRadialGradient(f.W / 2, f.GROUND_Y * 0.62, f.H * 0.18, f.W / 2, f.GROUND_Y * 0.62, f.W * 0.6);
+      vg.addColorStop(0, 'rgba(0,0,0,0)');
+      vg.addColorStop(1, 'rgba(0,0,0,0.26)');
+      ctx.fillStyle = vg;
+      ctx.fillRect(0, 0, f.W, f.H);
+
       // Shadows first.
       for (const p of this.world.players) this._drawShadow(ctx, p.x, f.GROUND_Y, p.y);
       this._drawBallShadow(ctx, this.world.ball);
@@ -279,6 +296,14 @@
       const f = this.f;
       const col = this._teamColors(p.team);
       const skin = SKIN[(p.seat + (p.team === 'red' ? 0 : 2)) % SKIN.length];
+      const skinDk = this._shade(skin, -0.18);
+      const hair = HAIR[(p.seat + (p.team === 'red' ? 1 : 3)) % HAIR.length];
+
+      const hx = p.x;
+      const hy = p.y - f.HEAD_CY;        // head centre
+      const bodyCY = p.y - f.BODY_CY;    // torso centre
+      const hipY = p.y - 40;
+
       // Dash streak: fading afterimages behind a dashing player so the burst
       // clearly reads on the host screen.
       if (p.dash > 0) {
@@ -288,120 +313,195 @@
           ctx.save();
           ctx.globalAlpha = 0.10 * (4 - i);
           ctx.fillStyle = col.jersey;
-          ctx.beginPath(); ctx.arc(gx, p.y - f.HEAD_CY, f.HEAD_R, 0, Math.PI * 2); ctx.fill();
-          ctx.beginPath(); ctx.arc(gx, p.y - f.BODY_CY, f.BODY_R, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(gx, hy, f.HEAD_R, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(gx, bodyCY, f.BODY_R, 0, Math.PI * 2); ctx.fill();
           ctx.restore();
         }
       }
-      const hipX = p.x, hipY = p.y - 46;
 
-      // Legs (kicking leg swings toward the foot tip).
+      // ---- Legs (kicking leg swings toward the boot) ----
       const swing = 1 - Math.max(0, p.kick) / 0.30;
       const sw = p.kick > 0 ? Math.sin(Math.min(1, swing / 0.6) * Math.PI / 2) : 0;
-      const kickFootX = p.x + p.facing * (26 + 62 * sw);
-      const kickFootY = p.y - 20 - 46 * sw;
+      // Soccer kick: a short forward snap. The boot starts cocked behind, then
+      // whips forward to just past the ball at shin height — not a long stick.
+      const kickFootX = p.x + p.facing * (-16 + 72 * sw);
+      const kickFootY = p.y - 4 - 26 * sw;
       const standFootX = p.x - p.facing * 12;
-      // Back/standing leg.
-      this._limb(ctx, hipX + p.facing * 4, hipY + 6, standFootX, p.y - 2, 12, col.jerseyDk, '#222');
-      // Kicking / front leg.
-      this._limb(ctx, hipX + p.facing * 8, hipY + 6, kickFootX, kickFootY, 12, col.jerseyDk, '#222');
-      // Boots.
-      this._boot(ctx, kickFootX, kickFootY, p.facing, '#1a1a1a');
-      this._boot(ctx, standFootX, p.y - 2, p.facing, '#1a1a1a');
+      const standFootY = p.y - 2;
+      // Standing leg keeps a gentle knee; the kicking leg holds a strong knee
+      // bend throughout so the shin visibly snaps through the ball.
+      this._leg(ctx, hx - p.facing * 3, hipY + 2, standFootX, standFootY, skin, col.jerseyDk, p.facing, 6);
+      this._leg(ctx, hx + p.facing * 6, hipY + 2, kickFootX, kickFootY, skin, col.jerseyDk, p.facing, p.kick > 0 ? 13 + 6 * (1 - sw) : 7);
+      this._boot(ctx, standFootX, standFootY, p.facing, '#171717');
+      this._boot(ctx, kickFootX, kickFootY, p.facing, '#171717');
 
-      // Torso (jersey).
-      const bodyCY = p.y - f.BODY_CY;
-      const grad = ctx.createLinearGradient(p.x - f.BODY_R, bodyCY - f.BODY_R, p.x + f.BODY_R, bodyCY + f.BODY_R);
-      grad.addColorStop(0, col.jersey);
+      // ---- Shorts ----
+      ctx.fillStyle = col.jerseyDk;
+      ctx.strokeStyle = 'rgba(0,0,0,0.32)';
+      ctx.lineWidth = 3;
+      this._roundRect(ctx, hx - (f.BODY_R + 1), hipY - 12, (f.BODY_R + 1) * 2, 26, 11);
+      ctx.fill(); ctx.stroke();
+
+      // ---- Arms (skin, tucked behind the torso) ----
+      ctx.lineCap = 'round';
+      for (const s of [-1, 1]) {
+        ctx.strokeStyle = 'rgba(0,0,0,0.26)'; ctx.lineWidth = 11;
+        ctx.beginPath(); ctx.moveTo(hx + s * f.BODY_R, bodyCY - 6); ctx.lineTo(hx + s * (f.BODY_R + 10), bodyCY + 16); ctx.stroke();
+        ctx.strokeStyle = skin; ctx.lineWidth = 8;
+        ctx.beginPath(); ctx.moveTo(hx + s * f.BODY_R, bodyCY - 6); ctx.lineTo(hx + s * (f.BODY_R + 10), bodyCY + 16); ctx.stroke();
+      }
+
+      // ---- Sleeves (rounded shoulders) ----
+      for (const s of [-1, 1]) {
+        ctx.fillStyle = col.jerseyDk;
+        ctx.beginPath(); ctx.arc(hx + s * (f.BODY_R - 2), bodyCY - 8, 13, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // ---- Torso (jersey) ----
+      const grad = ctx.createLinearGradient(0, bodyCY - f.BODY_R - 10, 0, bodyCY + f.BODY_R + 10);
+      grad.addColorStop(0, this._shade(col.jersey, 0.16));
       grad.addColorStop(1, col.jerseyDk);
       ctx.fillStyle = grad;
-      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.strokeStyle = 'rgba(0,0,0,0.34)';
       ctx.lineWidth = 3;
-      this._roundedBody(ctx, p.x, bodyCY, f.BODY_R + 4, f.BODY_R + 10);
-      ctx.fill();
-      ctx.stroke();
-      // Jersey number.
-      ctx.fillStyle = '#fff';
-      ctx.font = '700 22px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      // Sequential across the match: red team numbered first, then blue
-      // continues (1v1 → red "1", blue "2"; 2v2 → 1,2 / 3,4).
+      this._roundedBody(ctx, hx, bodyCY, f.BODY_R + 4, f.BODY_R + 10);
+      ctx.fill(); ctx.stroke();
+      // Soft left-light / right-shade sheen.
+      ctx.save();
+      this._roundedBody(ctx, hx, bodyCY, f.BODY_R + 4, f.BODY_R + 10); ctx.clip();
+      const sheen = ctx.createLinearGradient(hx - f.BODY_R, 0, hx + f.BODY_R, 0);
+      sheen.addColorStop(0, 'rgba(255,255,255,0.14)');
+      sheen.addColorStop(0.55, 'rgba(255,255,255,0)');
+      sheen.addColorStop(1, 'rgba(0,0,0,0.16)');
+      ctx.fillStyle = sheen;
+      ctx.fillRect(hx - f.BODY_R - 8, bodyCY - f.BODY_R - 14, (f.BODY_R + 8) * 2, (f.BODY_R + 14) * 2);
+      ctx.restore();
+      // Collar (V-neck).
+      ctx.strokeStyle = col.trim;
+      ctx.lineWidth = 4; ctx.lineCap = 'round';
+      const topY = bodyCY - (f.BODY_R + 8);
+      ctx.beginPath(); ctx.moveTo(hx - 9, topY + 2); ctx.lineTo(hx, topY + 11); ctx.lineTo(hx + 9, topY + 2); ctx.stroke();
+
+      // ---- Jersey number ----
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       const redCount = this.world.players.reduce((n, q) => n + (q.team === 'red' ? 1 : 0), 0);
       const jerseyNum = p.team === 'red' ? p.seat + 1 : redCount + p.seat + 1;
-      ctx.fillText(String(jerseyNum), p.x, bodyCY + 2);
+      ctx.save();
+      ctx.fillStyle = '#fff';
+      ctx.font = '800 22px Inter, sans-serif';
+      ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 3; ctx.shadowOffsetY = 1;
+      ctx.fillText(String(jerseyNum), hx, bodyCY + 3);
+      ctx.restore();
 
-      // Arm hint.
-      ctx.strokeStyle = skin;
-      ctx.lineWidth = 9;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(p.x - p.facing * (f.BODY_R - 2), bodyCY - 4);
-      ctx.lineTo(p.x - p.facing * (f.BODY_R + 12), bodyCY + 16);
-      ctx.stroke();
-
-      // Head.
-      const hx = p.x, hy = p.y - f.HEAD_CY;
-      const hg = ctx.createRadialGradient(hx - 12, hy - 14, 6, hx, hy, f.HEAD_R + 4);
-      hg.addColorStop(0, this._lighten(skin, 0.18));
-      hg.addColorStop(1, skin);
+      // ---- Head ----
+      // Ears peeking out the sides.
+      ctx.fillStyle = skinDk;
+      for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(hx + s * (f.HEAD_R - 3), hy + 3, 7, 0, Math.PI * 2); ctx.fill(); }
+      // Face sphere with a soft top-left key light.
+      const hg = ctx.createRadialGradient(hx - 13, hy - 15, 6, hx, hy + 6, f.HEAD_R + 8);
+      hg.addColorStop(0, this._shade(skin, 0.22));
+      hg.addColorStop(0.72, skin);
+      hg.addColorStop(1, skinDk);
       ctx.fillStyle = hg;
       ctx.strokeStyle = 'rgba(0,0,0,0.3)';
       ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(hx, hy, f.HEAD_R, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      ctx.beginPath(); ctx.arc(hx, hy, f.HEAD_R, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      // Subtle nose.
+      ctx.fillStyle = skinDk;
+      ctx.beginPath(); ctx.ellipse(hx + p.facing * 20, hy + 9, 5, 6, 0, 0, Math.PI * 2); ctx.fill();
 
-      // Team cap ("hat"): only the FIRST player on a team (seat 0) wears it, so
-      // the two teammates are easy to tell apart in 2v2 (seat 1 is bare-headed).
+      // ---- Hair (bare-headed teammate) or team cap (seat 0) ----
+      ctx.save();
+      ctx.beginPath(); ctx.arc(hx, hy, f.HEAD_R, 0, Math.PI * 2); ctx.clip();
       if (p.seat === 0) {
-        ctx.fillStyle = col.jerseyDk;
-        ctx.beginPath();
-        ctx.arc(hx, hy, f.HEAD_R, Math.PI * 1.08, Math.PI * 1.92, false);
-        ctx.lineTo(hx, hy);
-        ctx.closePath();
-        ctx.fill();
+        // Team cap: dome + hatband.
         ctx.fillStyle = col.jersey;
-        ctx.fillRect(hx - f.HEAD_R, hy - 10, f.HEAD_R * 2, 7);
+        ctx.beginPath(); ctx.arc(hx, hy - 3, f.HEAD_R + 3, Math.PI, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = col.jerseyDk;
+        ctx.fillRect(hx - f.HEAD_R, hy - 12, f.HEAD_R * 2, 6);
+      } else {
+        // Hair: swept dome with sideburns.
+        ctx.fillStyle = hair;
+        ctx.beginPath(); ctx.arc(hx, hy - 1, f.HEAD_R + 3, Math.PI * 1.02, Math.PI * 1.98); ctx.lineTo(hx, hy - 2); ctx.closePath(); ctx.fill();
+        ctx.fillRect(hx - f.HEAD_R, hy - 16, 8, 22);
+        ctx.fillRect(hx + f.HEAD_R - 8, hy - 16, 8, 22);
+      }
+      ctx.restore();
+      if (p.seat === 0) {
+        // Cap brim toward facing (drawn outside the clip).
+        ctx.fillStyle = col.jerseyDk;
+        ctx.beginPath(); ctx.ellipse(hx + p.facing * (f.HEAD_R - 4), hy - 11, 17, 6, 0, 0, Math.PI * 2); ctx.fill();
       }
 
-      // Eyes (looking toward facing) + brow + mouth.
-      const ex = hx + p.facing * 12;
+      // ---- Face: eyes + brows + mouth ----
+      const ex = hx + p.facing * 11;
       ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.ellipse(ex - 9, hy + 2, 7, 9, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(ex + 9, hy + 2, 7, 9, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(ex - 9, hy + 3, 7, 9, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(ex + 9, hy + 3, 7, 9, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#20140d';
-      ctx.beginPath(); ctx.arc(ex - 9 + p.facing * 3, hy + 4, 3.4, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(ex + 9 + p.facing * 3, hy + 4, 3.4, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#3a2418';
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(ex - 16, hy - 10); ctx.lineTo(ex - 2, hy - 8); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(ex + 2, hy - 8); ctx.lineTo(ex + 16, hy - 10); ctx.stroke();
-      // Mouth: open when kicking.
-      ctx.strokeStyle = '#5a2c22';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      if (p.kick > 0) { ctx.arc(hx + p.facing * 8, hy + 20, 6, 0, Math.PI * 2); }
-      else { ctx.moveTo(hx + p.facing * 2, hy + 20); ctx.lineTo(hx + p.facing * 16, hy + 20); }
-      ctx.stroke();
+      ctx.beginPath(); ctx.arc(ex - 9 + p.facing * 3, hy + 5, 3.6, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(ex + 9 + p.facing * 3, hy + 5, 3.6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.beginPath(); ctx.arc(ex - 9 + p.facing * 3 - 1.4, hy + 3.4, 1.2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(ex + 9 + p.facing * 3 - 1.4, hy + 3.4, 1.2, 0, Math.PI * 2); ctx.fill();
+      // Eyebrows — furrow when kicking.
+      ctx.strokeStyle = '#3a2418'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      const brow = p.kick > 0 ? 3 : 0;
+      ctx.beginPath(); ctx.moveTo(ex - 16, hy - 9 + brow); ctx.lineTo(ex - 2, hy - 7); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(ex + 2, hy - 7); ctx.lineTo(ex + 16, hy - 9 + brow); ctx.stroke();
+      // Mouth — opens on a kick.
+      if (p.kick > 0) {
+        ctx.fillStyle = '#5a2c22';
+        ctx.beginPath(); ctx.ellipse(hx + p.facing * 7, hy + 21, 6, 7, 0, 0, Math.PI * 2); ctx.fill();
+      } else {
+        ctx.strokeStyle = '#5a2c22'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(hx + p.facing * 2, hy + 20); ctx.quadraticCurveTo(hx + p.facing * 9, hy + 24, hx + p.facing * 16, hy + 20); ctx.stroke();
+      }
 
-      // Nametag.
-      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      // ---- Nametag ----
       const label = p.name.length > 10 ? p.name.slice(0, 9) + '…' : p.name;
       ctx.font = '700 15px Inter, sans-serif';
-      const tw = ctx.measureText(label).width + 14;
-      this._roundRect(ctx, hx - tw / 2, hy - f.HEAD_R - 26, tw, 20, 8);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const tw = ctx.measureText(label).width + 16;
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      this._roundRect(ctx, hx - tw / 2, hy - f.HEAD_R - 30, tw, 21, 9);
       ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 1; ctx.stroke();
       ctx.fillStyle = '#fff';
-      ctx.fillText(label, hx, hy - f.HEAD_R - 15);
+      ctx.fillText(label, hx, hy - f.HEAD_R - 19);
 
       if (!p.connected) {
-        ctx.globalAlpha = 0.6;
-        ctx.fillStyle = '#000';
-        ctx.beginPath(); ctx.arc(hx, hy, f.HEAD_R + 4, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
+        ctx.save();
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = '#06182a';
+        ctx.beginPath(); ctx.arc(hx, hy, f.HEAD_R + 6, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(hx, bodyCY, f.BODY_R + 10, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
       }
+    }
+
+    // A two-tone leg with a bent knee: skin thigh into a team-coloured sock.
+    // `facing` sets which way the knee bulges; `bend` is the bulge strength.
+    _leg(ctx, x0, y0, x1, y1, skin, sock, facing, bend) {
+      const dx = x1 - x0, dy = y1 - y0;
+      const len = Math.hypot(dx, dy) || 1;
+      // Perpendicular, oriented to bulge the knee toward `facing`.
+      let px = -dy / len, py = dx / len;
+      if (px * facing < 0) { px = -px; py = -py; }
+      const kx = x0 + dx * 0.46 + px * bend;
+      const ky = y0 + dy * 0.46 + py * bend;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      // Outline through hip → knee → foot.
+      ctx.strokeStyle = 'rgba(0,0,0,0.32)'; ctx.lineWidth = 21;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(kx, ky); ctx.lineTo(x1, y1); ctx.stroke();
+      // Thigh (skin) then shin (sock).
+      ctx.strokeStyle = skin; ctx.lineWidth = 17;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(kx, ky); ctx.stroke();
+      ctx.strokeStyle = sock; ctx.lineWidth = 17;
+      ctx.beginPath(); ctx.moveTo(kx, ky); ctx.lineTo(x1, y1); ctx.stroke();
+      // Knee cap.
+      ctx.fillStyle = skin;
+      ctx.beginPath(); ctx.arc(kx, ky, 8, 0, Math.PI * 2); ctx.fill();
     }
 
     _limb(ctx, x0, y0, x1, y1, w, color, outline) {
@@ -414,13 +514,46 @@
       ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
     }
     _boot(ctx, x, y, facing, color) {
+      ctx.save();
       ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.ellipse(x + facing * 6, y + 2, 14, 8, 0, 0, Math.PI * 2);
+      ctx.ellipse(x + facing * 8, y + 3, 18, 10, 0, 0, Math.PI * 2);
       ctx.fill();
+      // Glossy highlight.
+      ctx.fillStyle = 'rgba(255,255,255,0.16)';
+      ctx.beginPath();
+      ctx.ellipse(x + facing * 6, y + 0.5, 11, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
+    // Athletic jersey silhouette: broad shoulders that taper down through a
+    // pinched waist and flare into a rounded hem, so it never reads as a box.
     _roundedBody(ctx, cx, cy, rw, rh) {
-      this._roundRect(ctx, cx - rw, cy - rh, rw * 2, rh * 2, 16);
+      const top = cy - rh;
+      const bot = cy + rh;
+      const neckW = rw * 0.34;       // gap at the collar
+      const shoulderW = rw * 1.16;   // widest point, at the shoulders
+      const waistW = rw * 0.70;      // pinched waist
+      const hemW = rw * 0.92;        // flared, rounded hem
+      const shoulderY = top + rh * 0.26;
+      const waistY = cy + rh * 0.42;
+      ctx.beginPath();
+      // Collar across the top.
+      ctx.moveTo(cx - neckW, top);
+      ctx.lineTo(cx + neckW, top);
+      // Right shoulder bulge.
+      ctx.bezierCurveTo(cx + shoulderW * 0.7, top, cx + shoulderW, top + rh * 0.05, cx + shoulderW, shoulderY);
+      // Right side taper down to the waist.
+      ctx.bezierCurveTo(cx + shoulderW, shoulderY + rh * 0.34, cx + waistW, waistY - rh * 0.18, cx + waistW, waistY);
+      // Flare out to the rounded hem.
+      ctx.bezierCurveTo(cx + waistW, waistY + rh * 0.24, cx + hemW, bot - rh * 0.14, cx + hemW * 0.9, bot - rh * 0.02);
+      ctx.quadraticCurveTo(cx + hemW * 0.55, bot + rh * 0.04, cx, bot + rh * 0.04);
+      ctx.quadraticCurveTo(cx - hemW * 0.55, bot + rh * 0.04, cx - hemW * 0.9, bot - rh * 0.02);
+      // Left side back up (mirror).
+      ctx.bezierCurveTo(cx - hemW, bot - rh * 0.14, cx - waistW, waistY + rh * 0.24, cx - waistW, waistY);
+      ctx.bezierCurveTo(cx - waistW, waistY - rh * 0.18, cx - shoulderW, shoulderY + rh * 0.34, cx - shoulderW, shoulderY);
+      ctx.bezierCurveTo(cx - shoulderW, top + rh * 0.05, cx - shoulderW * 0.7, top, cx - neckW, top);
+      ctx.closePath();
     }
     _roundRect(ctx, x, y, w, h, r) {
       r = Math.min(r, w / 2, h / 2);
@@ -468,6 +601,15 @@
       const c = hex.replace('#', '');
       const r = parseInt(c.slice(0, 2), 16), g = parseInt(c.slice(2, 4), 16), bl = parseInt(c.slice(4, 6), 16);
       const f = (v) => Math.round(lerp(v, 255, amt));
+      return 'rgb(' + f(r) + ',' + f(g) + ',' + f(bl) + ')';
+    }
+
+    // Lighten (amt>0) or darken (amt<0) a hex colour by lerping toward white/black.
+    _shade(hex, amt) {
+      const c = hex.replace('#', '');
+      const r = parseInt(c.slice(0, 2), 16), g = parseInt(c.slice(2, 4), 16), bl = parseInt(c.slice(4, 6), 16);
+      const t = amt < 0 ? 0 : 255, k = Math.abs(amt);
+      const f = (v) => Math.round(lerp(v, t, k));
       return 'rgb(' + f(r) + ',' + f(g) + ',' + f(bl) + ')';
     }
   }
