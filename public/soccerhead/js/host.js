@@ -27,6 +27,7 @@
   const playerCountEl = document.getElementById('playerCount');
   const playerCapEl = document.getElementById('playerCap');
   const addBotBtn = document.getElementById('addBotBtn');
+  const modeSeg = document.getElementById('modeSeg');
   const durRange = document.getElementById('durRange');
   const durVal = document.getElementById('durVal');
   const slotsRed = document.getElementById('slotsRed');
@@ -270,15 +271,35 @@
     }
     fill(slotsRed, l.teams.red, 'red');
     fill(slotsBlue, l.teams.blue, 'blue');
+    // Mode toggle active state.
+    if (modeSeg) {
+      modeSeg.querySelectorAll('.seg-opt').forEach(function (b) {
+        b.classList.toggle('active', b.dataset.mode === l.mode);
+      });
+    }
     // Start + hint.
     startBtn.disabled = !l.canStart;
     if (addBotBtn) addBotBtn.disabled = l.total >= l.capacity;
-    if (l.total < l.capacity) configHint.textContent = '';
-    else if (!l.canStart) configHint.textContent = 'Teams must be even to start.';
-    else configHint.textContent = '';
+    if (l.canStart) { configHint.textContent = ''; }
+    else if (l.mode === '2v2') {
+      configHint.textContent = l.total < 3
+        ? 'Add at least 3 players (max 2 per team).'
+        : 'Each team needs 1–2 players.';
+    } else if (l.total < l.capacity) { configHint.textContent = ''; }
+    else { configHint.textContent = 'Teams must be even to start.'; }
   }
 
-  // Drop zones.
+  // Drop zones. Dropping a chip on a column moves it to that team AND places it
+  // at the drop position, so you can reorder teammates (seat 0 wears the cap).
+  function dropBeforeId(col, draggedPid, clientY) {
+    const chips = Array.prototype.slice.call(col.querySelectorAll('.player-chip'))
+      .filter(function (c) { return c.dataset.pid !== draggedPid; });
+    for (let i = 0; i < chips.length; i++) {
+      const r = chips[i].getBoundingClientRect();
+      if (clientY < r.top + r.height / 2) return chips[i].dataset.pid;
+    }
+    return null; // dropped below the last chip → append
+  }
   [colRed, colBlue].forEach(function (col) {
     const team = col.dataset.team;
     col.addEventListener('dragover', function (e) { e.preventDefault(); col.classList.add('drag-over'); });
@@ -288,7 +309,9 @@
       col.classList.remove('drag-over');
       let pid = '';
       try { pid = e.dataTransfer.getData('text/plain'); } catch (_) {}
-      if (pid) socket.emit('host:assign', { playerId: pid, team: team });
+      if (!pid) return;
+      const beforeId = dropBeforeId(col, pid, e.clientY);
+      socket.emit('host:assign', { playerId: pid, team: team, beforeId: beforeId });
     });
   });
 
@@ -297,6 +320,19 @@
       if (res && !res.ok) showToast(res.reason === 'game-full' ? 'The match is already full.' : 'Could not add a CPU.');
     });
   });
+  if (modeSeg) {
+    modeSeg.addEventListener('click', function (e) {
+      const btn = e.target.closest('.seg-opt');
+      if (!btn) return;
+      socket.emit('host:setMode', { mode: btn.dataset.mode }, function (res) {
+        if (res && !res.ok) {
+          showToast(res.reason === 'too-many-players'
+            ? 'Remove players first to switch to 1v1.'
+            : 'Could not change mode.');
+        }
+      });
+    });
+  }
   let durTimer = null;
   durRange.addEventListener('input', function () {
     durVal.textContent = fmtDur(Number(durRange.value));
@@ -391,13 +427,6 @@
       detectKickSfx();
       if (scored) { onGoal(scored); }
       else {
-        // A stuck ball was just lifted clear — cue it so players notice.
-        if (world.pendingBallDrop) {
-          const d = world.pendingBallDrop; world.pendingBallDrop = null;
-          renderer && renderer.spawnBurst(d.x, d.y + 24, '#ffd54a', 12, 240);
-          blip(720, 0.08, 'square', 0.12);
-          blip(960, 0.09, 'square', 0.1, getAudioCtx() ? getAudioCtx().currentTime + 0.06 : 0);
-        }
         // Advance the match clock in real time.
         clockMs -= dt * 1000;
         if (!sudden && clockMs <= 0) { clockMs = 0; handleTimeUp(); }
@@ -474,14 +503,37 @@
     const ballOnOwnHalf = ballFwd < Wd * 0.5;
     // Press if we can win it OR it threatens our half; else retreat and guard.
     const commit = amCloser || ballOnOwnHalf;
-    let desiredFwd = ballFwd - 44;           // goal-side of the ball
-    if (!commit) {
-      desiredFwd = Math.min(desiredFwd, Wd * 0.30); // drop into our own third
-      desiredFwd = Math.max(desiredFwd, Wd * 0.14);
-    }
-    desiredFwd = Math.max(12, Math.min(Wd * 0.78, desiredFwd));
-    const desiredX = ownGoalX + facing * desiredFwd + (Math.random() * 2 - 1) * 12; // small aim error
 
+    // ---- Aerial read: predict the ball's flight so we can get under a lob and
+    // head it clear (the CPU used to ignore balls sailing over its head). ----
+    const G = 2100;                          // ball gravity (engine BALL_G)
+    const aboveNow = p.y - b.y;              // ball height above our feet right now
+    const towardOwnGoal = facing * b.vx < -40;
+    // A high ball on our half or driving at our goal is a header threat.
+    const highThreat = aboveNow > 70 && (ballOnOwnHalf || towardOwnGoal);
+    // Where will the ball drop back to a good heading height? Solve
+    // b.y + b.vy·t + ½G·t² = headY for the descending (larger) root.
+    const headY = p.y - 190;
+    let interceptX = b.x, tHead = null;
+    {
+      const disc = b.vy * b.vy - 2 * G * (b.y - headY);
+      if (disc >= 0) { const t = (-b.vy + Math.sqrt(disc)) / G; if (t > 0) { tHead = t; interceptX = b.x + b.vx * t; } }
+    }
+
+    // ---- Positioning ----
+    let desiredX;
+    if (highThreat && tHead != null) {
+      // Camp under the drop point so we can rise and head it away.
+      desiredX = interceptX + (Math.random() * 2 - 1) * 8;
+    } else {
+      let desiredFwd = ballFwd - 44;         // goal-side of the ball
+      if (!commit) {
+        desiredFwd = Math.min(desiredFwd, Wd * 0.30); // drop into our own third
+        desiredFwd = Math.max(desiredFwd, Wd * 0.14);
+      }
+      desiredFwd = Math.max(12, Math.min(Wd * 0.78, desiredFwd));
+      desiredX = ownGoalX + facing * desiredFwd + (Math.random() * 2 - 1) * 12; // small aim error
+    }
     const dx = desiredX - p.x;
     st.moveDir = dx < -10 ? -1 : dx > 10 ? 1 : 0;
 
@@ -489,7 +541,18 @@
     const reachable = b.y > p.y - 150;
     st.kick = dist < 82 && inFront && reachable && Math.random() < 0.9; // occasional mistime
 
-    st.wantJump = b.y < p.y - 120 && dist < 105 && b.vy > -60;
+    // ---- Jump to HEAD a ball coming down overhead ----
+    // Leap ~a jump's rise-time early so the head actually meets the ball. The
+    // head can reach ~110–400px above the feet, so jump when the ball will be
+    // overhead within that band. Far more reliable than the old "only if the ball
+    // is already within 105px" rule, which whiffed on most lobs.
+    const lead = 0.22;                       // ~time for the head to rise to heading height
+    const fx = b.x + b.vx * lead;
+    const fy = b.y + b.vy * lead + 0.5 * G * lead * lead;
+    const headableH = p.y - fy;
+    const leapToHead = Math.abs(fx - p.x) < 82 && headableH > 110 && headableH < 380;
+    const overheadNow = Math.abs(b.x - p.x) < 100 && aboveNow > 100 && aboveNow < 400 && b.vy > -90;
+    st.wantJump = leapToHead || overheadNow;
 
     const ahead = facing * (b.x - p.x);
     const inAtkHalf = ballFwd > Wd * 0.5;
@@ -559,8 +622,11 @@
 
   function handleTimeUp() {
     if (redScore === blueScore) {
-      // Golden goal.
+      // Golden goal: freeze + announce, then restart the ball and ALL players
+      // with a fresh (neutral) kickoff + countdown — just like after a goal.
       sudden = true;
+      matchState = 'goal';
+      if (world) world.frozen = true;
       socket.emit('host:sudden', {});
       socket.emit('host:clock', { ms: 0, sudden: true });
       updateScoreboard();
@@ -571,7 +637,9 @@
       if (gbSub) gbSub.textContent = '';
       goalBanner.hidden = false;
       gbText.style.animation = 'none'; void gbText.offsetWidth; gbText.style.animation = '';
-      setTimeout(function () { if (matchState === 'play') goalBanner.hidden = true; }, 1600);
+      setTimeout(function () {
+        if (matchState !== 'ended') beginCountdown(null);
+      }, GOAL_CELEBRATE_MS);
     } else {
       endMatch(redScore > blueScore ? 'red' : 'blue');
     }

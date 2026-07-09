@@ -14,32 +14,41 @@
   'use strict';
 
   // ---- Field geometry ----
-  // A touch wider than tall-square so there's a bit more midfield room without
-  // letterboxing into a thin strip on a 16:9 screen.
-  const W = 1600, H = 600;
-  const GROUND_Y = 540;
+  // A big, roomy pitch — this is the 1v1 size. 2v2 scales it up further via
+  // MODE_SCALE so four characters have room to spread out.
+  const W = 2000, H = 750;
+  const GROUND_Y = 675;
   const CEIL_Y = 0;
-  // A shorter, properly DEFENDABLE goal: a keeper covers the bottom standing and
-  // the rest with a jump, so goals are earned by beating them out of position —
-  // not by lobbing into a giant open net. Crossbar y=300; standing head-top ≈ y390.
-  const GOAL_H = 240;
+  // A DEFENDABLE goal (~2.4 characters tall): a keeper covers the bottom standing
+  // and the rest with a jump, so goals are earned by beating them out of position
+  // — not by lobbing into a giant open net.
+  const GOAL_H = 360;
   const GOAL_DEPTH = 84;
-  const TOP_Y = GROUND_Y - GOAL_H; // crossbar y = 270
+  const TOP_Y = GROUND_Y - GOAL_H; // crossbar y = 315
   const BAR_THICK = 9;
   const GOAL_LINE_L = GOAL_DEPTH * 0.55;
   const GOAL_LINE_R = W - GOAL_DEPTH * 0.55;
+
+  // ---- Mode → field scale ----
+  // 2v2 grows the field BOX (W/H/GROUND_Y) while every player/ball/goal size
+  // stays fixed in pixels, so a bigger pitch just means more room — the goal is
+  // exactly as defendable in both modes. 1v1 uses scale 1 (the base size above).
+  const MODE_SCALE = { '1v1': 1, '2v2': 1.2 };
+  // Goal opening height per mode (fixed pixels, NOT scaled by the field box) —
+  // 2v2 gets a taller net. Falls back to GOAL_H for any unknown mode.
+  const MODE_GOAL_H = { '1v1': 320, '2v2': 360 };
 
   // ---- Ball ----
   const BALL_R = 22;
   const BALL_G = 2100;
   const BALL_DRAG = 0.11;      // more air drag → shots bleed speed, keepers get time
-  const GROUND_REST = 0.56;
+  const GROUND_REST = 0.66;   // ball bounciness off the turf (higher = livelier)
   const WALL_REST = 0.72;
   const BAR_REST = 0.68;
   const ROLL_FRIC = 1.4;       // horizontal decay while rolling on ground
-  // Kicks land ~730 so they stay saveable; the higher cap only lets a committed
+  // Kicks land ~1040 so they stay saveable; the higher cap only lets a committed
   // DASH body-check (below) fire off a genuinely fast, cooldown-gated cannon.
-  const BALL_MAX = 1850;
+  const BALL_MAX = 2350;
   const REST_HEAD = 0.72;
   const REST_BODY = 0.74;
 
@@ -49,13 +58,13 @@
   const HEAD_R = 40, HEAD_CY = 110;
   const BODY_R = 34, BODY_CY = 58;
   const HALF_W = 34;           // wall clamp half-width
-  const GRAVITY = 2650, FALL_MULT = 1.35, MAX_FALL = 1750;
-  // A big defensive leap tuned to the (lowered) goal height: a full jump carries
-  // the feet up to about the crossbar (TOP_Y = 300). apex rise =
-  // JUMP_V^2/(2*GRAVITY) = 1120^2/5300 ≈ 237px ≈ GOAL_H, so you can just spring up
-  // to the top of the goal to defend or head high balls. (Near your own goal the
-  // bar clamp still caps your head at the crossbar so you can't fly out the top.)
-  const JUMP_V = 1120;
+  const GRAVITY = 2350, FALL_MULT = 1.28, MAX_FALL = 1650;
+  // A big, floaty defensive leap tuned to the goal height: a full jump carries
+  // the feet up to about the crossbar. apex rise = JUMP_V^2/(2*GRAVITY) =
+  // 1170^2/4700 ≈ 291px ≈ GOAL_H, so you can spring up to the top of the goal to
+  // defend or head high balls. (Near your own goal the bar clamp still caps your
+  // head at the crossbar so you can't fly out the top.)
+  const JUMP_V = 1170;
   const MOVE_ACCEL = 6200, MAX_SPEED = 440;
   const AIR_ACCEL = 3500, AIR_DAMP = 0.5, GROUND_DAMP = 16;
   const JUMP_BUFFER = 0.12, COYOTE = 0.09;
@@ -64,30 +73,17 @@
   // cannon in the dash direction, far faster than any kick, not the soft "carry"
   // of a walk-in.
   const DASH_SPEED = 1150, DASH_DUR = 0.18, DASH_CD = 2.2;
-  const DASH_HIT_VX = 1750, DASH_HIT_LIFT = 300;
+  const DASH_HIT_VX = 2100, DASH_HIT_LIFT = 340;
   // A loftier boot: a big upward component so you can chip the ball up and over
   // a defender. Softer forward drive + a longer cooldown so it's a deliberate
   // shot, not a rapid-fire cannon that keepers can't react to.
-  const KICK_DUR = 0.30, KICK_CD = 0.52, FOOT_R = 30, KICK_VX = 830, KICK_VY = 1040, KICK_LIFT = 190;
+  const KICK_DUR = 0.30, KICK_CD = 0.52, FOOT_R = 30, KICK_VX = 940, KICK_VY = 1160, KICK_LIFT = 190;
 
   // ---- Goal keep-out ----
   // An attacker can't crowd the mouth of the goal they're attacking, so you
   // can't shove a defender back into their own net. Only limits the approach to
   // the OPPONENT'S goal — you can still retreat fully into your own end.
   const GOAL_KEEPOUT = 140;
-
-  // ---- Stuck-ball (jam) detection ----
-  // When two opposing players trap the ball between them and neither will back
-  // off to clear it, we lift a fresh ball high above the standoff. Keyed on
-  // HORIZONTAL confinement (the ball makes no lateral progress) while a player
-  // from each team contests it — vertical pops from stubborn kicking are ignored,
-  // so a booted-back-and-forth ball still counts. Conservative time window so it
-  // never fires during normal play, where the ball travels out of the band fast.
-  const JAM_TIME = 0.9;        // sustained seconds confined + contested (quicker to fire)
-  const JAM_BALL_RANGE = 140;  // ball must stay within this horizontal band
-  const JAM_PINCH_X = 140;     // a contesting player this close (horizontally) to the ball
-  const JAM_STANDOFF = 180;    // the two opponents are within this of each other
-  const JAM_DROP_HANG = 0.9;   // seconds the fresh ball hovers in the air before it falls
 
   function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
@@ -115,26 +111,35 @@
     constructor(opts) {
       opts = opts || {};
       this.mode = opts.mode || '1v1';
-      this.field = { W, H, GROUND_Y, CEIL_Y, GOAL_H, GOAL_DEPTH, TOP_Y, BAR_THICK, BALL_R, HEAD_R, HEAD_CY, BODY_R, BODY_CY };
+      const s = MODE_SCALE[this.mode] || 1;
+      this.scale = s;
+      // Field box scales with the mode; players/ball/goal keep their pixel size,
+      // so a bigger field just adds room. s = 1 reproduces 1v1 exactly.
+      this.W = W * s;
+      this.H = H * s;
+      this.GROUND_Y = GROUND_Y * s;
+      const goalH = MODE_GOAL_H[this.mode] || GOAL_H;
+      this.TOP_Y = this.GROUND_Y - goalH; // crossbar (goal height is fixed px, per mode)
+      this.dropY = this.GROUND_Y * 0.39;   // ball kickoff drop height
+      this.field = { W: this.W, H: this.H, GROUND_Y: this.GROUND_Y, CEIL_Y, GOAL_H: goalH, GOAL_DEPTH, TOP_Y: this.TOP_Y, BAR_THICK, BALL_R, HEAD_R, HEAD_CY, BODY_R, BODY_CY };
       this.players = [];
       this.byId = new Map();
-      this.ball = { x: W / 2, y: 210, vx: 0, vy: 0, r: BALL_R, spin: 0, hold: 0 };
+      this.ball = { x: this.W / 2, y: this.dropY, vx: 0, vy: 0, r: BALL_R, spin: 0 };
       this.frozen = true;
-      // Stuck-ball detection scratch + a one-shot signal for the host to cue.
-      this._jamTime = 0; this._jamAnchorX = 0;
-      this.pendingBallDrop = null;
     }
 
     setRoster(roster) {
       this.players = [];
       this.byId = new Map();
+      const W2 = this.W, gy = this.GROUND_Y;
       const spawnX = {
-        red: [W * 0.30, W * 0.15],
-        blue: [W * 0.70, W * 0.85],
+        red: [W2 * 0.30, W2 * 0.15],
+        blue: [W2 * 0.70, W2 * 0.85],
       };
       for (const r of roster) {
-        const x = spawnX[r.team][r.seat] || (r.team === 'red' ? W * 0.28 : W * 0.72);
+        const x = spawnX[r.team][r.seat] || (r.team === 'red' ? W2 * 0.28 : W2 * 0.72);
         const p = makePlayer({ id: r.id, name: r.name, team: r.team, seat: r.seat, x });
+        p.y = gy;
         this.players.push(p);
         this.byId.set(r.id, p);
       }
@@ -143,24 +148,23 @@
     kickoff(towardTeam) {
       // Reset every character to its spawn and drop the ball at centre. If a
       // team is given the ball nudges slightly toward the conceding side.
-      const spawnX = { red: [W * 0.30, W * 0.15], blue: [W * 0.70, W * 0.85] };
+      const W2 = this.W, gy = this.GROUND_Y;
+      const spawnX = { red: [W2 * 0.30, W2 * 0.15], blue: [W2 * 0.70, W2 * 0.85] };
       for (const p of this.players) {
-        p.x = spawnX[p.team][p.seat] || (p.team === 'red' ? W * 0.28 : W * 0.72);
-        p.y = GROUND_Y; p.vx = 0; p.vy = 0; p.grounded = true;
+        p.x = spawnX[p.team][p.seat] || (p.team === 'red' ? W2 * 0.28 : W2 * 0.72);
+        p.y = gy; p.vx = 0; p.vy = 0; p.grounded = true;
         p.left = p.right = p.jumpHeld = false;
         p.jumpBuffer = 0; p.kick = 0; p.kicked = false; p.kickQueued = false;
         p.dash = 0;
       }
-      this.ball.x = W / 2;
-      this.ball.y = 210;
+      this.ball.x = W2 / 2;
+      this.ball.y = this.dropY;
       // Bounce the ball toward the player who just conceded so they get first
       // touch — toward their own side of the pitch (red spawns left, blue right).
       // At the very start (towardTeam null) it just drops dead centre.
-      this.ball.vx = towardTeam === 'red' ? -170 : towardTeam === 'blue' ? 170 : 0;
+      this.ball.vx = (towardTeam === 'red' ? -170 : towardTeam === 'blue' ? 170 : 0) * this.scale;
       this.ball.vy = 0;
       this.ball.spin = 0;
-      this.ball.hold = 0;
-      this._jamTime = 0; this.pendingBallDrop = null;
     }
 
     setInput(id, code, down) {
@@ -199,12 +203,7 @@
       for (const p of this.players) this._stepPlayer(p, dt);
       // Player-vs-player soft separation (keeps bodies from overlapping).
       this._separatePlayers();
-      const scored = this._stepBall(dt);
-      if (scored) return scored;
-      // Break up a genuine ball jam between two opposing players (but not while a
-      // freshly dropped-in ball is still hovering).
-      if (!(this.ball.hold > 0)) this._detectJam(dt);
-      return null;
+      return this._stepBall(dt);
     }
 
     _stepPlayer(p, dt) {
@@ -264,8 +263,8 @@
       p.y += p.vy * dt;
 
       // Ground.
-      if (p.y >= GROUND_Y) {
-        p.y = GROUND_Y;
+      if (p.y >= this.GROUND_Y) {
+        p.y = this.GROUND_Y;
         if (p.vy > 0) p.vy = 0;
         if (!p.grounded) { p.grounded = true; }
         p.coyote = COYOTE;
@@ -275,13 +274,13 @@
 
       // Side walls.
       if (p.x < HALF_W) { p.x = HALF_W; if (p.vx < 0) p.vx = 0; }
-      if (p.x > W - HALF_W) { p.x = W - HALF_W; if (p.vx > 0) p.vx = 0; }
+      if (p.x > this.W - HALF_W) { p.x = this.W - HALF_W; if (p.vx > 0) p.vx = 0; }
 
       // Goal keep-out: don't let an attacker crowd the mouth of the goal they
       // attack (red attacks the right goal, blue the left), so nobody can be
       // shoved back into their own net. The defender's own approach is free.
       if (p.team === 'red') {
-        const limit = (W - GOAL_DEPTH) - GOAL_KEEPOUT - HALF_W;
+        const limit = (this.W - GOAL_DEPTH) - GOAL_KEEPOUT - HALF_W;
         if (p.x > limit) { p.x = limit; if (p.vx > 0) p.vx = 0; }
       } else {
         const limit = GOAL_DEPTH + GOAL_KEEPOUT + HALF_W;
@@ -296,12 +295,12 @@
       // Left bar spans x in [0, GOAL_DEPTH]; right bar mirrored.
       const headCY = p.y - HEAD_CY;
       const nearLeft = p.x <= GOAL_DEPTH + HEAD_R;
-      const nearRight = p.x >= W - GOAL_DEPTH - HEAD_R;
+      const nearRight = p.x >= this.W - GOAL_DEPTH - HEAD_R;
       if (!nearLeft && !nearRight) return;
       const headTop = headCY - HEAD_R;
       // Only clamp when head is rising into the underside of the bar.
-      if (headTop < TOP_Y && headCY > TOP_Y - HEAD_R) {
-        p.y = TOP_Y + HEAD_R + HEAD_CY;
+      if (headTop < this.TOP_Y && headCY > this.TOP_Y - HEAD_R) {
+        p.y = this.TOP_Y + HEAD_R + HEAD_CY;
         if (p.vy < 0) p.vy = 0;
       }
     }
@@ -311,6 +310,9 @@
       for (let i = 0; i < ps.length; i++) {
         for (let j = i + 1; j < ps.length; j++) {
           const a = ps[i], b = ps[j];
+          // Opponents pass THROUGH each other — no body-blocking. Only keep
+          // TEAMMATES from stacking on the exact same spot (matters in 2v2).
+          if (a.team !== b.team) continue;
           // Height-aware: a player jumping clearly above another passes over
           // them (you can leap over a body) instead of being shoved aside.
           if (Math.abs(a.y - b.y) > 80) continue;
@@ -330,42 +332,8 @@
       }
     }
 
-    _detectJam(dt) {
-      const b = this.ball;
-      // Closest contesting player from EACH team near the ball (horizontally).
-      let redX = null, blueX = null;
-      for (const p of this.players) {
-        const adx = Math.abs(p.x - b.x);
-        if (adx > JAM_PINCH_X) continue;
-        if (p.team === 'red') { if (redX === null || adx < Math.abs(redX - b.x)) redX = p.x; }
-        else { if (blueX === null || adx < Math.abs(blueX - b.x)) blueX = p.x; }
-      }
-      const contested = redX !== null && blueX !== null && Math.abs(redX - blueX) <= JAM_STANDOFF;
-      // Confinement: the ball has made no real lateral progress from the anchor.
-      if (this._jamTime <= 0) this._jamAnchorX = b.x;
-      const drifted = Math.abs(b.x - this._jamAnchorX) > JAM_BALL_RANGE;
-      if (!contested || drifted) {
-        // Not (or no longer) a jam — follow the ball and reset the clock.
-        this._jamAnchorX = b.x;
-        this._jamTime = 0;
-        return;
-      }
-      this._jamTime += dt;
-      if (this._jamTime < JAM_TIME) return;
-      // Jam confirmed — lift a fresh ball high above the standoff so it drops back
-      // in neutrally and both players have time to reposition.
-      const mx = (redX + blueX) / 2;
-      b.x = mx; b.y = 120; b.vx = 0; b.vy = 0; b.spin = 0;
-      b.hold = JAM_DROP_HANG;
-      this.pendingBallDrop = { x: mx, y: 120 };
-      this._jamTime = 0;
-    }
-
     _stepBall(dt) {
       const b = this.ball;
-      // A freshly dropped-in ball hangs in the air briefly so both players can
-      // see it and get set before it falls.
-      if (b.hold > 0) { b.hold -= dt; b.vx = 0; b.vy = 0; return null; }
       // Kicks (do this before integration so a well-timed boot is crisp).
       for (const p of this.players) {
         if (p.kick > 0 && !p.kicked) {
@@ -404,8 +372,8 @@
       if (b.y - b.r < CEIL_Y) { b.y = CEIL_Y + b.r; if (b.vy < 0) b.vy = -b.vy * WALL_REST; }
 
       // Ground + rolling friction.
-      if (b.y + b.r > GROUND_Y) {
-        b.y = GROUND_Y - b.r;
+      if (b.y + b.r > this.GROUND_Y) {
+        b.y = this.GROUND_Y - b.r;
         if (b.vy > 0) b.vy = -b.vy * GROUND_REST;
         if (Math.abs(b.vy) < 40) b.vy = 0;
         b.vx *= Math.exp(-ROLL_FRIC * dt);
@@ -413,7 +381,7 @@
 
       // Crossbars (both goals) — segment collision.
       this._ballVsBar(b, 0, GOAL_DEPTH);
-      this._ballVsBar(b, W - GOAL_DEPTH, W);
+      this._ballVsBar(b, this.W - GOAL_DEPTH, this.W);
 
       // Side walls + goal detection.
       const scored = this._ballVsSidesAndGoals(b);
@@ -432,17 +400,14 @@
     _ballVsCircle(b, p, cx, cy, cr, rest, isHead) {
       const pvx = p.vx, pvy = p.vy;
       const dx = b.x - cx, dy = b.y - cy;
-      let d = Math.hypot(dx, dy);
+      const d = Math.hypot(dx, dy);
       const min = cr + b.r;
       if (d >= min || d === 0) return;
-      const nx = dx / d, ny = dy / d;
-      // Separate.
-      b.x = cx + nx * min;
-      b.y = cy + ny * min;
-      // Dash body-check: a genuine power shot in the dash direction (with lift),
-      // not the soft carry of a walk-in. Only when the contact is roughly along
-      // the dash so you can't hit a ball that's behind you.
+      let nx = dx / d, ny = dy / d;
+      // Dash body-check first: a committed power shot beats everything.
       if (p.dash > 0 && (nx * p.dashDir) > -0.35) {
+        b.x = cx + nx * min;
+        b.y = cy + ny * min;
         // The strike connects ONCE and is spent — the player recoils so the ball
         // can't glue to their leading edge for the rest of the dash.
         b.vx = p.dashDir * DASH_HIT_VX + pvx * 0.2;
@@ -451,6 +416,47 @@
         p.vx *= 0.4;
         return;
       }
+      // Ball resting/rolling on the ground with a player circle pressing down on
+      // it (ny > 0). Never separate it DOWNWARD (that wedges/jitters it) — resolve
+      // horizontally. A GROUNDED player is a solid vertical foot-wall (block flat
+      // shots the way they came, dribble the ball ahead); an AIRBORNE player only
+      // GRAZING the ball gets a light nudge so it doesn't visibly "jump" when a
+      // jumping foot brushes past.
+      if ((b.y + b.r) >= this.GROUND_Y - 3 && ny > 0) {
+        b.y = this.GROUND_Y - b.r;
+        const relvx = b.vx - pvx;
+        // Escape side chosen by TRAVEL direction (block the way it came → no
+        // tunnel); fall back to the side the ball sits on when it's near-still.
+        const sideX = Math.abs(relvx) > 40 ? (relvx > 0 ? -1 : 1)
+          : (dx < 0 ? -1 : dx > 0 ? 1 : (p.facing || 1));
+        if (p.grounded) {
+          b.x = cx + sideX * min;
+          if (b.vx * sideX < 0) b.vx = -b.vx * rest;   // moving INTO the player → bounce back out
+          b.vx += pvx * 0.30;                          // a little carry so you can still dribble
+          if (b.vx * sideX < 120) b.vx = sideX * 120;  // gentle guaranteed clearance off the feet
+        } else {
+          // Airborne graze: push out only by the actual overlap, softly — no big
+          // teleport and no velocity kick, so the ball just gets brushed.
+          const horiz = Math.sqrt(Math.max(1, min * min - (b.y - cy) * (b.y - cy)));
+          b.x = cx + sideX * horiz;
+          if (b.vx * sideX < 0) b.vx = -b.vx * rest * 0.6;
+          b.vx += pvx * 0.15;
+        }
+        b.spin = b.vx * 0.02;
+        return;
+      }
+      // Normal (aerial) resolution: headers, body deflections, bumps.
+      // Anti-tunnel: if the ball is DEEP inside the player and heading out the
+      // far side (a point-blank contact), flip the contact to the approach side
+      // so it bounces back — the ball can NEVER pass through a player. Shallow
+      // glancing skims keep their natural (bumper) deflection.
+      const relx = b.vx - pvx, rely = b.vy - pvy;
+      if (d < min * 0.75 && (relx * nx + rely * ny) > 0) {
+        const rs = Math.hypot(relx, rely) || 1;
+        nx = -relx / rs; ny = -rely / rs;
+      }
+      b.x = cx + nx * min;
+      b.y = cy + ny * min;
       // Relative velocity along the normal.
       const rvn = (b.vx - pvx) * nx + (b.vy - pvy) * ny;
       if (rvn < 0) {
@@ -473,7 +479,7 @@
     _ballVsBar(b, x0, x1) {
       // Horizontal bar segment at y = TOP_Y from x0..x1, thickness BAR_THICK.
       const nx = clamp(b.x, x0, x1);
-      const ny = TOP_Y;
+      const ny = this.TOP_Y;
       const dx = b.x - nx, dy = b.y - ny;
       const d = Math.hypot(dx, dy);
       const min = b.r + BAR_THICK;
@@ -489,13 +495,13 @@
       // A goal counts the instant the WHOLE ball has crossed the goal line
       // (the front of the net, x = GOAL_DEPTH) below the crossbar — not only
       // when it reaches the screen edge.
-      if (b.y > TOP_Y) {
+      if (b.y > this.TOP_Y) {
         if (b.x + b.r <= GOAL_DEPTH) return 'blue';        // fully in the left net
-        if (b.x - b.r >= W - GOAL_DEPTH) return 'red';     // fully in the right net
+        if (b.x - b.r >= this.W - GOAL_DEPTH) return 'red';     // fully in the right net
       }
       // Solid side walls / back of the net (bounce).
       if (b.x - b.r < 0) { b.x = b.r; if (b.vx < 0) b.vx = -b.vx * WALL_REST; }
-      if (b.x + b.r > W) { b.x = W - b.r; if (b.vx > 0) b.vx = -b.vx * WALL_REST; }
+      if (b.x + b.r > this.W) { b.x = this.W - b.r; if (b.vx > 0) b.vx = -b.vx * WALL_REST; }
       return null;
     }
   }

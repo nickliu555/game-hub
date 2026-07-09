@@ -353,15 +353,18 @@
       ctx.fill();
       ctx.stroke();
 
-      // Hair / team headband.
-      ctx.fillStyle = col.jerseyDk;
-      ctx.beginPath();
-      ctx.arc(hx, hy, f.HEAD_R, Math.PI * 1.08, Math.PI * 1.92, false);
-      ctx.lineTo(hx, hy);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = col.jersey;
-      ctx.fillRect(hx - f.HEAD_R, hy - 10, f.HEAD_R * 2, 7);
+      // Team cap ("hat"): only the FIRST player on a team (seat 0) wears it, so
+      // the two teammates are easy to tell apart in 2v2 (seat 1 is bare-headed).
+      if (p.seat === 0) {
+        ctx.fillStyle = col.jerseyDk;
+        ctx.beginPath();
+        ctx.arc(hx, hy, f.HEAD_R, Math.PI * 1.08, Math.PI * 1.92, false);
+        ctx.lineTo(hx, hy);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = col.jersey;
+        ctx.fillRect(hx - f.HEAD_R, hy - 10, f.HEAD_R * 2, 7);
+      }
 
       // Eyes (looking toward facing) + brow + mouth.
       const ex = hx + p.facing * 12;

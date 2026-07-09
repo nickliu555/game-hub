@@ -227,9 +227,9 @@ function mountSoccerHead(app, httpServer, opts) {
       broadcastLobby();
     });
 
-    socket.on('host:assign', ({ playerId: pid, team } = {}, ack) => {
+    socket.on('host:assign', ({ playerId: pid, team, beforeId } = {}, ack) => {
       if (!requireHost(ack)) return;
-      const res = game.assignTeam(pid, team);
+      const res = game.assignTeam(pid, team, beforeId);
       if (!res.ok) return ack && ack(res);
       ack && ack({ ok: true });
       broadcastLobby();
@@ -308,7 +308,10 @@ function mountSoccerHead(app, httpServer, opts) {
 
     socket.on('host:reset', (_p, ack) => {
       if (!requireHost(ack)) return;
-      game.reset();
+      // Reset from a live/finished match returns to the lobby but KEEPS the mode
+      // + match-length settings; reset from the lobby returns them to defaults.
+      const keepConfig = game.phase !== PHASES.LOBBY;
+      game.reset(keepConfig);
       ack && ack({ ok: true });
       ns.emit('state:reset');
       broadcastLobby();

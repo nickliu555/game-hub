@@ -22,8 +22,8 @@ function stepN(w, n) { let g = null; for (let i = 0; i < n; i++) { const s = w.s
   const w = new HB.World({ mode: '1v1' });
   w.setRoster([{ id: 'r', name: 'R', team: 'red', seat: 0 }, { id: 'b', name: 'B', team: 'blue', seat: 0 }]);
   w.frozen = false;
-  w.ball.x = HB.W / 2; w.ball.y = 200; w.ball.vx = 0; w.ball.vy = 0;
-  stepN(w, 240); // 2s
+  w.ball.x = HB.W / 2; w.ball.y = HB.GROUND_Y * 0.3; w.ball.vx = 0; w.ball.vy = 0;
+  stepN(w, 360); // 3s — enough to settle from any field height
   const restY = HB.GROUND_Y - w.ball.r;
   check('ball settles on ground', Math.abs(w.ball.y - restY) < 3 && Math.abs(w.ball.vy) < 60, 'y=' + w.ball.y.toFixed(1));
 })();

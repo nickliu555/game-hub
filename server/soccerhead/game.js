@@ -21,7 +21,7 @@ const PHASES = {
   FINAL: 'FINAL',
 };
 
-const MODES = { '1v1': 2 };
+const MODES = { '1v1': 2, '2v2': 4 };
 const DEFAULT_MODE = '1v1';
 
 const MAX_NAME_LEN = 20;
@@ -37,6 +37,9 @@ class Game {
     this.phase = PHASES.LOBBY;
     this.mode = DEFAULT_MODE;
     this.durationSec = DEFAULT_DURATION_SEC;
+    // Monotonic counter giving each player an `order` for stable, reorderable
+    // seat ordering within a team (seat 0 = first, wears the cap in 2v2).
+    this._orderSeq = 0;
     /** @type {Map<string, object>} */
     this.players = new Map();
     // Cache of the live match state, kept fresh by host:* events. Used to
@@ -107,6 +110,7 @@ class Game {
     // Auto-assign to the emptier team (red wins ties) for balanced lobbies.
     const team = this.teamCount('red') <= this.teamCount('blue') ? 'red' : 'blue';
     const player = makePlayer(playerId, clean, socketId, team);
+    player.order = this._orderSeq++;
     this.players.set(playerId, player);
     return { ok: true, player };
   }
@@ -126,6 +130,7 @@ class Game {
     if (this.nameIsTaken(name)) { let k = 2; while (this.nameIsTaken('CPU ' + k)) k++; name = 'CPU ' + k; }
     const bot = makePlayer('bot-' + n, name, null, team);
     bot.isBot = true;
+    bot.order = this._orderSeq++;
     this.players.set(bot.id, bot);
     return { ok: true, player: bot };
   }
@@ -177,12 +182,21 @@ class Game {
     return { ok: true };
   }
 
-  assignTeam(playerId, team) {
+  assignTeam(playerId, team, beforeId) {
     if (this.phase !== PHASES.LOBBY) return { ok: false, reason: 'not-lobby' };
     if (!TEAMS.includes(team)) return { ok: false, reason: 'bad-team' };
     const p = this.players.get(playerId);
     if (!p) return { ok: false, reason: 'unknown-player' };
     p.team = team;
+    // Reorder within the (target) team: drop `p` just before `beforeId`, or at
+    // the end if none/unknown. Renumbers the team's `order` so seats stay stable.
+    const inTeam = Array.from(this.players.values())
+      .filter((q) => q.team === team && q.id !== playerId)
+      .sort((a, b) => a.order - b.order);
+    let idx = beforeId ? inTeam.findIndex((q) => q.id === beforeId) : -1;
+    if (idx < 0) idx = inTeam.length;
+    inTeam.splice(idx, 0, p);
+    inTeam.forEach((q, i) => { q.order = i; });
     return { ok: true };
   }
 
@@ -192,7 +206,16 @@ class Game {
       && this.teamCount('blue') === this.perTeam();
   }
   canStart() {
-    return this.phase === PHASES.LOBBY && this.isBalanced();
+    if (this.phase !== PHASES.LOBBY) return false;
+    const red = this.teamCount('red');
+    const blue = this.teamCount('blue');
+    const per = this.perTeam();
+    // 1v1: exactly one per side (unchanged). 2v2: each team 1..2 players and at
+    // least 3 total, so a plain 1v1 inside 2v2 isn't allowed (uneven 2v1 is).
+    if (this.mode === '2v2') {
+      return red >= 1 && red <= per && blue >= 1 && blue <= per && (red + blue) >= 3;
+    }
+    return red === per && blue === per && this.players.size === this.capacity();
   }
 
   // ---------------- Match lifecycle (meta only) ----------------
@@ -203,7 +226,7 @@ class Game {
    */
   getRoster() {
     const bySeat = { red: [], blue: [] };
-    const sorted = Array.from(this.players.values()).sort((a, b) => a.joinedAt - b.joinedAt);
+    const sorted = Array.from(this.players.values()).sort((a, b) => a.order - b.order);
     for (const p of sorted) {
       const team = p.team === 'blue' ? 'blue' : 'red';
       bySeat[team].push(p);
@@ -244,11 +267,16 @@ class Game {
     this.match.winner = winner === 'red' || winner === 'blue' ? winner : null;
   }
 
-  reset() {
+  reset(keepConfig) {
     this.phase = PHASES.LOBBY;
     this.players = new Map();
-    this.mode = DEFAULT_MODE;
-    this.durationSec = DEFAULT_DURATION_SEC;
+    this._orderSeq = 0;
+    // Resetting from a live/finished match keeps the mode + match-length the host
+    // picked; a plain lobby reset drops them back to defaults.
+    if (!keepConfig) {
+      this.mode = DEFAULT_MODE;
+      this.durationSec = DEFAULT_DURATION_SEC;
+    }
     this.match = this._freshMatch();
   }
 
@@ -257,7 +285,8 @@ class Game {
   getLobby() {
     const red = [];
     const blue = [];
-    for (const p of this.players.values()) {
+    const sorted = Array.from(this.players.values()).sort((a, b) => a.order - b.order);
+    for (const p of sorted) {
       (p.team === 'blue' ? blue : red).push({ id: p.id, name: p.name, connected: p.connected, isBot: !!p.isBot });
     }
     return {
@@ -294,6 +323,7 @@ function makePlayer(id, name, socketId, team) {
     socketId,
     connected: true,
     joinedAt: Date.now(),
+    order: 0,
     team: team === 'blue' ? 'blue' : 'red',
     isBot: false,
   };
