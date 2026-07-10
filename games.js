@@ -121,7 +121,7 @@ const games = [
         tagline: 'Big-head 2D soccer — your phone is the controller',
         emoji: '⚽',
         color: '#0E3A5F',
-        playerCount: '1–2 (+CPU)',
+        playerCount: '1–4 (+CPU)',
         duration: '1–4 min',
         description: 'A fast, physics-y arcade soccer showdown. The match plays out on the shared screen while each player uses their phone as a live controller — move, jump, and kick in real time. Go head-to-head 1v1, or add a CPU opponent to play solo. Highest score when the timer ends wins; a tie triggers sudden-death golden goal.',
         rules: [

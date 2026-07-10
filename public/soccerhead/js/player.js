@@ -41,6 +41,11 @@
   const pad = document.getElementById('pad');
   const dashLeft = document.getElementById('dashLeft');
   const dashRight = document.getElementById('dashRight');
+  const emotePanel = document.getElementById('emotePanel');
+  const emoteGrid = document.getElementById('emoteGrid');
+
+  // Goal-celebration reactions. Must mirror ALLOWED_EMOTES in server/soccerhead/index.js.
+  const EMOTES = ['😀', '😂', '😎', '😭', '😡', '👍', '⚽', '🔥', '💪', '🎉'];
 
   const btns = {
     0: document.getElementById('btnLeft'),
@@ -161,11 +166,13 @@
   });
   socket.on('m:countdown', function (d) {
     if (currentPhase !== 'PLAYING') { currentPhase = 'PLAYING'; showView('controller'); }
+    hideEmotePanel();
     setControls(false);
     showOverlay(d && d.n != null ? String(d.n) : '', 'Get ready…');
   });
   socket.on('m:play', function () {
     currentPhase = 'PLAYING';
+    hideEmotePanel();
     hideOverlay();
     setControls(true);
   });
@@ -173,8 +180,9 @@
   socket.on('m:goal', function (d) {
     setControls(false);
     if (d) setScores(d.red, d.blue);
-    const team = d && d.team;
-    showFlash((team === 'blue' ? 'BLUE' : 'RED') + ' SCORES!', team === myTeam);
+    // No goal banner here — players see the score/celebration on the host
+    // screen. Their screen switches to the reaction panel instead.
+    showEmotePanel();
   });
   socket.on('m:sudden', function () {
     setClock(0, true);
@@ -182,6 +190,7 @@
   });
   socket.on('m:end', function (d) {
     currentPhase = 'FINAL';
+    hideEmotePanel();
     setControls(false);
     renderFinal(d || {});
   });
@@ -242,6 +251,43 @@
     flashText.style.animation = '';
     if (flashTimer) clearTimeout(flashTimer);
     flashTimer = setTimeout(function () { flash.hidden = true; }, 1600);
+  }
+
+  // ---------------- Goal reaction panel ----------------
+  // Shown during the goal celebration (controls are disabled anyway). Each
+  // player may pick ONE emote per goal; after picking, the panel locks.
+  let emoteUsed = false;
+  (function buildEmotes() {
+    if (!emoteGrid) return;
+    EMOTES.forEach(function (e) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'emote-btn';
+      b.textContent = e;
+      b.setAttribute('aria-label', 'React ' + e);
+      b.addEventListener('pointerdown', function (ev) {
+        ev.preventDefault();
+        if (emoteUsed) return;
+        emoteUsed = true;
+        socket.emit('emote', { e: e });
+        b.classList.add('picked');
+        if (emotePanel) emotePanel.classList.add('locked');
+      });
+      emoteGrid.appendChild(b);
+    });
+  })();
+  function showEmotePanel() {
+    if (!emotePanel) return;
+    emoteUsed = false;
+    emotePanel.classList.remove('locked');
+    const picked = emoteGrid ? emoteGrid.querySelectorAll('.picked') : [];
+    for (let i = 0; i < picked.length; i++) picked[i].classList.remove('picked');
+    emotePanel.hidden = false;
+    if (pad) pad.style.display = 'none';
+  }
+  function hideEmotePanel() {
+    if (emotePanel) emotePanel.hidden = true;
+    if (pad) pad.style.display = '';
   }
 
   function renderFinal(d) {

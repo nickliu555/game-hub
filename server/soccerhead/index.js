@@ -12,6 +12,11 @@ const PLAYER_ROOM = 'players';
 const INACTIVITY_RESET_MS = 60 * 60 * 1000; // 60 minutes
 const HOST_GRACE_MS = 15000;
 
+// Emojis a player may send as a goal-celebration reaction. Must mirror the
+// EMOTES list in public/soccerhead/js/player.js. Whitelisting keeps arbitrary
+// text off the host screen.
+const ALLOWED_EMOTES = new Set(['😀', '😂', '😎', '😭', '😡', '👍', '⚽', '🔥', '💪', '🎉']);
+
 /**
  * Mount Soccer Head onto the hub's Express app and HTTP server.
  *
@@ -178,6 +183,16 @@ function mountSoccerHead(app, httpServer, opts) {
       if (game.phase !== PHASES.PLAYING) return;
       const dir = msg && msg.dir < 0 ? -1 : 1;
       ns.to(HOST_ROOM).emit('dash', { id: playerId, dir });
+    });
+
+    // Goal-celebration emote relay: only a whitelisted emoji, only during a
+    // live match. Forwarded to the host, which shows it as a bubble.
+    socket.on('emote', (msg) => {
+      if (role !== 'player' || !playerId) return;
+      if (game.phase !== PHASES.PLAYING) return;
+      const e = msg && msg.e;
+      if (!ALLOWED_EMOTES.has(e)) return;
+      ns.to(HOST_ROOM).emit('emote', { id: playerId, e });
     });
 
     // ---- Host flows ----

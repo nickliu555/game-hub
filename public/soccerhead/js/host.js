@@ -9,7 +9,11 @@
   const COUNTDOWN_FROM = 3;
   const COUNTDOWN_START_FROM = 5;    // longer count on the very first kickoff so players can settle in
   const COUNTDOWN_STEP_MS = 850;
-  const GOAL_CELEBRATE_MS = 2400;
+  const GOAL_CELEBRATE_MS = 3600;
+  // Emotes normally clear when the next kickoff goes live; this is just a safety
+  // cap so a bubble can never get stuck if play never resumes.
+  const EMOTE_MAX_MS = 12000;
+  const EMOTE_FADE_MS = 300;
   const CLOCK_EMIT_MS = 250;
 
   // ---------------- Element refs ----------------
@@ -357,6 +361,9 @@
   let durationSec = 90, mode = '1v1', roster = [];
   let redNames = 'Red', blueNames = 'Blue';
   let lastClockEmit = 0;
+  // Player ids that have already emoted during the current goal celebration
+  // (enforces one emote per player per goal, regardless of client behaviour).
+  const emotedThisGoal = new Set();
   let countdownTimer = null;
   let prevKick = {}; // pid -> bool (kick-sound edge detection)
   let botIds = [];   // roster ids driven locally by the CPU AI
@@ -585,6 +592,11 @@
     countOverlay.hidden = true;
     matchState = 'play';
     if (world) world.frozen = false;
+    // The ball is live again: fade out any goal-celebration emote bubbles.
+    if (world) {
+      const t = performance.now() + EMOTE_FADE_MS;
+      for (const p of world.players) { if (p.emote && p.emote.until > t) p.emote.until = t; }
+    }
     acc = 0;
     lastFrame = performance.now();
     lastClockEmit = 0;
@@ -595,6 +607,22 @@
   function onGoal(team) {
     matchState = 'goal';
     if (world) world.frozen = true;
+    // New goal: everyone may emote once again.
+    emotedThisGoal.clear();
+    // CPUs react automatically: the scorer's team celebrates, the conceding
+    // side sulks. Bubbles clear when the next kickoff goes live, like players'.
+    if (world && botIds.length) {
+      const now = performance.now();
+      const CELEBRATE = ['😎', '🔥', '💪', '🎉', '😂'];
+      const CONCEDE = ['😭', '😡', '⚽', '👍'];
+      for (const id of botIds) {
+        const bp = world.byId.get(id);
+        if (!bp) continue;
+        const set = bp.team === team ? CELEBRATE : CONCEDE;
+        emotedThisGoal.add(id);
+        bp.emote = { char: set[(Math.random() * set.length) | 0], born: now, until: now + EMOTE_MAX_MS };
+      }
+    }
     if (team === 'red') redScore++; else blueScore++;
     updateScoreboard();
     // Banner + fx: the scorer's name is the headline; "GOAL!!" is the topper.
@@ -700,6 +728,17 @@
   // ---------------- Input relay from players ----------------
   socket.on('in', function (d) { if (world && d) world.setInput(d.id, d.c, d.d === 1); });
   socket.on('dash', function (d) { if (world && d) world.dash(d.id, d.dir); });
+  // Goal-celebration emotes: one per player per goal, shown as a bubble above
+  // that player's character. Purely visual — never touches physics.
+  socket.on('emote', function (d) {
+    if (!world || !d || !d.id || !d.e) return;
+    if (emotedThisGoal.has(d.id)) return;
+    const p = world.byId.get(d.id);
+    if (!p) return;
+    emotedThisGoal.add(d.id);
+    const now = performance.now();
+    p.emote = { char: String(d.e), born: now, until: now + EMOTE_MAX_MS };
+  });
   socket.on('player:dropped', function (d) {
     if (!world || !d) return;
     const p = world.byId.get(d.id);

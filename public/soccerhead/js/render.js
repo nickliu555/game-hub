@@ -245,6 +245,70 @@
         ctx.fill();
       }
       ctx.globalAlpha = 1;
+
+      // Goal-celebration emote bubbles, on top of everything so they read
+      // clearly. Purely cosmetic — driven by p.emote set on the host.
+      const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      for (const p of this.world.players) this._drawEmote(ctx, p, nowMs);
+    }
+
+    _drawEmote(ctx, p, nowMs) {
+      const em = p.emote;
+      if (!em) return;
+      const remain = em.until - nowMs;
+      if (remain <= 0) { p.emote = null; return; }
+      const f = this.f;
+      // Fade out over the last 300ms; gentle pop-in over the first 140ms.
+      const FADE = 300;
+      let alpha = 1;
+      if (remain < FADE) alpha = remain / FADE;
+      const age = nowMs - (em.born || nowMs);
+      const pop = age < 140 ? 0.6 + 0.4 * (age / 140) : 1;
+
+      const hy = p.y - 110;           // head centre (HEAD_CY)
+      const HEAD_R = 40;
+      const r = 33;                   // bubble radius
+      const mouthX = p.x + p.facing * 7, mouthY = hy + 21;
+      // Sit beside the head at mouth height (clear of the nametag above),
+      // pushed out a bit so the bubble doesn't crowd the face; clamp inside
+      // the field so it never runs off the pitch.
+      let bx = p.x + p.facing * (HEAD_R + r + 30);
+      let by = hy - 4;
+      bx = Math.max(r + 6, Math.min(f.W - r - 6, bx));
+      by = Math.max(r + 6, by);
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(bx, by);
+      ctx.scale(pop, pop);
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = 'rgba(0,0,0,0.16)';
+      ctx.lineWidth = 2;
+      // Short tail: a small pointer on the bubble edge nearest the mouth (never
+      // a long stretch across the face). Drawn first so the body hides its base.
+      let dx = mouthX - bx, dy = mouthY - by;
+      const dl = Math.hypot(dx, dy) || 1;
+      const ux = dx / dl, uy = dy / dl;      // toward the mouth
+      const nx = -uy, ny = ux;               // perpendicular
+      const baseHalf = 8, tip = r + 22;
+      ctx.beginPath();
+      ctx.moveTo(ux * (r - 3) + nx * baseHalf, uy * (r - 3) + ny * baseHalf);
+      ctx.lineTo(ux * tip, uy * tip);
+      ctx.lineTo(ux * (r - 3) - nx * baseHalf, uy * (r - 3) - ny * baseHalf);
+      ctx.closePath();
+      ctx.fill();
+      // Bubble body over the tail base.
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      // Emoji.
+      ctx.globalAlpha = alpha;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '40px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+      ctx.fillText(em.char, 0, 2);
+      ctx.restore();
     }
 
     _drawNetFront(ctx, side) {
@@ -322,16 +386,31 @@
       // ---- Legs (kicking leg swings toward the boot) ----
       const swing = 1 - Math.max(0, p.kick) / 0.30;
       const sw = p.kick > 0 ? Math.sin(Math.min(1, swing / 0.6) * Math.PI / 2) : 0;
-      // Soccer kick: a short forward snap. The boot starts cocked behind, then
-      // whips forward to just past the ball at shin height — not a long stick.
-      const kickFootX = p.x + p.facing * (-16 + 72 * sw);
-      const kickFootY = p.y - 4 - 26 * sw;
-      const standFootX = p.x - p.facing * 12;
-      const standFootY = p.y - 2;
+      let kickFootX, kickFootY, standFootX, standFootY, kickBend, standBend;
+      if (p.kick > 0) {
+        // Soccer kick: a short forward snap. The boot starts cocked behind, then
+        // whips forward to just past the ball at shin height — not a long stick.
+        kickFootX = p.x + p.facing * (-16 + 72 * sw);
+        kickFootY = p.y - 4 - 26 * sw;
+        standFootX = p.x - p.facing * 12;
+        standFootY = p.y - 2;
+        kickBend = 13 + 6 * (1 - sw);
+        standBend = 6;
+      } else {
+        // Standing stance: a clear front foot and back foot (never tucked
+        // together), with the front boot out where a ball bounces off the body
+        // so contact looks solid.
+        kickFootX = p.x + p.facing * 20;   // front foot
+        kickFootY = p.y - 2;
+        standFootX = p.x - p.facing * 16;  // back foot
+        standFootY = p.y - 2;
+        kickBend = 7;
+        standBend = 7;
+      }
       // Standing leg keeps a gentle knee; the kicking leg holds a strong knee
       // bend throughout so the shin visibly snaps through the ball.
-      this._leg(ctx, hx - p.facing * 3, hipY + 2, standFootX, standFootY, skin, col.jerseyDk, p.facing, 6);
-      this._leg(ctx, hx + p.facing * 6, hipY + 2, kickFootX, kickFootY, skin, col.jerseyDk, p.facing, p.kick > 0 ? 13 + 6 * (1 - sw) : 7);
+      this._leg(ctx, hx - p.facing * 3, hipY + 2, standFootX, standFootY, skin, col.jerseyDk, p.facing, standBend);
+      this._leg(ctx, hx + p.facing * 6, hipY + 2, kickFootX, kickFootY, skin, col.jerseyDk, p.facing, kickBend);
       this._boot(ctx, standFootX, standFootY, p.facing, '#171717');
       this._boot(ctx, kickFootX, kickFootY, p.facing, '#171717');
 
@@ -570,30 +649,74 @@
       ctx.save();
       ctx.translate(b.x, b.y);
       ctx.rotate(b.spin);
-      // Base.
-      const g = ctx.createRadialGradient(-b.r * 0.4, -b.r * 0.4, b.r * 0.2, 0, 0, b.r);
+      const R = b.r;
+      const black = '#191d22';
+
+      // Sphere base.
+      const g = ctx.createRadialGradient(-R * 0.35, -R * 0.42, R * 0.15, 0, 0, R * 1.05);
       g.addColorStop(0, '#ffffff');
-      g.addColorStop(1, '#c9d2da');
+      g.addColorStop(0.72, '#eef2f5');
+      g.addColorStop(1, '#c1c9d0');
       ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(0, 0, b.r, 0, Math.PI * 2); ctx.fill();
-      // Pentagon panels.
-      ctx.fillStyle = '#20303a';
-      ctx.beginPath(); ctx.arc(0, 0, b.r * 0.34, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+
+      // Keep the pentagon pattern inside the ball.
+      ctx.save();
+      ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.clip();
+
+      // Central pentagon vertices (a point facing up).
+      const rc = R * 0.42;
+      const cv = [];
       for (let i = 0; i < 5; i++) {
-        const a = (i / 5) * Math.PI * 2;
-        const px = Math.cos(a) * b.r * 0.62;
-        const py = Math.sin(a) * b.r * 0.62;
-        ctx.save();
-        ctx.translate(px, py);
-        ctx.rotate(a);
-        ctx.fillStyle = '#26363f';
-        ctx.beginPath(); ctx.ellipse(0, 0, b.r * 0.16, b.r * 0.1, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
+        const a = (i * 72 - 90) * Math.PI / 180;
+        cv.push([Math.cos(a) * rc, Math.sin(a) * rc, a]);
       }
-      // Outline + sheen.
-      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(0, 0, b.r, 0, Math.PI * 2); ctx.stroke();
+
+      // Seams: from each central vertex out to the rim.
+      ctx.strokeStyle = black;
+      ctx.lineWidth = Math.max(1.4, R * 0.07);
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      for (const v of cv) {
+        ctx.beginPath();
+        ctx.moveTo(v[0], v[1]);
+        ctx.lineTo(Math.cos(v[2]) * R * 1.05, Math.sin(v[2]) * R * 1.05);
+        ctx.stroke();
+      }
+
+      // Central black pentagon.
+      ctx.fillStyle = black;
+      ctx.beginPath();
+      cv.forEach((v, i) => { i ? ctx.lineTo(v[0], v[1]) : ctx.moveTo(v[0], v[1]); });
+      ctx.closePath(); ctx.fill();
+
+      // Outer black patches, aligned with the central pentagon's edges and
+      // riding the rim so they read as the classic wrapped panels.
+      const ro = R * 0.98, pr = R * 0.40;
+      for (let i = 0; i < 5; i++) {
+        const a = ((i * 72 - 90) + 36) * Math.PI / 180; // edge midpoint direction
+        const cx = Math.cos(a) * ro, cy = Math.sin(a) * ro;
+        ctx.fillStyle = black;
+        ctx.beginPath();
+        for (let k = 0; k < 5; k++) {
+          const pa = a + (k * 72) * Math.PI / 180; // one vertex points outward
+          const px = cx + Math.cos(pa) * pr, py = cy + Math.sin(pa) * pr;
+          k ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+        }
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore(); // unclip
+
+      // Glossy highlight (top-left).
+      const sh = ctx.createRadialGradient(-R * 0.4, -R * 0.45, 0, -R * 0.4, -R * 0.45, R * 0.95);
+      sh.addColorStop(0, 'rgba(255,255,255,0.5)');
+      sh.addColorStop(0.42, 'rgba(255,255,255,0)');
+      ctx.fillStyle = sh;
+      ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+
+      // Rim outline.
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+      ctx.lineWidth = Math.max(1.5, R * 0.06);
+      ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
     }
 

@@ -98,6 +98,8 @@
       kick: 0, kickCd: 0, kicked: false,
       dash: 0, dashCd: 0, dashDir: 1,
       connected: true,
+      // Transient goal-celebration emote (host-set): { char, until } or null.
+      emote: null,
     };
   }
 
