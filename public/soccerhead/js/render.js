@@ -9,7 +9,6 @@
   'use strict';
 
   const SKIN = ['#f2c69b', '#d99a6c', '#a56a43', '#8a5a3b', '#f7d9b8'];
-  const HAIR = ['#2b1d12', '#120d0a', '#5b3a1e', '#caa25a', '#7a4a2a'];
 
   function lerp(a, b, t) { return a + (b - a) * t; }
 
@@ -361,7 +360,9 @@
       const col = this._teamColors(p.team);
       const skin = SKIN[(p.seat + (p.team === 'red' ? 0 : 2)) % SKIN.length];
       const skinDk = this._shade(skin, -0.18);
-      const hair = HAIR[(p.seat + (p.team === 'red' ? 1 : 3)) % HAIR.length];
+      // The 2nd player on each team (seat 1) is bald — an easy way to tell the
+      // two teammates apart in 2v2 (seat 0 keeps the team hairstyle).
+      const bald = p.seat === 1;
 
       const hx = p.x;
       const hy = p.y - f.HEAD_CY;        // head centre
@@ -430,10 +431,13 @@
         ctx.beginPath(); ctx.moveTo(hx + s * f.BODY_R, bodyCY - 6); ctx.lineTo(hx + s * (f.BODY_R + 10), bodyCY + 16); ctx.stroke();
       }
 
-      // ---- Sleeves (rounded shoulders) ----
+      // ---- Sleeves (rounded shoulders) + trim cuffs ----
       for (const s of [-1, 1]) {
         ctx.fillStyle = col.jerseyDk;
         ctx.beginPath(); ctx.arc(hx + s * (f.BODY_R - 2), bodyCY - 8, 13, 0, Math.PI * 2); ctx.fill();
+        // Trim cuff along the sleeve hem.
+        ctx.strokeStyle = col.trim; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(hx + s * (f.BODY_R - 2), bodyCY - 8, 12, Math.PI * 0.18, Math.PI * 0.82); ctx.stroke();
       }
 
       // ---- Torso (jersey) ----
@@ -445,6 +449,16 @@
       ctx.lineWidth = 3;
       this._roundedBody(ctx, hx, bodyCY, f.BODY_R + 4, f.BODY_R + 10);
       ctx.fill(); ctx.stroke();
+      // Vertical jersey stripes (soccer-kit look), clipped to the torso.
+      ctx.save();
+      this._roundedBody(ctx, hx, bodyCY, f.BODY_R + 4, f.BODY_R + 10); ctx.clip();
+      ctx.fillStyle = col.jerseyDk;
+      ctx.globalAlpha = 0.85;
+      const _sw = 9;
+      for (let sx = hx - (f.BODY_R + 12); sx < hx + (f.BODY_R + 12); sx += _sw * 2) {
+        ctx.fillRect(sx, bodyCY - (f.BODY_R + 14), _sw, (f.BODY_R + 14) * 2);
+      }
+      ctx.restore();
       // Soft left-light / right-shade sheen.
       ctx.save();
       this._roundedBody(ctx, hx, bodyCY, f.BODY_R + 4, f.BODY_R + 10); ctx.clip();
@@ -472,45 +486,56 @@
       ctx.fillText(String(jerseyNum), hx, bodyCY + 3);
       ctx.restore();
 
+      // ---- Chest crest (little badge) ----
+      ctx.save();
+      const crestX = hx - f.BODY_R * 0.55, crestY = bodyCY - f.BODY_R * 0.34;
+      ctx.fillStyle = col.trim;
+      ctx.strokeStyle = 'rgba(0,0,0,0.32)'; ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(crestX - 4.5, crestY - 5.5);
+      ctx.lineTo(crestX + 4.5, crestY - 5.5);
+      ctx.lineTo(crestX + 4.5, crestY + 1.5);
+      ctx.quadraticCurveTo(crestX, crestY + 7, crestX - 4.5, crestY + 1.5);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.restore();
+
+      // ---- Hair behind the head (long locks / afro volume) ----
+      if (!bald) this._hairBehind(ctx, p, hx, hy, f);
+
       // ---- Head ----
-      // Ears peeking out the sides.
-      ctx.fillStyle = skinDk;
-      for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(hx + s * (f.HEAD_R - 3), hy + 3, 7, 0, Math.PI * 2); ctx.fill(); }
+      // Ears show on the bald player (seat 1); otherwise the hair covers them.
+      if (bald) {
+        ctx.fillStyle = skinDk;
+        for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(hx + s * (f.HEAD_R - 3), hy + 4, 8, 0, Math.PI * 2); ctx.fill(); }
+      }
       // Face sphere with a soft top-left key light.
       const hg = ctx.createRadialGradient(hx - 13, hy - 15, 6, hx, hy + 6, f.HEAD_R + 8);
       hg.addColorStop(0, this._shade(skin, 0.22));
       hg.addColorStop(0.72, skin);
       hg.addColorStop(1, skinDk);
       ctx.fillStyle = hg;
-      ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.arc(hx, hy, f.HEAD_R, 0, Math.PI * 2); ctx.fill();
+      // Outline: a bald head gets a full soft outline (no hair to frame it);
+      // otherwise only the EXPOSED chin/jaw is stroked (red's hair frames the
+      // sides, blue's lower face is bare).
       ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(hx, hy, f.HEAD_R, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+      if (bald) {
+        ctx.beginPath(); ctx.arc(hx, hy, f.HEAD_R, 0, Math.PI * 2); ctx.stroke();
+        // Bald-pate shine.
+        ctx.fillStyle = 'rgba(255,255,255,0.16)';
+        ctx.beginPath(); ctx.ellipse(hx - f.HEAD_R * 0.24, hy - f.HEAD_R * 0.5, f.HEAD_R * 0.30, f.HEAD_R * 0.16, -0.5, 0, Math.PI * 2); ctx.fill();
+      } else {
+        const jaw0 = p.team === 'red' ? Math.PI * 0.34 : Math.PI * 0.15;
+        const jaw1 = p.team === 'red' ? Math.PI * 0.66 : Math.PI * 0.85;
+        ctx.beginPath(); ctx.arc(hx, hy, f.HEAD_R, jaw0, jaw1); ctx.stroke();
+      }
       // Subtle nose.
       ctx.fillStyle = skinDk;
       ctx.beginPath(); ctx.ellipse(hx + p.facing * 20, hy + 9, 5, 6, 0, 0, Math.PI * 2); ctx.fill();
 
-      // ---- Hair (bare-headed teammate) or team cap (seat 0) ----
-      ctx.save();
-      ctx.beginPath(); ctx.arc(hx, hy, f.HEAD_R, 0, Math.PI * 2); ctx.clip();
-      if (p.seat === 0) {
-        // Team cap: dome + hatband.
-        ctx.fillStyle = col.jersey;
-        ctx.beginPath(); ctx.arc(hx, hy - 3, f.HEAD_R + 3, Math.PI, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = col.jerseyDk;
-        ctx.fillRect(hx - f.HEAD_R, hy - 12, f.HEAD_R * 2, 6);
-      } else {
-        // Hair: swept dome with sideburns.
-        ctx.fillStyle = hair;
-        ctx.beginPath(); ctx.arc(hx, hy - 1, f.HEAD_R + 3, Math.PI * 1.02, Math.PI * 1.98); ctx.lineTo(hx, hy - 2); ctx.closePath(); ctx.fill();
-        ctx.fillRect(hx - f.HEAD_R, hy - 16, 8, 22);
-        ctx.fillRect(hx + f.HEAD_R - 8, hy - 16, 8, 22);
-      }
-      ctx.restore();
-      if (p.seat === 0) {
-        // Cap brim toward facing (drawn outside the clip).
-        ctx.fillStyle = col.jerseyDk;
-        ctx.beginPath(); ctx.ellipse(hx + p.facing * (f.HEAD_R - 4), hy - 11, 17, 6, 0, 0, Math.PI * 2); ctx.fill();
-      }
+      // ---- Hair (styled by team; drawn on top of the face) ----
+      if (!bald) this._hairFront(ctx, p, hx, hy, f);
 
       // ---- Face: eyes + brows + mouth ----
       const ex = hx + p.facing * 11;
@@ -557,6 +582,93 @@
         ctx.beginPath(); ctx.arc(hx, bodyCY, f.BODY_R + 10, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
       }
+    }
+
+    // Hair drawn BEHIND the head (before the face sphere): the red team's long
+    // wavy blonde locks flowing past the shoulders, or the blue team's black
+    // afro volume ringing the crown. Face is drawn on top, so these read as a
+    // mass around the head.
+    _hairBehind(ctx, p, hx, hy, f) {
+      const R = f.HEAD_R;
+      if (p.team === 'blue') {
+        // Black afro: a bumpy cloud across the crown + upper sides.
+        ctx.fillStyle = '#141414';
+        const N = 12;
+        for (let i = 0; i < N; i++) {
+          const phi = Math.PI * (0.05 + 0.90 * (i / (N - 1)));
+          const rr = R * 1.02;
+          const bx = hx - Math.cos(phi) * rr;
+          const by = hy - Math.sin(phi) * rr - R * 0.06;
+          const br = R * (0.40 + 0.05 * Math.sin(i * 1.9));
+          ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill();
+        }
+        for (const s of [-1, 1]) {
+          ctx.beginPath(); ctx.arc(hx + s * R * 0.96, hy - R * 0.14, R * 0.46, 0, Math.PI * 2); ctx.fill();
+        }
+      } else {
+        // Sleek northern-European blonde: a SLIM mass hugging the head (not
+        // bulky) — crown + sides over the ears down to a neat jaw/neck flick.
+        // Groomed, so no scraggly shoulder wisps.
+        const dk = '#EACD76';
+        ctx.fillStyle = dk;
+        ctx.beginPath();
+        ctx.moveTo(hx - R * 0.50, hy - R * 0.80);
+        ctx.quadraticCurveTo(hx, hy - R * 1.12, hx + R * 0.50, hy - R * 0.80);
+        ctx.quadraticCurveTo(hx + R * 1.05, hy - R * 0.40, hx + R * 1.01, hy + R * 0.18);
+        ctx.quadraticCurveTo(hx + R * 1.03, hy + R * 0.60, hx + R * 0.84, hy + R * 0.96);
+        ctx.quadraticCurveTo(hx + R * 0.72, hy + R * 1.08, hx + R * 0.60, hy + R * 0.92);
+        ctx.quadraticCurveTo(hx, hy + R * 0.95, hx - R * 0.60, hy + R * 0.92);
+        ctx.quadraticCurveTo(hx - R * 0.72, hy + R * 1.08, hx - R * 0.84, hy + R * 0.96);
+        ctx.quadraticCurveTo(hx - R * 1.03, hy + R * 0.60, hx - R * 1.01, hy + R * 0.18);
+        ctx.quadraticCurveTo(hx - R * 1.05, hy - R * 0.40, hx - R * 0.50, hy - R * 0.80);
+        ctx.closePath(); ctx.fill();
+        // One neat shine strand each side (healthy, groomed — not messy).
+        ctx.strokeStyle = '#F3E4A2'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+        for (const s of [-1, 1]) {
+          ctx.beginPath(); ctx.moveTo(hx + s * R * 0.72, hy - R * 0.20); ctx.quadraticCurveTo(hx + s * R * 0.90, hy + R * 0.40, hx + s * R * 0.74, hy + R * 0.90); ctx.stroke();
+        }
+      }
+    }
+
+    // Hair drawn ON TOP of the face (clipped to the head): the fringe / hairline.
+    _hairFront(ctx, p, hx, hy, f) {
+      const R = f.HEAD_R;
+      ctx.save();
+      ctx.beginPath(); ctx.arc(hx, hy, R, 0, Math.PI * 2); ctx.clip();
+      if (p.team === 'blue') {
+        // Afro hairline across the forehead + a row of tight-curl bumps.
+        ctx.fillStyle = '#141414';
+        ctx.beginPath();
+        ctx.moveTo(hx - R, hy - R);
+        ctx.lineTo(hx + R, hy - R);
+        ctx.lineTo(hx + R, hy - R * 0.32);
+        ctx.quadraticCurveTo(hx + R * 0.5, hy - R * 0.12, hx, hy - R * 0.28);
+        ctx.quadraticCurveTo(hx - R * 0.5, hy - R * 0.12, hx - R, hy - R * 0.32);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#222';
+        for (let i = -2; i <= 2; i++) {
+          ctx.beginPath(); ctx.arc(hx + i * R * 0.4, hy - R * 0.30, R * 0.16, 0, Math.PI * 2); ctx.fill();
+        }
+      } else {
+        // Sleek blonde covering the crown, sides and ears with a neat, slightly
+        // wider face opening (groomed, not bulky) + a clean centre part.
+        ctx.fillStyle = '#EACD76';
+        ctx.beginPath();
+        ctx.arc(hx, hy, R, 0, Math.PI * 2);
+        ctx.moveTo(hx + R * 0.56, hy + R * 0.16);
+        ctx.ellipse(hx, hy + R * 0.16, R * 0.56, R * 0.84, 0, 0, Math.PI * 2, true);
+        ctx.fill('evenodd');
+        // Neat centre part + a soft sweep each side (groomed).
+        ctx.strokeStyle = '#F3E4A2'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(hx, hy - R * 0.92); ctx.lineTo(hx, hy - R * 0.52); ctx.stroke();
+        for (const s of [-1, 1]) {
+          ctx.beginPath(); ctx.moveTo(hx + s * R * 0.10, hy - R * 0.86); ctx.quadraticCurveTo(hx + s * R * 0.64, hy - R * 0.34, hx + s * R * 0.66, hy + R * 0.30); ctx.stroke();
+        }
+        // Subtle white sheen on the crown.
+        ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(hx - R * 0.34, hy - R * 0.72); ctx.quadraticCurveTo(hx, hy - R * 0.44, hx + R * 0.24, hy - R * 0.74); ctx.stroke();
+      }
+      ctx.restore();
     }
 
     // A two-tone leg with a bent knee: skin thigh into a team-coloured sock.

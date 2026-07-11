@@ -58,12 +58,14 @@ Also includes a **Solo Practice** mode — pick a board size and hunt for words 
 ### ⚽ Soccer Head
 A fast, physics-y arcade soccer showdown played on the shared screen, with each phone as a live controller.
 
-1. It's **1v1** — one player on Team Red, one on Team Blue (or add a **CPU** opponent to play solo)
+1. Play **1v1** or **2v2** — get sorted onto Team Red or Team Blue (or add a **CPU** opponent to play solo)
 2. The host sets the match length (**0:30–2:00**), then hits Start
 3. Your phone becomes a controller: **left/right** to move, **jump** and **kick** on the right
 4. **Double-tap** left or right for a quick **dash** (short cooldown) — dash into the ball for a power shot
-5. Head, body, or boot the ball into the opponent's net to score
+5. Head, body, or boot the ball into the opponent's net to score — then fire off an **emoji reaction** during the celebration
 6. **Highest score when the timer hits zero wins — a tie goes to sudden-death golden goal**
+
+The host can **pause** mid-match from the button under the top bar (the whole game freezes and controllers are locked, then everything resumes exactly where it left off). If the ball goes untouched for **10 seconds**, the point automatically resets from a fresh centre kickoff.
 
 ## How It Works
 

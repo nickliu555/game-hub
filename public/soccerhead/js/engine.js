@@ -36,7 +36,7 @@
   const MODE_SCALE = { '1v1': 1, '2v2': 1.2 };
   // Goal opening height per mode (fixed pixels, NOT scaled by the field box) —
   // 2v2 gets a taller net. Falls back to GOAL_H for any unknown mode.
-  const MODE_GOAL_H = { '1v1': 330, '2v2': 360 };
+  const MODE_GOAL_H = { '1v1': 345, '2v2': 375 };
 
   // ---- Ball ----
   const BALL_R = 22;
@@ -55,8 +55,13 @@
   // ---- Player ----
   // Slightly shorter character so there is clear air to lob the ball over a
   // standing defender and drop it under the tall crossbar.
-  const HEAD_R = 40, HEAD_CY = 110;
-  const BODY_R = 34, BODY_CY = 58;
+  // Big cartoon head, small body (fits "Soccer HEAD" + makes headers easier):
+  // HEAD_R is much larger than BODY_R. HEAD_CY is chosen so HEAD_CY + HEAD_R is
+  // unchanged (156), i.e. the enlarged head grows DOWNWARD into the torso rather
+  // than making the whole character taller. Both the hitbox AND the drawn head
+  // read from these via world.field, so they can never drift out of sync.
+  const HEAD_R = 50, HEAD_CY = 106;
+  const BODY_R = 30, BODY_CY = 58;
   // Lower body / shins. The body circle's bottom sits ~24px above the feet
   // (BODY_CY-BODY_R), leaving a band down to the ground that used to be covered
   // only by the grounded foot-wall — so an AIRBORNE ball could slip through the
@@ -202,6 +207,11 @@
     // One fixed physics step. Returns 'red' | 'blue' if that team just scored.
     step(dt) {
       if (this.frozen) return null;
+      // Remember start-of-step positions (used by the swept anti-tunnel so the
+      // ball can never pass through a player, even a fast shot or one shoved in
+      // by an opponent running into it).
+      for (const p of this.players) { p.prevX = p.x; p.prevY = p.y; }
+      this.ball.prevX = this.ball.x; this.ball.prevY = this.ball.y;
       for (const p of this.players) this._stepPlayer(p, dt);
       // Player-vs-player soft separation (keeps bodies from overlapping).
       this._separatePlayers();
@@ -395,6 +405,17 @@
       b.y += b.vy * dt;
       b.spin += b.vx * dt * 0.06;
 
+      // Swept anti-tunnel (runs BEFORE the normal resolution): if the ball
+      // flipped to the FAR side of any player circle in this one step — a fast
+      // shot, or an opponent shoving a ball that was resting against a defender
+      // — snap it back to the side it came from. Uses motion relative to the
+      // player, so it also catches a player running the ball into another.
+      for (const p of this.players) {
+        this._sweepBallVsCircle(b, p, HEAD_CY, HEAD_R);
+        this._sweepBallVsCircle(b, p, BODY_CY, BODY_R);
+        this._sweepBallVsCircle(b, p, LEG_CY, LEG_R);
+      }
+
       // Ball vs player head + body + legs (headers / bumps / dash body-checks).
       // Order matters: body runs before legs. When the body deflects a ball it
       // pushes it out past the leg circle's reach, so the leg never double-hits;
@@ -432,6 +453,40 @@
         x: p.x + p.facing * (26 + 62 * swing),
         y: p.y - 20 - 46 * swing,
       };
+    }
+
+    // Swept guard: if, in ONE step, the ball crossed to the OPPOSITE side of a
+    // player circle (and its path actually pierced that circle), keep it on the
+    // side it approached from. Motion is measured relative to the player, so it
+    // works whether the ball was shot fast or an opponent ran it into a player.
+    // It deliberately does nothing for normal contacts (ball ends on the same
+    // side) or a lob that arcs AROUND the circle, so headers/dribbling/lobs are
+    // unaffected.
+    _sweepBallVsCircle(b, p, cyOff, cr) {
+      const R = cr + b.r;
+      const sx = b.prevX - p.prevX, sy = b.prevY - (p.prevY - cyOff);
+      const ex = b.x - p.x, ey = b.y - (p.y - cyOff);
+      // Only when the ball flipped to the opposite side of the player centre.
+      if (sx * ex + sy * ey >= 0) return;
+      // Only when the travelled segment actually passed through the solid circle
+      // (closest approach to the centre is inside R) — not an arc around it.
+      const dx = ex - sx, dy = ey - sy;
+      const a = dx * dx + dy * dy;
+      let t = a > 1e-6 ? -(sx * dx + sy * dy) / a : 0;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const ccx = sx + t * dx, ccy = sy + t * dy;
+      if (ccx * ccx + ccy * ccy >= R * R) return;
+      // Put the ball back on the approach side, at the circle surface.
+      let nx, ny;
+      const slen = Math.hypot(sx, sy);
+      if (slen > 1e-3) { nx = sx / slen; ny = sy / slen; }
+      else { const el = Math.hypot(ex, ey) || 1; nx = -ex / el; ny = -ey / el; }
+      b.x = p.x + nx * R;
+      b.y = (p.y - cyOff) + ny * R;
+      // Remove the velocity heading into the player (relative), with a light bounce.
+      const rvn = (b.vx - p.vx) * nx + (b.vy - p.vy) * ny;
+      if (rvn < 0) { const rest = 0.5; b.vx -= (1 + rest) * rvn * nx; b.vy -= (1 + rest) * rvn * ny; }
+      b.touchedThisStep = true;
     }
 
     _ballVsCircle(b, p, cx, cy, cr, rest, isHead, isLeg) {
@@ -489,16 +544,11 @@
         b.spin = b.vx * 0.02;
         return;
       }
-      // Normal (aerial) resolution: headers, body deflections, bumps.
-      // Anti-tunnel: if the ball is DEEP inside the player and heading out the
-      // far side (a point-blank contact), flip the contact to the approach side
-      // so it bounces back — the ball can NEVER pass through a player. Shallow
-      // glancing skims keep their natural (bumper) deflection.
-      const relx = b.vx - pvx, rely = b.vy - pvy;
-      if (d < min * 0.75 && (relx * nx + rely * ny) > 0) {
-        const rs = Math.hypot(relx, rely) || 1;
-        nx = -relx / rs; ny = -rely / rs;
-      }
+      // Normal (aerial) resolution: headers, body deflections, bumps. The ball
+      // is pushed straight out along the GEOMETRIC contact normal — no
+      // velocity-based normal flipping / side-swapping (that was an unrealistic
+      // hack). The ball can never pass through a player because the swept guard
+      // (_sweepBallVsCircle) already kept it on the side it approached from.
       b.x = cx + nx * min;
       b.y = cy + ny * min;
       // Relative velocity along the normal.
