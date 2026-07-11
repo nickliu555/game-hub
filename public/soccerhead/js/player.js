@@ -170,7 +170,7 @@
     if (currentPhase !== 'PLAYING') { currentPhase = 'PLAYING'; showView('controller'); }
     hideEmotePanel();
     setControls(false);
-    showOverlay(d && d.n != null ? String(d.n) : '', 'Get ready…');
+    showOverlay(d && d.n != null ? String(d.n) : '', (d && d.note) ? d.note : 'Get ready…');
   });
   socket.on('m:play', function () {
     currentPhase = 'PLAYING';

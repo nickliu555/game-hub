@@ -15,6 +15,9 @@
   const EMOTE_MAX_MS = 12000;
   const EMOTE_FADE_MS = 300;
   const CLOCK_EMIT_MS = 250;
+  // If nobody touches the ball for this long during live play, reset the point
+  // (neutral centre drop + 3-2-1) so a stranded ball can never stall the match.
+  const BALL_IDLE_RESET_MS = 10000;
 
   // ---------------- Element refs ----------------
   const views = {
@@ -50,6 +53,7 @@
   const sbTag = document.getElementById('sbTag');
   const countOverlay = document.getElementById('countOverlay');
   const coNum = document.getElementById('coNum');
+  const coNote = document.getElementById('coNote');
   const goalBanner = document.getElementById('goalBanner');
   const gbText = document.getElementById('gbText');
   const gbSub = document.getElementById('gbSub');
@@ -363,6 +367,8 @@
   let durationSec = 90, mode = '1v1', roster = [];
   let redNames = 'Red', blueNames = 'Blue';
   let lastClockEmit = 0;
+  // Time (ms) since the ball was last touched during live play (idle watchdog).
+  let untouchedMs = 0;
   // Player ids that have already emoted during the current goal celebration
   // (enforces one emote per player per goal, regardless of client behaviour).
   const emotedThisGoal = new Set();
@@ -542,8 +548,10 @@
       acc += dt;
       let steps = 0;
       let scored = null;
+      let touched = false;
       while (acc >= FIXED_DT && steps < MAX_STEPS) {
         scored = world.step(FIXED_DT);
+        if (world.ball && world.ball.touchedThisStep) touched = true;
         acc -= FIXED_DT;
         steps++;
         if (scored) break;
@@ -551,14 +559,27 @@
       detectKickSfx();
       if (scored) { onGoal(scored); }
       else {
-        // Advance the match clock in real time.
-        clockMs -= dt * 1000;
-        if (!sudden && clockMs <= 0) { clockMs = 0; handleTimeUp(); }
-        updateScoreboard();
-        const t = now;
-        if (t - lastClockEmit >= CLOCK_EMIT_MS) {
-          lastClockEmit = t;
-          socket.emit('host:clock', { ms: Math.max(0, clockMs), sudden: sudden });
+        // Idle-ball watchdog: nobody has touched the ball for a while -> reset
+        // the point like a fresh kickoff (neutral centre drop + 3-2-1). Score
+        // and match clock are preserved (beginCountdown doesn't touch them).
+        if (touched) untouchedMs = 0;
+        else untouchedMs += dt * 1000;
+        if (untouchedMs >= BALL_IDLE_RESET_MS) {
+          untouchedMs = 0;
+          beginCountdown(null, null, 'BALL INACTIVITY RESET');
+        }
+        // Only keep the match clock running while play is still live (the idle
+        // reset above may have switched us into the countdown this frame).
+        if (matchState === 'play') {
+          // Advance the match clock in real time.
+          clockMs -= dt * 1000;
+          if (!sudden && clockMs <= 0) { clockMs = 0; handleTimeUp(); }
+          updateScoreboard();
+          const t = now;
+          if (t - lastClockEmit >= CLOCK_EMIT_MS) {
+            lastClockEmit = t;
+            socket.emit('host:clock', { ms: Math.max(0, clockMs), sudden: sudden });
+          }
         }
       }
     }
@@ -698,19 +719,21 @@
     st.wantDash = commit && amCloser && inAtkHalf && ahead > 55 && ahead < 190 && Math.abs(b.y - p.y) < 130;
   }
 
-  function beginCountdown(concedeTeam, fromN) {
+  function beginCountdown(concedeTeam, fromN, note) {
     matchState = 'countdown';
     updatePauseBtn();
     if (world) { world.kickoff(concedeTeam); world.frozen = true; }
     goalBanner.hidden = true;
     updateScoreboard();
     if (countdownTimer) pClear(countdownTimer);
+    const label = note || '';
+    if (coNote) { coNote.textContent = label; coNote.hidden = !label; }
     let n = fromN || COUNTDOWN_FROM;
     function showN(v) {
       countOverlay.hidden = false;
       coNum.textContent = v;
       coNum.style.animation = 'none'; void coNum.offsetWidth; coNum.style.animation = '';
-      socket.emit('host:countdown', { n: v });
+      socket.emit('host:countdown', { n: v, note: label });
       blip(440, 0.1, 'square', 0.12);
     }
     showN(n);
@@ -734,6 +757,7 @@
     acc = 0;
     lastFrame = performance.now();
     lastClockEmit = 0;
+    untouchedMs = 0;   // fresh point: restart the idle-ball watchdog
     socket.emit('host:play', {});
     playWhistle();
   }

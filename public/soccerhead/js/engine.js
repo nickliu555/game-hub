@@ -57,6 +57,12 @@
   // standing defender and drop it under the tall crossbar.
   const HEAD_R = 40, HEAD_CY = 110;
   const BODY_R = 34, BODY_CY = 58;
+  // Lower body / shins. The body circle's bottom sits ~24px above the feet
+  // (BODY_CY-BODY_R), leaving a band down to the ground that used to be covered
+  // only by the grounded foot-wall — so an AIRBORNE ball could slip through the
+  // legs-to-torso area. This third circle overlaps the body circle and reaches
+  // the feet so the silhouette is solid top-to-bottom with no gap.
+  const LEG_R = 26, LEG_CY = 22;
   const HALF_W = 34;           // wall clamp half-width
   const GRAVITY = 2350, FALL_MULT = 1.28, MAX_FALL = 1650;
   // A big, floaty defensive leap tuned to the goal height: a full jump carries
@@ -357,6 +363,9 @@
 
     _stepBall(dt) {
       const b = this.ball;
+      // Reset each step; set true by any player contact below (kick / head /
+      // body / leg). The host uses this to detect a ball nobody is touching.
+      b.touchedThisStep = false;
       // Kicks (do this before integration so a well-timed boot is crisp).
       for (const p of this.players) {
         if (p.kick > 0 && !p.kicked) {
@@ -365,6 +374,7 @@
           const d = Math.hypot(dx, dy);
           if (d < b.r + FOOT_R) {
             p.kicked = true;
+            b.touchedThisStep = true;
             b.vx = p.facing * KICK_VX + p.vx * 0.35;
             b.vy = -KICK_VY + p.vy * 0.3;
             // Contact angle: striking from under the ball (dy < 0) adds loft;
@@ -385,10 +395,14 @@
       b.y += b.vy * dt;
       b.spin += b.vx * dt * 0.06;
 
-      // Ball vs player head + body (headers / bumps / dash body-checks).
+      // Ball vs player head + body + legs (headers / bumps / dash body-checks).
+      // Order matters: body runs before legs. When the body deflects a ball it
+      // pushes it out past the leg circle's reach, so the leg never double-hits;
+      // the leg only ever resolves a ball the body missed (the shin-band gap).
       for (const p of this.players) {
         this._ballVsCircle(b, p, p.x, p.y - HEAD_CY, HEAD_R, REST_HEAD, true);
         this._ballVsCircle(b, p, p.x, p.y - BODY_CY, BODY_R, REST_BODY, false);
+        this._ballVsCircle(b, p, p.x, p.y - LEG_CY, LEG_R, REST_BODY, false, true);
       }
 
       // Ceiling.
@@ -420,12 +434,15 @@
       };
     }
 
-    _ballVsCircle(b, p, cx, cy, cr, rest, isHead) {
+    _ballVsCircle(b, p, cx, cy, cr, rest, isHead, isLeg) {
       const pvx = p.vx, pvy = p.vy;
       const dx = b.x - cx, dy = b.y - cy;
       const d = Math.hypot(dx, dy);
       const min = cr + b.r;
       if (d >= min || d === 0) return;
+      // Any overlap with a body part counts as a touch (keeps a ball pinned to a
+      // player from tripping the host's untouched-ball watchdog).
+      b.touchedThisStep = true;
       let nx = dx / d, ny = dy / d;
       // Dash body-check first: a committed power shot beats everything.
       if (p.dash > 0 && (nx * p.dashDir) > -0.35) {
@@ -446,6 +463,10 @@
       // GRAZING the ball gets a light nudge so it doesn't visibly "jump" when a
       // jumping foot brushes past.
       if ((b.y + b.r) >= this.GROUND_Y - 3 && ny > 0) {
+        // The leg circle never handles ground balls — those belong to the body
+        // circle's foot-wall (already run this step), which keeps dribbling and
+        // the airborne-graze nudge exactly as tuned (no double-handling).
+        if (isLeg) return;
         b.y = this.GROUND_Y - b.r;
         const relvx = b.vx - pvx;
         // Escape side chosen by TRAVEL direction (block the way it came → no

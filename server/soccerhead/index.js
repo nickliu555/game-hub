@@ -285,11 +285,11 @@ function mountSoccerHead(app, httpServer, opts) {
     });
 
     // ---- Live match meta pushed by the host (rebroadcast to players) ----
-    socket.on('host:countdown', ({ n } = {}) => {
+    socket.on('host:countdown', ({ n, note } = {}) => {
       if (role !== 'host') return;
       touchActivity();
       game.setLive(false);
-      ns.to(PLAYER_ROOM).emit('m:countdown', { n });
+      ns.to(PLAYER_ROOM).emit('m:countdown', { n, note });
     });
     socket.on('host:play', () => {
       if (role !== 'host') return;
