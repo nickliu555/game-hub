@@ -54,6 +54,7 @@ class Game {
       clockMs: this.durationSec * 1000,
       sudden: false,
       live: false, // true only while controls are active (host:play)
+      paused: false, // true while the host has the match paused
       winner: null, // 'red' | 'blue' | null
     };
   }
@@ -259,6 +260,7 @@ class Game {
     if (Number.isFinite(blueScore)) this.match.blueScore = blueScore | 0;
   }
   setSudden(on) { this.match.sudden = !!on; }
+  setPaused(on) { this.match.paused = !!on; }
   endMatch({ winner, redScore, blueScore } = {}) {
     this.phase = PHASES.FINAL;
     this.match.live = false;
@@ -310,6 +312,7 @@ class Game {
       blueScore: this.match.blueScore,
       clockMs: this.match.clockMs,
       sudden: this.match.sudden,
+      paused: this.match.paused,
       live: this.match.live,
       winner: this.match.winner,
     };

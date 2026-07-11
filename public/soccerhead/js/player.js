@@ -32,6 +32,7 @@
   const coText = document.getElementById('coText');
   const flash = document.getElementById('flash');
   const flashText = document.getElementById('flashText');
+  const pauseCover = document.getElementById('pauseCover');
   const rotateHint = document.getElementById('rotateHint');
   const finalEmoji = document.getElementById('finalEmoji');
   const finalTitle = document.getElementById('finalTitle');
@@ -158,6 +159,7 @@
       const mine = d.roster.find(function (r) { return r.id === playerId; });
       if (mine) setTeam(mine.team);
     }
+    if (pauseCover) pauseCover.hidden = true;
     setScores(0, 0);
     setClock((d && d.durationSec ? d.durationSec : 90) * 1000, false);
     showView('controller');
@@ -188,6 +190,16 @@
     setClock(0, true);
     showFlash('SUDDEN DEATH', false);
   });
+  socket.on('m:pause', function () {
+    // Drop any held buttons and lock the pad, then cover it so no touch lands.
+    setControls(false);
+    if (pauseCover) pauseCover.hidden = false;
+  });
+  socket.on('m:resume', function (d) {
+    if (pauseCover) pauseCover.hidden = true;
+    // Re-enable input only if the ball was live when the host paused.
+    setControls(!!(d && d.live));
+  });
   socket.on('m:end', function (d) {
     currentPhase = 'FINAL';
     hideEmotePanel();
@@ -202,7 +214,9 @@
       setScores(match.redScore, match.blueScore);
       setClock(match.clockMs, !!match.sudden);
     }
-    if (match && match.live) { hideOverlay(); setControls(true); }
+    if (pauseCover) pauseCover.hidden = !(match && match.paused);
+    if (match && match.paused) { setControls(false); }
+    else if (match && match.live) { hideOverlay(); setControls(true); }
     else { setControls(false); showOverlay(null, 'Get ready…'); }
   }
 

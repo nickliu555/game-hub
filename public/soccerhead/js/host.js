@@ -63,6 +63,8 @@
 
   const fullscreenBtn = document.getElementById('fullscreenBtn');
   const resetBtn = document.getElementById('resetBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const pauseOverlay = document.getElementById('pauseOverlay');
 
   // ---------------- Modal helpers (match other games) ----------------
   function showInlineConfirm(message, onYes, opts) {
@@ -369,6 +371,116 @@
   let botIds = [];   // roster ids driven locally by the CPU AI
   let botState = {}; // per-bot AI scratch state
 
+  // ---------------- Pause ----------------
+  // The whole match lives on this browser, so pausing means: stop stepping the
+  // physics/clock in loop(), freeze the world, and freeze every wall-clock timer
+  // (countdown / goal celebration / sudden-death announce) so the sequence picks
+  // up exactly where it left off. Players get covered + input-blocked via the
+  // server relay (m:pause / m:resume).
+  let paused = false;
+
+  // Pausable wall-clock timers. On pause each remembers how much time was left;
+  // on resume it re-arms with exactly that remainder.
+  const pausableTimers = new Set();
+  function pTimeout(fn, ms) {
+    const rec = { fn: fn, remaining: ms, startedAt: performance.now(), handle: null, repeat: false, interval: 0 };
+    rec.handle = setTimeout(function () { pausableTimers.delete(rec); fn(); }, ms);
+    pausableTimers.add(rec);
+    return rec;
+  }
+  function pInterval(fn, ms) {
+    const rec = { fn: fn, remaining: ms, startedAt: performance.now(), handle: null, repeat: true, interval: ms };
+    rec.handle = setInterval(function () { rec.startedAt = performance.now(); rec.remaining = ms; fn(); }, ms);
+    pausableTimers.add(rec);
+    return rec;
+  }
+  function pClear(rec) {
+    if (!rec) return;
+    if (rec.repeat) clearInterval(rec.handle); else clearTimeout(rec.handle);
+    pausableTimers.delete(rec);
+  }
+  function pClearAll() {
+    pausableTimers.forEach(function (rec) {
+      if (rec.repeat) clearInterval(rec.handle); else clearTimeout(rec.handle);
+    });
+    pausableTimers.clear();
+  }
+  function freezeTimers() {
+    const now = performance.now();
+    pausableTimers.forEach(function (rec) {
+      rec.remaining = Math.max(0, rec.remaining - (now - rec.startedAt));
+      if (rec.repeat) clearInterval(rec.handle); else clearTimeout(rec.handle);
+      rec.handle = null;
+    });
+  }
+  function thawTimers() {
+    pausableTimers.forEach(function (rec) {
+      rec.startedAt = performance.now();
+      if (rec.repeat) {
+        // Finish the remainder of the current cycle, then fall back to the
+        // regular interval cadence.
+        rec.handle = setTimeout(function () {
+          rec.fn();
+          // rec.fn() may have cleared this timer (e.g. the countdown hit 0 and
+          // called pClear + beginPlay). If so, do NOT re-arm the interval —
+          // otherwise it fires forever (repeating beginPlay: echoing whistle,
+          // constant re-kickoff, extreme jank).
+          if (!pausableTimers.has(rec)) return;
+          rec.startedAt = performance.now();
+          rec.remaining = rec.interval;
+          rec.handle = setInterval(function () { rec.startedAt = performance.now(); rec.remaining = rec.interval; rec.fn(); }, rec.interval);
+        }, rec.remaining);
+      } else {
+        rec.handle = setTimeout(function () { pausableTimers.delete(rec); rec.fn(); }, rec.remaining);
+      }
+    });
+  }
+
+  function updatePauseBtn() {
+    if (!pauseBtn) return;
+    const ongoing = matchState === 'countdown' || matchState === 'play' || matchState === 'goal';
+    pauseBtn.hidden = !ongoing;
+    pauseBtn.classList.toggle('is-paused', paused);
+    pauseBtn.textContent = paused ? '▶ Resume' : '⏸ Pause';
+  }
+
+  function pauseMatch() {
+    if (paused) return;
+    const ongoing = matchState === 'countdown' || matchState === 'play' || matchState === 'goal';
+    if (!ongoing) return;
+    paused = true;
+    if (world) {
+      world.frozen = true;
+      // Drop any held directions so nobody is "stuck running" on resume (their
+      // screen is covered anyway). In-flight jumps/falls are velocity-based and
+      // survive the freeze untouched.
+      for (const p of world.players) world.clearInputs(p.id);
+    }
+    freezeTimers();
+    if (pauseOverlay) pauseOverlay.hidden = false;
+    updatePauseBtn();
+    socket.emit('host:pause', {});
+  }
+
+  function resumeMatch() {
+    if (!paused) return;
+    paused = false;
+    // Only active play unfreezes the ball; countdown/goal keep it frozen.
+    if (world && matchState === 'play') world.frozen = false;
+    // Restart the frame clock so the first resumed frame has a normal dt.
+    lastFrame = performance.now();
+    acc = 0;
+    lastClockEmit = 0;
+    thawTimers();
+    if (pauseOverlay) pauseOverlay.hidden = true;
+    updatePauseBtn();
+    socket.emit('host:resume', { live: matchState === 'play' });
+  }
+
+  pauseBtn && pauseBtn.addEventListener('click', function () {
+    if (paused) resumeMatch(); else pauseMatch();
+  });
+
   function rosterNames(team) {
     const names = roster.filter(function (r) { return r.team === team; }).map(function (r) { return r.name; });
     if (!names.length) return team === 'red' ? 'Red' : 'Blue';
@@ -398,6 +510,11 @@
     botState = {};
     botIds.forEach(function (id) { botState[id] = { jumpCd: 0, holdJump: 0 }; });
 
+    // Fresh match: clear any leftover pause state / stray timers.
+    paused = false;
+    pClearAll();
+    if (pauseOverlay) pauseOverlay.hidden = true;
+
     show('match');
     // Canvas now has layout size — size the renderer to it.
     requestAnimationFrame(function () { renderer.resize(); });
@@ -420,7 +537,7 @@
     lastFrame = now;
     if (dt > 0.1) dt = 0.1;
 
-    if (matchState === 'play' && world) {
+    if (matchState === 'play' && !paused && world) {
       driveBots(dt);
       acc += dt;
       let steps = 0;
@@ -442,6 +559,21 @@
         if (t - lastClockEmit >= CLOCK_EMIT_MS) {
           lastClockEmit = t;
           socket.emit('host:clock', { ms: Math.max(0, clockMs), sudden: sudden });
+        }
+      }
+    }
+
+    // While paused, freeze the emote-bubble timeline. Their fade/expiry is driven
+    // by the renderer's wall clock (em.until vs performance.now()), which keeps
+    // ticking during a pause — so without this a bubble would fade out mid-pause.
+    // Pushing the deadlines forward by the elapsed frame keeps them steady until
+    // the next kickoff goes live (beginPlay fades them then).
+    if (paused && world) {
+      const shift = dt * 1000;
+      for (const p of world.players) {
+        if (p.emote) {
+          p.emote.until += shift;
+          if (p.emote.born != null) p.emote.born += shift;
         }
       }
     }
@@ -568,10 +700,11 @@
 
   function beginCountdown(concedeTeam, fromN) {
     matchState = 'countdown';
+    updatePauseBtn();
     if (world) { world.kickoff(concedeTeam); world.frozen = true; }
     goalBanner.hidden = true;
     updateScoreboard();
-    if (countdownTimer) clearInterval(countdownTimer);
+    if (countdownTimer) pClear(countdownTimer);
     let n = fromN || COUNTDOWN_FROM;
     function showN(v) {
       countOverlay.hidden = false;
@@ -581,16 +714,17 @@
       blip(440, 0.1, 'square', 0.12);
     }
     showN(n);
-    countdownTimer = setInterval(function () {
+    countdownTimer = pInterval(function () {
       n--;
       if (n >= 1) { showN(n); }
-      else { clearInterval(countdownTimer); countdownTimer = null; beginPlay(); }
+      else { pClear(countdownTimer); countdownTimer = null; beginPlay(); }
     }, COUNTDOWN_STEP_MS);
   }
 
   function beginPlay() {
     countOverlay.hidden = true;
     matchState = 'play';
+    updatePauseBtn();
     if (world) world.frozen = false;
     // The ball is live again: fade out any goal-celebration emote bubbles.
     if (world) {
@@ -606,6 +740,7 @@
 
   function onGoal(team) {
     matchState = 'goal';
+    updatePauseBtn();
     if (world) world.frozen = true;
     // New goal: everyone may emote once again.
     emotedThisGoal.clear();
@@ -639,7 +774,7 @@
     playGoal();
     socket.emit('host:goal', { team: team, red: redScore, blue: blueScore });
 
-    setTimeout(function () {
+    pTimeout(function () {
       goalBanner.hidden = true;
       // The goal fanfare already played in onGoal, so end the match without a
       // second one (pass afterGoal=true) to avoid a doubled goal sound.
@@ -656,6 +791,7 @@
       // with a fresh (neutral) kickoff + countdown — just like after a goal.
       sudden = true;
       matchState = 'goal';
+      updatePauseBtn();
       if (world) world.frozen = true;
       socket.emit('host:sudden', {});
       socket.emit('host:clock', { ms: 0, sudden: true });
@@ -667,7 +803,7 @@
       if (gbSub) gbSub.textContent = '';
       goalBanner.hidden = false;
       gbText.style.animation = 'none'; void gbText.offsetWidth; gbText.style.animation = '';
-      setTimeout(function () {
+      pTimeout(function () {
         if (matchState !== 'ended') beginCountdown(null);
       }, GOAL_CELEBRATE_MS);
     } else {
@@ -677,6 +813,10 @@
 
   function endMatch(winner, afterGoal) {
     matchState = 'ended';
+    paused = false;
+    pClearAll();
+    if (pauseOverlay) pauseOverlay.hidden = true;
+    updatePauseBtn();
     if (world) world.frozen = true;
     socket.emit('host:matchEnd', { winner: winner, red: redScore, blue: blueScore });
     playWhistle();
@@ -726,8 +866,8 @@
   });
 
   // ---------------- Input relay from players ----------------
-  socket.on('in', function (d) { if (world && d) world.setInput(d.id, d.c, d.d === 1); });
-  socket.on('dash', function (d) { if (world && d) world.dash(d.id, d.dir); });
+  socket.on('in', function (d) { if (paused) return; if (world && d) world.setInput(d.id, d.c, d.d === 1); });
+  socket.on('dash', function (d) { if (paused) return; if (world && d) world.dash(d.id, d.dir); });
   // Goal-celebration emotes: one per player per goal, shown as a bubble above
   // that player's character. Purely visual — never touches physics.
   socket.on('emote', function (d) {
@@ -778,7 +918,11 @@
   });
   socket.on('state:reset', function () {
     stopLoop();
+    pClearAll();
+    paused = false;
+    if (pauseOverlay) pauseOverlay.hidden = true;
     matchState = 'idle';
+    updatePauseBtn();
     world = null; renderer = null;
     redScore = blueScore = 0; sudden = false;
     lastLobbyHumanTotal = -1;

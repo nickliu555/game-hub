@@ -178,6 +178,28 @@ body.player[data-team="blue"] { --me: var(--blue); --me-deep: var(--blue-deep); 
 .co-text { font-size: 18px; font-weight: 700; color: rgba(255,255,255,0.85); }
 @keyframes pop { 0% { transform: scale(0.4); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 
+/* Pause cover: unlike ctrl-overlay this BLOCKS all touches so no input can be
+   sent while the host has the match paused. */
+.pause-cover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  padding: 24px;
+  background: rgba(6, 24, 40, 0.9);
+  backdrop-filter: blur(4px);
+  z-index: 35;
+  pointer-events: auto;
+}
+.pause-cover[hidden] { display: none; }
+.pc-icon { font-size: 72px; line-height: 1; }
+.pc-title { font-size: 34px; font-weight: 900; letter-spacing: 0.04em; }
+.pc-sub { font-size: 15px; font-weight: 600; color: rgba(255,255,255,0.82); }
+
 .flash {
   position: absolute;
   inset: 0;

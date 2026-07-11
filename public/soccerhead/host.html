@@ -94,6 +94,8 @@
 
     <!-- ============ MATCH ============ -->
     <section class="view match" id="view-match">
+      <!-- Pause control: top-right, under the topbar. Only shown mid-match. -->
+      <button type="button" id="pauseBtn" class="pause-btn" hidden title="Pause the match">⏸ Pause</button>
       <div class="scoreboard">
         <div class="sb-team sb-red">
           <span class="sb-name" id="sbRedName">Red</span>
@@ -116,6 +118,11 @@
         <div class="goal-banner" id="goalBanner" hidden>
           <div class="gb-sub" id="gbSub">GOAL!!</div>
           <div class="gb-text" id="gbText">GOAL!</div>
+        </div>
+        <div class="pause-overlay" id="pauseOverlay" hidden>
+          <div class="po-icon">⏸</div>
+          <div class="po-title">Paused</div>
+          <div class="po-sub">The match is paused. Press Resume to continue.</div>
         </div>
       </div>
     </section>

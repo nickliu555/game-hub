@@ -174,6 +174,7 @@ function mountSoccerHead(app, httpServer, opts) {
     socket.on('in', (msg) => {
       if (role !== 'player' || !playerId) return;
       if (game.phase !== PHASES.PLAYING) return;
+      if (game.match.paused) return;
       const c = msg && msg.c;
       if (c !== 0 && c !== 1 && c !== 2 && c !== 3) return;
       ns.to(HOST_ROOM).emit('in', { id: playerId, c, d: msg.d ? 1 : 0 });
@@ -181,6 +182,7 @@ function mountSoccerHead(app, httpServer, opts) {
     socket.on('dash', (msg) => {
       if (role !== 'player' || !playerId) return;
       if (game.phase !== PHASES.PLAYING) return;
+      if (game.match.paused) return;
       const dir = msg && msg.dir < 0 ? -1 : 1;
       ns.to(HOST_ROOM).emit('dash', { id: playerId, dir });
     });
@@ -190,6 +192,7 @@ function mountSoccerHead(app, httpServer, opts) {
     socket.on('emote', (msg) => {
       if (role !== 'player' || !playerId) return;
       if (game.phase !== PHASES.PLAYING) return;
+      if (game.match.paused) return;
       const e = msg && msg.e;
       if (!ALLOWED_EMOTES.has(e)) return;
       ns.to(HOST_ROOM).emit('emote', { id: playerId, e });
@@ -309,6 +312,18 @@ function mountSoccerHead(app, httpServer, opts) {
       if (role !== 'host') return;
       game.setSudden(true);
       ns.to(PLAYER_ROOM).emit('m:sudden', {});
+    });
+    socket.on('host:pause', () => {
+      if (role !== 'host') return;
+      touchActivity();
+      game.setPaused(true);
+      ns.to(PLAYER_ROOM).emit('m:pause', {});
+    });
+    socket.on('host:resume', ({ live } = {}) => {
+      if (role !== 'host') return;
+      touchActivity();
+      game.setPaused(false);
+      ns.to(PLAYER_ROOM).emit('m:resume', { live: !!live });
     });
     socket.on('host:matchEnd', ({ winner, red, blue } = {}) => {
       if (role !== 'host') return;

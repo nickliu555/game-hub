@@ -277,16 +277,54 @@
     }
 
     _playerBarClamp(p) {
-      // Left bar spans x in [0, GOAL_DEPTH]; right bar mirrored.
-      const headCY = p.y - HEAD_CY;
-      const nearLeft = p.x <= GOAL_DEPTH + HEAD_R;
-      const nearRight = p.x >= this.W - GOAL_DEPTH - HEAD_R;
-      if (!nearLeft && !nearRight) return;
-      const headTop = headCY - HEAD_R;
-      // Only clamp when head is rising into the underside of the bar.
-      if (headTop < this.TOP_Y && headCY > this.TOP_Y - HEAD_R) {
-        p.y = this.TOP_Y + HEAD_R + HEAD_CY;
-        if (p.vy < 0) p.vy = 0;
+      // The goal's top is SOLID: the whole region above the crossbar
+      // (y < TOP_Y) within the goal depth is a solid block. Collide the head
+      // against that block, always pushing the player OUT (sideways into the
+      // field) or DOWN (under the bar) — never up — so you can neither float on
+      // top of the goal nor get the bar wedged through your body.
+      const cx = p.x, cy = p.y - HEAD_CY, rr = HEAD_R, T = this.TOP_Y;
+      // Left goal block: x <= GOAL_DEPTH. Right goal block: x >= W - GOAL_DEPTH.
+      const goals = [
+        { edge: GOAL_DEPTH, inside: cx <= GOAL_DEPTH, out: 1 },              // push +x into field
+        { edge: this.W - GOAL_DEPTH, inside: cx >= this.W - GOAL_DEPTH, out: -1 }, // push -x
+      ];
+      for (let i = 0; i < goals.length; i++) {
+        const g = goals[i];
+        const distX = (g.out > 0) ? (g.edge - cx) : (cx - g.edge); // >0 when inside the block's x-span
+        if (cy <= T) {
+          // Above the bar line.
+          if (distX > -rr) {
+            if (distX >= 0) {
+              // Head is over the goal box, above the bar: eject the SHORT way —
+              // out the front face or down under the bar, whichever is closer.
+              const pushOut = distX + rr;
+              const pushDown = (T - cy) + rr;
+              if (pushOut <= pushDown) { p.x += g.out * pushOut; if (p.vx * g.out < 0) p.vx = 0; }
+              else { p.y += pushDown; if (p.vy < 0) p.vy = 0; }
+            } else {
+              // Head is in front of the post but overlapping it: push out sideways.
+              const pen = rr + distX; // distX in (-rr, 0)
+              p.x += g.out * pen; if (p.vx * g.out < 0) p.vx = 0;
+            }
+          }
+        } else {
+          // Below the bar line: only the top-front corner is solid here.
+          if (distX >= 0) {
+            // Directly under the bar → keeper head bonk (push down).
+            const pen = rr - (cy - T);
+            if (pen > 0) { p.y += pen; if (p.vy < 0) p.vy = 0; }
+          } else {
+            // In front, near the corner → round off the corner (push away+down).
+            const ddx = -distX, ddy = cy - T; // ddx>0 out into field
+            const dd = Math.hypot(ddx, ddy);
+            if (dd < rr && dd > 0) {
+              const ux = (ddx / dd) * g.out, uy = ddy / dd, pen = rr - dd;
+              p.x += ux * pen; p.y += uy * pen;
+              const vn = p.vx * ux + p.vy * uy;
+              if (vn < 0) { p.vx -= vn * ux; p.vy -= vn * uy; }
+            }
+          }
+        }
       }
     }
 
