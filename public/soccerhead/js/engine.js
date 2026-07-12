@@ -523,11 +523,12 @@
         // the airborne-graze nudge exactly as tuned (no double-handling).
         if (isLeg) return;
         b.y = this.GROUND_Y - b.r;
-        const relvx = b.vx - pvx;
-        // Escape side chosen by TRAVEL direction (block the way it came → no
-        // tunnel); fall back to the side the ball sits on when it's near-still.
-        const sideX = Math.abs(relvx) > 40 ? (relvx > 0 ? -1 : 1)
-          : (dx < 0 ? -1 : dx > 0 ? 1 : (p.facing || 1));
+        // Push the ball out to the side it is ACTUALLY on (its real position),
+        // never a velocity guess. The swept guard already guarantees the ball
+        // is on the side it approached from, so this can't fling it across the
+        // body. (The old velocity-based "block the way it came" could teleport a
+        // ball that had bounced and was already leaving — unrealistic.)
+        const sideX = dx < 0 ? -1 : dx > 0 ? 1 : (p.facing || 1);
         if (p.grounded) {
           b.x = cx + sideX * min;
           if (b.vx * sideX < 0) b.vx = -b.vx * rest;   // moving INTO the player → bounce back out
