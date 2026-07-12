@@ -358,7 +358,9 @@
     _drawPlayer(ctx, p) {
       const f = this.f;
       const col = this._teamColors(p.team);
-      const skin = SKIN[(p.seat + (p.team === 'red' ? 0 : 2)) % SKIN.length];
+      // Skin tone is per-TEAM (not per-seat) so teammates match — the bald 2nd
+      // player shares seat 0's skin. Seat 0 is unchanged, so 1v1 is unaffected.
+      const skin = SKIN[(p.team === 'red' ? 0 : 2) % SKIN.length];
       const skinDk = this._shade(skin, -0.18);
       // The 2nd player on each team (seat 1) is bald — an easy way to tell the
       // two teammates apart in 2v2 (seat 0 keeps the team hairstyle).

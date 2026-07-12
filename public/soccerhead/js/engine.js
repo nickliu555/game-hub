@@ -213,8 +213,9 @@
       for (const p of this.players) { p.prevX = p.x; p.prevY = p.y; }
       this.ball.prevX = this.ball.x; this.ball.prevY = this.ball.y;
       for (const p of this.players) this._stepPlayer(p, dt);
-      // Player-vs-player soft separation (keeps bodies from overlapping).
-      this._separatePlayers();
+      // All players are ghosts to each OTHER (opponents AND teammates pass
+      // through) — no player-vs-player separation. The BALL is still fully solid
+      // against every player (see _sweepBallVsCircle + _ballVsCircle).
       return this._stepBall(dt);
     }
 
@@ -344,33 +345,6 @@
       }
     }
 
-    _separatePlayers() {
-      const ps = this.players;
-      for (let i = 0; i < ps.length; i++) {
-        for (let j = i + 1; j < ps.length; j++) {
-          const a = ps[i], b = ps[j];
-          // Opponents pass THROUGH each other — no body-blocking. Only keep
-          // TEAMMATES from stacking on the exact same spot (matters in 2v2).
-          if (a.team !== b.team) continue;
-          // Height-aware: a player jumping clearly above another passes over
-          // them (you can leap over a body) instead of being shoved aside.
-          if (Math.abs(a.y - b.y) > 80) continue;
-          const dx = b.x - a.x;
-          const minD = BODY_R * 1.7;
-          if (Math.abs(dx) < minD) {
-            const overlap = (minD - Math.abs(dx)) / 2;
-            const s = dx < 0 ? -1 : 1;
-            a.x -= s * overlap;
-            b.x += s * overlap;
-            // Damp their closing speed a touch.
-            const avg = (a.vx + b.vx) / 2;
-            a.vx = a.vx * 0.4 + avg * 0.6;
-            b.vx = b.vx * 0.4 + avg * 0.6;
-          }
-        }
-      }
-    }
-
     _stepBall(dt) {
       const b = this.ball;
       // Reset each step; set true by any player contact below (kick / head /
@@ -380,7 +354,18 @@
       for (const p of this.players) {
         if (p.kick > 0 && !p.kicked) {
           const foot = this._footTip(p);
-          const dx = b.x - foot.x, dy = b.y - foot.y;
+          // Connect anywhere along the KICKING LEG — a capsule from the leg base
+          // (near the body) out to the foot tip — so a ball CLOSE to the body
+          // and one at FULL EXTENSION both register, not just the very tip. Same
+          // tip radius as before, so this is a pure superset of the old reach:
+          // the far sweet spot is unchanged, the close range is added.
+          const baseX = p.x + p.facing * 10, baseY = p.y - 28;
+          const segX = foot.x - baseX, segY = foot.y - baseY;
+          const segLen2 = segX * segX + segY * segY || 1;
+          let t = ((b.x - baseX) * segX + (b.y - baseY) * segY) / segLen2;
+          t = t < 0 ? 0 : t > 1 ? 1 : t;
+          const cx = baseX + t * segX, cy = baseY + t * segY;
+          const dx = b.x - cx, dy = b.y - cy;
           const d = Math.hypot(dx, dy);
           if (d < b.r + FOOT_R) {
             p.kicked = true;

@@ -661,8 +661,18 @@
     // Forwardness: 0 at our own goal, Wd at the opponent's goal.
     const ballFwd = facing * (b.x - ownGoalX);
     const ballOnOwnHalf = ballFwd < Wd * 0.5;
+    // 2v2 role bias by spawn seat: seat 0 spawns nearer the CENTRE -> attack-
+    // leaning; seat 1 spawns nearer our GOAL -> defend-leaning. Both still do
+    // everything; it's only a focus. In 1v1 there is only seat 0 AND mode is not
+    // '2v2', so both stay false and 1v1 CPUs are COMPLETELY UNCHANGED.
+    const attack = mode === '2v2' && p.seat === 0;
+    const defend = mode === '2v2' && p.seat === 1;
     // Press if we can win it OR it threatens our half; else retreat and guard.
-    const commit = amCloser || ballOnOwnHalf;
+    // Attacker presses higher up the pitch; defender mostly holds and only
+    // engages when it's a genuine chance or a threat on our side.
+    let commit = amCloser || ballOnOwnHalf;
+    if (attack) commit = amCloser || ballFwd < Wd * 0.66;
+    else if (defend) commit = ballOnOwnHalf || (amCloser && ballFwd < Wd * 0.42);
 
     // ---- Aerial read: predict the ball's flight so we can get under a lob and
     // head it clear (the CPU used to ignore balls sailing over its head). ----
@@ -686,12 +696,19 @@
       // Camp under the drop point so we can rise and head it away.
       desiredX = interceptX + (Math.random() * 2 - 1) * 8;
     } else {
-      let desiredFwd = ballFwd - 44;         // goal-side of the ball
+      // How far goal-side of the ball to sit: the attacker hugs the ball more
+      // (tighter, aggressive), the defender sits further back to cover.
+      const goalSideOffset = attack ? 24 : defend ? 70 : 44;
+      let desiredFwd = ballFwd - goalSideOffset;
       if (!commit) {
-        desiredFwd = Math.min(desiredFwd, Wd * 0.30); // drop into our own third
-        desiredFwd = Math.max(desiredFwd, Wd * 0.14);
+        // Resting shape: attacker holds ADVANCED (ready to counter), defender
+        // holds DEEP (guards the goal), balanced/1v1 sits in its own third.
+        if (attack) { desiredFwd = Math.min(desiredFwd, Wd * 0.48); desiredFwd = Math.max(desiredFwd, Wd * 0.24); }
+        else if (defend) { desiredFwd = Math.min(desiredFwd, Wd * 0.22); desiredFwd = Math.max(desiredFwd, Wd * 0.10); }
+        else { desiredFwd = Math.min(desiredFwd, Wd * 0.30); desiredFwd = Math.max(desiredFwd, Wd * 0.14); }
       }
-      desiredFwd = Math.max(12, Math.min(Wd * 0.78, desiredFwd));
+      const fwdCap = attack ? 0.88 : defend ? 0.60 : 0.78;
+      desiredFwd = Math.max(12, Math.min(Wd * fwdCap, desiredFwd));
       desiredX = ownGoalX + facing * desiredFwd + (Math.random() * 2 - 1) * 12; // small aim error
     }
     const dx = desiredX - p.x;
@@ -712,11 +729,29 @@
     const headableH = p.y - fy;
     const leapToHead = Math.abs(fx - p.x) < 82 && headableH > 110 && headableH < 380;
     const overheadNow = Math.abs(b.x - p.x) < 100 && aboveNow > 100 && aboveNow < 400 && b.vy > -90;
-    st.wantJump = leapToHead || overheadNow;
+    // Ball is behind us (on our OWN-goal side), low, and we're heading back to
+    // get goal-side of it: JUMP OVER the ball instead of walking into it.
+    // Walking would shove the ball back toward our own goal; an airborne leap
+    // clears it (raised feet don't touch a grounded ball) so we land goal-side
+    // and can then push it forward.
+    const ballBehindGoalSide = facing * (b.x - p.x) < -12; // ball toward our own goal
+    const ballLow = (p.y - b.y) < 70;                      // near foot height (not a header)
+    const closeToBall = Math.abs(b.x - p.x) < 100;
+    const headingGoalSide = st.moveDir === -facing;        // moving back to get behind it
+    const jumpOverBall = ballBehindGoalSide && ballLow && closeToBall && headingGoalSide;
+    st.wantJump = leapToHead || overheadNow || jumpOverBall;
 
     const ahead = facing * (b.x - p.x);
     const inAtkHalf = ballFwd > Wd * 0.5;
-    st.wantDash = commit && amCloser && inAtkHalf && ahead > 55 && ahead < 190 && Math.abs(b.y - p.y) < 130;
+    if (defend) {
+      // Defender only lunges to CLEAR a ball on our own half — never to push up.
+      st.wantDash = amCloser && ballOnOwnHalf && ahead > 40 && ahead < 170 && Math.abs(b.y - p.y) < 120;
+    } else if (attack) {
+      // Attacker dashes more readily to drive at goal (wider window).
+      st.wantDash = amCloser && ahead > 45 && ahead < 210 && Math.abs(b.y - p.y) < 140 && ballFwd > Wd * 0.42;
+    } else {
+      st.wantDash = commit && amCloser && inAtkHalf && ahead > 55 && ahead < 190 && Math.abs(b.y - p.y) < 130;
+    }
   }
 
   function beginCountdown(concedeTeam, fromN, note) {
