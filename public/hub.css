@@ -161,7 +161,10 @@ a:hover { color: #ffffff; }
 }
 
 .game-card.expanded .game-card-body {
-    max-height: 600px;
+    max-height: 75vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
 }
 
 .game-card-body-inner {

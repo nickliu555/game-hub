@@ -127,10 +127,23 @@
           <div class="recap-scroll">
             <div class="b-board recap" id="recapBoard"></div>
             <div class="recap-stats" id="recapStats"></div>
+            <button type="button" class="recap-reveal" id="revealWordsBtn">🔍 See all words</button>
           </div>
         </div>
       </div>
     </section>
+  </div>
+
+  <!-- Reveal-all-words overlay (host final screen) -->
+  <div class="reveal-overlay" id="revealOverlay" hidden>
+    <div class="reveal-card">
+      <h2>All words on this board</h2>
+      <p class="reveal-summary" id="revealSummary"></p>
+      <div class="reveal-list" id="revealList"></div>
+      <div class="reveal-actions">
+        <button type="button" class="btn-close-reveal" id="revealCloseBtn">Close</button>
+      </div>
+    </div>
   </div>
 
   <!-- Pre-results splash: shown for a few seconds when the round ends. -->

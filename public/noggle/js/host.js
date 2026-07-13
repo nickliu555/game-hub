@@ -35,6 +35,11 @@
   const lbRows = document.getElementById('lbRows');
   const recapBoard = document.getElementById('recapBoard');
   const recapStats = document.getElementById('recapStats');
+  const revealWordsBtn = document.getElementById('revealWordsBtn');
+  const revealOverlay = document.getElementById('revealOverlay');
+  const revealSummary = document.getElementById('revealSummary');
+  const revealList = document.getElementById('revealList');
+  const revealCloseBtn = document.getElementById('revealCloseBtn');
 
   const fullscreenBtn = document.getElementById('fullscreenBtn');
   const resetBtn = document.getElementById('resetBtn');
@@ -493,6 +498,60 @@
       '<div class="rs-row"><span class="rs-label">Best possible word</span><span class="rs-value rs-best">' + best + '</span></div>' +
       '<div class="rs-row"><span class="rs-label">Words on the board</span><span class="rs-value">' + (stats.totalWords || 0) + '</span></div>' +
       '<div class="rs-row"><span class="rs-label">Max possible score</span><span class="rs-value">' + (stats.maxScore || 0) + '</span></div>';
+
+    // Reset the reveal control for this fresh set of results.
+    revealedWords = null;
+    if (revealWordsBtn) {
+      revealWordsBtn.disabled = false;
+      revealWordsBtn.textContent = '🔍 See all words';
+    }
+    if (revealOverlay) revealOverlay.hidden = true;
+  }
+
+  // ---------------- Reveal all words (host) ----------------
+  let revealedWords = null; // cached { words, totalWords, maxScore } once fetched
+
+  if (revealWordsBtn) {
+    revealWordsBtn.addEventListener('click', function () {
+      if (revealedWords) { openRevealOverlay(revealedWords); return; }
+      revealWordsBtn.disabled = true;
+      revealWordsBtn.textContent = 'Solving…';
+      socket.emit('host:solveBoard', {}, function (res) {
+        if (!res || !res.ok) {
+          revealWordsBtn.disabled = false;
+          revealWordsBtn.textContent = '🔍 See all words';
+          return;
+        }
+        revealedWords = res;
+        revealWordsBtn.disabled = false;
+        revealWordsBtn.textContent = '🔍 See all words';
+        openRevealOverlay(res);
+      });
+    });
+  }
+  if (revealCloseBtn) {
+    revealCloseBtn.addEventListener('click', function () {
+      if (revealOverlay) revealOverlay.hidden = true;
+    });
+  }
+  if (revealOverlay) {
+    revealOverlay.addEventListener('click', function (e) {
+      if (e.target === revealOverlay) revealOverlay.hidden = true;
+    });
+  }
+
+  function openRevealOverlay(data) {
+    const words = (data && data.words) || {};
+    const all = Object.keys(words).sort(function (a, b) {
+      return (b.length - a.length) || (a < b ? -1 : a > b ? 1 : 0);
+    });
+    revealSummary.textContent = (data.totalWords || all.length) + ' words  ·  ' +
+      (data.maxScore || 0) + ' max points';
+    revealList.innerHTML = all.map(function (w) {
+      return '<span class="reveal-chip">' + escapeHtml(wordDisplay(w)) +
+        '<span class="rc-pts">' + words[w] + '</span></span>';
+    }).join('');
+    if (revealOverlay) revealOverlay.hidden = false;
   }
 
   function podiumStep(klass, medal, group) {

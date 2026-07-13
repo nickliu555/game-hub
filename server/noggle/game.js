@@ -9,7 +9,7 @@ const {
   generateBoard,
 } = require('./dice');
 const { validatePath } = require('./board');
-const { isWord, boardStats } = require('./dictionary');
+const { isWord, boardStats, solveBoardWords } = require('./dictionary');
 const { pointsForWord } = require('./scoring');
 
 const PHASES = {
@@ -60,6 +60,8 @@ class Game {
     this.onIntroEnd = null; // wired by transport
     // Cached board solver stats, computed once when the round ends.
     this._finalStats = null;
+    // Cached full solved word list, computed lazily on the host's reveal.
+    this._solvedWords = null;
   }
 
   // ---------------- Names / players ----------------
@@ -162,6 +164,7 @@ class Game {
     // Shake the tray: ONE board for the whole room this round.
     this.board = generateBoard(this.boardSize);
     this._finalStats = null;
+    this._solvedWords = null;
     for (const player of this.players.values()) {
       this._resetPlayerRound(player);
     }
@@ -349,6 +352,19 @@ class Game {
     return this._finalStats;
   }
 
+  /**
+   * Full solved word list (word -> points) for the frozen board, used by the
+   * host's "See all words" reveal on the FINAL screen. Computed once and cached
+   * since the board doesn't change after the round ends.
+   */
+  getSolvedWords() {
+    if (!this.board) return { words: {}, totalWords: 0, maxScore: 0 };
+    if (!this._solvedWords) {
+      this._solvedWords = solveBoardWords(this.board, this.minLen);
+    }
+    return this._solvedWords;
+  }
+
   /** Private end-of-round recap for one player: their own words + score + rank. */
   getPersonalFinal(playerId) {
     const p = this.players.get(playerId);
@@ -382,6 +398,7 @@ class Game {
     this.introStartTs = 0;
     this.introEndsAt = 0;
     this._finalStats = null;
+    this._solvedWords = null;
   }
 }
 

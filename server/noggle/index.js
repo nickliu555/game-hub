@@ -365,6 +365,18 @@ function mountBoggle(app, httpServer, opts) {
       ns.emit('state:reactionsMuted', { muted: reactionsMuted });
     });
 
+    // Host-only: reveal every findable word on the frozen final board. Solved
+    // lazily (and cached) so we don't compute a potentially huge 6x6 list until
+    // the host actually asks for it.
+    socket.on('host:solveBoard', (_p, ack) => {
+      if (!requireHost(ack)) return;
+      if (game.phase !== PHASES.FINAL) {
+        return ack && ack({ ok: false, reason: 'not-final' });
+      }
+      const solved = game.getSolvedWords();
+      ack && ack({ ok: true, ...solved });
+    });
+
     // Player reactions: relayed to the host as floating emoji. Gated to
     // lobby + final phases (the round itself is heads-down word hunting).
     socket.on('player:reaction', ({ index } = {}, ack) => {
