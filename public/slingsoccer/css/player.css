@@ -1,0 +1,190 @@
+/* Sling Soccer · player controller — a fullscreen, no-scroll slingshot pad.
+   The control surface uses touch-action:none so pinch- and double-tap-zoom are
+   impossible while aiming. */
+html, body { height: 100%; }
+body.player {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: linear-gradient(160deg, var(--bg) 0%, var(--bg-deep) 100%);
+  color: #fff;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+body.player * { touch-action: none; }
+
+.player-shell { position: fixed; inset: 0; }
+body.player[data-team="red"] { --me: var(--red); --me-deep: var(--red-deep); --me-soft: var(--red-soft); }
+body.player[data-team="blue"] { --me: var(--blue); --me-deep: var(--blue-deep); --me-soft: var(--blue-soft); }
+
+/* ---------------- Waiting / lobby / final ---------------- */
+.view-wait {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 28px;
+  gap: 6px;
+}
+.team-badge {
+  font-weight: 900;
+  font-size: 15px;
+  letter-spacing: 0.14em;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: var(--me, var(--red));
+  color: #fff;
+  margin-bottom: 8px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+}
+.view-wait .pulse { font-size: 62px; animation: bob 1.6s ease-in-out infinite; }
+@keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+.wait-title { font-size: 24px; font-weight: 800; }
+.wait-sub { color: rgba(255,255,255,0.75); font-size: 15px; max-width: 300px; line-height: 1.5; }
+.kick-icon { font-size: 60px; margin-bottom: 6px; }
+.final-emoji { font-size: 72px; }
+.final-title { font-size: 30px; margin: 6px 0; }
+.final-score { font-size: 18px; font-weight: 700; color: rgba(255,255,255,0.9); margin-bottom: 8px; }
+
+/* ---------------- Controller ---------------- */
+#view-controller { position: absolute; inset: 0; display: flex; flex-direction: column; }
+
+.hud {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: max(10px, env(safe-area-inset-top)) 16px 8px;
+}
+.hud-score { font-size: 26px; font-weight: 900; letter-spacing: 0.02em; }
+.hud-score .s-red { color: var(--red-soft); }
+.hud-score .s-blue { color: var(--blue-soft); }
+.hud-score .s-sep { color: rgba(255,255,255,0.5); margin: 0 6px; }
+.hud-target {
+  font-size: 14px; font-weight: 800; justify-self: center;
+  background: rgba(0,0,0,0.28); padding: 4px 12px; border-radius: 999px; white-space: nowrap;
+  color: var(--accent);
+}
+.hud-turn { font-size: 13px; font-weight: 800; text-align: right; justify-self: end; color: rgba(255,255,255,0.72); }
+.hud-turn.mine { color: var(--accent); }
+
+/* Token picker. */
+.token-row {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 10px;
+  padding: 6px 16px 4px;
+  justify-content: center;
+}
+.tok-btn {
+  flex: 1 1 0;
+  max-width: 92px;
+  aspect-ratio: 1.5 / 1;
+  border-radius: 16px;
+  font-size: clamp(20px, 5vh, 30px);
+  font-weight: 900;
+  color: #fff;
+  background: linear-gradient(180deg, var(--me, #43617a), var(--me-deep, #2a3f52));
+  box-shadow: 0 5px 0 rgba(0,0,0,0.3), inset 0 2px 8px rgba(255,255,255,0.18);
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.06s ease, box-shadow 0.06s ease, filter 0.1s ease, opacity 0.1s ease;
+}
+.tok-btn.selected {
+  filter: brightness(1.18);
+  box-shadow: 0 0 0 4px var(--accent), 0 5px 0 rgba(0,0,0,0.3), inset 0 2px 8px rgba(255,255,255,0.2);
+  transform: translateY(2px);
+}
+.tok-btn:disabled { opacity: 0.4; }
+
+/* Slingshot pad. */
+.sling-pad {
+  flex: 1;
+  position: relative;
+  margin: 8px 16px calc(14px + env(safe-area-inset-bottom));
+  border-radius: 26px;
+  background: radial-gradient(circle at 50% 45%, rgba(255,255,255,0.06), rgba(0,0,0,0.22));
+  border: 1px solid rgba(255,255,255,0.12);
+  overflow: hidden;
+  min-height: 0;
+}
+.sling-pad.armed { border-color: rgba(47,191,106,0.5); }
+.sling-ring {
+  position: absolute; top: 50%; left: 50%;
+  width: min(82vw, 52vh); height: min(82vw, 52vh);
+  transform: translate(-50%,-50%);
+  border-radius: 50%;
+  border: 2px dashed rgba(255,255,255,0.22);
+}
+.sling-center {
+  position: absolute; top: 50%; left: 50%;
+  width: 18px; height: 18px; transform: translate(-50%,-50%);
+  border-radius: 50%; background: rgba(255,255,255,0.5);
+}
+.sling-band {
+  position: absolute; top: 50%; left: 50%;
+  height: 8px; width: 0;
+  transform-origin: 0 50%;
+  transform: translateY(-50%) rotate(0deg);
+  background: linear-gradient(90deg, rgba(255,255,255,0.9), rgba(255,255,255,0.25));
+  border-radius: 4px;
+  opacity: 0;
+  pointer-events: none;
+}
+.sling-knob {
+  position: absolute; top: 50%; left: 50%;
+  width: 60px; height: 60px;
+  transform: translate(-50%,-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 32%, var(--me-soft, #fff), var(--me, #888));
+  box-shadow: 0 6px 16px rgba(0,0,0,0.4), inset 0 2px 6px rgba(255,255,255,0.35);
+  pointer-events: none;
+}
+.sling-knob.active { box-shadow: 0 0 0 4px rgba(47,191,106,0.55), 0 6px 16px rgba(0,0,0,0.4); }
+.sling-hint {
+  position: absolute; bottom: 14px; left: 0; right: 0; text-align: center;
+  font-size: 14px; font-weight: 700; color: rgba(255,255,255,0.65);
+  pointer-events: none;
+}
+.sling-hint.pulse { animation: hintPulse 0.5s ease; }
+@keyframes hintPulse { 0%,100% { color: rgba(255,255,255,0.65); } 50% { color: var(--accent); transform: scale(1.05); } }
+
+/* Not-your-turn cover. */
+.wait-cover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  padding: 24px;
+  background: rgba(6, 34, 22, 0.86);
+  backdrop-filter: blur(4px);
+  z-index: 30;
+}
+.wait-cover[hidden] { display: none; }
+.wc-icon { font-size: 64px; animation: bob 1.6s ease-in-out infinite; }
+.wc-text { font-size: 20px; font-weight: 800; max-width: 320px; color: rgba(255,255,255,0.92); }
+
+/* Goal flash. */
+.flash {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 40; pointer-events: none;
+}
+.flash[hidden] { display: none; }
+.flash span {
+  font-size: 60px; font-weight: 900; color: var(--good);
+  text-shadow: 0 4px 0 rgba(0,0,0,0.35);
+  animation: goalPop 0.5s cubic-bezier(.2,1.4,.4,1);
+}
+@keyframes goalPop { 0% { transform: scale(0.2) rotate(-8deg); opacity: 0; } 60% { transform: scale(1.15) rotate(3deg); } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+
+.player-attribution { color: rgba(255,255,255,0.45); }
+body.player.playing .player-attribution { display: none; }

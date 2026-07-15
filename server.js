@@ -10,6 +10,7 @@ const mountTwentyFour = require('./server/twentyfour');
 const mountHerdMind = require('./server/herdmind');
 const mountBoggle = require('./server/noggle');
 const mountSoccerHead = require('./server/soccerhead');
+const mountSlingSoccer = require('./server/slingsoccer');
 const app = express();
 
 app.set('trust proxy', 1);
@@ -760,6 +761,9 @@ mountBoggle(app, httpServer, { getPublicBaseUrl });
 
 // Mount the Soccer Head arcade-soccer game (Socket.IO namespace + REST + page routes).
 mountSoccerHead(app, httpServer, { getPublicBaseUrl });
+
+// Mount the Sling Soccer turn-based flick-soccer game (Socket.IO namespace + REST + page routes).
+mountSlingSoccer(app, httpServer, { getPublicBaseUrl });
 
 httpServer.listen(PORT, '0.0.0.0', () => {
     console.log('');

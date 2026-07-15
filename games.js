@@ -137,6 +137,31 @@ const games = [
         hostPath: '/soccerhead/host',
         playPath: '/soccerhead/play',
     },
+    {
+        id: 'slingsoccer',
+        name: 'Sling Soccer',
+        tagline: 'Turn-based flick soccer — slingshot your tokens',
+        emoji: '🥅',
+        color: '#0f5132',
+        playerCount: '1–6 (+CPU)',
+        duration: '3–8 min',
+        description: 'A top-down, turn-based soccer showdown played on the shared screen. Each team has five sliding tokens; take turns slingshotting one to knock the ball into the opponent\'s net. Bank shots off the walls, posts and other tokens — the angle of every collision matters. Play up to 3-a-side, or add a CPU to play solo. First team to the goal target wins.',
+        rules: [
+            'The host opens the game on a shared screen (TV, laptop, etc.)',
+            'Players scan the QR code and join Team Red or Team Blue (up to 3 per team, at least 1 each)',
+            'No opponent? The host can add a CPU to play solo',
+            'The host sets how many goals win the match (1–10), then hits Kick off',
+            'Teams alternate turns; players on a team take turns in join order',
+            'On your turn: tap one of your five tokens, then pull back the slingshot on your phone',
+            'Pull back further for more power, and angle it to aim — release to flick',
+            'Bounce tokens off walls, posts and each other to drive the ball into the net',
+            'A token that lands in a goal respawns just outside so it can\'t block shots',
+            'After each goal the board resets and the team that conceded kicks off',
+            'First team to reach the goal target wins!'
+        ],
+        hostPath: '/slingsoccer/host',
+        playPath: '/slingsoccer/play',
+    },
 ];
 
 module.exports = games;

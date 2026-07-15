@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sling Soccer · Host</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="/shared/iris-preload.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/topbar.css" />
+  <link rel="stylesheet" href="/shared/modal.css" />
+  <link rel="stylesheet" href="/shared/iris.css" />
+  <link rel="stylesheet" href="/slingsoccer/css/base.css" />
+  <link rel="stylesheet" href="/slingsoccer/css/host.css" />
+  <script src="/shared/topbar.js" defer></script>
+  <script src="/shared/modal.js" defer></script>
+  <script src="/shared/iris.js" defer></script>
+</head>
+<body class="host">
+  <div class="host-container">
+    <div class="game-topbar">
+      <span class="gtb-brand"><span class="brand-bg">🥅</span> Sling Soccer</span>
+      <div class="gtb-controls">
+        <a href="/" id="hubBtn" class="gtb-btn" title="Back to hub (resets game)">← Hub</a>
+        <button class="gtb-btn" type="button" data-gtb-help-open="helpOverlay" title="How to play">? Help</button>
+        <div class="gtb-settings-wrapper">
+          <button class="gtb-btn" type="button" data-gtb-settings-toggle aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️ Settings</button>
+          <div class="gtb-settings-panel" id="settingsPanel" hidden>
+            <button id="fullscreenBtn" class="gtb-btn" type="button" title="Toggle fullscreen">⛶ Fullscreen</button>
+            <div class="gtb-divider"></div>
+            <button id="resetBtn" class="gtb-btn gtb-btn-danger" type="button" title="Reset the whole game">Reset game</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ LOBBY ============ -->
+    <section class="view active lobby" id="view-lobby">
+      <div class="lobby-grid">
+        <div class="lobby-left">
+          <div class="qr-card">
+            <div class="qr-title">Scan to join</div>
+            <div class="qr-sub">Or type the URL below on your phone</div>
+            <div id="qrSlot"><svg viewBox="0 0 1 1"></svg></div>
+            <div class="qr-url" id="joinUrl"></div>
+          </div>
+        </div>
+
+        <div class="lobby-right">
+          <div class="lobby-header">
+            <div class="brand"><span class="brand-bg">🥅</span> Sling Soccer</div>
+            <div class="player-count"><span id="playerCount">0</span> / <span id="playerCap">6</span></div>
+          </div>
+
+          <div class="config-block">
+            <div class="config-row">
+              <label for="targetRange">Goals to win</label>
+              <div class="dur-wrap">
+                <input type="range" id="targetRange" min="1" max="10" step="1" value="3" />
+                <span class="dur-val" id="targetVal">3</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="teams-wrap">
+            <div class="team-col team-red" data-team="red" id="colRed">
+              <div class="team-head"><span class="dot"></span> Team Red</div>
+              <div class="team-slots" id="slotsRed"></div>
+            </div>
+            <div class="vs-badge">VS</div>
+            <div class="team-col team-blue" data-team="blue" id="colBlue">
+              <div class="team-head"><span class="dot"></span> Team Blue</div>
+              <div class="team-slots" id="slotsBlue"></div>
+            </div>
+          </div>
+
+          <div class="lobby-foot">
+            <button id="addBotBtn" class="btn-ghost-bot" type="button">🤖 Add CPU</button>
+            <div class="config-hint" id="configHint"></div>
+            <button id="startBtn" class="btn-start" disabled>Kick off!</button>
+          </div>
+        </div>
+      </div>
+      <div class="lobby-attribution">Developed by Nick Liu (with help from Claude)</div>
+    </section>
+
+    <!-- ============ MATCH ============ -->
+    <section class="view match" id="view-match">
+      <div class="scoreboard">
+        <div class="sb-team sb-red">
+          <span class="sb-name" id="sbRedName">Red</span>
+          <span class="sb-score" id="sbRedScore">0</span>
+        </div>
+        <div class="sb-mid">
+          <div class="sb-target" id="sbTarget">First to 3</div>
+        </div>
+        <div class="sb-team sb-blue">
+          <span class="sb-score" id="sbBlueScore">0</span>
+          <span class="sb-name" id="sbBlueName">Blue</span>
+        </div>
+      </div>
+      <div class="turn-banner red" id="turnBanner">
+        <span id="turnText"><b>Red</b> to shoot</span>
+      </div>
+      <div class="pitch-wrap">
+        <canvas id="pitch"></canvas>
+        <div class="count-overlay" id="countOverlay" hidden>
+          <div class="co-num" id="coNum">3</div>
+        </div>
+        <div class="goal-banner" id="goalBanner" hidden>
+          <div class="gb-sub" id="gbSub">GOAL!!</div>
+          <div class="gb-text" id="gbText">GOAL!</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FINAL ============ -->
+    <section class="view final" id="view-final">
+      <div class="final-inner">
+        <div class="trophy" id="finalTrophy">🏆</div>
+        <h1 class="final-heading" id="finalHeading">Team Red wins!</h1>
+        <div class="final-scoreline">
+          <span class="fs-red" id="fsRed">0</span>
+          <span class="fs-sep">–</span>
+          <span class="fs-blue" id="fsBlue">0</span>
+        </div>
+        <div class="final-rosters" id="finalRosters"></div>
+        <button id="playAgainBtn" class="btn-start">Back to lobby</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/slingsoccer/js/engine.js"></script>
+  <script src="/slingsoccer/js/render.js"></script>
+  <script src="/slingsoccer/js/host.js"></script>
+
+  <!-- Help modal -->
+  <div class="gtb-help-overlay" id="helpOverlay">
+    <div class="gtb-help-modal">
+      <button class="gtb-help-modal-close" type="button" data-gtb-help-close aria-label="Close help">&times;</button>
+      <h2><span class="brand-bg">🥅</span> Sling Soccer</h2>
+      <p>Turn-based top-down flick soccer. The board plays out on <strong>this screen</strong> while each player uses their phone as a slingshot controller.</p>
+      <ol>
+        <li>Players scan the QR code to join <strong>Team Red</strong> or <strong>Team Blue</strong> (drag or click a player to switch sides — up to 3 per team, at least 1 each)</li>
+        <li>No opponent? Hit <strong>🤖 Add CPU</strong> to play solo</li>
+        <li>Set the <strong>goals to win</strong> (1–10), then hit <strong>Kick off!</strong></li>
+        <li>Teams take turns; players on a team rotate in join order</li>
+        <li>On your turn: <strong>tap one of your 5 tokens</strong>, then <strong>pull back the slingshot</strong> — further back = more power — and release to flick it</li>
+        <li>Bounce your tokens off walls, posts and each other to knock the ball into the opponent's net</li>
+        <li>After each goal the board resets and the team that was scored on kicks off</li>
+        <li>First team to the goal total wins!</li>
+      </ol>
+    </div>
+  </div>
+</body>
+</html>

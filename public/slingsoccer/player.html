@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sling Soccer · Play</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0f5132">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/slingsoccer/css/base.css" />
+  <link rel="stylesheet" href="/slingsoccer/css/player.css" />
+</head>
+<body class="player">
+  <div class="player-shell">
+
+    <!-- Lobby waiting -->
+    <div class="view-wait" id="view-lobby">
+      <div class="team-badge" id="lobbyTeamBadge">RED</div>
+      <div class="pulse">🥅</div>
+      <div class="wait-title" id="lobbyName">You're in!</div>
+      <div class="wait-sub">Waiting for the host to start the match…</div>
+    </div>
+
+    <!-- Controller (during a match) -->
+    <div id="view-controller" style="display:none;">
+      <!-- HUD -->
+      <div class="hud">
+        <div class="hud-score">
+          <span class="s-red" id="scoreRed">0</span>
+          <span class="s-sep">–</span>
+          <span class="s-blue" id="scoreBlue">0</span>
+        </div>
+        <div class="hud-target" id="hudTarget">First to 3</div>
+        <div class="hud-turn" id="hudTurn">Waiting…</div>
+      </div>
+
+      <!-- Token picker -->
+      <div class="token-row" id="tokenRow">
+        <button type="button" class="tok-btn" data-token="0">1</button>
+        <button type="button" class="tok-btn" data-token="1">2</button>
+        <button type="button" class="tok-btn" data-token="2">3</button>
+        <button type="button" class="tok-btn" data-token="3">4</button>
+        <button type="button" class="tok-btn" data-token="4">5</button>
+      </div>
+
+      <!-- Slingshot pad -->
+      <div class="sling-pad" id="slingPad">
+        <div class="sling-ring"></div>
+        <div class="sling-center"></div>
+        <div class="sling-band" id="slingBand"></div>
+        <div class="sling-knob" id="slingKnob"></div>
+        <div class="sling-hint" id="slingHint">Tap a token to shoot with</div>
+      </div>
+
+      <!-- Not-your-turn cover -->
+      <div class="wait-cover" id="waitCover" hidden>
+        <div class="wc-icon">⏳</div>
+        <div class="wc-text" id="waitText">Opponent is lining up…</div>
+      </div>
+
+      <!-- Goal flash -->
+      <div class="flash" id="flash" hidden><span id="flashText">GOAL!</span></div>
+    </div>
+
+    <!-- Final result -->
+    <div class="view-wait" id="view-final" style="display:none;">
+      <div class="final-emoji" id="finalEmoji">🏆</div>
+      <h1 class="final-title" id="finalTitle">You win!</h1>
+      <div class="final-score" id="finalScore">Red 0 – 0 Blue</div>
+      <div class="wait-sub">Look up at the host screen for the result.</div>
+    </div>
+
+    <!-- Removed by host -->
+    <div class="view-wait" id="view-kicked" style="display:none;">
+      <div class="kick-icon" aria-hidden="true">🚪</div>
+      <div class="wait-title">You were removed by the host.</div>
+      <div class="wait-sub">You can rejoin if the game is still open.</div>
+      <button type="button" class="btn-primary" id="kickRejoinBtn" style="margin-top:18px;">Rejoin</button>
+    </div>
+  </div>
+
+  <div class="player-attribution" id="playerAttribution">Developed by Nick Liu (with help from Claude)</div>
+
+  <!-- Host absent overlay -->
+  <div class="host-absent-overlay" id="hostAbsentOverlay" hidden>
+    <div class="host-absent-card">
+      <div class="icon">🥅</div>
+      <div class="title">No game in progress</div>
+      <div class="sub">
+        <span class="pulse-dot"></span>
+        The host isn't here right now. This page will unlock automatically when they return.
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/slingsoccer/js/player.js"></script>
+</body>
+</html>

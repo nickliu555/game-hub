@@ -1,0 +1,61 @@
+/* Sling Soccer · join page — mobile-first name entry. */
+body.join {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: linear-gradient(160deg, var(--bg) 0%, var(--bg-deep) 100%);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+/* Kill double-tap-zoom on every element (touch-action doesn't inherit). */
+body.join * { touch-action: manipulation; }
+
+.join-brand {
+  position: fixed;
+  top: 0;
+  left: 0; right: 0;
+  padding: 16px 24px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  text-align: center;
+  font-size: 22px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.join-hero {
+  width: 100%;
+  max-width: 380px;
+  text-align: center;
+}
+.join-hero h1 { font-size: 30px; margin: 0 0 6px; }
+.join-hero p { margin: 0 0 26px; color: rgba(255, 255, 255, 0.78); font-size: 16px; }
+
+.join-form { display: flex; flex-direction: column; gap: 12px; text-align: left; }
+.join-form label { font-size: 14px; font-weight: 700; color: rgba(255, 255, 255, 0.85); }
+.join-form input {
+  width: 100%;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 600;
+  font-family: inherit;
+  outline: none;
+}
+.join-form input:focus { border-color: var(--accent); }
+.join-form .btn-primary {
+  margin-top: 4px;
+  font-size: 20px;
+  padding: 16px;
+  border-radius: var(--radius);
+}
+.error-msg { color: #ffd0d0; font-size: 14px; min-height: 18px; font-weight: 600; }
