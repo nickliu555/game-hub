@@ -288,5 +288,24 @@ body.player[data-team="blue"] { --me: var(--blue); --me-deep: var(--blue-deep); 
 @keyframes rotWiggle { 0%,100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
 .rot-text { font-size: 18px; font-weight: 700; max-width: 320px; }
 
+/* Controller-connected badge */
+.gamepad-badge {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  background: rgba(6, 24, 40, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.gamepad-badge[hidden] { display: none; }
+
 .player-attribution { color: rgba(255,255,255,0.45); }
 body.player.playing .player-attribution { display: none; }

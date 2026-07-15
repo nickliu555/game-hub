@@ -42,6 +42,7 @@
   const pad = document.getElementById('pad');
   const dashLeft = document.getElementById('dashLeft');
   const dashRight = document.getElementById('dashRight');
+  const gamepadBadge = document.getElementById('gamepadBadge');
   const emotePanel = document.getElementById('emotePanel');
   const emoteGrid = document.getElementById('emoteGrid');
 
@@ -271,6 +272,7 @@
   // Shown during the goal celebration (controls are disabled anyway). Each
   // player may pick ONE emote per goal; after picking, the panel locks.
   let emoteUsed = false;
+  const emoteBtns = {}; // emoji char -> button element
   (function buildEmotes() {
     if (!emoteGrid) return;
     EMOTES.forEach(function (e) {
@@ -281,15 +283,25 @@
       b.setAttribute('aria-label', 'React ' + e);
       b.addEventListener('pointerdown', function (ev) {
         ev.preventDefault();
-        if (emoteUsed) return;
-        emoteUsed = true;
-        socket.emit('emote', { e: e });
-        b.classList.add('picked');
-        if (emotePanel) emotePanel.classList.add('locked');
+        pickEmote(e);
       });
+      emoteBtns[e] = b;
       emoteGrid.appendChild(b);
     });
   })();
+  // True only while the reaction panel is open and this player hasn't reacted.
+  function emoteActive() {
+    return !!(emotePanel && !emotePanel.hidden && !emoteUsed);
+  }
+  // Send one emote (touch or gamepad) and lock the panel. No-op if not allowed.
+  function pickEmote(e) {
+    if (!emoteActive() || EMOTES.indexOf(e) < 0) return;
+    emoteUsed = true;
+    socket.emit('emote', { e: e });
+    const b = emoteBtns[e];
+    if (b) b.classList.add('picked');
+    if (emotePanel) emotePanel.classList.add('locked');
+  }
   function showEmotePanel() {
     if (!emotePanel) return;
     emoteUsed = false;
@@ -422,6 +434,117 @@
   });
   window.addEventListener('blur', releaseAll);
 
+  // ---------------- Bluetooth / USB gamepad support ----------------
+  // A player can pair a controller to their phone and use it instead of (or
+  // alongside) the touch pad. We read the standard Gamepad API and translate it
+  // into the SAME send()/doDash() the touch buttons use — so no server/engine
+  // changes are needed.
+  const GP_DEADZONE = 0.35;
+
+  // Pure: turn a gamepad snapshot into the set of intents we care about.
+  // Move = left stick X (axis 0) or d-pad (14/15); A(0)=jump; B(1)=kick;
+  // LB(4)=dash left; RB(5)=dash right. Reads raw buttons/axes so it also works
+  // for pads the browser doesn't map to the "standard" layout.
+  function mapGamepad(gp) {
+    const out = { left: false, right: false, jump: false, kick: false, dashLeft: false, dashRight: false };
+    if (!gp) return out;
+    const b = gp.buttons || [];
+    const a = gp.axes || [];
+    const down = function (i) { const btn = b[i]; return !!(btn && (btn.pressed || btn.value > 0.5)); };
+    const ax = a.length > 0 ? (a[0] || 0) : 0;
+    if (ax < -GP_DEADZONE || down(14)) out.left = true;
+    if (ax > GP_DEADZONE || down(15)) out.right = true;
+    if (down(0)) out.jump = true;   // A / cross
+    if (down(1)) out.kick = true;   // B / circle
+    if (down(4)) out.dashLeft = true;   // LB
+    if (down(5)) out.dashRight = true;  // RB
+    return out;
+  }
+
+  let gpIndex = null;
+  const gpHeld = { 0: false, 1: false, 2: false, 3: false };
+  const gpDashLatch = { left: false, right: false };
+  // D-pad reactions during the goal window: up=💪, down=🔥, left=😂, right=😡.
+  const GP_EMOTE = { 12: '💪', 13: '🔥', 14: '😂', 15: '😡' };
+  const gpDpadLatch = { 12: false, 13: false, 14: false, 15: false };
+
+  function anyGamepad() {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (let i = 0; i < pads.length; i++) if (pads[i]) return true;
+    return false;
+  }
+  function activeGamepad() {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    if (gpIndex != null && pads[gpIndex]) return pads[gpIndex];
+    for (let i = 0; i < pads.length; i++) if (pads[i]) { gpIndex = i; return pads[i]; }
+    return null;
+  }
+  function setGamepadBadge(on) {
+    if (gamepadBadge) gamepadBadge.hidden = !on;
+    body.classList.toggle('has-gamepad', !!on);
+    updateRotateHint();
+  }
+  function releaseGamepadHeld() {
+    [LEFT, RIGHT, JUMP, KICK].forEach(function (code) {
+      if (gpHeld[code]) {
+        gpHeld[code] = false;
+        const btn = btns[code];
+        if (btn) btn.classList.remove('pressed');
+        send(code, false);
+      }
+    });
+    gpDashLatch.left = gpDashLatch.right = false;
+  }
+
+  function pollGamepad() {
+    requestAnimationFrame(pollGamepad);
+    const gp = activeGamepad();
+    if (!gp) return;
+    const m = mapGamepad(gp);
+    // Movement + jump/kick mirror the touch gating: only transmit while controls
+    // are live, and flush a held direction the instant play begins.
+    const target = { 0: m.left, 1: m.right, 2: m.jump, 3: m.kick };
+    [LEFT, RIGHT, JUMP, KICK].forEach(function (code) {
+      const want = controlsEnabled ? target[code] : false;
+      if (want !== gpHeld[code]) {
+        gpHeld[code] = want;
+        const btn = btns[code];
+        if (btn) btn.classList.toggle('pressed', want);
+        send(code, want);
+      }
+    });
+    // Dash on a fresh bumper press (doDash enforces the cooldown itself).
+    if (controlsEnabled) {
+      if (m.dashLeft && !gpDashLatch.left) doDash(-1);
+      if (m.dashRight && !gpDashLatch.right) doDash(1);
+    }
+    gpDashLatch.left = m.dashLeft;
+    gpDashLatch.right = m.dashRight;
+    // D-pad reactions — only while the goal reaction panel is open. The same
+    // buttons drive movement during play, but controls are disabled then.
+    const b = gp.buttons || [];
+    Object.keys(GP_EMOTE).forEach(function (k) {
+      const idx = Number(k);
+      const btn = b[idx];
+      const pressed = !!(btn && (btn.pressed || btn.value > 0.5));
+      if (pressed && !gpDpadLatch[idx] && emoteActive()) pickEmote(GP_EMOTE[idx]);
+      gpDpadLatch[idx] = pressed;
+    });
+  }
+
+  window.addEventListener('gamepadconnected', function (e) {
+    gpIndex = e.gamepad.index;
+    setGamepadBadge(true);
+  });
+  window.addEventListener('gamepaddisconnected', function (e) {
+    if (gpIndex === e.gamepad.index) { releaseGamepadHeld(); gpIndex = null; }
+    setGamepadBadge(anyGamepad());
+  });
+  // A controller already paired before load won't fire 'gamepadconnected' until
+  // the first input, so reflect current state on boot too.
+  if (anyGamepad()) setGamepadBadge(true);
+  pollGamepad();
+
   // ---------------- Lock zoom ----------------
   // iOS Safari ignores `user-scalable=no`, so pinch- and double-tap-zoom still
   // work and would drift the controller off-screen. Suppress them explicitly so
@@ -443,7 +566,8 @@
   const portraitMq = window.matchMedia('(orientation: portrait)');
   function updateRotateHint() {
     const inController = body.classList.contains('playing');
-    if (rotateHint) rotateHint.hidden = !(inController && portraitMq.matches);
+    const usingGamepad = body.classList.contains('has-gamepad');
+    if (rotateHint) rotateHint.hidden = !(inController && portraitMq.matches && !usingGamepad);
   }
   if (portraitMq.addEventListener) portraitMq.addEventListener('change', updateRotateHint);
   else if (portraitMq.addListener) portraitMq.addListener(updateRotateHint);
