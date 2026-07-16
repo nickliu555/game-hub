@@ -239,6 +239,7 @@ body.host {
   transition: background 0.2s ease;
 }
 .turn-banner b { font-weight: 900; }
+.turn-banner .turn-name { color: #ffe08a; font-weight: 900; }
 .turn-banner.red { background: linear-gradient(90deg, rgba(228,59,59,0.28), rgba(228,59,59,0.5), rgba(228,59,59,0.28)); }
 .turn-banner.blue { background: linear-gradient(90deg, rgba(47,125,224,0.28), rgba(47,125,224,0.5), rgba(47,125,224,0.28)); }
 

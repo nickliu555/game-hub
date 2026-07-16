@@ -454,9 +454,9 @@
     turnBanner.classList.add(currentTeam === 'blue' ? 'blue' : 'red');
     const teamLabel = currentTeam === 'blue' ? 'Blue' : 'Red';
     if (waiting && currentPlayerName) {
-      turnText.innerHTML = 'Waiting for <b>' + escapeHtml(currentPlayerName) + '</b> to reconnect\u2026';
+      turnText.innerHTML = 'Waiting for <span class="turn-name">' + escapeHtml(currentPlayerName) + '</span> to reconnect\u2026';
     } else if (currentPlayerName) {
-      turnText.innerHTML = '<b>' + teamLabel + '</b> to shoot — ' + escapeHtml(currentPlayerName);
+      turnText.innerHTML = '<b>' + teamLabel + '</b> to shoot \u2014 <span class="turn-name">' + escapeHtml(currentPlayerName) + '</span>';
     } else {
       turnText.innerHTML = '<b>' + teamLabel + '</b> to shoot';
     }

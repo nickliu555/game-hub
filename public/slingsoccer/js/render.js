@@ -225,9 +225,9 @@
       const ctx = this.ctx;
       const lx = -(aim.dx / power), ly = -(aim.dy / power); // unit launch dir
       const ang = Math.atan2(ly, lx);
-      const diameter = t.r * 2;
-      const col = power > 0.75 ? '#ff5a4d' : power > 0.45 ? '#ffb03a' : COL.aim;
-      // Pull band drawn back behind the token (opposite the launch).
+      // Strength is signalled by COLOUR only — the bar's size is constant.
+      const col = power > 0.7 ? '#ff5a4d' : power > 0.4 ? '#ffb03a' : COL.aim;
+      // Pull band drawn back behind the token (opposite the launch) — shows the drag.
       const pullLen = 18 + power * 90;
       ctx.strokeStyle = 'rgba(255,255,255,0.55)';
       ctx.lineWidth = 6;
@@ -235,10 +235,11 @@
       ctx.moveTo(t.x, t.y);
       ctx.lineTo(t.x - lx * pullLen, t.y - ly * pullLen);
       ctx.stroke();
-      // Short launch indicator: a stubby rounded bar 1–3 token-lengths long that
-      // grows with power, sitting just ahead of the token in the launch line.
-      const barLen = diameter * (1 + power * 2);   // ~1..3 players long
-      const halfW = t.r * 0.55;
+      // Projected-aim bar: as WIDE as the puck; its length GROWS with power up
+      // to ~3 puck lengths, and its colour also signals strength.
+      const diameter = t.r * 2;
+      const barLen = diameter * (0.5 + power * 2.5);  // ~0.5 → 3 puck lengths
+      const halfW = t.r;           // as wide as the token
       const gap = t.r + 3;
       ctx.save();
       ctx.translate(t.x, t.y);
@@ -249,12 +250,6 @@
       ctx.fill();
       ctx.globalAlpha = 1;
       ctx.restore();
-      // Power pip ring on the token.
-      ctx.strokeStyle = col;
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      ctx.arc(t.x, t.y, t.r + 6, -Math.PI / 2, -Math.PI / 2 + power * Math.PI * 2);
-      ctx.stroke();
     }
 
     // ---- Particles (goal + respawn puffs) ----

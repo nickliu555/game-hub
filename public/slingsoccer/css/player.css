@@ -83,6 +83,7 @@ body.player[data-team="blue"] { --me: var(--blue); --me-deep: var(--blue-deep); 
 }
 .tok-btn {
   flex: 1 1 0;
+  min-width: 0;
   max-width: 92px;
   aspect-ratio: 1.5 / 1;
   border-radius: 16px;
