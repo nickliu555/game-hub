@@ -33,6 +33,9 @@ Reuse these patterns verbatim:
   `player:reconnect` return full current-phase state), and the **6-emoji reactions** system
   (cooldown + host mute) — carry them over.
 - Register the game in `games.js` and mount it in `server.js` alongside the others.
+- Add the new game to the **Games** list in `README.md` — a section with its emoji/name, a
+  one-line pitch, and the numbered how-to-play steps, matching the format of the existing
+  entries.
 
 ---
 

@@ -67,6 +67,18 @@ A fast, physics-y arcade soccer showdown played on the shared screen, with each 
 
 The host can **pause** mid-match from the button under the top bar (the whole game freezes and controllers are locked, then everything resumes exactly where it left off). If the ball goes untouched for **10 seconds**, the point automatically resets from a fresh centre kickoff.
 
+### 🥇 Ranking
+A co-op guessing game — one player secretly ranks a list, and the group has to rebuild that order without them.
+
+1. Each round shows a list of **5 words or phrases**
+2. One player is the secret **Ranker** — they quietly put the 5 items in order from **1 to 5**
+3. A different player is the **Submitter** — the whole group discusses and drags the items into the order they *think* the Ranker chose (mirrored live to the Host and everyone's phones, while the Ranker stays quiet)
+4. On reveal, every item in the **matching position** scores for the **Group**; every mismatch scores for the **Game**
+5. Everyone is the Ranker exactly once and the Submitter exactly once
+6. **Beat the Game — the Group wins if its score ties or beats the Game's**
+
+By default, **Custom Words** mode is on: before the first round everyone secretly submits five words of their own to build the pool (each used once). Turn it off to play from the built-in phrase bank instead.
+
 ## How It Works
 
 1. **The host** opens Game Hub on a laptop or TV screen and picks a game
