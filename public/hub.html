@@ -16,8 +16,7 @@
     </header>
 
     <main class="hub-main">
-        <div class="section-label">Games</div>
-        <div class="game-cards" id="gameCards">
+        <div id="gameSections">
             <!-- Populated by JS -->
         </div>
     </main>
@@ -35,7 +34,7 @@
                 const games = await res.json();
                 render(games);
             } catch (e) {
-                document.getElementById('gameCards').innerHTML =
+                document.getElementById('gameSections').innerHTML =
                     '<p style="color:#8f98a0;">Failed to load games.</p>';
             } finally {
                 if (window.Iris && typeof window.Iris.ready === 'function') {
@@ -44,62 +43,90 @@
             }
         }
 
+        // Fixed display order for the category sections. Games without a known
+        // category fall into a trailing "More" group so nothing is ever hidden.
+        const CATEGORY_ORDER = ['Social', 'Arcade', 'Puzzle'];
+
         function render(games) {
-            const container = document.getElementById('gameCards');
+            const container = document.getElementById('gameSections');
             container.innerHTML = '';
+
+            const groups = new Map();
+            CATEGORY_ORDER.forEach(cat => groups.set(cat, []));
             games.forEach(game => {
-                const card = document.createElement('div');
-                card.className = 'game-card';
-
-                const rulesHtml = game.rules && game.rules.length
-                    ? `<div class="game-rules">
-                        <h3>How to Play</h3>
-                        <ol>${game.rules.map(r => `<li>${esc(r)}</li>`).join('')}</ol>
-                       </div>`
-                    : '';
-
-                card.innerHTML = `
-                    <div class="game-card-header">
-                        <span class="game-emoji">${game.badgeText
-                            ? `<span class="game-badge" style="background:${esc(game.color || '#666')}">${esc(game.badgeText)}</span>`
-                            : esc(game.emoji)}</span>
-                        <div class="game-info">
-                            <div class="game-name">${esc(game.name)}</div>
-                            <div class="game-tagline">${esc(game.tagline)}</div>
-                            <div class="game-meta">
-                                <span>👥 ${esc(game.playerCount)}</span>
-                                <span>⏱ ${esc(game.duration)}</span>
-                            </div>
-                        </div>
-                        <span class="game-chevron">▼</span>
-                    </div>
-                    <div class="game-card-body">
-                        <div class="game-card-body-inner">
-                            <p class="game-description">${esc(game.description)}</p>
-                            ${rulesHtml}
-                            <div class="game-actions">
-                                <a href="${esc(game.hostPath)}" class="btn-play">▶ Play</a>
-                                ${game.practicePath ? `<a href="${esc(game.practicePath)}" class="btn-practice">Practice solo</a>` : ''}
-                            </div>
-                        </div>
-                    </div>
-                `;
-
-                card.querySelector('.game-card-header').addEventListener('click', () => {
-                    card.classList.toggle('expanded');
-                });
-
-                // Prevent card toggle when clicking the Play button
-                card.querySelector('.btn-play').addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    if (document.fullscreenElement || document.webkitFullscreenElement) {
-                        sessionStorage.setItem('hub_fullscreen', '1');
-                    }
-                    startIrisTransition(e, game);
-                });
-
-                container.appendChild(card);
+                const cat = game.category && CATEGORY_ORDER.includes(game.category)
+                    ? game.category : 'More';
+                if (!groups.has(cat)) groups.set(cat, []);
+                groups.get(cat).push(game);
             });
+
+            groups.forEach((list, category) => {
+                if (!list.length) return;
+
+                const label = document.createElement('div');
+                label.className = 'section-label';
+                label.textContent = category;
+                container.appendChild(label);
+
+                const cards = document.createElement('div');
+                cards.className = 'game-cards';
+                list.forEach(game => cards.appendChild(buildCard(game)));
+                container.appendChild(cards);
+            });
+        }
+
+        function buildCard(game) {
+            const card = document.createElement('div');
+            card.className = 'game-card';
+
+            const rulesHtml = game.rules && game.rules.length
+                ? `<div class="game-rules">
+                    <h3>How to Play</h3>
+                    <ol>${game.rules.map(r => `<li>${esc(r)}</li>`).join('')}</ol>
+                   </div>`
+                : '';
+
+            card.innerHTML = `
+                <div class="game-card-header">
+                    <span class="game-emoji">${game.badgeText
+                        ? `<span class="game-badge" style="background:${esc(game.color || '#666')}">${esc(game.badgeText)}</span>`
+                        : esc(game.emoji)}</span>
+                    <div class="game-info">
+                        <div class="game-name">${esc(game.name)}</div>
+                        <div class="game-tagline">${esc(game.tagline)}</div>
+                        <div class="game-meta">
+                            <span>👥 ${esc(game.playerCount)}</span>
+                            <span>⏱ ${esc(game.duration)}</span>
+                        </div>
+                    </div>
+                    <span class="game-chevron">▼</span>
+                </div>
+                <div class="game-card-body">
+                    <div class="game-card-body-inner">
+                        <p class="game-description">${esc(game.description)}</p>
+                        ${rulesHtml}
+                        <div class="game-actions">
+                            <a href="${esc(game.hostPath)}" class="btn-play">▶ Play</a>
+                            ${game.practicePath ? `<a href="${esc(game.practicePath)}" class="btn-practice">Practice solo</a>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            card.querySelector('.game-card-header').addEventListener('click', () => {
+                card.classList.toggle('expanded');
+            });
+
+            // Prevent card toggle when clicking the Play button
+            card.querySelector('.btn-play').addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (document.fullscreenElement || document.webkitFullscreenElement) {
+                    sessionStorage.setItem('hub_fullscreen', '1');
+                }
+                startIrisTransition(e, game);
+            });
+
+            return card;
         }
 
         function esc(str) {

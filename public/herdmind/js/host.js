@@ -149,6 +149,9 @@
     qPrompt.textContent = q.text;
     answersReceived.textContent = '0';
     show('question');
+    // Chime players to look up at the host screen for each new question after
+    // the first (the first question follows the intro fanfare).
+    if (q && Number(q.round) > 1) playNextQuestionCue();
     var totalMs = q.timeLimitSec * 1000;
     var lastSec = -1, urgent = false;
     function update() {
@@ -718,6 +721,39 @@
       gain.gain.exponentialRampToValueAtTime(0.0001, st + 0.5);
       osc.connect(gain).connect(ctx.destination);
       osc.start(st); osc.stop(st + 0.52);
+    });
+  }
+  // Descending two-note "doorbell" attention chime played when each new
+  // question appears (after the first, which follows the intro fanfare),
+  // cueing players to glance at the host screen. Deliberately distinct from
+  // an ascending chime so it reads as an announcement.
+  function playNextQuestionCue() {
+    var ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state !== 'running') {
+      ctx.resume().catch(function () {});
+      if (ctx.state !== 'running') return;
+    }
+    var t0 = ctx.currentTime;
+    var notes = [
+      { freq: 1174.66, start: 0.00, dur: 0.55 }, // D6  (ding)
+      { freq: 880.00,  start: 0.26, dur: 0.70 }, // A5  (dong)
+    ];
+    notes.forEach(function (n) {
+      [
+        { type: 'sine',     freq: n.freq,       vol: 0.5  },
+        { type: 'triangle', freq: n.freq * 3.0, vol: 0.08 },
+      ].forEach(function (layer) {
+        var osc = ctx.createOscillator(), gain = ctx.createGain();
+        osc.type = layer.type;
+        osc.frequency.value = layer.freq;
+        var t = t0 + n.start;
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(layer.vol, t + 0.008);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + n.dur);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t); osc.stop(t + n.dur + 0.05);
+      });
     });
   }
   // Unlock audio on first interaction.

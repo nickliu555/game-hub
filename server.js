@@ -11,6 +11,7 @@ const mountHerdMind = require('./server/herdmind');
 const mountBoggle = require('./server/noggle');
 const mountSoccerHead = require('./server/soccerhead');
 const mountSlingSoccer = require('./server/slingsoccer');
+const mountRanking = require('./server/ranking');
 const app = express();
 
 app.set('trust proxy', 1);
@@ -764,6 +765,9 @@ mountSoccerHead(app, httpServer, { getPublicBaseUrl });
 
 // Mount the Sling Soccer turn-based flick-soccer game (Socket.IO namespace + REST + page routes).
 mountSlingSoccer(app, httpServer, { getPublicBaseUrl });
+
+// Mount the Ranking co-op guessing game (Socket.IO namespace + REST + page routes).
+mountRanking(app, httpServer, { getPublicBaseUrl });
 
 httpServer.listen(PORT, '0.0.0.0', () => {
     console.log('');

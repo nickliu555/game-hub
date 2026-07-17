@@ -246,7 +246,15 @@
       ctx.rotate(ang);
       ctx.globalAlpha = 0.92;
       ctx.fillStyle = col;
-      roundRect(ctx, gap, -halfW, barLen, halfW * 2, halfW);
+      // Flat where it exits the token, rounded ONLY at the far tip.
+      const x0 = gap;
+      const capCenter = gap + barLen - halfW;
+      ctx.beginPath();
+      ctx.moveTo(x0, -halfW);
+      ctx.lineTo(capCenter, -halfW);
+      ctx.arc(capCenter, 0, halfW, -Math.PI / 2, Math.PI / 2);
+      ctx.lineTo(x0, halfW);
+      ctx.closePath();
       ctx.fill();
       ctx.globalAlpha = 1;
       ctx.restore();

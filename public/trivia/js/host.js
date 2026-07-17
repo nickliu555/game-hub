@@ -395,6 +395,44 @@
     osc.stop(t + dur + 0.02);
   }
 
+  // ---------------- Next-question cue (Web Audio) ----------------
+  // Descending two-note "doorbell" attention chime played when each new
+  // question appears, signalling players to glance at the host screen.
+  // Deliberately distinct (descending, longer bell decay) from the ascending
+  // reveal chime so it doesn't read as "everyone answered". Skipped for the
+  // very first question, which already follows the intro fanfare.
+  function playNextQuestionCue() {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state !== 'running') {
+      ctx.resume().catch(function(){});
+      if (ctx.state !== 'running') return;
+    }
+    const t0 = ctx.currentTime;
+    const notes = [
+      { freq: 1174.66, start: 0.00, dur: 0.55 }, // D6  (ding)
+      { freq: 880.00,  start: 0.26, dur: 0.70 }, // A5  (dong)
+    ];
+    notes.forEach(function (n) {
+      [
+        { type: 'sine',     freq: n.freq,       vol: 0.5  },
+        { type: 'triangle', freq: n.freq * 3.0, vol: 0.08 },
+      ].forEach(function (layer) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = layer.type;
+        osc.frequency.value = layer.freq;
+        const t = t0 + n.start;
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(layer.vol, t + 0.008);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + n.dur);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + n.dur + 0.05);
+      });
+    });
+  }
+
   // ---------------- Celebration sound ----------------
   // Uses /trivia/assets/sounds/applause.mp3 (shipped). Synth fallback if missing.
   let applauseFileAvailable = null;
@@ -764,6 +802,9 @@
     stopQTimer();
     stopIntroTimer();
     show('question');
+    // Chime players to look up at the host screen for each new question after
+    // the first (the first question follows the intro fanfare).
+    if (p && typeof p.index === 'number' && p.index > 0) playNextQuestionCue();
     // For the very last question, briefly show a "🏆 Final Question!" splash
     // before the prompt content becomes readable. The server has padded this
     // prompt phase with extra time so the regular cadence is preserved.

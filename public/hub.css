@@ -59,6 +59,11 @@ a:hover { color: #ffffff; }
     margin-bottom: 12px;
 }
 
+/* Separate each subsequent category header from the cards above it. */
+.game-cards + .section-label {
+    margin-top: 28px;
+}
+
 /* ─── Game Cards ─────────────────────────────────────── */
 .game-cards {
     display: flex;
