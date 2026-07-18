@@ -74,42 +74,119 @@
         + updown + handle
         + '</div>';
     }
-    function paint() { host.innerHTML = order.map(rowHtml).join(''); }
+    // Record each row's current top (keyed by item id) so a rebuild can play a
+    // FLIP animation: rows slide from where they WERE to where they now are.
+    var reduceMotion = false;
+    try { reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+    function measure() {
+      var m = {};
+      var rows = host.querySelectorAll('.rk-row');
+      for (var i = 0; i < rows.length; i++) m[rows[i].getAttribute('data-id')] = rows[i].getBoundingClientRect().top;
+      return m;
+    }
+    function flip(prevTops) {
+      if (reduceMotion || !prevTops) return;
+      var rows = host.querySelectorAll('.rk-row');
+      var moved = [];
+      for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        var id = r.getAttribute('data-id');
+        if (prevTops[id] == null) continue;
+        // Don't animate the card under the finger — it should track the pointer.
+        if (dragId != null && parseInt(id, 10) === dragId) continue;
+        var delta = prevTops[id] - r.getBoundingClientRect().top;
+        if (delta) { r.style.transition = 'none'; r.style.transform = 'translateY(' + delta + 'px)'; moved.push(r); }
+      }
+      if (!moved.length) return;
+      // Commit the starting offsets with one synchronous reflow, then release to
+      // the natural position so the transition animates. (Synchronous rather than
+      // rAF-based so a backgrounded tab never leaves a card stuck mid-slide.)
+      host.getBoundingClientRect();
+      for (var j = 0; j < moved.length; j++) {
+        moved[j].style.transition = 'transform 0.2s cubic-bezier(0.2, 0.7, 0.2, 1)';
+        moved[j].style.transform = '';
+      }
+    }
+    function paint(prevTops) {
+      host.innerHTML = order.map(rowHtml).join('');
+      flip(prevTops);
+    }
+    // Refresh rank numbers + arrow disabled state after an in-place DOM reorder
+    // (used during a drag, where we move nodes instead of rebuilding the list).
+    function relabel() {
+      var rows = host.querySelectorAll('.rk-row');
+      for (var i = 0; i < rows.length; i++) {
+        var rk = rows[i].querySelector('.rk-rank');
+        if (rk) rk.textContent = (i + 1);
+        var up = rows[i].querySelector('.rk-up');
+        var dn = rows[i].querySelector('.rk-down');
+        if (up) up.disabled = (i === 0);
+        if (dn) dn.disabled = (i === rows.length - 1);
+      }
+    }
     function emitChange() { if (opts.onChange) opts.onChange(order.slice()); }
+
+    // Reorder DURING a drag by physically moving the dragged node — never a full
+    // rebuild — so the grabbed card keeps its identity (no flicker/stutter) and
+    // only the displaced siblings animate.
+    function moveDragTo(target) {
+      var cur = order.indexOf(dragId);
+      if (cur === -1 || target === cur) return;
+      var dragEl = host.querySelector('.rk-row[data-id="' + dragId + '"]');
+      if (!dragEl) return;
+      var prev = measure();
+      order.splice(cur, 1);
+      order.splice(target, 0, dragId);
+      var afterId = order[target + 1];
+      var refEl = afterId != null ? host.querySelector('.rk-row[data-id="' + afterId + '"]') : null;
+      host.insertBefore(dragEl, refEl);
+      relabel();
+      flip(prev);
+      emitChange();
+      tryVibrate(6);
+    }
 
     function onMove(e) {
       if (dragId == null) return;
       if (e.cancelable) e.preventDefault();
-      var rows = host.querySelectorAll('.rk-row');
       var y = e.clientY != null ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
-      var target = order.length - 1;
+      var rows = host.querySelectorAll('.rk-row');
+      // Hit-test against the STABLE layout: offsetHeight ignores the FLIP
+      // transforms, so a card that's still sliding into place can't shift the
+      // measured midpoints and make the target slot oscillate (the stutter).
+      var gap = parseFloat(getComputedStyle(host).rowGap) || 0;
+      var edge = host.getBoundingClientRect().top;
+      var target = rows.length - 1;
       for (var i = 0; i < rows.length; i++) {
-        var rect = rows[i].getBoundingClientRect();
-        if (y < rect.top + rect.height / 2) { target = i; break; }
+        var h = rows[i].offsetHeight;
+        if (y < edge + h / 2) { target = i; break; }
+        edge += h + gap;
       }
       var cur = order.indexOf(dragId);
-      if (cur !== -1 && target !== cur) {
-        order.splice(cur, 1);
-        order.splice(target, 0, dragId);
-        paint();
-        emitChange();
-      }
+      if (cur !== -1 && target !== cur) moveDragTo(target);
     }
     function onUp() {
       if (dragId == null) return;
+      var el = host.querySelector('.rk-row[data-id="' + dragId + '"]');
       dragId = null;
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
-      paint();
+      // Just drop the lift class on the same node so it settles smoothly (CSS
+      // transform transition) — no rebuild, no flicker.
+      if (el) el.classList.remove('dragging');
     }
     if (editable) {
       host.addEventListener('pointerdown', function (e) {
-        var handle = e.target.closest('.rk-handle');
-        if (!handle) return;
+        // The whole card is the drag target — except the ▲▼ arrows, which are
+        // tap controls and must stay easy to tap (never start a drag).
+        if (e.target.closest('.rk-updown')) return;
+        var row = e.target.closest('.rk-row');
+        if (!row) return;
         if (e.cancelable) e.preventDefault();
-        dragId = parseInt(handle.getAttribute('data-id'), 10);
-        paint();
+        dragId = parseInt(row.getAttribute('data-id'), 10);
+        // Lift the grabbed card in place (no rebuild — keeps its identity).
+        row.classList.add('dragging');
         window.addEventListener('pointermove', onMove, { passive: false });
         window.addEventListener('pointerup', onUp);
         window.addEventListener('pointercancel', onUp);
@@ -120,10 +197,12 @@
         if (!up && !down) return;
         var id = parseInt((up || down).getAttribute('data-id'), 10);
         var i = order.indexOf(id);
-        if (up && i > 0) { var a = order[i - 1]; order[i - 1] = order[i]; order[i] = a; }
-        else if (down && i >= 0 && i < order.length - 1) { var b = order[i + 1]; order[i + 1] = order[i]; order[i] = b; }
-        else return;
-        paint();
+        if (up && i <= 0) return;
+        if (down && (i < 0 || i >= order.length - 1)) return;
+        var prev = measure();
+        if (up) { var a = order[i - 1]; order[i - 1] = order[i]; order[i] = a; }
+        else { var b = order[i + 1]; order[i + 1] = order[i]; order[i] = b; }
+        paint(prev);
         emitChange();
         tryVibrate(15);
       });
@@ -131,7 +210,7 @@
     paint();
     return {
       getOrder: function () { return order.slice(); },
-      setOrder: function (o) { if (dragId != null) return; order = o.slice(); paint(); },
+      setOrder: function (o) { if (dragId != null) return; var prev = measure(); order = o.slice(); paint(prev); },
     };
   }
 
@@ -307,23 +386,19 @@
         '<div class="round-tag">Round ' + data.round + ' of ' + data.totalRounds + '</div>' +
         '<span class="role-pill ranker">You\'re the Ranker</span>' +
         '<h2>Rank these 1 → 5</h2>' +
-        '<p class="rk-note">Order them however you like — the group will try to read your mind. Drag ⋮⋮ or tap ▲▼.</p>' +
+        '<p class="rk-note">Order them however you like — the group will try to read your mind. Drag a card or tap ▲▼.</p>' +
         '<div class="rk-list" id="rkList"></div>' +
         '<div class="rk-actions"><button class="btn-primary" id="rankSubmit">Lock in my ranking</button></div>' +
       '</div>';
     var rankBtn = document.getElementById('rankSubmit');
     var rankArmed = false;
-    function disarmRank() {
-      if (!rankArmed) return;
-      rankArmed = false;
-      rankBtn.textContent = 'Lock in my ranking';
-      rankBtn.classList.remove('btn-accent');
-    }
-    // Reordering cancels a pending confirm, so it's always a clean two-tap:
-    // tap to arm ("Tap again to lock it in"), tap again to lock in. No timeout,
-    // so taking your time reviewing the order never costs an extra press.
+    // Two-tap guard against an accidental submit: tap to arm ("Tap again to lock
+    // it in"), tap again to lock in. No timeout, so deliberating over the order
+    // never costs an extra press. Reordering does NOT cancel the arm — the submit
+    // always sends the LIVE order — so brushing a card (the whole card is
+    // draggable) never forces a third tap.
     rankSortable = makeSortable(document.getElementById('rkList'), {
-      map: map, order: order, editable: true, onChange: disarmRank,
+      map: map, order: order, editable: true,
     });
     rankBtn.addEventListener('click', function () {
       if (!rankArmed) {
@@ -334,7 +409,12 @@
       }
       rankBtn.disabled = true;
       socket.emit('player:rank', { order: rankSortable.getOrder() }, function (res) {
-        if (!res || !res.ok) { rankBtn.disabled = false; disarmRank(); }
+        if (!res || !res.ok) {
+          rankBtn.disabled = false;
+          rankArmed = false;
+          rankBtn.textContent = 'Lock in my ranking';
+          rankBtn.classList.remove('btn-accent');
+        }
       });
     });
   }

@@ -89,6 +89,38 @@ on a big win is a plus.
 
 ---
 
+## ✅ Host screen must NEVER fall asleep
+
+The Host screen sits on a TV/laptop across the room for the whole session, so it must stay
+awake. **Every game's `host` page must acquire a screen Wake Lock** (and re-acquire it when
+the tab becomes visible again) so the display never dims or sleeps mid-game. Do **not** add
+wake locks to player pages — phones should be free to sleep normally.
+
+Use the standard pattern (copy from any existing `host.js`, e.g. `public/trivia/js/host.js`):
+```js
+let wakeLock = null;
+async function acquireWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', function () { wakeLock = null; });
+  } catch (e) { wakeLock = null; }
+}
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'visible' && wakeLock === null) acquireWakeLock();
+});
+acquireWakeLock();
+// Re-acquire after the first user gesture (some browsers reject the initial request)
+document.addEventListener('click', function once() {
+  document.removeEventListener('click', once);
+  if (wakeLock === null) acquireWakeLock();
+});
+```
+Feature-detect (`'wakeLock' in navigator`) and swallow rejections — the Wake Lock API isn't
+universal, so it must degrade silently where unsupported.
+
+---
+
 ## Mobile / touch (player pages)
 
 - **Mobile-first & cross-browser:** player pages are used on real phones, so they must be

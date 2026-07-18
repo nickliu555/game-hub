@@ -617,6 +617,24 @@
   });
   socket.on('state:reactionsMuted', function (p) { reactionsMuted = !!(p && p.muted); updateMuteBtn(); });
 
+  // ---- Wake Lock (keep Host screen awake) ----
+  var wakeLock = null;
+  function acquireWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    navigator.wakeLock.request('screen').then(function (wl) {
+      wakeLock = wl;
+      wakeLock.addEventListener('release', function () { wakeLock = null; });
+    }).catch(function () { wakeLock = null; });
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && wakeLock === null) acquireWakeLock();
+  });
+  acquireWakeLock();
+  document.addEventListener('click', function once() {
+    document.removeEventListener('click', once);
+    if (wakeLock === null) acquireWakeLock();
+  });
+
   // ---- Fullscreen / reset / hub ----
   var fullscreenBtn = document.getElementById('fullscreenBtn');
   if (fullscreenBtn) fullscreenBtn.addEventListener('click', function () {

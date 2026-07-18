@@ -91,11 +91,42 @@
   }
   function boardHtml(map, order) {
     return (order || []).map(function (id, i) {
-      return '<div class="rk-row">' +
+      return '<div class="rk-row" data-id="' + id + '">' +
         '<span class="rk-rank">' + (i + 1) + '</span>' +
         '<span class="rk-text">' + escapeHtml(map[id]) + '</span>' +
       '</div>';
     }).join('');
+  }
+  var boardReduceMotion = false;
+  try { boardReduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  // Render the consensus board and, when it changes, play a FLIP animation so the
+  // cards SLIDE into their new spots — mirroring the submitter's drag smoothly
+  // instead of snapping.
+  function renderBoard(order, animate) {
+    var board = document.getElementById('dsBoard');
+    if (!board) return;
+    var prev = null;
+    if (animate && !boardReduceMotion) {
+      prev = {};
+      var old = board.querySelectorAll('.rk-row');
+      for (var i = 0; i < old.length; i++) prev[old[i].getAttribute('data-id')] = old[i].getBoundingClientRect().top;
+    }
+    board.innerHTML = boardHtml(dsMap, order);
+    if (!prev) return;
+    var rows = board.querySelectorAll('.rk-row');
+    var moved = [];
+    for (var j = 0; j < rows.length; j++) {
+      var id = rows[j].getAttribute('data-id');
+      if (prev[id] == null) continue;
+      var delta = prev[id] - rows[j].getBoundingClientRect().top;
+      if (delta) { rows[j].style.transition = 'none'; rows[j].style.transform = 'translateY(' + delta + 'px)'; moved.push(rows[j]); }
+    }
+    if (!moved.length) return;
+    board.getBoundingClientRect(); // one reflow to commit the start offsets
+    for (var k = 0; k < moved.length; k++) {
+      moved[k].style.transition = 'transform 0.22s cubic-bezier(0.2, 0.7, 0.2, 1)';
+      moved[k].style.transform = '';
+    }
   }
 
   // ---- QR ----
@@ -243,12 +274,12 @@
     document.getElementById('dsTotal').textContent = p.totalRounds;
     document.getElementById('dsSubmitter').textContent = p.submitterName || 'Someone';
     document.getElementById('dsRanker').textContent = p.rankerName || 'The ranker';
-    document.getElementById('dsBoard').innerHTML = boardHtml(dsMap, p.consensusOrder);
+    renderBoard(p.consensusOrder, false);
     document.getElementById('discussScoreboard').innerHTML = scoreboardHtml(p.groupScore || 0, p.gameScore || 0);
   }
   socket.on('state:consensus', function (p) {
     if (!p || !views.discuss.classList.contains('active')) return;
-    document.getElementById('dsBoard').innerHTML = boardHtml(dsMap, p.consensusOrder);
+    renderBoard(p.consensusOrder, true);
   });
 
   // ---- Reveal ----
@@ -371,6 +402,24 @@
     });
   });
   socket.on('state:reactionsMuted', function (p) { reactionsMuted = !!(p && p.muted); updateMuteBtn(); });
+
+  // ---- Wake Lock (keep Host screen awake) ----
+  var wakeLock = null;
+  function acquireWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    navigator.wakeLock.request('screen').then(function (wl) {
+      wakeLock = wl;
+      wakeLock.addEventListener('release', function () { wakeLock = null; });
+    }).catch(function () { wakeLock = null; });
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && wakeLock === null) acquireWakeLock();
+  });
+  acquireWakeLock();
+  document.addEventListener('click', function once() {
+    document.removeEventListener('click', once);
+    if (wakeLock === null) acquireWakeLock();
+  });
 
   // ---- Fullscreen / reset / hub ----
   var fullscreenBtn = document.getElementById('fullscreenBtn');

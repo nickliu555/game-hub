@@ -20,8 +20,11 @@ body.join, body.player {
 /* touch-action does NOT inherit — set it on every element so double-tap zoom
    is killed even when the tap lands on a child card/button. */
 body.join *, body.player * { touch-action: manipulation; }
-/* …but the drag handle needs full pointer control so a drag doesn't scroll. */
-body.player .rk-handle { touch-action: none; }
+/* …but a draggable rank card needs full pointer control so a drag doesn't
+   scroll. The whole editable card is the drag target; the ▲▼ arrows keep
+   `manipulation` (from the rule above) so they stay tappable and aren't dragged. */
+body.player .rk-row:not(.readonly) { touch-action: none; cursor: grab; -webkit-user-select: none; user-select: none; }
+body.player .rk-row.dragging { cursor: grabbing; }
 
 /* ---- Join ---- */
 .join-brand {
@@ -105,11 +108,12 @@ body.player .rk-handle { touch-action: none; }
   display: flex; align-items: center; gap: 10px;
   background: #faf5e6; border: 1.5px solid #ecdfbd;
   border-radius: 12px; padding: 10px 10px;
-  transition: box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  transition: box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
 }
 .rk-row.dragging {
   background: #fff; border-color: var(--accent);
   box-shadow: var(--shadow-strong); position: relative; z-index: 3;
+  transform: scale(1.03);
 }
 .rk-row.readonly { background: #fff; border-color: #eee3cc; }
 .rk-rank {
