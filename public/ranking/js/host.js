@@ -65,6 +65,8 @@
   var collectDone = document.getElementById('collectDone');
   var collectTotal = document.getElementById('collectTotal');
   var collectList = document.getElementById('collectList');
+  var collectActions = document.getElementById('collectActions');
+  var collectStartBtn = document.getElementById('collectStartBtn');
 
   var MIN_PLAYERS = 2;
 
@@ -173,7 +175,20 @@
       return '<div class="' + cls + '">' +
         '<span class="cc-mark">' + mark + '</span>' + escapeHtml(p.name) + '</div>';
     }).join('');
+    // Host may start only when everyone has submitted and nobody is mid-edit.
+    var ready = !!(s && s.ready) && total > 0;
+    if (collectActions) collectActions.hidden = !ready;
+    if (collectStartBtn) collectStartBtn.disabled = !ready;
   }
+
+  if (collectStartBtn) collectStartBtn.addEventListener('click', function () {
+    collectStartBtn.disabled = true;
+    unlockAudio();
+    socket.emit('host:start', {}, function (res) {
+      if (res && res.ok) { playStartFanfare(); return; }
+      collectStartBtn.disabled = false;
+    });
+  });
 
   startBtn.addEventListener('click', function () {
     startError.hidden = true;

@@ -198,9 +198,20 @@ function mountRanking(app, httpServer, opts) {
       const res = game.submitWords({ playerId, words: submitted });
       if (!res.ok) return ack && ack(res);
       ack && ack({ ok: true, words: res.words, phase: game.phase });
-      // Everyone submitted → rounds built + INTRO; otherwise update host progress.
-      if (game.phase === PHASES.INTRO) broadcastIntro();
-      else broadcastCollectHost();
+      // No auto-advance: the host starts the game once everyone is ready. Update
+      // host progress (and the ready/Start state) only.
+      broadcastCollectHost();
+    });
+
+    socket.on('player:editWords', (_p = {}, ack) => {
+      touchActivity();
+      if (!playerId) return ack && ack({ ok: false, reason: 'not-joined' });
+      if (!isHostPresent()) return ack && ack({ ok: false, reason: 'host-absent' });
+      const res = game.editWords({ playerId });
+      if (!res.ok) return ack && ack(res);
+      ack && ack({ ok: true, words: res.words });
+      // They're now unsubmitted → progress ticks down and the host Start retracts.
+      broadcastCollectHost();
     });
 
     socket.on('player:rank', ({ order } = {}, ack) => {
@@ -289,6 +300,14 @@ function mountRanking(app, httpServer, opts) {
     socket.on('host:start', (_payload = {}, ack) => {
       if (!requireHost(ack)) return;
       touchActivity();
+      // Custom Words: a Start during COLLECT builds the rounds (only when everyone
+      // has submitted and nobody is mid-edit); otherwise it's the lobby start.
+      if (game.phase === PHASES.COLLECT) {
+        const res = game.beginFromCollect();
+        if (!res.ok) return ack && ack(res);
+        ack && ack({ ok: true, phase: game.phase });
+        return broadcastIntro();
+      }
       const res = game.start();
       if (!res.ok) return ack && ack(res);
       ack && ack({ ok: true, phase: game.phase });

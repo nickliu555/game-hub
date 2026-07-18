@@ -96,17 +96,45 @@
 
     _drawPitch() {
       const ctx = this.ctx, f = this.f;
+      const m = f.FIELD_MARGIN || 24;
+      const cc = f.CORNER_CHAMFER || 0;
+      // Grass, clipped to the chamfered-corner octagon so the pitch has NO square
+      // corners at all (matches the physics corner cut — no leftover rectangle).
+      ctx.save();
+      if (cc > 0) {
+        ctx.beginPath();
+        ctx.moveTo(cc, 0);
+        ctx.lineTo(f.W - cc, 0);
+        ctx.lineTo(f.W, cc);
+        ctx.lineTo(f.W, f.H - cc);
+        ctx.lineTo(f.W - cc, f.H);
+        ctx.lineTo(cc, f.H);
+        ctx.lineTo(0, f.H - cc);
+        ctx.lineTo(0, cc);
+        ctx.closePath();
+        ctx.clip();
+      }
       // Mowed stripes.
       const stripes = 10;
       for (let i = 0; i < stripes; i++) {
         ctx.fillStyle = i % 2 === 0 ? COL.grassA : COL.grassB;
         ctx.fillRect((f.W / stripes) * i, 0, f.W / stripes + 1, f.H);
       }
-      // Boundary.
+      ctx.restore();
+      // Boundary (chamfered to match the corners).
       ctx.strokeStyle = COL.line;
       ctx.lineWidth = 6;
-      const m = f.FIELD_MARGIN || 24;
-      ctx.strokeRect(m, m, f.W - 2 * m, f.H - 2 * m);
+      if (cc > 0) {
+        ctx.beginPath();
+        ctx.moveTo(cc, m); ctx.lineTo(f.W - cc, m);            // top
+        ctx.lineTo(f.W - m, cc); ctx.lineTo(f.W - m, f.H - cc); // right
+        ctx.lineTo(f.W - cc, f.H - m); ctx.lineTo(cc, f.H - m); // bottom
+        ctx.lineTo(m, f.H - cc); ctx.lineTo(m, cc);            // left
+        ctx.closePath();
+        ctx.stroke();
+      } else {
+        ctx.strokeRect(m, m, f.W - 2 * m, f.H - 2 * m);
+      }
       // Halfway line + centre circle + spot.
       ctx.beginPath();
       ctx.moveTo(f.W / 2, m); ctx.lineTo(f.W / 2, f.H - m);

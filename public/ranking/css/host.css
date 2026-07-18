@@ -216,6 +216,9 @@ body.host {
 .collect-chip.done { background: #e8f7ef; border-color: #bfe6d2; }
 .collect-chip.done .cc-mark { background: var(--group); color: #fff; }
 .collect-chip.disconnected { opacity: 0.5; font-style: italic; }
+.collect-actions { display: flex; justify-content: center; margin-top: 22px; }
+.collect-actions[hidden] { display: none; }
+.collect-actions .btn-accent { font-size: clamp(18px, 2.2vw, 24px); padding: 14px 40px; }
 .collect-hint { color: rgba(255,255,255,0.55); font-size: 14px; margin-top: 16px; }
 
 .lobby-attribution {

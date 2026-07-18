@@ -260,13 +260,13 @@ class Game {
     return { ok: true, customWords: this.customWords };
   }
 
-  // A player submits their WORDS_PER_PLAYER phrases during COLLECT (locked once
-  // accepted). When EVERY player has submitted, rounds are built → INTRO.
+  // A player submits their WORDS_PER_PLAYER phrases during COLLECT. They can
+  // re-open the form and resubmit any time before the host starts (see
+  // editWords). Rounds are built only when the host starts (beginFromCollect).
   submitWords({ playerId, words }) {
     if (this.phase !== PHASES.COLLECT) return { ok: false, reason: 'not-collecting' };
     const p = this.players.get(playerId);
     if (!p) return { ok: false, reason: 'unknown-player' };
-    if (p.wordsSubmitted) return { ok: false, reason: 'already-submitted' };
     if (!Array.isArray(words) || words.length !== WORDS_PER_PLAYER) {
       return { ok: false, reason: 'bad-words', need: WORDS_PER_PLAYER };
     }
@@ -278,21 +278,35 @@ class Game {
     const ownDup = [];
     norm.forEach((n, i) => { if (seenOwn.has(n)) ownDup.push(i); else seenOwn.add(n); });
     if (ownDup.length) return { ok: false, reason: 'duplicate-own', dupIndexes: ownDup };
-    // No repeats across players — first come, first served.
-    const taken = this._takenWords();
+    // No repeats across players — first come, first served. Exclude this player's
+    // own previously-accepted words so a direct resubmit never collides with self.
+    const taken = this._takenWords(playerId);
     const takenIdx = [];
     norm.forEach((n, i) => { if (taken.has(n)) takenIdx.push(i); });
     if (takenIdx.length) return { ok: false, reason: 'duplicate-taken', dupIndexes: takenIdx };
     p.submittedWords = clean;
     p.wordsSubmitted = true;
-    if (this.allSubmitted()) this._beginFromCollect();
     return { ok: true, phase: this.phase, words: clean };
   }
 
-  // Normalized set of every word already accepted from any player.
-  _takenWords() {
+  // A player re-opens their submission to edit it. This unsubmits them (their
+  // words are released back into the pool for others — first come, first served),
+  // keeping their previous words only to prefill the form. Returns those words.
+  editWords({ playerId }) {
+    if (this.phase !== PHASES.COLLECT) return { ok: false, reason: 'not-collecting' };
+    const p = this.players.get(playerId);
+    if (!p) return { ok: false, reason: 'unknown-player' };
+    const words = Array.isArray(p.submittedWords) ? p.submittedWords.slice() : null;
+    p.wordsSubmitted = false;
+    return { ok: true, words };
+  }
+
+  // Normalized set of every word already accepted from any player (optionally
+  // excluding one player, e.g. the one currently resubmitting).
+  _takenWords(excludeId) {
     const set = new Set();
     for (const pl of this.players.values()) {
+      if (excludeId && pl.id === excludeId) continue;
       if (pl.wordsSubmitted && Array.isArray(pl.submittedWords)) {
         for (const w of pl.submittedWords) set.add(normalizeWord(w));
       }
@@ -306,7 +320,17 @@ class Game {
     return true;
   }
 
-  _beginFromCollect() {
+  // Everyone has submitted and nobody is mid-edit (editing unsubmits, so this
+  // single check covers both). The host may only start once this is true.
+  collectReady() {
+    return this.allSubmitted();
+  }
+
+  // Host-triggered: build the rounds from every player's submitted words and
+  // enter INTRO. Guarded so a Start click that races an edit is rejected.
+  beginFromCollect() {
+    if (this.phase !== PHASES.COLLECT) return { ok: false, reason: 'not-collecting' };
+    if (!this.collectReady()) return { ok: false, reason: 'not-ready' };
     const ids = Array.from(this.players.keys());
     const pool = [];
     for (const id of ids) {
@@ -472,6 +496,7 @@ class Game {
     return {
       total: c.total,
       submitted: c.submitted,
+      ready: this.collectReady(),
       wordsPerPlayer: WORDS_PER_PLAYER,
       maxWordLen: MAX_WORD_LEN,
       players: Array.from(this.players.values()).map((p) => ({
@@ -480,14 +505,15 @@ class Game {
     };
   }
 
-  // COLLECT state for a single player (their own form / lock state).
+  // COLLECT state for a single player (their own form / lock state). Returns the
+  // stored words even when unsubmitted (mid-edit) so a reconnect can prefill.
   getCollectPersonal(playerId) {
     const p = this.players.get(playerId);
     return {
       wordsPerPlayer: WORDS_PER_PLAYER,
       maxWordLen: MAX_WORD_LEN,
       submitted: !!(p && p.wordsSubmitted),
-      words: p && p.wordsSubmitted && Array.isArray(p.submittedWords) ? p.submittedWords.slice() : null,
+      words: p && Array.isArray(p.submittedWords) ? p.submittedWords.slice() : null,
     };
   }
 

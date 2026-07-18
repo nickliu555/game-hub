@@ -23,18 +23,20 @@
   const POST_R = 13;                  // goal-post radius (solid bounce)
   const FIELD_MARGIN = 24;            // pitch boundary inset (matches renderer)
   const PBOX_W = Math.round(W * 0.14); // ~179: penalty-box depth (matches renderer)
+  const CORNER_CHAMFER = 90;          // 45° wall cut across each field corner so the
+                                      // ball can't wedge in a 90° pocket (foosball-style)
 
   // ---- Bodies ----
   const TOKEN_R = 38;
   const BALL_R = 20;
   const TOKEN_M = 3.4;                // tokens are heavy; the ball flies off them
-  const BALL_M = 1;
+  const BALL_M = 0.85;                // lighter ball => springs off tokens faster
 
   // ---- Motion / feel ----
   const DRAG = 1.32;                  // exponential-ish velocity damping / sec (shots bleed energy)
   const LIN_DECEL = 130;              // linear slowdown / sec (crisp stop)
   const STOP_SPEED = 26;             // below this a body is snapped to rest
-  const REST = 0.9;                   // body-body restitution (lively)
+  const REST = 1.0;                   // body-body restitution (fully elastic — lively deflections)
   const WALL_REST = 0.78;             // wall / post restitution
   const MAX_SPEED = 3400;             // hard cap (keeps 1/120 step tunnel-free)
   const COLLISION_ITERS = 4;          // relaxation passes for stacked tokens
@@ -63,7 +65,7 @@
     constructor() {
       this.field = {
         W, H, GOAL_H, GOAL_DEPTH, GOAL_TOP, GOAL_BOT, POST_R,
-        TOKEN_R, BALL_R, FIELD_MARGIN, PBOX_W,
+        TOKEN_R, BALL_R, FIELD_MARGIN, PBOX_W, CORNER_CHAMFER,
         // Goal posts as solid, immovable circles at the four mouth corners.
         posts: [
           { x: 0, y: GOAL_TOP }, { x: 0, y: GOAL_BOT },
@@ -163,6 +165,9 @@
 
     _walls(b) {
       const r = b.r;
+      // Cut the four sharp corners first so a body sliding into one is deflected
+      // back toward play along a 45° face instead of wedging in a 90° pocket.
+      this._chamferCorners(b);
       const inMouthY = (b.y > GOAL_TOP && b.y < GOAL_BOT);
       // Horizontal walls / pocket back wall.
       if (!inMouthY) {
@@ -182,6 +187,32 @@
       } else {
         if (b.y < GOAL_TOP + r) { b.y = GOAL_TOP + r; b.vy = Math.abs(b.vy) * WALL_REST; }
         else if (b.y > GOAL_BOT - r) { b.y = GOAL_BOT - r; b.vy = -Math.abs(b.vy) * WALL_REST; }
+      }
+    }
+
+    // Push a body off any of the four 45° corner faces. Each face is the line
+    // u + v = CORNER_CHAMFER, where (u,v) are the body's distances from the two
+    // walls meeting at that corner; the inward normal is (su,sv)/√2.
+    _chamferCorners(b) {
+      if (!CORNER_CHAMFER) return;
+      const r = b.r, inv = Math.SQRT1_2;
+      const corners = [
+        [+1, +1], // top-left
+        [-1, +1], // top-right
+        [+1, -1], // bottom-left
+        [-1, -1], // bottom-right
+      ];
+      for (let i = 0; i < corners.length; i++) {
+        const su = corners[i][0], sv = corners[i][1];
+        const u = su > 0 ? b.x : (W - b.x);
+        const v = sv > 0 ? b.y : (H - b.y);
+        const d = (u + v - CORNER_CHAMFER) * inv; // signed dist to face (playable +)
+        const pen = r - d;
+        if (pen <= 0) continue;                    // outside this corner's zone
+        const nx = su * inv, ny = sv * inv;        // inward unit normal
+        b.x += pen * nx; b.y += pen * ny;
+        const vn = b.vx * nx + b.vy * ny;
+        if (vn < 0) { b.vx -= (1 + WALL_REST) * vn * nx; b.vy -= (1 + WALL_REST) * vn * ny; }
       }
     }
 

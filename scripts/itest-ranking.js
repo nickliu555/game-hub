@@ -147,14 +147,19 @@ function emitAck(socket, event, payload) {
   check(afterReset.players && afterReset.players.length === 0, 'reset clears all players from the lobby');
   await rejoinAll();
 
-  // ---- Custom Words mode ----
+  // ---- Custom Words mode (host-gated start + edit/resubmit) ----
   const cwOn = await emitAck(host, 'host:setCustomWords', { on: true });
   check(cwOn && cwOn.customWords === true, 'custom words toggled on');
   const hostIntro2 = makeQueue(host, 'state:intro');
   const cwStart = await emitAck(host, 'host:start', {});
   check(cwStart && cwStart.ok && cwStart.phase === 'COLLECT', 'custom start → COLLECT phase');
 
-  // Everyone but the last submits: game must NOT advance yet.
+  // Host cannot start before everyone has submitted.
+  const earlyStart = await emitAck(host, 'host:start', {});
+  check(earlyStart && !earlyStart.ok && earlyStart.reason === 'not-ready',
+    'host:start rejected before all players submit');
+
+  // Everyone submits — the game must NOT auto-advance (host-gated start).
   const submittedWords = {};
   const pids = Object.keys(byId);
   for (let i = 0; i < pids.length; i++) {
@@ -162,13 +167,28 @@ function emitAck(socket, event, payload) {
     const w = [0, 1, 2, 3, 4].map((k) => nameById[pid] + '-w' + k);
     submittedWords[pid] = w;
     const r = await emitAck(byId[pid], 'player:words', { words: w });
-    check(r && r.ok, 'words accepted for ' + nameById[pid]);
-    if (i < pids.length - 1) check(r.phase === 'COLLECT', 'still COLLECT after ' + (i + 1) + '/' + pids.length);
-    else check(r.phase === 'INTRO', 'all submitted → INTRO');
+    check(r && r.ok && r.phase === 'COLLECT', 'words accepted (stays COLLECT) for ' + nameById[pid]);
   }
-  // Re-submission is rejected (locked).
-  const dup = await emitAck(byId[pids[0]], 'player:words', { words: ['a', 'b', 'c', 'd', 'e'] });
-  check(dup && !dup.ok, 'cannot resubmit words');
+  const afterAll = await emitAck(host, 'host:auth', {});
+  check(afterAll.phase === 'COLLECT', 'stays COLLECT until the host starts');
+
+  // A player re-opens to edit → they unsubmit → host can no longer start.
+  const edit0 = await emitAck(byId[pids[0]], 'player:editWords', {});
+  check(edit0 && edit0.ok && JSON.stringify(edit0.words) === JSON.stringify(submittedWords[pids[0]]),
+    'editWords returns the prior words for prefill');
+  const startWhileEditing = await emitAck(host, 'host:start', {});
+  check(startWhileEditing && !startWhileEditing.ok && startWhileEditing.reason === 'not-ready',
+    'host:start rejected while a player is mid-edit');
+
+  // Resubmit with a CHANGED word — the pool must reflect the edit.
+  const changed = ['CHANGED-word'].concat(submittedWords[pids[0]].slice(1));
+  submittedWords[pids[0]] = changed;
+  const re0 = await emitAck(byId[pids[0]], 'player:words', { words: changed });
+  check(re0 && re0.ok && re0.phase === 'COLLECT', 'resubmit accepted after edit (still COLLECT)');
+
+  // Now everyone is ready again → the host starts the game.
+  const goStart = await emitAck(host, 'host:start', {});
+  check(goStart && goStart.ok && goStart.phase === 'INTRO', 'host starts once all ready → INTRO');
 
   const intro2 = await hostIntro2();
   check(intro2 && intro2.totalRounds === N, 'custom game built N rounds');
@@ -225,7 +245,43 @@ function emitAck(socket, event, payload) {
     await emitAck(byId[dp[i]], 'player:words', { words: [0, 1, 2, 3, 4].map((k) => nameById[dp[i]] + '-d' + k) });
   }
   const allDistinct = await emitAck(host, 'host:auth', {});
-  check(allDistinct.phase === 'INTRO' || allDistinct.phase === 'RANK', 'game began once all words are unique');
+  check(allDistinct.phase === 'COLLECT', 'all words unique → ready, waiting on host');
+  const distinctStart = await emitAck(host, 'host:start', {});
+  check(distinctStart && distinctStart.ok && distinctStart.phase === 'INTRO', 'host starts once all words are unique');
+
+  // ---- Editing releases a word back to the pool for other players ----
+  await emitAck(host, 'host:reset', {});
+  await rejoinAll();
+  await emitAck(host, 'host:setCustomWords', { on: true });
+  await emitAck(host, 'host:start', {});
+  const ep = Object.keys(byId);
+  const e0 = await emitAck(byId[ep[0]], 'player:words', { words: ['Crimson', 'Amber', 'Teal', 'Slate', 'Ivory'] });
+  check(e0 && e0.ok, 'p0 claims words including Crimson');
+  const blocked = await emitAck(byId[ep[1]], 'player:words', { words: ['crimson', 'aa', 'bb', 'cc', 'dd'] });
+  check(blocked && blocked.reason === 'duplicate-taken', 'p1 is blocked from taking Crimson while p0 holds it');
+  await emitAck(byId[ep[0]], 'player:editWords', {});
+  const e0b = await emitAck(byId[ep[0]], 'player:words', { words: ['Maroon', 'Amber', 'Teal', 'Slate', 'Ivory'] });
+  check(e0b && e0b.ok, 'p0 resubmits without Crimson');
+  const nowOk = await emitAck(byId[ep[1]], 'player:words', { words: ['crimson', 'aa', 'bb', 'cc', 'dd'] });
+  check(nowOk && nowOk.ok, 'p1 can now take the released word Crimson');
+
+  // ---- Reconnect during COLLECT prefills the last words ----
+  await emitAck(host, 'host:reset', {});
+  await rejoinAll();
+  await emitAck(host, 'host:setCustomWords', { on: true });
+  await emitAck(host, 'host:start', {});
+  const rp = Object.keys(byId);
+  const words0 = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo'];
+  await emitAck(byId[rp[0]], 'player:words', { words: words0 });
+  const rc1 = await emitAck(byId[rp[0]], 'player:reconnect', { playerId: rp[0] });
+  check(rc1 && rc1.collect && rc1.collect.submitted === true
+    && JSON.stringify(rc1.collect.words) === JSON.stringify(words0),
+    'reconnect after submit → submitted + words returned');
+  await emitAck(byId[rp[0]], 'player:editWords', {});
+  const rc2 = await emitAck(byId[rp[0]], 'player:reconnect', { playerId: rp[0] });
+  check(rc2 && rc2.collect && rc2.collect.submitted === false
+    && JSON.stringify(rc2.collect.words) === JSON.stringify(words0),
+    'reconnect mid-edit → unsubmitted but words prefilled');
 
   console.log(failed ? '\n✗ FAILED' : '\n✓ ALL PASSED');
   host.close();

@@ -131,6 +131,10 @@ body.player .rk-handle { touch-action: none; }
 
 .rk-actions { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
 .rk-actions button { width: 100%; font-size: 18px; padding: 15px; }
+/* Secondary action on the (light) player card — visible where .btn-ghost (white
+   text, for dark surfaces) would be invisible. */
+.btn-edit { background: #fff; color: var(--accent-deep); border: 1.5px solid var(--accent); }
+@media (hover: hover) { .btn-edit:hover { background: #fff7e6; } }
 .rk-note { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
 
 /* Custom Words submission form */

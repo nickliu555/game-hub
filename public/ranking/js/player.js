@@ -147,7 +147,7 @@
       ? '<div class="lobby-player-count"><span class="pulse-dot"></span><span><strong>' + lobbyTotal + '</strong> ' + label + ' in the lobby</span></div>'
       : '';
     render(
-      '<div class="lobby-hero" aria-hidden="true"><span>🥇</span></div>' +
+      '<div class="lobby-hero" data-lobby-screen="1" aria-hidden="true"><span>🥇</span></div>' +
       '<h2>You\'re in!</h2>' +
       '<p>Look up at the big screen. The game will start soon.</p>' + countLine
     );
@@ -156,14 +156,18 @@
 
   // ---- Collect (Custom Words: this player submits their phrases) ----
   var collectCfg = { wordsPerPlayer: 5, maxWordLen: 50 };
-  function renderCollectForm() {
+  var lastWords = null;
+  function renderCollectForm(prefill) {
     myRole = null; watchSortable = null;
     setReactionsAllowed(false);
     setAttribution(false);
     var n = collectCfg.wordsPerPlayer || 5;
+    var pre = Array.isArray(prefill) ? prefill : [];
     var inputs = '';
     for (var i = 0; i < n; i++) {
+      var v = pre[i] != null ? escapeHtml(pre[i]) : '';
       inputs += '<input class="cw-input" id="cw' + i + '" type="text" maxlength="' + (collectCfg.maxWordLen || 50) + '" ' +
+        'value="' + v + '" ' +
         'autocapitalize="sentences" autocorrect="on" spellcheck="false" enterkeyhint="next" ' +
         'placeholder="Word or phrase ' + (i + 1) + '" />';
     }
@@ -228,7 +232,7 @@
     var btn = document.getElementById('cwSubmit');
     if (btn) btn.disabled = true;
     socket.emit('player:words', { words: vals }, function (res) {
-      if (res && res.ok) { renderCollectWaiting(); return; }
+      if (res && res.ok) { lastWords = (res.words || vals).slice(); renderCollectWaiting(); return; }
       if (btn) btn.disabled = false;
       var reason = res && res.reason;
       if (reason === 'duplicate-taken') clearDupeFields(res.dupIndexes, TAKEN_MSG);
@@ -240,16 +244,27 @@
     myRole = null;
     setReactionsAllowed(false);
     setAttribution(true);
-    render(
-      '<div class="lobby-hero" aria-hidden="true"><span>✍️</span></div>' +
-      '<h2>Words submitted!</h2>' +
-      '<p>Waiting for everyone else to finish writing their words…</p>'
-    );
+    elView.innerHTML =
+      '<div class="state-card">' +
+        '<div class="lobby-hero" aria-hidden="true"><span>✍️</span></div>' +
+        '<h2>Words submitted!</h2>' +
+        '<p>Waiting for everyone else. You can still change your words until the game starts.</p>' +
+        '<div class="rk-actions"><button class="btn-edit" id="cwEdit">Edit my words</button></div>' +
+      '</div>';
+    var editBtn = document.getElementById('cwEdit');
+    if (editBtn) editBtn.addEventListener('click', function () {
+      editBtn.disabled = true;
+      socket.emit('player:editWords', {}, function (res) {
+        if (res && res.ok) { renderCollectForm(res.words || lastWords); return; }
+        editBtn.disabled = false;
+      });
+    });
   }
   function renderCollect(personal) {
     if (personal) collectCfg = { wordsPerPlayer: personal.wordsPerPlayer || 5, maxWordLen: personal.maxWordLen || 50 };
+    if (personal && personal.words) lastWords = personal.words.slice();
     if (personal && personal.submitted) renderCollectWaiting();
-    else renderCollectForm();
+    else renderCollectForm(personal ? personal.words : lastWords);
   }
 
   var introTimer = null;
@@ -558,7 +573,9 @@
 
   socket.on('state:lobby', function (s) {
     if (typeof s.total === 'number') lobbyTotal = s.total;
-    if (elView.querySelector('.lobby-hero')) renderLobby();
+    // Only refresh the actual lobby screen — never clobber the collect-waiting
+    // screen (which also uses a .lobby-hero) and lose its Edit button.
+    if (elView.querySelector('[data-lobby-screen]')) renderLobby();
   });
   socket.on('state:intro', renderIntro);
   socket.on('state:collect', function (s) {
