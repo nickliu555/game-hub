@@ -27,6 +27,7 @@
 
   // Race-mode lobby config
   const modeToggle = document.getElementById('modeToggle');
+  const modeDesc = document.getElementById('modeDesc');
   const targetSelect = document.getElementById('targetSelect');
   const probTimeSelect = document.getElementById('probTimeSelect');
   const autoAdvanceCheck = document.getElementById('autoAdvanceCheck');
@@ -332,6 +333,11 @@
     document.querySelectorAll('[data-mode-group]').forEach(function (el) {
       el.hidden = el.getAttribute('data-mode-group') !== currentMode;
     });
+    if (modeDesc) {
+      modeDesc.textContent = currentMode === 'race'
+        ? 'Everyone races the same puzzle — first to solve it scores a point. First to the target score wins.'
+        : 'Solve as many puzzles as you can before the timer runs out. Faster solves are worth more points.';
+    }
     startBtn.textContent = currentMode === 'race' ? 'Start race' : 'Start round';
   }
   if (modeToggle) {
@@ -422,6 +428,38 @@
         gain.gain.setValueAtTime(0, t);
         gain.gain.linearRampToValueAtTime(layer.vol, t + 0.015);
         gain.gain.setValueAtTime(layer.vol, t + n.dur - 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + n.dur);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + n.dur + 0.05);
+      });
+    });
+  }
+  // "Look up!" cue when a new Race problem starts (matches Trivia / Herd Mind).
+  function playNextQuestionCue() {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state !== 'running') {
+      ctx.resume().catch(function () {});
+      if (ctx.state !== 'running') return;
+    }
+    const t0 = ctx.currentTime;
+    const notes = [
+      { freq: 1174.66, start: 0.00, dur: 0.55 }, // D6  (ding)
+      { freq: 880.00,  start: 0.26, dur: 0.70 }, // A5  (dong)
+    ];
+    notes.forEach(function (n) {
+      [
+        { type: 'sine',     freq: n.freq,       vol: 0.5  },
+        { type: 'triangle', freq: n.freq * 3.0, vol: 0.08 },
+      ].forEach(function (layer) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = layer.type;
+        osc.frequency.value = layer.freq;
+        const t = t0 + n.start;
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(layer.vol, t + 0.008);
         gain.gain.exponentialRampToValueAtTime(0.0001, t + n.dur);
         osc.connect(gain).connect(ctx.destination);
         osc.start(t);
@@ -694,6 +732,10 @@
     activeMode = 'race';
     show('race');
     applyRaceProblem(p);
+    // Chime players to look up for each new problem after the first (the first
+    // problem follows the intro fanfare). Only on the live event, not the
+    // reconnect snapshot which calls applyRaceProblem directly.
+    if (p && (p.problemNumber || 1) > 1) playNextQuestionCue();
   });
   socket.on('state:raceReveal', function (r) {
     activeMode = 'race';
@@ -922,7 +964,10 @@
   }
 
   function podiumStep(klass, medal, group) {
-    if (!group) return '<div class="podium-spot ' + klass + '"></div>';
+    // No player at this rank (1–2 players, or a tie at 1st leaves no 2nd/3rd):
+    // render an invisible spacer that still holds the grid column so the gold
+    // spot stays centered, but no empty podium card is shown.
+    if (!group) return '<div class="podium-gap ' + klass + '" aria-hidden="true"></div>';
     const tie = group.players.length > 1;
     let nameHtml;
     if (!tie) {

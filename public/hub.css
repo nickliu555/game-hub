@@ -298,26 +298,3 @@ a:hover { color: #ffffff; }
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
 }
-
-/* ─── Fullscreen Restore Banner ─────────────────────── */
-.fs-restore-banner {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    background: linear-gradient(135deg, #1a9fff, #1480cc);
-    color: #fff;
-    text-align: center;
-    padding: 10px 16px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    z-index: 9999;
-    display: none;
-    animation: fsBannerSlide 0.3s ease;
-}
-.fs-restore-banner.show { display: block; }
-@keyframes fsBannerSlide {
-    from { transform: translateY(-100%); }
-    to { transform: translateY(0); }
-}

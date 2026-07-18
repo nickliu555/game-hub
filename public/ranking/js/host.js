@@ -344,7 +344,7 @@
         '<div class="rp-pts"><span class="g">+' + row.groupPts + '</span> / <span class="m">+' + row.gamePts + '</span></div>' +
       '</div>';
     }).join('');
-    if (win) { playApplause(); launchConfetti(); } else { playSad(); }
+    if (win) { playApplause(); playClapping(); launchConfetti(); } else { playSad(); }
   }
 
   // ---- Socket state ----
@@ -547,6 +547,12 @@
       osc.connect(gain).connect(ctx.destination);
       osc.start(st); osc.stop(st + 0.52);
     });
+  }
+  // Real crowd applause on a group win — the same recording Trivia uses.
+  var sfxApplause = document.getElementById('sfx-applause');
+  function playClapping() {
+    if (!sfxApplause) return;
+    try { sfxApplause.currentTime = 0; sfxApplause.play().catch(function () {}); } catch (e) {}
   }
   function playSad() {
     var ctx = getAudioCtx();

@@ -25,8 +25,6 @@
 
     <button class="fullscreen-btn" onclick="toggleFullscreen()" aria-label="Toggle fullscreen" title="Toggle fullscreen">⛶</button>
 
-    <div class="fs-restore-banner" id="fsRestoreBanner">Tap to restore fullscreen</div>
-
     <script>
         async function loadGames() {
             try {
@@ -120,9 +118,6 @@
             // Prevent card toggle when clicking the Play button
             card.querySelector('.btn-play').addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (document.fullscreenElement || document.webkitFullscreenElement) {
-                    sessionStorage.setItem('hub_fullscreen', '1');
-                }
                 startIrisTransition(e, game);
             });
 
@@ -146,22 +141,6 @@
         }
 
         loadGames();
-
-        // Restore fullscreen if coming back from a game page
-        if (sessionStorage.getItem('hub_fullscreen') === '1') {
-            sessionStorage.removeItem('hub_fullscreen');
-            const banner = document.getElementById('fsRestoreBanner');
-            banner.classList.add('show');
-            banner.addEventListener('click', () => {
-                banner.classList.remove('show');
-                const el = document.documentElement;
-                if (el.requestFullscreen) {
-                    el.requestFullscreen().catch(() => {});
-                } else if (el.webkitRequestFullscreen) {
-                    el.webkitRequestFullscreen();
-                }
-            });
-        }
 
         function toggleFullscreen() {
             if (document.fullscreenElement || document.webkitFullscreenElement) {

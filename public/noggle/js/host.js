@@ -48,7 +48,7 @@
   const sfxApplause = document.getElementById('sfx-applause');
 
   const MIN_WORD_LEN = { 4: 3, 5: 4, 6: 4 };
-  let selectedSize = 4;
+  let selectedSize = 5;
 
   // ---------------- Modal helpers ----------------
   function showInlineConfirm(message, onYes, opts) {
@@ -278,7 +278,7 @@
       if (b) setSize(b.getAttribute('data-size'));
     });
   }
-  setSize(4);
+  setSize(5);
 
   // ---------------- Start ----------------
   startBtn.addEventListener('click', function () {

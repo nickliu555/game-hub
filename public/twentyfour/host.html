@@ -63,6 +63,7 @@
               <button type="button" class="mode-opt active" data-mode="race" role="tab">Race</button>
               <button type="button" class="mode-opt" data-mode="sprint" role="tab">Sprint</button>
             </div>
+            <p class="mode-desc" id="modeDesc"></p>
           </div>
           <div class="config-row">
             <label for="diffSelect">Difficulty</label>
@@ -88,7 +89,7 @@
             <select id="targetSelect"></select>
           </div>
           <div class="config-row" data-mode-group="race">
-            <label for="probTimeSelect">Time per problem</label>
+            <label for="probTimeSelect">Max time per problem</label>
             <select id="probTimeSelect">
               <option value="30">30s</option>
               <option value="45">45s</option>
