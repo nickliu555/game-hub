@@ -285,6 +285,22 @@
       ctx.closePath();
       ctx.fill();
       ctx.globalAlpha = 1;
+      // Single soft sightline down the middle, fading at both ends so it reads as an
+      // integrated aim guide rather than a hard-painted stripe. Stays inside the bar.
+      const lineStart = x0 + halfW * 0.35;
+      const lineEnd = gap + barLen - halfW * 0.85;
+      const grad = ctx.createLinearGradient(lineStart, 0, lineEnd, 0);
+      grad.addColorStop(0, 'rgba(255,255,255,0)');
+      grad.addColorStop(0.18, 'rgba(255,255,255,0.5)');
+      grad.addColorStop(0.82, 'rgba(255,255,255,0.5)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = Math.max(1.5, halfW * 0.14);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(lineStart, 0);
+      ctx.lineTo(lineEnd, 0);
+      ctx.stroke();
       ctx.restore();
     }
 

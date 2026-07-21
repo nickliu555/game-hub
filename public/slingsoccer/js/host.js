@@ -649,7 +649,23 @@
     const ball = world.ball;
     const f = world.field;
     const tx = team === 'red' ? f.W : 0;   // opponent goal (red attacks right, blue left)
-    const ty = f.H / 2;
+    // Aim at an OPEN part of the goal mouth — the side the opponent's rearmost
+    // token (whoever is guarding the net) isn't covering — instead of dead-centre
+    // into the keeper, so offensive shots aren't always saved. Margin off posts.
+    const mouthTop = f.GOAL_TOP, mouthBot = f.GOAL_BOT;
+    const mouthMid = (mouthTop + mouthBot) / 2;
+    const halfMouth = (mouthBot - mouthTop) / 2;
+    let gk = null, gkDist = Infinity;
+    for (let i = 0; i < 5; i++) {
+      const t = world.tokenAt(other(team), i);
+      const d = Math.abs(t.x - tx);
+      if (d < gkDist) { gkDist = d; gk = t; }
+    }
+    let ty = mouthMid;
+    if (gk) {
+      const openSide = gk.y >= mouthMid ? -1 : 1;   // steer away from the keeper
+      ty = mouthMid + openSide * halfMouth * 0.55;
+    }
     // Direction we want the BALL to travel.
     let gx = tx - ball.x, gy = ty - ball.y;
     const gl = Math.hypot(gx, gy) || 1; gx /= gl; gy /= gl;
@@ -657,11 +673,24 @@
     // The spot to strike from: directly behind the ball, own-goal side.
     const cxp = ball.x - gx * R, cyp = ball.y - gy * R;
 
+    // Keep ONE defender back at all times — but not a hard-coded token. Reserve
+    // whichever token is currently REARMOST (nearest our own goal) as the
+    // keeper; every OTHER token, including #1, is free to attack. So #1 stops
+    // being a permanent goalie and can take the open shots it was missing.
+    const ownX = team === 'red' ? 0 : f.W;   // our own goal line
+    let keeperIdx = 0, keeperDist = Infinity;
+    for (let i = 0; i < 5; i++) {
+      const t = world.tokenAt(team, i);
+      const d = Math.abs(t.x - ownX);
+      if (d < keeperDist) { keeperDist = d; keeperIdx = i; }
+    }
+
     // Score each token: prefer one already BEHIND the ball (so a hit pushes it
-    // goalward) whose path to the contact spot is short + goal-aligned. Token #1
-    // (idx 0) is ALWAYS kept back as a goalie, so the bot never flicks it.
+    // goalward) whose path to the contact spot is short + goal-aligned. The
+    // reserved keeper (rearmost token) is skipped so a defender always stays.
     let best = null, bestScore = -Infinity;
-    for (let i = 1; i < 5; i++) {
+    for (let i = 0; i < 5; i++) {
+      if (i === keeperIdx) continue;
       const t = world.tokenAt(team, i);
       let ax = cxp - t.x, ay = cyp - t.y;
       const al = Math.hypot(ax, ay) || 1;
@@ -688,7 +717,8 @@
       // No token behind the ball — REPOSITION the nearest one around it (gentle),
       // rather than knocking the ball toward our own net / a token into a goal.
       let near = best, nd = Infinity;
-      for (let i = 1; i < 5; i++) {
+      for (let i = 0; i < 5; i++) {
+        if (i === keeperIdx) continue;
         const t = world.tokenAt(team, i);
         const d = Math.hypot(ball.x - t.x, ball.y - t.y);
         if (d < nd) { nd = d; near = { i: i, t: t }; }
@@ -703,8 +733,8 @@
       best = near;
       power = 0.38 + Math.random() * 0.12;
     }
-    // Aim noise (beatable).
-    const noise = (Math.random() * 2 - 1) * 0.1;
+    // Aim noise (beatable, but tighter on offence so shots find the mouth).
+    const noise = (Math.random() * 2 - 1) * 0.06;
     const ca = Math.cos(noise), sa = Math.sin(noise);
     const nlx = lx * ca - ly * sa, nly = lx * sa + ly * ca;
     // Pull vector is OPPOSITE the launch direction.

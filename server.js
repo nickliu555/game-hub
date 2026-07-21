@@ -778,12 +778,6 @@ httpServer.listen(PORT, '0.0.0.0', () => {
         console.log(`  Live at: ${process.env.RENDER_EXTERNAL_URL}`);
     } else {
         console.log(`  Hub:            http://localhost:${PORT}`);
-        console.log(`  Empire Host:    http://localhost:${PORT}/empire/host`);
-        console.log(`  Trivia Host:    http://localhost:${PORT}/trivia/host`);
-        console.log(`  24 Host:        http://localhost:${PORT}/twentyfour/host`);
-        console.log(`  Herd Mind Host: http://localhost:${PORT}/herdmind/host`);
-        console.log(`  Noggle Host:    http://localhost:${PORT}/noggle/host`);
-        console.log(`  Soccer Head Host: http://localhost:${PORT}/soccerhead/host`);
     }
     console.log('═══════════════════════════════════════════');
     console.log('');
