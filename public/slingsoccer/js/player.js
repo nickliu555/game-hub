@@ -160,6 +160,7 @@
     hideFlash();
     if (waitCover) waitCover.hidden = false;
     const n = d && d.n;
+    if (waitCover) waitCover.classList.remove('goal-hide');
     if (waitText) waitText.textContent = 'Kickoff in ' + (n || 3) + '…';
   });
   socket.on('m:turn', function (d) {
@@ -174,11 +175,10 @@
   socket.on('m:goal', function (d) {
     if (d) setScores(d.red, d.blue);
     setMyTurn(false, null, null);
-    // Whose goal? d.team scored. Celebrate/among.
+    // Whose goal? d.team scored. Both cases use the animated flash overlay.
     const mineScored = d && d.team === myTeam;
-    showFlash(mineScored ? 'GOAL!' : 'Conceded', mineScored);
-    if (waitCover) { waitCover.hidden = false; }
-    if (waitText) waitText.textContent = mineScored ? 'GOAL for your team!' : 'They scored…';
+    showFlash(mineScored ? 'GOAL!' : 'Opponent scored!', mineScored);
+    if (waitCover) { waitCover.hidden = false; waitCover.classList.add('goal-hide'); }
   });
   socket.on('m:end', function (d) {
     currentPhase = 'FINAL';
@@ -205,6 +205,7 @@
     selectedToken = null;
     tokBtns.forEach(function (b) { b.classList.remove('selected'); b.disabled = !myTurn; });
     resetSling();
+    if (waitCover) waitCover.classList.remove('goal-hide');
     if (myTurn) {
       if (waitCover) waitCover.hidden = true;
       slingHint.textContent = 'Tap a token, then pull back to aim';

@@ -169,6 +169,7 @@ body.player[data-team="blue"] { --me: var(--blue); --me-deep: var(--blue-deep); 
   z-index: 30;
 }
 .wait-cover[hidden] { display: none; }
+.wait-cover.goal-hide .wc-icon, .wait-cover.goal-hide .wc-text { display: none; }
 .wc-icon { font-size: 64px; animation: bob 1.6s ease-in-out infinite; }
 .wc-text { font-size: 20px; font-weight: 800; max-width: 320px; color: rgba(255,255,255,0.92); }
 
@@ -180,8 +181,9 @@ body.player[data-team="blue"] { --me: var(--blue); --me-deep: var(--blue-deep); 
 }
 .flash[hidden] { display: none; }
 .flash span {
-  font-size: 60px; font-weight: 900; color: var(--good);
+  font-size: clamp(40px, 13vw, 60px); font-weight: 900; color: var(--good);
   text-shadow: 0 4px 0 rgba(0,0,0,0.35);
+  text-align: center; max-width: 92%; line-height: 1.05;
   animation: goalPop 0.5s cubic-bezier(.2,1.4,.4,1);
 }
 @keyframes goalPop { 0% { transform: scale(0.2) rotate(-8deg); opacity: 0; } 60% { transform: scale(1.15) rotate(3deg); } 100% { transform: scale(1) rotate(0); opacity: 1; } }

@@ -188,6 +188,11 @@ class Game {
     if (!TEAMS.includes(team)) return { ok: false, reason: 'bad-team' };
     const p = this.players.get(playerId);
     if (!p) return { ok: false, reason: 'unknown-player' };
+    // Moving to a DIFFERENT team must respect the per-team cap (1 in 1v1, 2 in
+    // 2v2) — you can't stack a 3rd player onto a side.
+    if (p.team !== team && this.teamCount(team) >= this.perTeam()) {
+      return { ok: false, reason: 'team-full' };
+    }
     p.team = team;
     // Reorder within the (target) team: drop `p` just before `beforeId`, or at
     // the end if none/unknown. Renumbers the team's `order` so seats stay stable.

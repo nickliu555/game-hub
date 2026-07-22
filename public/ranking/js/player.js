@@ -566,6 +566,20 @@
     else showWatchUI(p);
   }
 
+  // Pre-results hold — keeps phones in lockstep with the host's transition
+  // screen so nobody sees the outcome before the big screen flips to results.
+  function renderRevealTransition(p) {
+    myRole = null; watchSortable = null;
+    clearSecretPeek();
+    setReactionsAllowed(true);
+    setAttribution(false);
+    render(
+      '<div class="round-tag">Round ' + (p ? p.round : '') + ' of ' + (p ? p.totalRounds : '') + '</div>' +
+      '<h2>Let’s see how the group did…</h2>' +
+      '<p class="result-sub">Hang tight — the reveal is coming up on the big screen.</p>'
+    );
+  }
+
   function renderReveal(r) {
     myRole = null; watchSortable = null;
     clearSecretPeek();
@@ -645,8 +659,10 @@
       } else if (res.phase === 'DISCUSS') {
         if (res.rankerSecret) mySecret = res.rankerSecret.rankerOrder;
         if (res.discuss) renderDiscuss(res.discuss);
-      } else if (res.phase === 'REVEAL') { if (res.reveal) renderReveal(res.reveal); }
-      else if (res.phase === 'FINAL') { if (res.final) renderFinal(res.final); }
+      } else if (res.phase === 'REVEAL') {
+        if (res.revealTransition) renderRevealTransition(res.revealTransition);
+        else if (res.reveal) renderReveal(res.reveal);
+      } else if (res.phase === 'FINAL') { if (res.final) renderFinal(res.final); }
       updateReactionState();
     });
   });
@@ -681,6 +697,7 @@
     if (myRole === 'watch' && watchSortable) watchSortable.setOrder(p.consensusOrder);
   });
   socket.on('state:reveal', function (r) { if (r) renderReveal(r); });
+  socket.on('state:revealTransition', function (p) { renderRevealTransition(p); });
   socket.on('state:final', function (f) { renderFinal(f); });
   socket.on('state:reset', function () {
     var name = localStorage.getItem('ranking.playerName') || '';

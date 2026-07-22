@@ -147,10 +147,16 @@ body.host {
   cursor: grab;
   box-shadow: 0 3px 10px rgba(0,0,0,0.2);
   user-select: none;
+  touch-action: none;
 }
 .player-chip:active { cursor: grabbing; }
-.player-chip.dragging { opacity: 0.4; }
+.player-chip.dragging { opacity: 1; box-shadow: 0 16px 36px rgba(0,0,0,0.45); cursor: grabbing; }
 .player-chip.disconnected { opacity: 0.5; }
+.chip-placeholder {
+  border-radius: 12px;
+  border: 2px dashed rgba(255,255,255,0.32);
+  background: rgba(255,255,255,0.06);
+}
 .player-chip .chip-kick {
   background: transparent;
   color: var(--warn);
@@ -240,7 +246,7 @@ body.host {
 }
 .turn-banner b { font-weight: 900; }
 .turn-banner .turn-name { color: #ffe08a; font-weight: 900; }
-.turn-banner.red { background: linear-gradient(90deg, rgba(255,45,45,0.75), rgba(255,45,45,0.96), rgba(255,45,45,0.75)); }
+.turn-banner.red { background: linear-gradient(90deg, rgba(228,59,59,0.28), rgba(228,59,59,0.5), rgba(228,59,59,0.28)); }
 .turn-banner.blue { background: linear-gradient(90deg, rgba(47,125,224,0.28), rgba(47,125,224,0.5), rgba(47,125,224,0.28)); }
 
 .pitch-wrap { position: relative; flex: 1; min-height: 0; display: flex; }

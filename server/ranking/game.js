@@ -43,6 +43,7 @@ const MIN_PLAYERS = 2;
 const ITEMS_PER_ROUND = 5;
 const INTRO_DURATION_MS = 4000;
 const INTRO_GO_HOLD_MS = 1100;
+const REVEAL_TRANSITION_MS = 2500;   // "Let's see how the group did…" hold before results
 
 const { buildPool } = require('./words');
 
@@ -100,8 +101,14 @@ class Game {
     this.currentEndsAt = 0;   // only used for the INTRO countdown
 
     this._introTimer = null;
+    this._revealTimer = null;
+    // While true, the phase is REVEAL but clients hold on a transition screen
+    // ("Let's see how the group did…") until the server flips to the results.
+    this.revealTransition = false;
+    this.revealReadyAt = 0;   // serverNow when results unlock
 
-    this.onIntroEnd = null;   // transport hook: intro finished → broadcast RANK
+    this.onIntroEnd = null;    // transport hook: intro finished → broadcast RANK
+    this.onRevealReady = null; // transport hook: transition finished → broadcast REVEAL
   }
 
   // ---------------- Lobby / players ----------------
@@ -361,6 +368,7 @@ class Game {
 
   _clearTimers() {
     if (this._introTimer) { clearTimeout(this._introTimer); this._introTimer = null; }
+    if (this._revealTimer) { clearTimeout(this._revealTimer); this._revealTimer = null; }
   }
 
   _enterIntro() {
@@ -454,13 +462,33 @@ class Game {
     r.result = { positions, groupPts, gamePts };
 
     this.phase = PHASES.REVEAL;
-    return { ok: true, phase: PHASES.REVEAL };
+    // Hold everyone on a shared transition screen for a beat before the results
+    // unlock — the server owns the timing so host + phones flip in lockstep.
+    this.revealTransition = true;
+    this.revealReadyAt = Date.now() + REVEAL_TRANSITION_MS;
+    this._clearTimers();
+    this._revealTimer = setTimeout(() => {
+      this._revealTimer = null;
+      this._endRevealTransition();
+    }, REVEAL_TRANSITION_MS);
+    return { ok: true, phase: PHASES.REVEAL, transition: true };
+  }
+
+  // Transition hold elapsed → unlock the results for everyone at once.
+  _endRevealTransition() {
+    if (this.phase !== PHASES.REVEAL || !this.revealTransition) return;
+    this.revealTransition = false;
+    if (this._revealTimer) { clearTimeout(this._revealTimer); this._revealTimer = null; }
+    if (typeof this.onRevealReady === 'function') { try { this.onRevealReady(); } catch (_) {} }
   }
 
   // Host "Next" from the reveal → next round, or the final tally.
   advance() {
     if (this.phase === PHASES.INTRO) { this._endIntro(); return { ok: true, phase: this.phase }; }
     if (this.phase === PHASES.REVEAL) {
+      // A stray Next during the brief transition still lands on the results.
+      this.revealTransition = false;
+      this._clearTimers();
       if (this.roundIndex >= this.rounds.length - 1) {
         this.phase = PHASES.FINAL;
         return { ok: true, phase: PHASES.FINAL };
@@ -575,6 +603,17 @@ class Game {
     const r = this.currentRound();
     if (!r) return null;
     return { round: this.roundIndex + 1, consensusOrder: r.consensusOrder.slice() };
+  }
+
+  // Minimal payload for the pre-results "Let's see how the group did…" hold.
+  getRevealTransitionPublic() {
+    return {
+      round: this.roundIndex + 1,
+      totalRounds: this.rounds.length,
+      readyAt: this.revealReadyAt,
+      remainingMs: Math.max(0, this.revealReadyAt - Date.now()),
+      serverNow: Date.now(),
+    };
   }
 
   getRevealPublic() {

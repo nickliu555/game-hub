@@ -131,10 +131,12 @@ function mountRanking(app, httpServer, opts) {
   }
 
   function broadcastConsensus() { ns.emit('state:consensus', game.getConsensusPublic()); }
+  function broadcastRevealTransition() { ns.emit('state:revealTransition', game.getRevealTransitionPublic()); }
   function broadcastReveal() { ns.emit('state:reveal', game.getRevealPublic()); }
   function broadcastFinal() { ns.emit('state:final', game.getFinalPublic()); }
 
   game.onIntroEnd = () => broadcastRank();
+  game.onRevealReady = () => broadcastReveal();
 
   // ---------------- Socket handlers ----------------
   ns.on('connection', (socket) => {
@@ -185,8 +187,10 @@ function mountRanking(app, httpServer, opts) {
         payload.discuss = game.getDiscussPublic();
         const secret = game.getRankerSecret(pid);
         if (secret) payload.rankerSecret = secret;
-      } else if (game.phase === PHASES.REVEAL) payload.reveal = game.getRevealPublic();
-      else if (game.phase === PHASES.FINAL) payload.final = game.getFinalPublic();
+      } else if (game.phase === PHASES.REVEAL) {
+        if (game.revealTransition) payload.revealTransition = game.getRevealTransitionPublic();
+        else payload.reveal = game.getRevealPublic();
+      } else if (game.phase === PHASES.FINAL) payload.final = game.getFinalPublic();
       ack && ack(payload);
       broadcastLobby();
     });
@@ -240,7 +244,7 @@ function mountRanking(app, httpServer, opts) {
       const res = game.submitConsensus({ playerId, order });
       if (!res.ok) return ack && ack(res);
       ack && ack({ ok: true });
-      broadcastReveal();
+      broadcastRevealTransition();
     });
 
     socket.on('player:reaction', ({ index } = {}, ack) => {
@@ -293,8 +297,10 @@ function mountRanking(app, httpServer, opts) {
       else if (game.phase === PHASES.COLLECT) socket.emit('state:collect', game.getCollectPublic());
       else if (game.phase === PHASES.RANK) socket.emit('state:rank', game.getRankPublic());
       else if (game.phase === PHASES.DISCUSS) socket.emit('state:discuss', game.getDiscussPublic());
-      else if (game.phase === PHASES.REVEAL) socket.emit('state:reveal', game.getRevealPublic());
-      else if (game.phase === PHASES.FINAL) socket.emit('state:final', game.getFinalPublic());
+      else if (game.phase === PHASES.REVEAL) {
+        if (game.revealTransition) socket.emit('state:revealTransition', game.getRevealTransitionPublic());
+        else socket.emit('state:reveal', game.getRevealPublic());
+      } else if (game.phase === PHASES.FINAL) socket.emit('state:final', game.getFinalPublic());
     });
 
     socket.on('host:start', (_payload = {}, ack) => {

@@ -188,6 +188,10 @@
   let lobby = { goalTarget: 3, capacity: 6, perTeam: 3, total: 0, teams: { red: [], blue: [] }, canStart: false };
   const teamOf = {};
   let lastLobbyHumanTotal = -1;
+  // Lobby drag state (pointer-based chip drag — see setupLobbyDrag below).
+  let suppressClick = false; // swallow the click that trails a real drag
+  let dragActive = false;    // a chip is mid-drag; defer lobby rebuilds
+  let pendingLobby = null;   // latest snapshot to apply once the drag settles
 
   function renderQR() {
     fetch('/api/slingsoccer/config')
@@ -205,7 +209,6 @@
   function chip(p, team) {
     const el = document.createElement('div');
     el.className = 'player-chip' + (p.connected === false ? ' disconnected' : '') + (p.isBot ? ' is-bot' : '');
-    el.draggable = true;
     el.dataset.pid = p.id;
     const label = document.createElement('span');
     label.className = 'chip-name';
@@ -221,22 +224,23 @@
     });
     el.appendChild(label);
     el.appendChild(kick);
+    // Click-to-swap (touch-host fallback). A real drag sets suppressClick so the
+    // trailing click doesn't also bounce the chip to the other team.
     el.addEventListener('click', function () {
+      if (suppressClick) { suppressClick = false; return; }
       const to = team === 'red' ? 'blue' : 'red';
       socket.emit('host:assign', { playerId: p.id, team: to }, function (res) {
         if (res && !res.ok && res.reason === 'team-full') showToast('That team is full (max 3).');
       });
     });
-    el.addEventListener('dragstart', function (e) {
-      el.classList.add('dragging');
-      try { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; } catch (_) {}
-    });
-    el.addEventListener('dragend', function () { el.classList.remove('dragging'); });
     return el;
   }
 
   function renderLobby(l) {
     if (!l) return;
+    // Don't rebuild the chip list out from under an in-progress drag; apply the
+    // latest snapshot once the drag settles.
+    if (dragActive) { pendingLobby = l; return; }
     lobby = l;
     const humanTotal = l.teams.red.concat(l.teams.blue).filter(function (p) { return !p.isBot; }).length;
     if (lastLobbyHumanTotal >= 0 && humanTotal > lastLobbyHumanTotal) playJoinDing();
@@ -270,31 +274,176 @@
     }
   }
 
-  function dropBeforeId(col, draggedPid, clientY) {
-    const chips = Array.prototype.slice.call(col.querySelectorAll('.player-chip'))
-      .filter(function (c) { return c.dataset.pid !== draggedPid; });
-    for (let i = 0; i < chips.length; i++) {
-      const r = chips[i].getBoundingClientRect();
-      if (clientY < r.top + r.height / 2) return chips[i].dataset.pid;
+  // ---- Smooth pointer-drag for lobby chips ---------------------------------
+  // Lift the grabbed chip so it flies with the pointer while a placeholder holds
+  // its drop slot; displaced teammates slide via FLIP. Handles reordering within
+  // a team AND moving a chip to the other team (like Ranking, but two columns).
+  (function setupLobbyDrag() {
+    let reduceMotion = false;
+    try { reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
+    const slotEls = { red: slotsRed, blue: slotsBlue };
+    const colEls = { red: colRed, blue: colBlue };
+    let d = null; // active drag: { el, pid, downX, downY, active, team, offX, offY, ph }
+
+    function chipsIn(team) {
+      return Array.prototype.slice.call(slotEls[team].querySelectorAll('.player-chip'))
+        .filter(function (c) { return !d || c !== d.el; });
     }
-    return null;
-  }
-  [colRed, colBlue].forEach(function (col) {
-    const team = col.dataset.team;
-    col.addEventListener('dragover', function (e) { e.preventDefault(); col.classList.add('drag-over'); });
-    col.addEventListener('dragleave', function () { col.classList.remove('drag-over'); });
-    col.addEventListener('drop', function (e) {
-      e.preventDefault();
-      col.classList.remove('drag-over');
-      let pid = '';
-      try { pid = e.dataTransfer.getData('text/plain'); } catch (_) {}
-      if (!pid) return;
-      const beforeId = dropBeforeId(col, pid, e.clientY);
-      socket.emit('host:assign', { playerId: pid, team: team, beforeId: beforeId }, function (res) {
-        if (res && !res.ok && res.reason === 'team-full') showToast('That team is full (max 3).');
+    // FLIP: snapshot chip tops, then animate displaced siblings from old → new.
+    function measure() {
+      const m = [];
+      ['red', 'blue'].forEach(function (t) {
+        chipsIn(t).forEach(function (c) { m.push([c, c.getBoundingClientRect().top]); });
       });
-    });
-  });
+      return m;
+    }
+    function flip(prev) {
+      if (reduceMotion || !prev) return;
+      const moved = [];
+      prev.forEach(function (rec) {
+        const c = rec[0];
+        if (!c.isConnected) return;
+        const delta = rec[1] - c.getBoundingClientRect().top;
+        if (delta) { c.style.transition = 'none'; c.style.transform = 'translateY(' + delta + 'px)'; moved.push(c); }
+      });
+      if (!moved.length) return;
+      document.body.getBoundingClientRect(); // one sync reflow to commit offsets
+      moved.forEach(function (c) {
+        c.style.transition = 'transform 0.2s cubic-bezier(0.2,0.7,0.2,1)';
+        c.style.transform = '';
+      });
+    }
+    // Which team column is the pointer over? Works whether the columns sit
+    // side-by-side (wide host screen) or stacked (narrow window): prefer the one
+    // whose box contains the pointer, else fall back to the nearest centre.
+    function teamAt(x, y) {
+      const rr = colEls.red.getBoundingClientRect();
+      const br = colEls.blue.getBoundingClientRect();
+      function inside(r) { return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom; }
+      const inR = inside(rr), inB = inside(br);
+      if (inR && !inB) return 'red';
+      if (inB && !inR) return 'blue';
+      function dist2(r) { const cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2; return (x - cx) * (x - cx) + (y - cy) * (y - cy); }
+      return dist2(rr) <= dist2(br) ? 'red' : 'blue';
+    }
+    // Move the placeholder to the slot the pointer is hovering in `team`.
+    function positionPlaceholder(team, y) {
+      const slots = slotEls[team];
+      const chips = chipsIn(team);
+      let before = null;
+      for (let i = 0; i < chips.length; i++) {
+        const r = chips[i].getBoundingClientRect();
+        if (y < r.top + r.height / 2) { before = chips[i]; break; }
+      }
+      if (!before) before = slots.querySelector('.slot-empty'); // sit above open spots
+      if (d.team === team && d.ph.nextElementSibling === before) return; // already there
+      const prev = measure();
+      slots.insertBefore(d.ph, before); // before === null → append
+      d.team = team;
+      flip(prev);
+    }
+    function beginLift() {
+      d.active = true;
+      dragActive = true;
+      const r = d.el.getBoundingClientRect();
+      d.offX = d.downX - r.left;
+      d.offY = d.downY - r.top;
+      // Placeholder keeps the chip's slot in the flow so nothing collapses.
+      d.ph = document.createElement('div');
+      d.ph.className = 'chip-placeholder';
+      d.ph.style.height = r.height + 'px';
+      d.el.parentNode.insertBefore(d.ph, d.el);
+      // Lift the chip out of flow so it can fly with the pointer.
+      d.el.style.position = 'fixed';
+      d.el.style.left = '0';
+      d.el.style.top = '0';
+      d.el.style.width = r.width + 'px';
+      d.el.style.margin = '0';
+      d.el.style.zIndex = '50';
+      d.el.style.pointerEvents = 'none';
+      d.el.style.transition = 'none';
+      d.el.classList.add('dragging');
+    }
+    function onMove(e) {
+      if (!d) return;
+      if (e.cancelable) e.preventDefault();
+      const x = e.clientX, y = e.clientY;
+      if (!d.active) {
+        if (Math.abs(x - d.downX) < 5 && Math.abs(y - d.downY) < 5) return; // a tap, so far
+        beginLift();
+      }
+      d.el.style.transform = 'translate(' + (x - d.offX) + 'px,' + (y - d.offY) + 'px) scale(1.03)';
+      const team = teamAt(x, y);
+      colEls.red.classList.toggle('drag-over', team === 'red');
+      colEls.blue.classList.toggle('drag-over', team === 'blue');
+      positionPlaceholder(team, y);
+    }
+    function onUp() {
+      if (!d) return;
+      const cur = d;
+      d = null;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      if (!cur.active) return; // never crossed the threshold → a tap (click-to-swap)
+      // Swallow the click that trails this drag. Cleared on that click, plus a
+      // timer in case the release fired no click (or fired one elsewhere).
+      suppressClick = true;
+      setTimeout(function () { suppressClick = false; }, 400);
+      colEls.red.classList.remove('drag-over');
+      colEls.blue.classList.remove('drag-over');
+      let next = cur.ph.nextElementSibling;
+      while (next && !next.classList.contains('player-chip')) next = next.nextElementSibling;
+      const beforeId = next ? next.dataset.pid : null;
+      const team = cur.team;
+      const el = cur.el;
+      // Settle: slide the lifted chip from the pointer into the placeholder slot.
+      const floatRect = el.getBoundingClientRect();
+      cur.ph.parentNode.insertBefore(el, cur.ph);
+      cur.ph.remove();
+      el.style.position = ''; el.style.left = ''; el.style.top = '';
+      el.style.width = ''; el.style.margin = ''; el.style.zIndex = '';
+      el.style.pointerEvents = '';
+      let cleaned = false;
+      const done = function () {
+        if (cleaned) return; cleaned = true;
+        el.classList.remove('dragging');
+        el.style.transition = ''; el.style.transform = '';
+        el.removeEventListener('transitionend', done);
+      };
+      if (reduceMotion) { done(); }
+      else {
+        const dest = el.getBoundingClientRect();
+        el.style.transition = 'none';
+        el.style.transform = 'translate(' + (floatRect.left - dest.left) + 'px,' + (floatRect.top - dest.top) + 'px) scale(1.03)';
+        document.body.getBoundingClientRect();
+        el.style.transition = 'transform 0.2s cubic-bezier(0.2,0.7,0.2,1)';
+        el.style.transform = '';
+        el.addEventListener('transitionend', done);
+        setTimeout(done, 260); // fallback if transitionend never fires
+      }
+      dragActive = false;
+      if (pendingLobby) { const pl = pendingLobby; pendingLobby = null; renderLobby(pl); }
+      socket.emit('host:assign', { playerId: cur.pid, team: team, beforeId: beforeId }, function (res) {
+        if (res && !res.ok) {
+          if (res.reason === 'team-full') showToast('That team is full (max 3).');
+          renderLobby(lobby);
+        }
+      });
+    }
+    function onDown(e) {
+      if (e.button != null && e.button !== 0) return; // primary button only
+      if (!e.target || e.target.closest('.chip-kick')) return; // kick isn't a handle
+      const el = e.target.closest('.player-chip');
+      if (!el || d) return;
+      d = { el: el, pid: el.dataset.pid, downX: e.clientX, downY: e.clientY, active: false, team: null, offX: 0, offY: 0, ph: null };
+      window.addEventListener('pointermove', onMove, { passive: false });
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
+    }
+    slotsRed.addEventListener('pointerdown', onDown);
+    slotsBlue.addEventListener('pointerdown', onDown);
+  })();
 
   addBotBtn && addBotBtn.addEventListener('click', function () {
     socket.emit('host:addBot', {}, function (res) {

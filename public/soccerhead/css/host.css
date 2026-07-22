@@ -164,10 +164,16 @@ body.host {
   cursor: grab;
   box-shadow: 0 3px 10px rgba(0,0,0,0.2);
   user-select: none;
+  touch-action: none;
 }
 .player-chip:active { cursor: grabbing; }
-.player-chip.dragging { opacity: 0.4; }
+.player-chip.dragging { opacity: 1; box-shadow: 0 16px 36px rgba(0,0,0,0.45); cursor: grabbing; }
 .player-chip.disconnected { opacity: 0.5; }
+.chip-placeholder {
+  border-radius: 12px;
+  border: 2px dashed rgba(255,255,255,0.32);
+  background: rgba(255,255,255,0.06);
+}
 .player-chip .chip-kick {
   background: transparent;
   color: var(--warn);
@@ -187,7 +193,7 @@ body.host {
 }
 
 .lobby-foot { display: flex; align-items: center; gap: 16px; }
-.config-hint { font-size: 14px; color: rgba(255,255,255,0.72); margin-left: auto; text-align: right; }
+.config-hint { flex: 1; font-size: 14px; color: rgba(255,255,255,0.72); text-align: center; }
 .btn-start {
   background: var(--accent);
   color: #14202B;

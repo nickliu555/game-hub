@@ -22,6 +22,7 @@
     intro: document.getElementById('view-intro'),
     rank: document.getElementById('view-rank'),
     discuss: document.getElementById('view-discuss'),
+    revealTransition: document.getElementById('view-reveal-transition'),
     reveal: document.getElementById('view-reveal'),
     final: document.getElementById('view-final'),
   };
@@ -283,6 +284,15 @@
   });
 
   // ---- Reveal ----
+  function renderRevealTransition(p) {
+    show('revealTransition');
+    if (p) {
+      document.getElementById('rtRound').textContent = p.round;
+      document.getElementById('rtTotal').textContent = p.totalRounds;
+    }
+    playSuspense();
+  }
+
   function renderReveal(r) {
     syncClock(r);
     show('reveal');
@@ -365,6 +375,7 @@
   socket.on('state:intro', renderIntro);
   socket.on('state:rank', renderRank);
   socket.on('state:discuss', renderDiscuss);
+  socket.on('state:revealTransition', renderRevealTransition);
   socket.on('state:reveal', renderReveal);
   socket.on('state:final', renderFinal);
   socket.on('state:reset', function () { show('lobby'); lastLobbyCount = -1; });
@@ -532,6 +543,22 @@
       osc.connect(gain).connect(ctx.destination);
       osc.start(st); osc.stop(st + 0.44);
     });
+  }
+  // Rising anticipation swell for the pre-results "Let's see…" transition.
+  function playSuspense() {
+    var ctx = getAudioCtx();
+    if (!ctx || ctx.state !== 'running') return;
+    var t = ctx.currentTime;
+    var osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(330, t);
+    osc.frequency.exponentialRampToValueAtTime(660, t + 1.6);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.16, t + 0.2);
+    gain.gain.setValueAtTime(0.16, t + 1.4);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 2.0);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t); osc.stop(t + 2.05);
   }
   function playApplause() {
     var ctx = getAudioCtx();

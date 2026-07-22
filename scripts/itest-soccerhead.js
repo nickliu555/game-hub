@@ -38,14 +38,12 @@ async function main() {
   check('3rd join blocked (game-full)', j3 && !j3.ok && j3.reason === 'game-full');
   p3.close();
 
-  // Move both to the same team -> cannot start.
-  await new Promise((r) => host.emit('host:assign', { playerId: 'p2', team: j1.player.team }, r));
+  // In 1v1 each side is capped at 1 — you can't stack both players on one team.
+  const stack = await new Promise((r) => host.emit('host:assign', { playerId: 'p2', team: j1.player.team }, r));
   await wait(60);
   const lob2 = hostLobbies[hostLobbies.length - 1];
-  check('unbalanced -> canStart false', lob2 && lob2.canStart === false);
-  // Put back.
-  await new Promise((r) => host.emit('host:assign', { playerId: 'p2', team: j1.player.team === 'red' ? 'blue' : 'red' }, r));
-  await wait(60);
+  check('stacking a full team is blocked (team-full)', stack && stack.ok === false && stack.reason === 'team-full');
+  check('teams stay balanced -> canStart true', lob2 && lob2.canStart === true);
 
   // Player receives m:start; host input relay works.
   const p1Events = [];

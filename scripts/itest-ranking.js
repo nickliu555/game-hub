@@ -77,6 +77,7 @@ function emitAck(socket, event, payload) {
   // Queues on the host for the phase broadcasts we drive against.
   const hostRank = makeQueue(host, 'state:rank');
   const hostDiscuss = makeQueue(host, 'state:discuss');
+  const hostRevealTrans = makeQueue(host, 'state:revealTransition');
   const hostReveal = makeQueue(host, 'state:reveal');
   const hostFinal = makeQueue(host, 'state:final');
 
@@ -119,6 +120,9 @@ function emitAck(socket, event, payload) {
     await emitAck(byId[discuss.submitterId], 'player:consensus', { order: sub });
     await emitAck(byId[discuss.submitterId], 'player:submit', { order: sub });
 
+    // Submit shows a shared transition first; results unlock a beat later.
+    const trans = await hostRevealTrans();
+    check(trans && trans.round === r, 'round ' + r + ' reveal transition first (round=' + (trans && trans.round) + ')');
     const reveal = await hostReveal();
     check(reveal.groupPts === expected, 'round ' + r + ' group +' + reveal.groupPts + ' (expected ' + expected + ')');
     check(reveal.gamePts === 5 - expected, 'round ' + r + ' game +' + reveal.gamePts);
