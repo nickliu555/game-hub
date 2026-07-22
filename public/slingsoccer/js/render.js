@@ -12,7 +12,7 @@
   const COL = {
     grassA: '#2f9e57',
     grassB: '#2a924f',
-    line: 'rgba(255,255,255,0.85)',
+    line: 'rgba(255,255,255,0.5)',
     lineSoft: 'rgba(255,255,255,0.6)',
     surround: '#0c3a22',
     net: 'rgba(255,255,255,0.5)',
@@ -39,6 +39,73 @@
     ctx.closePath();
   }
 
+  // Classic soccer ball geometry (truncated icosahedron): 60 vertices, 90 panel
+  // edges (the seams), 12 black pentagon faces + 20 white hexagons. We fill the
+  // pentagons and stroke every edge as a faint seam so the seams connect the
+  // hexagons like a real ball. All rotated with the ball's travel to roll.
+  const BALL_GEO = (function () {
+    const P = 1.6180339887;
+    // 60 vertices = cyclic permutations + all sign combos of three base triples.
+    const bases = [
+      [0, 1, 3 * P],
+      [1, 2 + P, 2 * P],
+      [P, 2, 2 * P + 1],
+    ];
+    const verts = [], seen = {};
+    function add(x, y, z) {
+      const L = Math.hypot(x, y, z);
+      const v = [x / L, y / L, z / L];
+      const key = v[0].toFixed(4) + ',' + v[1].toFixed(4) + ',' + v[2].toFixed(4);
+      if (seen[key]) return; seen[key] = 1; verts.push(v);
+    }
+    bases.forEach(function (b) {
+      for (let s = 0; s < 8; s++) {
+        const a = ((s & 1) ? -1 : 1) * b[0], c = ((s & 2) ? -1 : 1) * b[1], d = ((s & 4) ? -1 : 1) * b[2];
+        add(a, c, d); add(d, a, c); add(c, d, a);   // 3 cyclic permutations
+      }
+    });
+    // Seams: join each vertex to its 3 nearest neighbours (the polyhedron edges).
+    const seams = [], eseen = {};
+    for (let i = 0; i < verts.length; i++) {
+      const ds = [];
+      for (let j = 0; j < verts.length; j++) {
+        if (j === i) continue;
+        const dx = verts[i][0] - verts[j][0], dy = verts[i][1] - verts[j][1], dz = verts[i][2] - verts[j][2];
+        ds.push([dx * dx + dy * dy + dz * dz, j]);
+      }
+      ds.sort(function (a, b) { return a[0] - b[0]; });
+      for (let k = 0; k < 3; k++) {
+        const j = ds[k][1], key = i < j ? i + '_' + j : j + '_' + i;
+        if (eseen[key]) continue; eseen[key] = 1;
+        seams.push([verts[i], verts[j]]);
+      }
+    }
+    // Pentagon faces sit at the 12 icosahedron directions: take the 5 nearest
+    // vertices to each and order them around the centre.
+    const n = Math.hypot(1, P);
+    const centers = [
+      [0, 1, P], [0, 1, -P], [0, -1, P], [0, -1, -P],
+      [1, P, 0], [1, -P, 0], [-1, P, 0], [-1, -P, 0],
+      [P, 0, 1], [-P, 0, 1], [P, 0, -1], [-P, 0, -1],
+    ].map(function (v) { return [v[0] / n, v[1] / n, v[2] / n]; });
+    const pentFaces = centers.map(function (c) {
+      const scored = verts.map(function (v, idx) { return [v[0] * c[0] + v[1] * c[1] + v[2] * c[2], idx]; });
+      scored.sort(function (a, b) { return b[0] - a[0]; });
+      const picked = scored.slice(0, 5).map(function (s) { return verts[s[1]]; });
+      const a = Math.abs(c[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+      const dd = a[0] * c[0] + a[1] * c[1] + a[2] * c[2];
+      let u = [a[0] - dd * c[0], a[1] - dd * c[1], a[2] - dd * c[2]];
+      const ul = Math.hypot(u[0], u[1], u[2]); u = [u[0] / ul, u[1] / ul, u[2] / ul];
+      const w = [c[1] * u[2] - c[2] * u[1], c[2] * u[0] - c[0] * u[2], c[0] * u[1] - c[1] * u[0]];
+      picked.sort(function (A, B) {
+        return Math.atan2(A[0] * w[0] + A[1] * w[1] + A[2] * w[2], A[0] * u[0] + A[1] * u[1] + A[2] * u[2])
+          - Math.atan2(B[0] * w[0] + B[1] * w[1] + B[2] * w[2], B[0] * u[0] + B[1] * u[1] + B[2] * u[2]);
+      });
+      return { c: c, verts: picked };
+    });
+    return { pentFaces: pentFaces, seams: seams };
+  })();
+
   class Renderer {
     constructor(canvas, world) {
       this.canvas = canvas;
@@ -51,6 +118,10 @@
       this.padY = 26;
       this.scale = 1; this.offX = 0; this.offY = 0;
       this.particles = [];
+      // Ball orientation: a 3x3 rotation matrix (row-major) advanced by travel
+      // so the printed spots roll. `_ballPrev` tracks last position for the delta.
+      this._ballRot = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+      this._ballPrev = null;
       this.resize();
     }
 
@@ -85,6 +156,7 @@
 
       this._applyTransform();
       this._drawPitch();
+      this._drawBoundary();
       this._drawGoals();
       // Aim (drawn under the tokens so the disc + number stay crisp on top).
       if (opts.aim) this._drawAim(opts.aim);
@@ -156,6 +228,40 @@
       ctx.strokeRect(f.W - m - sixW, sixTop, sixW, sixH);
     }
 
+    // The TRUE field edge (where the ball actually bounces), drawn as a bold rail
+    // around the grass octagon so it's obvious where the pitch ends — clearly
+    // distinct from the thin inner markings. Gaps are left at the goal mouths.
+    _drawBoundary() {
+      const ctx = this.ctx, f = this.f;
+      const cc = f.CORNER_CHAMFER || 0;
+      const path = function () {
+        ctx.beginPath();
+        ctx.moveTo(cc, 0);
+        ctx.lineTo(f.W - cc, 0);              // top edge
+        ctx.lineTo(f.W, cc);                  // top-right chamfer
+        ctx.lineTo(f.W, f.GOAL_TOP);          // right edge → mouth
+        ctx.moveTo(f.W, f.GOAL_BOT);          // (skip the goal mouth)
+        ctx.lineTo(f.W, f.H - cc);
+        ctx.lineTo(f.W - cc, f.H);            // bottom-right chamfer
+        ctx.lineTo(cc, f.H);                  // bottom edge
+        ctx.lineTo(0, f.H - cc);              // bottom-left chamfer
+        ctx.lineTo(0, f.GOAL_BOT);            // left edge → mouth
+        ctx.moveTo(0, f.GOAL_TOP);            // (skip the goal mouth)
+        ctx.lineTo(0, cc);
+        ctx.lineTo(cc, 0);                    // top-left chamfer
+      };
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      // Dark base gives the rail a raised, framed feel against the grass.
+      ctx.strokeStyle = 'rgba(0,0,0,0.38)';
+      ctx.lineWidth = 15;
+      path(); ctx.stroke();
+      // Bright rail on top.
+      ctx.strokeStyle = '#f4f9f5';
+      ctx.lineWidth = 8;
+      path(); ctx.stroke();
+    }
+
     _drawGoals() {
       const ctx = this.ctx, f = this.f;
       // Nets in the pockets.
@@ -188,6 +294,27 @@
       for (const p of f.posts) {
         ctx.beginPath(); ctx.arc(p.x, p.y, f.POST_R, 0, Math.PI * 2); ctx.fill();
       }
+      // Rail around the OUTER walls of each pocket (the part that juts away from
+      // the pitch), matching the field border so the goal box is clearly framed.
+      const pocket = function () {
+        ctx.beginPath();
+        ctx.moveTo(0, f.GOAL_TOP);
+        ctx.lineTo(-f.GOAL_DEPTH, f.GOAL_TOP);
+        ctx.lineTo(-f.GOAL_DEPTH, f.GOAL_BOT);
+        ctx.lineTo(0, f.GOAL_BOT);
+        ctx.moveTo(f.W, f.GOAL_TOP);
+        ctx.lineTo(f.W + f.GOAL_DEPTH, f.GOAL_TOP);
+        ctx.lineTo(f.W + f.GOAL_DEPTH, f.GOAL_BOT);
+        ctx.lineTo(f.W, f.GOAL_BOT);
+      };
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(0,0,0,0.38)';
+      ctx.lineWidth = 15;
+      pocket(); ctx.stroke();
+      ctx.strokeStyle = '#f4f9f5';
+      ctx.lineWidth = 8;
+      pocket(); ctx.stroke();
     }
 
     _drawTokens(active) {
@@ -224,24 +351,102 @@
       }
     }
 
+    // Rotate the ball's orientation matrix by rolling it `ang` radians about the
+    // in-plane axis (ax, ay, 0) — Rodrigues' formula, left-multiplied.
+    _rollBall(ax, ay, ang) {
+      const c = Math.cos(ang), s = Math.sin(ang), t = 1 - c;
+      const R = [
+        t * ax * ax + c, t * ax * ay, s * ay,
+        t * ax * ay, t * ay * ay + c, -s * ax,
+        -s * ay, s * ax, c,
+      ];
+      const M = this._ballRot, O = new Array(9);
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 3; col++) {
+          O[row * 3 + col] = R[row * 3] * M[col] + R[row * 3 + 1] * M[3 + col] + R[row * 3 + 2] * M[6 + col];
+        }
+      }
+      this._ballRot = O;
+    }
+
     _drawBall() {
-      const ctx = this.ctx, b = this.world.ball;
+      const ctx = this.ctx, b = this.world.ball, r = b.r;
+      // Advance the ball's spin from how far it moved since last frame. Rolling
+      // without slipping => angle = distance / radius, about an axis ⟂ to travel.
+      const prev = this._ballPrev;
+      if (prev) {
+        const dx = b.x - prev.x, dy = b.y - prev.y;
+        const dist = Math.hypot(dx, dy);
+        // Skip teleports (kickoff / goal resets) so it doesn't spin wildly.
+        // Angle is negated because the canvas Y axis points down (otherwise the
+        // ball appears to roll backwards relative to its travel).
+        if (dist > 0.01 && dist < r * 4) this._rollBall(dy / dist, -dx / dist, -dist / r);
+      }
+      this._ballPrev = { x: b.x, y: b.y };
+
+      // Drop shadow + white body.
       ctx.fillStyle = 'rgba(0,0,0,0.25)';
-      ctx.beginPath(); ctx.ellipse(b.x + 2, b.y + 4, b.r, b.r * 0.9, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(b.x + 2, b.y + 4, r, r * 0.9, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = COL.ball;
-      ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI * 2); ctx.fill();
+
+      // Black pentagons + connecting seams rolling on the front hemisphere,
+      // clipped to the ball.
+      const M = this._ballRot;
+      ctx.save();
+      ctx.beginPath(); ctx.arc(b.x, b.y, r - 0.5, 0, Math.PI * 2); ctx.clip();
+
+      // 1) Fill the front-facing black pentagon panels.
+      ctx.fillStyle = COL.ballDark;
+      for (let i = 0; i < BALL_GEO.pentFaces.length; i++) {
+        const pent = BALL_GEO.pentFaces[i], c = pent.c;
+        const Zc = M[6] * c[0] + M[7] * c[1] + M[8] * c[2];
+        if (Zc <= 0.10) continue;                      // only front-facing faces
+        ctx.globalAlpha = Math.min(1, (Zc - 0.10) / 0.22);
+        ctx.beginPath();
+        for (let k = 0; k < pent.verts.length; k++) {
+          const w = pent.verts[k];
+          const X = M[0] * w[0] + M[1] * w[1] + M[2] * w[2];
+          const Y = M[3] * w[0] + M[4] * w[1] + M[5] * w[2];
+          if (k === 0) ctx.moveTo(b.x + X * r, b.y + Y * r);
+          else ctx.lineTo(b.x + X * r, b.y + Y * r);
+        }
+        ctx.closePath(); ctx.fill();
+      }
+
+      // 2) Faint seams along every panel edge (front hemisphere only), so the
+      //    hexagons read as real stitched panels.
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = r * 0.055;
+      ctx.lineCap = 'round';
+      for (let i = 0; i < BALL_GEO.seams.length; i++) {
+        const v0 = BALL_GEO.seams[i][0], v1 = BALL_GEO.seams[i][1];
+        const Z0 = M[6] * v0[0] + M[7] * v0[1] + M[8] * v0[2];
+        const Z1 = M[6] * v1[0] + M[7] * v1[1] + M[8] * v1[2];
+        if (Z0 < 0.04 || Z1 < 0.04) continue;          // keep to the near side
+        ctx.globalAlpha = Math.min(1, (Math.min(Z0, Z1)) / 0.22) * 0.5;
+        const X0 = M[0] * v0[0] + M[1] * v0[1] + M[2] * v0[2], Y0 = M[3] * v0[0] + M[4] * v0[1] + M[5] * v0[2];
+        const X1 = M[0] * v1[0] + M[1] * v1[1] + M[2] * v1[2], Y1 = M[3] * v1[0] + M[4] * v1[1] + M[5] * v1[2];
+        ctx.beginPath();
+        ctx.moveTo(b.x + X0 * r, b.y + Y0 * r);
+        ctx.lineTo(b.x + X1 * r, b.y + Y1 * r);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      ctx.restore();
+
+      // Spherical shading (soft top-left highlight → shaded rim) for depth.
+      const sh = ctx.createRadialGradient(b.x - r * 0.32, b.y - r * 0.36, r * 0.1, b.x, b.y, r);
+      sh.addColorStop(0, 'rgba(255,255,255,0.35)');
+      sh.addColorStop(0.55, 'rgba(255,255,255,0)');
+      sh.addColorStop(1, 'rgba(0,0,0,0.20)');
+      ctx.fillStyle = sh;
+      ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI * 2); ctx.fill();
+
+      // Rim.
       ctx.lineWidth = 2;
       ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-      ctx.beginPath(); ctx.arc(b.x, b.y, b.r - 1, 0, Math.PI * 2); ctx.stroke();
-      // Simple pentagon spots for a soccer-ball read.
-      ctx.fillStyle = COL.ballDark;
-      ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 0.34, 0, Math.PI * 2); ctx.fill();
-      for (let i = 0; i < 5; i++) {
-        const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
-        ctx.beginPath();
-        ctx.arc(b.x + Math.cos(a) * b.r * 0.66, b.y + Math.sin(a) * b.r * 0.66, b.r * 0.16, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      ctx.beginPath(); ctx.arc(b.x, b.y, r - 1, 0, Math.PI * 2); ctx.stroke();
     }
 
     // aim = { team, idx, dx, dy }  where (dx,dy) is the PULL vector (|v|<=1 = power).

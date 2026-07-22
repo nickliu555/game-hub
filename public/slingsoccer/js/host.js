@@ -639,45 +639,29 @@
     }, BOT_THINK_MS);
   }
 
-  // Pick a token and a PULL vector (dx,dy, |v|<=1). The bot AIMS AT THE SPOT
-  // DIRECTLY BEHIND THE BALL (on its own-goal side) so the strike pushes the
-  // ball toward the OPPONENT'S goal — it never blasts a token toward a net.
-  // If no token is behind the ball, it repositions the nearest one instead.
-  // Beatable on purpose (aim noise + power variance).
-  function botPlan(team) {
-    if (!world) return null;
-    const ball = world.ball;
-    const f = world.field;
-    const tx = team === 'red' ? f.W : 0;   // opponent goal (red attacks right, blue left)
-    // Aim at an OPEN part of the goal mouth — the side the opponent's rearmost
-    // token (whoever is guarding the net) isn't covering — instead of dead-centre
-    // into the keeper, so offensive shots aren't always saved. Margin off posts.
-    const mouthTop = f.GOAL_TOP, mouthBot = f.GOAL_BOT;
-    const mouthMid = (mouthTop + mouthBot) / 2;
-    const halfMouth = (mouthBot - mouthTop) / 2;
-    let gk = null, gkDist = Infinity;
-    for (let i = 0; i < 5; i++) {
-      const t = world.tokenAt(other(team), i);
-      const d = Math.abs(t.x - tx);
-      if (d < gkDist) { gkDist = d; gk = t; }
-    }
-    let ty = mouthMid;
-    if (gk) {
-      const openSide = gk.y >= mouthMid ? -1 : 1;   // steer away from the keeper
-      ty = mouthMid + openSide * halfMouth * 0.55;
-    }
-    // Direction we want the BALL to travel.
-    let gx = tx - ball.x, gy = ty - ball.y;
-    const gl = Math.hypot(gx, gy) || 1; gx /= gl; gy /= gl;
-    const R = f.BALL_R + f.TOKEN_R + 4;
-    // The spot to strike from: directly behind the ball, own-goal side.
-    const cxp = ball.x - gx * R, cyp = ball.y - gy * R;
+  // Add a little human aim wobble to a pull vector so the CPU stays beatable.
+  function withNoise(shot, amt) {
+    const n = (Math.random() * 2 - 1) * amt;
+    const c = Math.cos(n), s = Math.sin(n);
+    return { idx: shot.idx, dx: shot.dx * c - shot.dy * s, dy: shot.dx * s + shot.dy * c };
+  }
 
-    // Keep ONE defender back at all times — but not a hard-coded token. Reserve
-    // whichever token is currently REARMOST (nearest our own goal) as the
-    // keeper; every OTHER token, including #1, is free to attack. So #1 stops
-    // being a permanent goalie and can take the open shots it was missing.
-    const ownX = team === 'red' ? 0 : f.W;   // our own goal line
+  // Decide the CPU's move by SIMULATING candidate flicks on a throwaway copy of
+  // the world and keeping the outcome that helps most. Strategy: if any attacking
+  // flick is a genuinely good chance (scores, or drives the ball well up-field),
+  // take it (OFFENCE); otherwise place a defender between the ball and our goal
+  // (DEFENCE). One token — whichever is rearmost — is always reserved at the back.
+  function botPlan(team) {
+    if (!world || !window.SlingSoccer) return null;
+    const f = world.field;
+    const ball = world.ball;
+    const opp = other(team);
+    const tx = team === 'red' ? f.W : 0;      // opponent goal line
+    const ownX = team === 'red' ? 0 : f.W;    // our own goal line
+    const goalY = f.H / 2;
+    const R = f.BALL_R + f.TOKEN_R + 4;
+
+    // Reserve the rearmost token as the keeper (so a defender always stays back).
     let keeperIdx = 0, keeperDist = Infinity;
     for (let i = 0; i < 5; i++) {
       const t = world.tokenAt(team, i);
@@ -685,60 +669,104 @@
       if (d < keeperDist) { keeperDist = d; keeperIdx = i; }
     }
 
-    // Score each token: prefer one already BEHIND the ball (so a hit pushes it
-    // goalward) whose path to the contact spot is short + goal-aligned. The
-    // reserved keeper (rearmost token) is skipped so a defender always stays.
-    let best = null, bestScore = -Infinity;
+    // Aim at an OPEN part of the mouth, away from the opponent's rearmost token
+    // (their keeper), so shots aren't fired straight down the goalie's throat.
+    let gk = null, gkDist = Infinity;
+    for (let i = 0; i < 5; i++) {
+      const t = world.tokenAt(opp, i);
+      const d = Math.abs(t.x - tx);
+      if (d < gkDist) { gkDist = d; gk = t; }
+    }
+    const halfMouth = (f.GOAL_BOT - f.GOAL_TOP) / 2;
+    const openY = gk ? goalY + (gk.y >= goalY ? -1 : 1) * halfMouth * 0.55 : goalY;
+    const targets = [{ x: tx, y: openY }, { x: tx, y: goalY }];
+
+    // Progress = how close the ball is to SCORING for us (bigger is better).
+    const progressOf = function (x) { return team === 'red' ? x : (f.W - x); };
+    const baseProgress = progressOf(ball.x);
+
+    // One reusable sim world; reset it to the current resting board each try.
+    const board = world.snapshot();
+    const sim = new window.SlingSoccer.World();
+    const runShot = function (idx, dx, dy) {
+      sim.restore(board);
+      sim.applyFlick(team, idx, dx, dy);
+      for (let s = 0; s < 1200; s++) {
+        const g = sim.step(1 / 120);
+        if (g) return g;
+        if (sim.allAtRest()) break;
+      }
+      return null;
+    };
+    // Pull vector that strikes the ball from directly behind toward `target`.
+    const shotToward = function (t, target, power) {
+      const dgx = target.x - ball.x, dgy = target.y - ball.y;
+      const dl = Math.hypot(dgx, dgy) || 1;
+      const ux = dgx / dl, uy = dgy / dl;
+      const cx = ball.x - ux * R, cy = ball.y - uy * R;   // contact spot behind ball
+      let lx = cx - t.x, ly = cy - t.y;
+      const ll = Math.hypot(lx, ly) || 1; lx /= ll; ly /= ll;
+      return { dx: -lx * power, dy: -ly * power };        // pull is opposite launch
+    };
+    // Apply human aim wobble, but never one that would sim into our own net —
+    // keeps the CPU beatable without gifting own goals.
+    const finalize = function (shot, amt) {
+      for (let k = 0; k < 3; k++) {
+        const s = withNoise(shot, amt);
+        if (runShot(s.idx, s.dx, s.dy) !== opp) return s;
+      }
+      return shot;   // fall back to the clean, already-vetted shot
+    };
+
+    // ---- OFFENCE: try every attacker × aim × power, keep the best result. ----
+    let bestAtk = null, bestVal = -Infinity;
+    const distGoal = Math.hypot(tx - ball.x, goalY - ball.y);
+    const pFull = Math.max(0.55, Math.min(1, 0.55 + distGoal / (f.W * 1.1)));
+    const powers = [pFull, pFull * 0.82];
     for (let i = 0; i < 5; i++) {
       if (i === keeperIdx) continue;
       const t = world.tokenAt(team, i);
-      let ax = cxp - t.x, ay = cyp - t.y;
-      const al = Math.hypot(ax, ay) || 1;
-      const adx = ax / al, ady = ay / al;
-      const align = adx * gx + ady * gy;              // approaching goalward?
-      let bx = ball.x - t.x, by = ball.y - t.y;
-      const bl = Math.hypot(bx, by) || 1;
-      const behind = (bx / bl) * gx + (by / bl) * gy; // >0 => hitting the ball sends it goalward
-      const score = behind * 2 + align - al / (f.W * 1.5);
-      if (score > bestScore) {
-        bestScore = score;
-        best = { i: i, t: t, ax: adx, ay: ady, dist: al, behind: behind };
+      for (let ti = 0; ti < targets.length; ti++) {
+        for (let pi = 0; pi < powers.length; pi++) {
+          const v = shotToward(t, targets[ti], powers[pi]);
+          const goal = runShot(i, v.dx, v.dy);
+          let val;
+          if (goal === team) val = 1e6;
+          else if (goal === opp) val = -1e6;                 // own goal — never
+          else {
+            val = progressOf(sim.ball.x) - baseProgress;     // advance up-field
+            if (progressOf(sim.ball.x) < f.W * 0.28) val -= 80; // left loose in danger
+          }
+          if (val > bestVal) { bestVal = val; bestAtk = { idx: i, dx: v.dx, dy: v.dy }; }
+        }
       }
     }
-    if (!best) return null;
 
-    let lx, ly, power;
-    if (best.behind > 0.15) {
-      // Clean shot: drive at the spot behind the ball → ball goes toward goal.
-      lx = best.ax; ly = best.ay;
-      const distGoal = Math.hypot(tx - ball.x, ty - ball.y);
-      power = Math.min(1, 0.5 + distGoal / (f.W * 1.15) + Math.random() * 0.12);
-    } else {
-      // No token behind the ball — REPOSITION the nearest one around it (gentle),
-      // rather than knocking the ball toward our own net / a token into a goal.
-      let near = best, nd = Infinity;
-      for (let i = 0; i < 5; i++) {
-        if (i === keeperIdx) continue;
-        const t = world.tokenAt(team, i);
-        const d = Math.hypot(ball.x - t.x, ball.y - t.y);
-        if (d < nd) { nd = d; near = { i: i, t: t }; }
-      }
-      const perpx = -gy, perpy = gx;
-      const side = ((near.t.x - ball.x) * perpx + (near.t.y - ball.y) * perpy) >= 0 ? 1 : -1;
-      const sx = ball.x - gx * R * 1.4 + perpx * side * (R * 1.2);
-      const sy = ball.y - gy * R * 1.4 + perpy * side * (R * 1.2);
-      let dx = sx - near.t.x, dy = sy - near.t.y;
-      const dl = Math.hypot(dx, dy) || 1;
-      lx = dx / dl; ly = dy / dl;
-      best = near;
-      power = 0.38 + Math.random() * 0.12;
+    // A "good shot opportunity" = a goal, or a real advance up the pitch.
+    const GOOD = f.W * 0.10;
+    if (bestAtk && bestVal >= GOOD) return finalize(bestAtk, 0.03);
+
+    // ---- DEFENCE: no good shot — slot a non-keeper token between the ball and
+    // our goal to screen it for the opponent's next turn. ----
+    const blockX = ownX + (ball.x - ownX) * 0.35;
+    const blockY = goalY + (ball.y - goalY) * 0.35;
+    let dTok = null, dNear = Infinity;
+    for (let i = 0; i < 5; i++) {
+      if (i === keeperIdx) continue;
+      const t = world.tokenAt(team, i);
+      const d = Math.hypot(blockX - t.x, blockY - t.y);
+      if (d < dNear) { dNear = d; dTok = { i: i, t: t }; }
     }
-    // Aim noise (beatable, but tighter on offence so shots find the mouth).
-    const noise = (Math.random() * 2 - 1) * 0.06;
-    const ca = Math.cos(noise), sa = Math.sin(noise);
-    const nlx = lx * ca - ly * sa, nly = lx * sa + ly * ca;
-    // Pull vector is OPPOSITE the launch direction.
-    return { idx: best.i, dx: -nlx * power, dy: -nly * power };
+    if (dTok) {
+      let lx = blockX - dTok.t.x, ly = blockY - dTok.t.y;
+      const ll = Math.hypot(lx, ly) || 1; lx /= ll; ly /= ll;
+      const power = Math.min(0.6, 0.32 + dNear / (f.W * 1.4));
+      const cand = { idx: dTok.i, dx: -lx * power, dy: -ly * power };
+      // Never shove the ball into our own net; if this would, take the best shot.
+      if (runShot(cand.idx, cand.dx, cand.dy) === opp) return bestAtk ? finalize(bestAtk, 0.04) : null;
+      return finalize(cand, 0.05);
+    }
+    return bestAtk ? finalize(bestAtk, 0.04) : null;
   }
 
   function renderFinal(d) {

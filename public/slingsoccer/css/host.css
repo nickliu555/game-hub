@@ -240,7 +240,7 @@ body.host {
 }
 .turn-banner b { font-weight: 900; }
 .turn-banner .turn-name { color: #ffe08a; font-weight: 900; }
-.turn-banner.red { background: linear-gradient(90deg, rgba(228,59,59,0.28), rgba(228,59,59,0.5), rgba(228,59,59,0.28)); }
+.turn-banner.red { background: linear-gradient(90deg, rgba(255,45,45,0.75), rgba(255,45,45,0.96), rgba(255,45,45,0.75)); }
 .turn-banner.blue { background: linear-gradient(90deg, rgba(47,125,224,0.28), rgba(47,125,224,0.5), rgba(47,125,224,0.28)); }
 
 .pitch-wrap { position: relative; flex: 1; min-height: 0; display: flex; }
@@ -274,9 +274,14 @@ body.host {
   padding-top: clamp(44px, 20%, 150px);
   gap: 6px;
   pointer-events: none;
+  /* Dim the field behind the banner so the goal text pops. */
+  background: radial-gradient(ellipse at 50% 32%, rgba(0,0,0,0.58), rgba(0,0,0,0.36) 65%);
+  animation: gbDim 0.3s ease both;
 }
 .goal-banner[hidden] { display: none; }
+@keyframes gbDim { from { opacity: 0; } to { opacity: 1; } }
 .gb-text {
+  position: relative;
   font-size: 118px;
   font-weight: 900;
   color: var(--accent);
@@ -284,6 +289,7 @@ body.host {
   animation: gbPop 0.5s cubic-bezier(.2,1.5,.4,1);
 }
 .gb-sub {
+  position: relative;
   font-size: 52px;
   font-weight: 900;
   letter-spacing: 0.06em;

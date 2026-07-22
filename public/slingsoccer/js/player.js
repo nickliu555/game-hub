@@ -64,6 +64,8 @@
     myTeam = team === 'blue' ? 'blue' : 'red';
     body.setAttribute('data-team', myTeam);
     if (lobbyTeamBadge) lobbyTeamBadge.textContent = myTeam.toUpperCase();
+    // Top-right HUD badge always shows the player's own team, in its colour.
+    if (hudTurn) hudTurn.textContent = 'Team ' + (myTeam === 'blue' ? 'Blue' : 'Red');
   }
   setTeam(myTeam);
   if (lobbyName) lobbyName.textContent = playerName;
@@ -143,7 +145,6 @@
     if (d && d.goalTarget) hudTarget.textContent = 'First to ' + d.goalTarget;
     showView('controller');
     setMyTurn(false, null, null);
-    hudTurn.textContent = 'Get ready…';
     if (waitText) waitText.textContent = 'Get ready…';
     if (waitCover) waitCover.hidden = false;
   });
@@ -160,7 +161,6 @@
     if (waitCover) waitCover.hidden = false;
     const n = d && d.n;
     if (waitText) waitText.textContent = 'Kickoff in ' + (n || 3) + '…';
-    hudTurn.textContent = 'Get ready…';
   });
   socket.on('m:turn', function (d) {
     if (!d) return;
@@ -179,7 +179,6 @@
     showFlash(mineScored ? 'GOAL!' : 'Conceded', mineScored);
     if (waitCover) { waitCover.hidden = false; }
     if (waitText) waitText.textContent = mineScored ? 'GOAL for your team!' : 'They scored…';
-    hudTurn.textContent = 'Goal!';
   });
   socket.on('m:end', function (d) {
     currentPhase = 'FINAL';
@@ -208,21 +207,29 @@
     resetSling();
     if (myTurn) {
       if (waitCover) waitCover.hidden = true;
-      hudTurn.textContent = 'Your shot!';
-      hudTurn.className = 'hud-turn mine';
       slingHint.textContent = 'Tap a token, then pull back to aim';
       slingPad.classList.remove('armed');
     } else {
       if (waitCover) waitCover.hidden = false;
-      let msg = 'Waiting…';
       if (team) {
         const teamLabel = team === 'blue' ? 'Blue' : 'Red';
-        if (team === myTeam) msg = 'Teammate ' + (name || '') + ' is shooting';
-        else msg = teamLabel + ' is shooting' + (name ? ' — ' + name : '');
+        const nameCol = team === 'blue' ? 'var(--blue-soft)' : 'var(--red-soft)';
+        if (waitText) {
+          waitText.textContent = '';
+          const nameEl = name ? document.createElement('span') : null;
+          if (nameEl) { nameEl.textContent = name; nameEl.style.color = nameCol; nameEl.style.fontWeight = '800'; }
+          if (team === myTeam) {
+            waitText.appendChild(document.createTextNode('Teammate '));
+            if (nameEl) { waitText.appendChild(nameEl); waitText.appendChild(document.createTextNode(' ')); }
+            waitText.appendChild(document.createTextNode('is shooting'));
+          } else {
+            waitText.appendChild(document.createTextNode(teamLabel + ' is shooting'));
+            if (nameEl) { waitText.appendChild(document.createTextNode(' \u2014 ')); waitText.appendChild(nameEl); }
+          }
+        }
+      } else if (waitText) {
+        waitText.textContent = 'Waiting\u2026';
       }
-      if (waitText) waitText.textContent = msg;
-      hudTurn.textContent = team ? ((team === myTeam ? 'Teammate' : 'Opponent') + '\u2019s turn') : 'Waiting…';
-      hudTurn.className = 'hud-turn';
     }
   }
 
@@ -280,7 +287,6 @@
       resetSling();
       if (waitCover) waitCover.hidden = false;
       if (waitText) waitText.textContent = 'Shot away! 🎯';
-      hudTurn.textContent = 'Shot away!';
     } else {
       socket.emit('aim:cancel', {});
       resetSling();

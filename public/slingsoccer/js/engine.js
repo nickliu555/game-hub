@@ -66,11 +66,9 @@
       this.field = {
         W, H, GOAL_H, GOAL_DEPTH, GOAL_TOP, GOAL_BOT, POST_R,
         TOKEN_R, BALL_R, FIELD_MARGIN, PBOX_W, CORNER_CHAMFER,
-        // Goal posts as solid, immovable circles at the four mouth corners.
-        posts: [
-          { x: 0, y: GOAL_TOP }, { x: 0, y: GOAL_BOT },
-          { x: W, y: GOAL_TOP }, { x: W, y: GOAL_BOT },
-        ],
+        // No goal posts: the round corner colliders deflected the ball
+        // unpredictably, so the mouth is just an open gap in the flat goal wall.
+        posts: [],
       };
       this.posts = this.field.posts.map((p) => ({ x: p.x, y: p.y, vx: 0, vy: 0, r: POST_R, static: true }));
       this.tokens = [];   // 10 tokens (5 red, 5 blue)

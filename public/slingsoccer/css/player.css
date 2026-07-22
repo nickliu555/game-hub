@@ -70,8 +70,7 @@ body.player[data-team="blue"] { --me: var(--blue); --me-deep: var(--blue-deep); 
   background: rgba(0,0,0,0.28); padding: 4px 12px; border-radius: 999px; white-space: nowrap;
   color: var(--accent);
 }
-.hud-turn { font-size: 13px; font-weight: 800; text-align: right; justify-self: end; color: rgba(255,255,255,0.72); }
-.hud-turn.mine { color: var(--accent); }
+.hud-turn { font-size: 13px; font-weight: 800; text-align: right; justify-self: end; color: var(--me-soft, rgba(255,255,255,0.72)); }
 
 /* Token picker. */
 .token-row {
