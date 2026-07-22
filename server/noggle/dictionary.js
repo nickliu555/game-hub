@@ -6,13 +6,15 @@ const path = require('path');
 const { pointsForWord } = require('./scoring');
 
 /**
- * Word validation + board solving backed by the public-domain ENABLE word
- * list (~172k words). Loaded lazily and cached: the flat Set answers "is this
- * a word?" for live submissions, and a prefix trie (built on first solve)
- * powers the board solver used for the host's end-of-game stats.
+ * Word validation + board solving backed by the public-domain YAWL word
+ * list (~264k words) — a superset of the older ENABLE list that adds modern
+ * vocabulary (e.g. "taser", "email", "texted"). Loaded lazily and cached: the
+ * flat Set answers "is this a word?" for live submissions, and a prefix trie
+ * (built on first solve) powers the board solver used for the host's
+ * end-of-game stats.
  */
 
-const WORD_FILE = path.join(__dirname, 'data', 'enable1.txt');
+const WORD_FILE = path.join(__dirname, 'data', 'yawl.txt');
 
 let wordSet = null; // Set<string> of lowercase words
 let trieRoot = null; // lazily built for the solver

@@ -514,8 +514,8 @@
       n = n || 20;
       for (let i = 0; i < n; i++) {
         const a = Math.random() * Math.PI * 2;
-        const sp = 120 + Math.random() * 340;
-        this.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.6 + Math.random() * 0.5, age: 0, color, r: 3 + Math.random() * 4 });
+        const sp = 130 + Math.random() * 470;
+        this.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.7 + Math.random() * 0.7, age: 0, color, r: 3 + Math.random() * 5 });
       }
     }
     _updateParticles(dt) {

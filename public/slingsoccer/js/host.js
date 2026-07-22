@@ -536,7 +536,19 @@
     if (team === 'red') redScore++; else blueScore++;
     updateScoreboard();
     if (renderer && world) {
-      renderer.spawnBurst(world.ball.x, world.ball.y, team === 'red' ? '#ff6a5e' : '#6aa8f2', 34);
+      const col = team === 'red' ? '#ff6a5e' : '#6aa8f2';
+      const bx = world.ball.x, by = world.ball.y;
+      // Big celebratory splash: a dense team-colour burst + white sparkle from
+      // the ball, a burst out of the goal, then a delayed second pop.
+      renderer.spawnBurst(bx, by, col, 130);
+      renderer.spawnBurst(bx, by, '#ffffff', 46);
+      renderer.spawnBurst(team === 'red' ? world.field.W : 0, world.field.H / 2, col, 70);
+      setTimeout(function () {
+        if (matchState === 'goal' && renderer) {
+          renderer.spawnBurst(bx, by, col, 80);
+          renderer.spawnBurst(bx, by, '#ffffff', 28);
+        }
+      }, 170);
     }
     gbText.textContent = (team === 'red' ? redNames : blueNames);
     gbText.style.color = team === 'red' ? 'var(--red-soft)' : 'var(--blue-soft)';
