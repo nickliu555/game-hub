@@ -236,5 +236,86 @@ console.log('Puck Ball physics');
   check('bot scores on an empty net within 30s', !!goal && goal.team === 'red', 'goal=' + JSON.stringify(goal));
 })();
 
+function dribbleWorld(offset, assisted) {
+  const world = soloWorld('huge');
+  const player = world.byId.get('r');
+  player.x = -225; player.y = 0;
+  world.ball.x = -200; world.ball.y = offset;
+  world.setInput('r', 1, 0, false);
+  if (!assisted) world._assistDribble = function () {};
+  return world;
+}
+
+for (const offset of [1, 3, 5]) {
+  const assisted = dribbleWorld(offset, true);
+  const baseline = dribbleWorld(offset, false);
+  stepN(assisted, 180);
+  stepN(baseline, 180);
+  const player = assisted.byId.get('r');
+  const distance = Math.hypot(assisted.ball.x - player.x, assisted.ball.y - player.y);
+  check('gentle pushing keeps a slightly off-center ball close: ' + offset, distance < 30, 'distance=' + distance.toFixed(2));
+  check('assisted pushing stays slower than running and much slower than kicking: ' + offset,
+    speed(assisted.ball) < 2.5 && speed(assisted.ball) < PHYS.kickStrength * 0.4);
+  check('close control improves over unassisted contact: ' + offset,
+    assisted.ball.x > baseline.ball.x + 20);
+}
+
+function motionState(world) {
+  return JSON.stringify(world.players.concat([world.ball]).map(function (disc) {
+    return [disc.x, disc.y, disc.vx, disc.vy];
+  }));
+}
+
+const unchangedContactCases = [
+  ['aligned pushing gets no extra forward power', function () {}],
+  ['kicks are unchanged', function (world) { world.setInput('r', 1, 0, true); }],
+  ['fast incoming shots are unchanged', function (world) { world.ball.vx = -6; }],
+  ['hard body impacts are unchanged', function (world) { world.byId.get('r').vx = 3; }],
+  ['stationary players get no assist', function (world) { world.setInput('r', 0, 0, false); }],
+  ['moving away gets no assist', function (world) { world.setInput('r', -1, 0, false); }],
+  ['frozen worlds get no assist', function (world) { world.frozen = true; }],
+  ['balls outside contact range are not pulled in', function (world) { world.ball.x += 10; }],
+  ['contested contact gets no assist', function (world) {
+    world.setRoster([
+      { id: 'r', name: 'Red', team: 'red', seat: 0 },
+      { id: 'b', name: 'Blue', team: 'blue', seat: 0 },
+    ]);
+    world.koActive = false;
+    const red = world.byId.get('r');
+    const blue = world.byId.get('b');
+    red.x = -224; red.y = 0;
+    blue.x = -176; blue.y = 0;
+    world.ball.x = -200; world.ball.y = 3;
+    world.setInput('r', 1, 0, false);
+    world.setInput('b', -1, 0, false);
+  }],
+];
+for (const [name, configure] of unchangedContactCases) {
+  const assisted = dribbleWorld(0, true);
+  const baseline = dribbleWorld(0, false);
+  if (!name.startsWith('aligned')) {
+    assisted.ball.x = baseline.ball.x = -201;
+    assisted.ball.y = baseline.ball.y = 3;
+  }
+  configure(assisted);
+  configure(baseline);
+  assisted.step();
+  baseline.step();
+  check(name, motionState(assisted) === motionState(baseline));
+}
+
+const turning = dribbleWorld(3, true);
+stepN(turning, 90);
+turning.setInput('r', 1, 1, false);
+stepN(turning, 90);
+check('a sharp turn does not carry the ball with the player',
+  Math.hypot(turning.ball.x - turning.byId.get('r').x, turning.ball.y - turning.byId.get('r').y) > 60);
+
+const shooting = dribbleWorld(3, true);
+stepN(shooting, 90);
+shooting.setInput('r', 1, 0, true);
+shooting.step();
+check('a kick releases close control at full power', speed(shooting.ball) > PHYS.kickStrength);
+
 console.log(failures === 0 ? '\nAll physics checks passed.' : '\n' + failures + ' check(s) failed.');
 process.exit(failures === 0 ? 0 : 1);

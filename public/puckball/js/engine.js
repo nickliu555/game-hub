@@ -450,18 +450,25 @@
     var all = this._all;
     var i, j;
     var hit = { impact: 0, hit: false };
+    var assistPlayer = null;
+    var contacts = 0;
+    var slowBall = Math.hypot(ball.vx, ball.vy) <= 2.5;
 
     for (i = 0; i < all.length; i++) {
       for (j = i + 1; j < all.length; j++) {
         hit.impact = 0; hit.hit = false;
         collideDiscs(all[i], all[j], hit);
         if (hit.hit && (all[i] === ball || all[j] === ball)) {
+          contacts++;
+          if (hit.impact <= 1.2) assistPlayer = all[i] === ball ? all[j] : all[i];
           // Any touch releases the kickoff barrier.
           this.koActive = false;
           if (hit.impact > 1.2) this.events.push({ t: 'bump', x: ball.x, y: ball.y, v: hit.impact });
         }
       }
     }
+
+    if (!this.frozen && slowBall && contacts === 1 && assistPlayer) this._assistDribble(assistPlayer);
 
     for (i = 0; i < all.length; i++) {
       var d = all[i];
@@ -481,6 +488,24 @@
         if (this._koCircle) collideDiscs(d, this._koCircle, null);
       }
     }
+  };
+
+  World.prototype._assistDribble = function (player) {
+    if (player.inKick || (!player.inX && !player.inY)) return;
+    var ball = this.ball;
+    var inputLength = Math.hypot(player.inX, player.inY);
+    var forwardX = player.inX / inputLength;
+    var forwardY = player.inY / inputLength;
+    var offsetX = ball.x - player.x;
+    var offsetY = ball.y - player.y;
+    var distance = Math.hypot(offsetX, offsetY);
+    if (!distance || (offsetX * forwardX + offsetY * forwardY) / distance < 0.94) return;
+    if (Math.hypot(ball.vx, ball.vy) > 2.5) return;
+    var sidewaysOffset = offsetX * -forwardY + offsetY * forwardX;
+    var sidewaysSpeed = ball.vx * -forwardY + ball.vy * forwardX;
+    var correction = Math.max(-0.06, Math.min(0.06, -sidewaysOffset * 0.025 - sidewaysSpeed * 0.2));
+    ball.vx -= forwardY * correction;
+    ball.vy += forwardX * correction;
   };
 
   // ───────────────────────────── bots ─────────────────────────────
