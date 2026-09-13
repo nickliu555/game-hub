@@ -23,11 +23,14 @@
   let listSignature = '';
   let outro = null;
   let outroTimer = 0;
+  // Must match the srTopout / srWinOut durations in player.css.
+  const OUTRO_MS = { topout: 1600, win: 900 };
   const reduceMotion = (function () { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (_) { return false; } })();
   const fixedStep = 1000 / 60;
   const getMode = ui.controls(function () { if (input) input.clear(); });
   function me() { return state && state.players.find(function (player) { return player.id === playerId; }); }
   function playerIn(source) { return source && Array.isArray(source.players) ? source.players.find(function (item) { return item.id === playerId; }) : null; }
+  function spectating() { return !!state && state.phase !== 'FINAL' && !!el('spectateSelect').value; }
   function enabled() { const player = me(); return ready && socket.connected && state.hostPresent && board && boardMatch === state.matchId && state.phase === 'PLAYING' && !state.paused && player && player.alive && !board.over && !document.hidden && !ui.overlayOpen(); }
   function clearPrediction() { pending = []; accumulator = 0; previous = 0; if (input) input.clear(); }
   function notice(text) { el('playerNotice').hidden = !text; el('playerNotice').textContent = text; }
@@ -49,7 +52,7 @@
       delete document.body.dataset.outro;
       enterResults(kind);
       render();
-    }, kind === 'topout' ? 850 : 500);
+    }, kind === 'topout' ? OUTRO_MS.topout : OUTRO_MS.win);
   }
   function replay(node, className) {
     node.classList.remove(className);
@@ -76,15 +79,24 @@
       bit.className = 'confetti';
       bit.style.left = (Math.random() * 100) + 'vw';
       bit.style.background = colors[(Math.random() * colors.length) | 0];
-      bit.style.animationDelay = (Math.random() * 0.6) + 's';
+      bit.style.animationDelay = (Math.random() * 0.8) + 's';
       document.body.appendChild(bit);
-      setTimeout(function () { bit.remove(); }, 3200);
+      setTimeout(function () { bit.remove(); }, 4400);
     }
   }
   function row(player, rank) {
     const item = document.createElement('div'); item.className = 'roster-row';
-    const place = document.createElement('span'); place.className = 'place'; place.textContent = player.placement ? '#' + player.placement : rank ? String(rank) : '';
-    const detail = document.createElement('small'); detail.textContent = state.phase === 'LOBBY' ? player.connected ? 'Ready' : 'Offline' : 'Survived ' + ui.clock(player.survivalMs) + ((state.winnerIds || []).includes(player.id) ? '+' : '');
+    // Nobody has a survival time until they top out, so players still stacking
+    // get a live marker and their line count instead of a bogus clock.
+    const live = state.phase !== 'LOBBY' && state.phase !== 'FINAL' && player.alive;
+    const place = document.createElement('span'); place.className = 'place' + (live ? ' live' : '');
+    if (live) { const dot = document.createElement('span'); dot.className = 'pulse-dot'; place.append(dot); }
+    else place.textContent = player.placement ? '#' + player.placement : rank ? String(rank) : '';
+    const detail = document.createElement('small');
+    if (live) detail.className = 'still-in';
+    detail.textContent = state.phase === 'LOBBY' ? player.connected ? 'Ready' : 'Offline'
+      : live ? (player.lines || 0) + (player.lines === 1 ? ' line' : ' lines')
+      : 'Survived ' + ui.clock(player.survivalMs) + ((state.winnerIds || []).includes(player.id) ? '+' : '');
     item.append(place, ui.name(player), detail); return item;
   }
   function applyState(next) {
@@ -127,7 +139,7 @@
     el('playSurface').classList.toggle('is-topout', outro === 'topout');
     el('playSurface').classList.toggle('is-winout', outro === 'win');
     el('attribution').hidden = !lobby;
-    el('playerFooter').hidden = (!lobby && !ended && !eliminated) || !!outro;
+    el('playerFooter').hidden = (!lobby && !ended && !eliminated) || !!outro || spectating();
     el('controller').hidden = lobby || ended || eliminated;
     el('controlSettings').hidden = lobby || ended || eliminated;
     if (el('controlSettings').hidden || !hostAvailable) {
@@ -159,12 +171,15 @@
       if (nextSpectateSignature !== spectateSignature) {
         spectateSignature = nextSpectateSignature;
         const selected = el('spectateSelect').value;
-        const options = [new Option('Choose a player', '')].concat(choices.map(function (item) { return new Option(item.name, item.id); }));
+        const options = [new Option(choices.length ? 'Standings' : 'Nobody to watch', '')].concat(choices.map(function (item) { return new Option(item.name, item.id); }));
         el('spectateSelect').replaceChildren.apply(el('spectateSelect'), options);
         el('spectateSelect').value = selected;
       }
+      el('spectateSelect').disabled = !choices.length;
       if (!el('spectateSelect').value) el('spectateCanvas').hidden = true;
-    } else el('results').classList.remove('is-entering', 'is-win', 'is-swapping');
+      el('spectateLabel').textContent = spectating() ? 'Watching' : 'Watch';
+      el('results').classList.toggle('is-spectating', spectating());
+    } else { el('results').classList.remove('is-entering', 'is-win', 'is-swapping', 'is-spectating'); }
     const blocked = !ready || !socket.connected || !board || state.paused || state.phase === 'COUNTDOWN' || ui.overlayOpen();
     el('boardOverlay').hidden = lobby || ended || eliminated || !blocked;
     el('overlayTitle').textContent = !ready || !socket.connected ? 'Reconnecting' : !board ? 'Syncing board' : state.paused ? 'Paused' : state.phase === 'COUNTDOWN' ? String(state.countdown || 'Ready') : 'Controls paused';
@@ -212,7 +227,7 @@
     socket.emit('player:action', item, function (response) { if (response && !response.ok && socket.connected) { notice(ui.friendly(response.reason)); reconnect(); } });
     ui.paint(after);
   } });
-  el('spectateSelect').addEventListener('change', function () { el('spectateCanvas').hidden = true; if (el('spectateSelect').value) socket.emit('player:spectate', { playerId: el('spectateSelect').value }); });
+  el('spectateSelect').addEventListener('change', function () { el('spectateCanvas').hidden = true; if (el('spectateSelect').value) socket.emit('player:spectate', { playerId: el('spectateSelect').value }); render(); });
   socket.on('state:spectate', function (payload) { if (payload.playerId !== el('spectateSelect').value || !payload.view || state.phase === 'FINAL') return; el('spectateCanvas').hidden = false; SRRender.draw(el('spectateCanvas'), payload.view); });
   socket.on('connect', reconnect);
   socket.on('disconnect', function () { ready = false; resyncing = false; clearPrediction(); el('network').textContent = 'Reconnecting... Your match continues.'; el('network').hidden = false; render(); });
