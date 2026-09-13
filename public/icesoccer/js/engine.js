@@ -2,7 +2,7 @@
   'use strict';
 
   // ───────────────────────────────────────────────────────────────────────
-  // Puck Soccer engine — a faithful re-implementation of HaxBall's disc physics.
+  // Ice Soccer engine — a faithful re-implementation of HaxBall's disc physics.
   //
   // Everything below is expressed in HaxBall units and PER 60 Hz TICK (not per
   // second): the world is stepped at a fixed 1/60 s and the constants are taken
@@ -48,7 +48,7 @@
   };
 
   // Pitch size grows with the larger team, HaxBall Classic/Big/Huge style.
-  // Mirrors TIERS in server/pucksoccer/game.js.
+  // Mirrors TIERS in server/icesoccer/game.js.
   var TIER_SPECS = {
     small: { halfW: 315, halfH: 145, goalHalf: 58, circle: 62 },
     classic: { halfW: 370, halfH: 170, goalHalf: 64, circle: 75 },
@@ -625,6 +625,6 @@
     NET_DEPTH: NET_DEPTH,
   };
 
-  if (typeof window !== 'undefined') window.PuckSoccer = api;
+  if (typeof window !== 'undefined') window.IceSoccer = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 }());

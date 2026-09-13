@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Puck Soccer · Host</title>
+  <title>Ice Soccer · Host</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="/shared/iris-preload.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11,8 +11,8 @@
   <link rel="stylesheet" href="/shared/topbar.css" />
   <link rel="stylesheet" href="/shared/modal.css" />
   <link rel="stylesheet" href="/shared/iris.css" />
-  <link rel="stylesheet" href="/pucksoccer/css/base.css" />
-  <link rel="stylesheet" href="/pucksoccer/css/host.css" />
+  <link rel="stylesheet" href="/icesoccer/css/base.css" />
+  <link rel="stylesheet" href="/icesoccer/css/host.css" />
   <script src="/shared/topbar.js" defer></script>
   <script src="/shared/modal.js" defer></script>
   <script src="/shared/iris.js" defer></script>
@@ -20,7 +20,7 @@
 <body class="host">
   <div class="host-container">
     <div class="game-topbar">
-      <span class="gtb-brand"><span class="brand-bg">🏟️</span> Puck Soccer</span>
+      <span class="gtb-brand"><span class="brand-bg">🏟️</span> Ice Soccer</span>
       <div class="gtb-controls">
         <a href="/" id="hubBtn" class="gtb-btn" title="Back to hub (resets game)">← Hub</a>
         <button class="gtb-btn" type="button" data-gtb-help-open="helpOverlay" title="How to play">? Help</button>
@@ -50,7 +50,7 @@
 
         <div class="lobby-right">
           <div class="lobby-header">
-            <div class="brand"><span class="brand-bg">🏟️</span> Puck Soccer</div>
+            <div class="brand"><span class="brand-bg">🏟️</span> Ice Soccer</div>
             <div class="player-count"><span id="playerCount">0</span> / <span id="playerCap">8</span></div>
           </div>
 
@@ -144,20 +144,20 @@
     <div class="so-card">
       <div class="so-icon">🏟️</div>
       <div class="so-title">Another host screen took over</div>
-      <div class="so-sub">Puck Soccer can only run on one screen at a time. Close this tab, or reload it to take control back.</div>
+      <div class="so-sub">Ice Soccer can only run on one screen at a time. Close this tab, or reload it to take control back.</div>
     </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/pucksoccer/js/engine.js"></script>
-  <script src="/pucksoccer/js/render.js"></script>
-  <script src="/pucksoccer/js/host.js"></script>
+  <script src="/icesoccer/js/engine.js"></script>
+  <script src="/icesoccer/js/render.js"></script>
+  <script src="/icesoccer/js/host.js"></script>
 
   <!-- Help modal -->
   <div class="gtb-help-overlay" id="helpOverlay">
     <div class="gtb-help-modal">
       <button class="gtb-help-modal-close" type="button" data-gtb-help-close aria-label="Close help">&times;</button>
-      <h2><span class="brand-bg">🏟️</span> Puck Soccer</h2>
+      <h2><span class="brand-bg">🏟️</span> Ice Soccer</h2>
       <p>Top-down disc soccer. The match plays out on <strong>this screen</strong> while every player uses their phone as a live controller.</p>
       <ol>
         <li>Players scan the QR code to join from their phone (2–8 players)</li>

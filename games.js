@@ -321,8 +321,8 @@ const games = [
         playPath: '/bombbrawl/play',
     },
     {
-        id: 'pucksoccer',
-        name: 'Puck Soccer',
+        id: 'icesoccer',
+        name: 'Ice Soccer',
         tagline: 'Two teams, one ball, pure chaos',
         emoji: '🏟️',
         color: '#4E7A3A',
@@ -342,8 +342,8 @@ const games = [
             'First team to the score limit wins; otherwise the leader when the clock hits zero takes it',
             'Level at full time? Golden goal — next goal wins!'
         ],
-        hostPath: '/pucksoccer/host',
-        playPath: '/pucksoccer/play',
+        hostPath: '/icesoccer/host',
+        playPath: '/icesoccer/play',
     },
 ];
 

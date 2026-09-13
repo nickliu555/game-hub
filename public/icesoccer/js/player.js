@@ -1,9 +1,9 @@
 (function () {
   'use strict';
 
-  const playerId = localStorage.getItem('pucksoccer.playerId');
-  const playerName = localStorage.getItem('pucksoccer.playerName') || 'Player';
-  if (!playerId) { window.location.replace('/pucksoccer/join'); return; }
+  const playerId = localStorage.getItem('icesoccer.playerId');
+  const playerName = localStorage.getItem('icesoccer.playerName') || 'Player';
+  if (!playerId) { window.location.replace('/icesoccer/join'); return; }
 
   const EMOTES = ['😂', '🔥', '👏', '😱', '😭', '😡'];
   const EMOTE_COOLDOWN_MS = 2000;
@@ -36,7 +36,7 @@
     window.addEventListener('scroll', function () { window.scrollTo(0, 0); }, { passive: true });
   })();
 
-  const socket = io('/pucksoccer', { transports: ['polling', 'websocket'] });
+  const socket = io('/icesoccer', { transports: ['polling', 'websocket'] });
 
   // ---------------- Element refs ----------------
   const body = document.body;
@@ -457,21 +457,21 @@
   socket.on('state:reset', function () {
     setLive(false);
     setPaused(false);
-    localStorage.removeItem('pucksoccer.playerId');
-    localStorage.setItem('pucksoccer.rejoinName', playerName);
-    window.location.replace('/pucksoccer/join');
+    localStorage.removeItem('icesoccer.playerId');
+    localStorage.setItem('icesoccer.rejoinName', playerName);
+    window.location.replace('/icesoccer/join');
   });
 
   socket.on('player:rejected', function () {
     kicked = true;
     setLive(false);
-    localStorage.removeItem('pucksoccer.playerId');
+    localStorage.removeItem('icesoccer.playerId');
     showView('kicked');
   });
 
   kickRejoinBtn && kickRejoinBtn.addEventListener('click', function () {
-    localStorage.setItem('pucksoccer.rejoinName', playerName);
-    window.location.replace('/pucksoccer/join');
+    localStorage.setItem('icesoccer.rejoinName', playerName);
+    window.location.replace('/icesoccer/join');
   });
 
   // ---------------- Boot / reconnect ----------------
@@ -482,9 +482,9 @@
   function setReconnecting(on) { if (reconnectOverlay) reconnectOverlay.hidden = !on; }
 
   function backToJoin() {
-    localStorage.setItem('pucksoccer.rejoinName', playerName);
-    localStorage.removeItem('pucksoccer.playerId');
-    window.location.replace('/pucksoccer/join');
+    localStorage.setItem('icesoccer.rejoinName', playerName);
+    localStorage.removeItem('icesoccer.playerId');
+    window.location.replace('/icesoccer/join');
   }
 
   function attemptReconnect() {

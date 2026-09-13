@@ -29,7 +29,6 @@
         <div class="wait-emoji">💣</div>
         <div class="wait-title" id="waitTitle">You're in!</div>
         <div class="wait-sub" id="waitSub"><span class="pulse-dot"></span>Waiting for the host to start…</div>
-        <div class="wait-rotate">Turn your phone sideways to play</div>
       </div>
     </section>
 
@@ -49,12 +48,12 @@
             <div class="stick-knob" id="stickKnob"></div>
           </div>
         </div>
-        <div class="bomb-zone">
-          <button type="button" class="bomb-btn" id="bombBtn" aria-label="Drop a bomb">
+        <button type="button" class="bomb-zone" id="bombBtn" aria-label="Drop a bomb">
+          <span class="bomb-face" id="bombFace">
             <span class="bb-icon">💣</span>
             <span class="bb-badge" id="bombBadge">1</span>
-          </button>
-        </div>
+          </span>
+        </button>
       </div>
 
       <div class="p-overlay" id="countOverlay" hidden>
@@ -85,12 +84,6 @@
         <div class="out-list" id="finalList"></div>
       </div>
     </section>
-  </div>
-
-  <!-- Rotate hint (portrait while the controller is live) -->
-  <div class="rotate-hint" id="rotateHint" hidden>
-    <div class="rot-icon">📱↻</div>
-    <div class="rot-text">Turn your phone sideways for the best controls</div>
   </div>
 
   <div class="gamepad-badge" id="gamepadBadge" hidden>🎮 Controller connected</div>

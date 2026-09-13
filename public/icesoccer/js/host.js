@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const socket = io('/pucksoccer', { transports: ['polling', 'websocket'] });
+  const socket = io('/icesoccer', { transports: ['polling', 'websocket'] });
 
   // ---------------- Tunables ----------------
   const FIXED_DT = 1 / 60;           // HaxBall runs at 60 Hz — this must stay 1/60
@@ -231,12 +231,12 @@
   function fmtDur(sec) { const m = Math.floor(sec / 60); const s = sec % 60; return m + ':' + (s < 10 ? '0' : '') + s; }
 
   function renderQR() {
-    fetch('/api/pucksoccer/config')
+    fetch('/api/icesoccer/config')
       .then(function (r) { return r.json(); })
       .then(function (cfg) {
-        const url = (cfg && cfg.joinUrl) || (window.location.origin + '/pucksoccer/join');
+        const url = (cfg && cfg.joinUrl) || (window.location.origin + '/icesoccer/join');
         joinUrlEl.textContent = url.replace(/^https?:\/\//, '');
-        return fetch('/api/pucksoccer/qr?url=' + encodeURIComponent(url));
+        return fetch('/api/icesoccer/qr?url=' + encodeURIComponent(url));
       })
       .then(function (r) { return r.text(); })
       .then(function (svg) { qrSlot.innerHTML = svg; })
@@ -552,7 +552,7 @@
     blueScore = initial ? initial.blue : 0;
     clockMs = initial ? initial.clockMs : timeLimitSec * 1000;
 
-    world = new window.PuckSoccer.World({ tier: tier });
+    world = new window.IceSoccer.World({ tier: tier });
     world.setRoster(roster);
     world.kickoff(data && data.kickoffTeam === 'blue' ? 'blue' : 'red', true);
     world.frozen = true;
@@ -560,7 +560,7 @@
     world.blueScore = blueScore;
     botIds = roster.filter(function (r) { return r.isBot; }).map(function (r) { return r.id; });
 
-    renderer = new window.PuckSoccerRender.Renderer(canvas, world);
+    renderer = new window.IceSoccerRender.Renderer(canvas, world);
     paused = false;
     clearTimers();
     if (pauseOverlay) pauseOverlay.hidden = true;

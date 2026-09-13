@@ -52,13 +52,13 @@
   setHostPresent(false);
   setRoundLocked(true);
 
-  const existing = localStorage.getItem('pucksoccer.playerId');
-  if (existing) { window.location.replace('/pucksoccer/play'); return; }
+  const existing = localStorage.getItem('icesoccer.playerId');
+  if (existing) { window.location.replace('/icesoccer/play'); return; }
 
-  const rejoinName = localStorage.getItem('pucksoccer.rejoinName');
-  if (rejoinName) { nameInput.value = rejoinName; localStorage.removeItem('pucksoccer.rejoinName'); }
+  const rejoinName = localStorage.getItem('icesoccer.rejoinName');
+  if (rejoinName) { nameInput.value = rejoinName; localStorage.removeItem('icesoccer.rejoinName'); }
 
-  const socket = io('/pucksoccer', { transports: ['polling', 'websocket'] });
+  const socket = io('/icesoccer', { transports: ['polling', 'websocket'] });
 
   let socketReady = false;
   socket.on('connect', function () {
@@ -109,9 +109,9 @@
         }[reason] || 'Could not join. Please try again.';
         return showError(friendly);
       }
-      localStorage.setItem('pucksoccer.playerId', pid);
-      localStorage.setItem('pucksoccer.playerName', res.player.name);
-      window.location.replace('/pucksoccer/play');
+      localStorage.setItem('icesoccer.playerId', pid);
+      localStorage.setItem('icesoccer.playerName', res.player.name);
+      window.location.replace('/icesoccer/play');
     });
   });
 })();

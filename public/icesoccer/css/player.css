@@ -1,4 +1,4 @@
-/* === Puck Soccer controller: a fixed, non-scrolling, non-zooming gamepad. === */
+/* === Ice Soccer controller: a fixed, non-scrolling, non-zooming gamepad. === */
 /* The controller is a native-feeling app surface: the page itself can never
    scroll, pan, rubber-band, zoom or select — every touch belongs to a control. */
 html { height: 100%; overflow: hidden; }

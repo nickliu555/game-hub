@@ -12,20 +12,24 @@
   const PID = localStorage.getItem('bombbrawl.playerId');
   if (!PID) { window.location.replace('/bombbrawl/join'); return; }
 
-  // ---------------- Kill all zoom / gesture behaviour ----------------
-  // This is a fixed fullscreen gamepad — it must NEVER zoom or pan. iOS Safari
-  // ignores maximum-scale/user-scalable, and driving the stick and the bomb
-  // button together is a two-finger gesture the browser would read as a pinch,
-  // so block it explicitly:
-  //   • pinch (iOS gesture events + any multi-touch move)
-  //   • double-tap-to-zoom
+  // ---------------- Kill all zoom / scroll / selection behaviour ----------------
+  // This is a fixed fullscreen gamepad — it must NEVER zoom, pan or select. iOS
+  // Safari ignores maximum-scale/user-scalable, and driving the stick and the
+  // bomb button together is a two-finger gesture the browser reads as a pinch,
+  // so block it explicitly: pinch (iOS gesture events + every touch move),
+  // double-tap-to-zoom, and the long-press callout.
   (function lockZoom() {
     const stop = function (e) { e.preventDefault(); };
     document.addEventListener('gesturestart', stop, { passive: false });
     document.addEventListener('gesturechange', stop, { passive: false });
     document.addEventListener('gestureend', stop, { passive: false });
     document.addEventListener('touchmove', function (e) {
-      if (e.touches && e.touches.length > 1) e.preventDefault();
+      // Swallow every move, not just multi-touch: once iOS has started a pinch
+      // the follow-up events are no longer cancelable, so the first one has to
+      // die too. The final/eliminated card is the one region allowed to scroll.
+      if (!e.cancelable) return;
+      if (e.target && e.target.closest && e.target.closest('.out-inner')) return;
+      e.preventDefault();
     }, { passive: false });
     let lastTouchEnd = 0;
     document.addEventListener('touchend', function (e) {
@@ -33,6 +37,12 @@
       if (now - lastTouchEnd <= 350) e.preventDefault();
       lastTouchEnd = now;
     }, { passive: false });
+    document.addEventListener('dblclick', stop, { passive: false });
+    document.addEventListener('contextmenu', stop, { passive: false });
+    document.addEventListener('selectstart', stop, { passive: false });
+    document.addEventListener('dragstart', stop, { passive: false });
+    // iOS still scrolls the document behind a fixed body on some versions.
+    window.addEventListener('scroll', function () { window.scrollTo(0, 0); }, { passive: true });
   }());
 
   const FALLBACK_COLORS = ['#FF4D4D', '#3DA5FF', '#3DDC84', '#FFD23F'];
@@ -49,6 +59,7 @@
   const stickBase = el('stickBase');
   const stickKnob = el('stickKnob');
   const bombBtn = el('bombBtn');
+  const bombFace = el('bombFace');
   const bombBadge = el('bombBadge');
   const countOverlay = el('countOverlay');
   const pcNote = el('pcNote');
@@ -57,7 +68,6 @@
   const finalEmoji = el('finalEmoji');
   const finalTitle = el('finalTitle');
   const finalList = el('finalList');
-  const rotateHint = el('rotateHint');
   const netPill = el('netPill');
 
   /** Show/hide the "Reconnecting…" pill. */
@@ -82,19 +92,7 @@
     // Releasing the stick whenever the controller leaves the screen prevents a
     // "stuck walking" bomber if a round ends mid-drag.
     if (name !== 'play') releaseStick(true);
-    updateRotateHint();
   }
-
-  // The pad is built for landscape, so nag (and block input) while the phone is
-  // held upright with the controller live.
-  const portraitMq = window.matchMedia('(orientation: portrait)');
-  function updateRotateHint() {
-    const usingGamepad = document.body.classList.contains('has-gamepad');
-    if (rotateHint) rotateHint.hidden = !(currentView === 'play' && portraitMq.matches && !usingGamepad);
-  }
-  if (portraitMq.addEventListener) portraitMq.addEventListener('change', updateRotateHint);
-  else if (portraitMq.addListener) portraitMq.addListener(updateRotateHint);
-  window.addEventListener('resize', updateRotateHint);
 
   // ---------- Local state ----------
   let me = null;                 // roster entry for this phone
@@ -680,7 +678,7 @@
     updateBombBtn();
     const ripple = document.createElement('span');
     ripple.className = 'bb-ripple';
-    bombBtn.appendChild(ripple);
+    bombFace.appendChild(ripple);
     setTimeout(function () { if (ripple.parentNode) ripple.parentNode.removeChild(ripple); }, 460);
   }
 
@@ -766,7 +764,6 @@
   function setGamepadBadge(on) {
     if (gamepadBadge) gamepadBadge.hidden = !on;
     document.body.classList.toggle('has-gamepad', !!on);
-    updateRotateHint();
   }
   window.addEventListener('gamepadconnected', function (e) {
     gpIndex = e.gamepad.index;

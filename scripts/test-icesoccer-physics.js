@@ -1,16 +1,16 @@
 'use strict';
-// Headless probe of the Puck Soccer physics engine (public/pucksoccer/js/engine.js).
+// Headless probe of the Ice Soccer physics engine (public/icesoccer/js/engine.js).
 // Loads the browser IIFE with a minimal window shim and checks it against the
 // HaxBall reference numbers.
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const code = fs.readFileSync(path.join(__dirname, '..', 'public', 'pucksoccer', 'js', 'engine.js'), 'utf8');
+const code = fs.readFileSync(path.join(__dirname, '..', 'public', 'icesoccer', 'js', 'engine.js'), 'utf8');
 const sandbox = { window: {}, Math: Math };
 vm.createContext(sandbox);
 vm.runInContext(code, sandbox);
-const PB = sandbox.window.PuckSoccer;
+const PB = sandbox.window.IceSoccer;
 const PHYS = PB.PHYS;
 
 let failures = 0;
@@ -40,7 +40,7 @@ function emptyWorld(tier) {
 }
 function stepN(w, n) { let g = null; for (let i = 0; i < n; i++) { const r = w.step(); if (r) g = r; } return g; }
 
-console.log('Puck Soccer physics');
+console.log('Ice Soccer physics');
 
 // 1. Terminal player speed = a·d/(1−d) = 2.4 u/tick.
 (function () {

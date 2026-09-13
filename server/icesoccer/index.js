@@ -20,14 +20,14 @@ const INACTIVITY_RESET_MS = 60 * 60 * 1000; // 60 minutes
 const HOST_GRACE_MS = 15000;
 const EMOTE_COOLDOWN_MS = 2000;
 
-// Must mirror the EMOTES list in public/pucksoccer/js/player.js. Whitelisting
+// Must mirror the EMOTES list in public/icesoccer/js/player.js. Whitelisting
 // keeps arbitrary text off the host screen.
 const ALLOWED_EMOTES = new Set(['😂', '🔥', '👏', '😱', '😭', '😡']);
 
 /**
- * Mount Puck Soccer onto the hub's Express app and HTTP server.
+ * Mount Ice Soccer onto the hub's Express app and HTTP server.
  *
- * The live match is simulated on the HOST browser (see public/pucksoccer/js/
+ * The live match is simulated on the HOST browser (see public/icesoccer/js/
  * engine.js) so controller input travels player -> server -> host in a single
  * relay hop. This module is a thin relay + lobby manager. It MUST reuse the
  * single shared Socket.IO Server cached on the HTTP server (httpServer._triviaIo)
@@ -39,7 +39,7 @@ const ALLOWED_EMOTES = new Set(['😂', '🔥', '👏', '😱', '😭', '😡'])
  * @param {Object} opts
  * @param {() => string} opts.getPublicBaseUrl
  */
-function mountPuckSoccer(app, httpServer, opts) {
+function mountIceSoccer(app, httpServer, opts) {
   const getPublicBaseUrl = (opts && opts.getPublicBaseUrl) || (() => '');
 
   const game = new Game();
@@ -70,27 +70,27 @@ function mountPuckSoccer(app, httpServer, opts) {
       game.reset();
       ns.emit('state:reset');
       broadcastLobby();
-      console.log('[pucksoccer] auto-reset after 60 minutes of inactivity.');
+      console.log('[icesoccer] auto-reset after 60 minutes of inactivity.');
       touchActivity();
     }
   }, 60 * 1000).unref();
 
   // ---------------- Page routes ----------------
-  app.get('/pucksoccer/host', (_req, res) => {
-    res.sendFile(path.join(__dirname, '..', '..', 'public', 'pucksoccer', 'host.html'));
+  app.get('/icesoccer/host', (_req, res) => {
+    res.sendFile(path.join(__dirname, '..', '..', 'public', 'icesoccer', 'host.html'));
   });
-  app.get('/pucksoccer/join', (_req, res) => {
-    res.sendFile(path.join(__dirname, '..', '..', 'public', 'pucksoccer', 'join.html'));
+  app.get('/icesoccer/join', (_req, res) => {
+    res.sendFile(path.join(__dirname, '..', '..', 'public', 'icesoccer', 'join.html'));
   });
-  app.get('/pucksoccer/play', (_req, res) => {
-    res.sendFile(path.join(__dirname, '..', '..', 'public', 'pucksoccer', 'player.html'));
+  app.get('/icesoccer/play', (_req, res) => {
+    res.sendFile(path.join(__dirname, '..', '..', 'public', 'icesoccer', 'player.html'));
   });
 
   // ---------------- REST endpoints ----------------
-  app.get('/api/pucksoccer/config', (_req, res) => {
+  app.get('/api/icesoccer/config', (_req, res) => {
     const base = getPublicBaseUrl();
     res.json({
-      joinUrl: `${base}/pucksoccer/join`,
+      joinUrl: `${base}/icesoccer/join`,
       capacity: CAPACITY,
       perTeam: MAX_PER_TEAM,
       minTimeLimitSec: MIN_TIME_LIMIT_SEC,
@@ -99,7 +99,7 @@ function mountPuckSoccer(app, httpServer, opts) {
     });
   });
 
-  app.get('/api/pucksoccer/qr', async (req, res) => {
+  app.get('/api/icesoccer/qr', async (req, res) => {
     const url = String(req.query.url || '');
     if (!url || url.length > 500) return res.status(400).send('bad url');
     try {
@@ -122,7 +122,7 @@ function mountPuckSoccer(app, httpServer, opts) {
     httpServer._triviaIo = new Server(httpServer, { cors: { origin: '*' } });
   }
   const io = httpServer._triviaIo;
-  const ns = io.of('/pucksoccer');
+  const ns = io.of('/icesoccer');
 
   function broadcastLobby() {
     ns.emit('state:lobby', game.getLobby());
@@ -415,4 +415,4 @@ function mountPuckSoccer(app, httpServer, opts) {
   });
 }
 
-module.exports = mountPuckSoccer;
+module.exports = mountIceSoccer;

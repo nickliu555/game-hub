@@ -21,12 +21,66 @@
   let resyncing = false;
   let spectateSignature = '';
   let listSignature = '';
+  let outro = null;
+  let outroTimer = 0;
+  const reduceMotion = (function () { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (_) { return false; } })();
   const fixedStep = 1000 / 60;
   const getMode = ui.controls(function () { if (input) input.clear(); });
   function me() { return state && state.players.find(function (player) { return player.id === playerId; }); }
+  function playerIn(source) { return source && Array.isArray(source.players) ? source.players.find(function (item) { return item.id === playerId; }) : null; }
   function enabled() { const player = me(); return ready && socket.connected && state.hostPresent && board && boardMatch === state.matchId && state.phase === 'PLAYING' && !state.paused && player && player.alive && !board.over && !document.hidden && !ui.overlayOpen(); }
   function clearPrediction() { pending = []; accumulator = 0; previous = 0; if (input) input.clear(); }
   function notice(text) { el('playerNotice').hidden = !text; el('playerNotice').textContent = text; }
+  function cancelOutro() {
+    if (outroTimer) clearTimeout(outroTimer);
+    outroTimer = 0; outro = null;
+    delete document.body.dataset.outro;
+    el('results').classList.remove('is-entering', 'is-win', 'is-swapping');
+  }
+  // The board has to survive the top-out long enough to die on screen, so the
+  // swap to the results card is held until the outro finishes.
+  function startOutro(kind) {
+    if (reduceMotion) return;
+    cancelOutro();
+    outro = kind;
+    document.body.dataset.outro = kind;
+    outroTimer = setTimeout(function () {
+      outroTimer = 0; outro = null;
+      delete document.body.dataset.outro;
+      enterResults(kind);
+      render();
+    }, kind === 'topout' ? 850 : 500);
+  }
+  function replay(node, className) {
+    node.classList.remove(className);
+    void node.offsetWidth;
+    node.classList.add(className);
+  }
+  function enterResults(kind) {
+    const card = el('results');
+    card.classList.toggle('is-win', kind === 'win');
+    replay(card, 'is-entering');
+    if (kind === 'win') { const player = me(); launchConfetti(player && player.color); }
+  }
+  // Players eliminated earlier are already on the card, so the match ending is a
+  // content change rather than a view change.
+  function swapCard() {
+    if (reduceMotion) return;
+    replay(el('results'), 'is-swapping');
+  }
+  function launchConfetti(tint) {
+    if (reduceMotion) return;
+    const colors = [tint || '#E6A93A', '#E6A93A', '#FFFFFF', '#3DDC84', '#57C8FF'];
+    for (let i = 0; i < 50; i++) {
+      const bit = document.createElement('div');
+      bit.className = 'confetti';
+      bit.style.left = (Math.random() * 100) + 'vw';
+      bit.style.background = colors[(Math.random() * colors.length) | 0];
+      bit.style.animationDelay = (Math.random() * 0.6) + 's';
+      document.body.appendChild(bit);
+      setTimeout(function () { bit.remove(); }, 3200);
+    }
+  }
   function row(player, rank) {
     const item = document.createElement('div'); item.className = 'roster-row';
     const place = document.createElement('span'); place.className = 'place'; place.textContent = player.placement ? '#' + player.placement : rank ? String(rank) : '';
@@ -36,13 +90,23 @@
   function applyState(next) {
     if (!next || !Array.isArray(next.players)) return;
     const old = state;
-    if (!old || old.matchId !== next.matchId) { board = null; boardMatch = null; snapshotSeq = -1; sequence = 0; clearPrediction(); }
+    const before = playerIn(old);
+    if (!old || old.matchId !== next.matchId) { board = null; boardMatch = null; snapshotSeq = -1; sequence = 0; clearPrediction(); cancelOutro(); }
     state = next;
     const player = me();
     if (old && old.phase !== next.phase) input.clear();
     if (old && !old.paused && next.paused) input.clear();
     if (old && old.phase !== 'FINAL' && next.phase === 'FINAL') ui.sound((next.winnerIds || []).includes(playerId) ? 'win' : 'lose');
     if (!player && ready) { lostIdentity(); return; }
+    // Edge-triggered, and only when there is a previous state — a phone that
+    // reconnects into a finished match must not replay the ending.
+    if (old && player && old.matchId === next.matchId) {
+      const wasOut = !!(before && before.alive === false);
+      const ending = old.phase !== 'FINAL' && next.phase === 'FINAL';
+      if (!wasOut && player.alive === false && old.phase !== 'LOBBY') startOutro('topout');
+      else if (ending && !wasOut && (next.winnerIds || []).includes(playerId)) startOutro('win');
+      else if (ending && wasOut) swapCard();
+    }
     render();
   }
   function render() {
@@ -59,9 +123,11 @@
     const ended = state.phase === 'FINAL';
     const eliminated = !lobby && player.alive === false;
     el('waiting').hidden = !lobby;
-    el('playSurface').hidden = lobby || ended || eliminated;
+    el('playSurface').hidden = lobby || ((ended || eliminated) && !outro);
+    el('playSurface').classList.toggle('is-topout', outro === 'topout');
+    el('playSurface').classList.toggle('is-winout', outro === 'win');
     el('attribution').hidden = !lobby;
-    el('playerFooter').hidden = !lobby && !ended && !eliminated;
+    el('playerFooter').hidden = (!lobby && !ended && !eliminated) || !!outro;
     el('controller').hidden = lobby || ended || eliminated;
     el('controlSettings').hidden = lobby || ended || eliminated;
     if (el('controlSettings').hidden || !hostAvailable) {
@@ -77,7 +143,7 @@
     const nextListSignature = state.phase + JSON.stringify(state.players.map(function (item) { return [item.id, item.name, item.color, item.connected, item.alive, item.placement, item.lines]; }));
     const listChanged = listSignature !== nextListSignature;
     listSignature = nextListSignature;
-    el('results').hidden = !eliminated && !ended;
+    el('results').hidden = (!eliminated && !ended) || !!outro;
     if (eliminated || ended) {
       el('resultEyebrow').textContent = ended ? 'Final standings' : 'Eliminated' + (player.placement ? ' · #' + player.placement : '');
       if (ended) ui.winner(el('resultTitle'), state); else el('resultTitle').textContent = 'Your stack topped out.';
@@ -98,7 +164,7 @@
         el('spectateSelect').value = selected;
       }
       if (!el('spectateSelect').value) el('spectateCanvas').hidden = true;
-    }
+    } else el('results').classList.remove('is-entering', 'is-win', 'is-swapping');
     const blocked = !ready || !socket.connected || !board || state.paused || state.phase === 'COUNTDOWN' || ui.overlayOpen();
     el('boardOverlay').hidden = lobby || ended || eliminated || !blocked;
     el('overlayTitle').textContent = !ready || !socket.connected ? 'Reconnecting' : !board ? 'Syncing board' : state.paused ? 'Paused' : state.phase === 'COUNTDOWN' ? String(state.countdown || 'Ready') : 'Controls paused';
@@ -155,7 +221,7 @@
   socket.on('state:match', applyState);
   socket.on('state:board', restore);
   socket.on('state:reset', function (next) {
-    clearPrediction(); board = null; boardMatch = null; snapshotSeq = -1;
+    clearPrediction(); cancelOutro(); board = null; boardMatch = null; snapshotSeq = -1;
     if (!next || !next.players || !next.players.some(function (player) { return player.id === playerId; })) { lostIdentity(); return; }
     applyState(next);
   });

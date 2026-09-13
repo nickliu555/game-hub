@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  // Puck Soccer host renderer — draws the whole stadium fitted to the canvas
+  // Ice Soccer host renderer — draws the whole stadium fitted to the canvas
   // (no camera follow: everyone watches the same TV).
 
   var COLORS = {
@@ -352,5 +352,5 @@
     ctx.fill();
   };
 
-  window.PuckSoccerRender = { Renderer: Renderer, COLORS: COLORS };
+  window.IceSoccerRender = { Renderer: Renderer, COLORS: COLORS };
 }());
