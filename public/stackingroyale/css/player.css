@@ -1,0 +1,78 @@
+body.player { background: linear-gradient(170deg, var(--bg), var(--bg-deep)); }
+html, body.player, body.player * { touch-action: pan-x pan-y; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+.player-shell { max-width: 560px; height: 100vh; height: 100dvh; min-height: 520px; margin: auto; display: flex; flex-direction: column; padding: env(safe-area-inset-top) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
+.player-shell > main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#playSurface { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#playSurface > .stats, #playSurface > .controller { flex: 0 0 auto; }
+.p-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 4px 10px; flex: 0 0 auto; }
+.p-header .me { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+.p-header .name { font-weight: 800; font-size: 18px; min-width: 0; overflow-wrap: anywhere; }
+.p-header .score { font-weight: 900; font-size: 14px; background: var(--accent); color: #1a1a1a; padding: 4px 14px; border-radius: 999px; font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+.p-header .name { white-space: nowrap; overflow-x: auto; }
+.p-header .score { padding-inline: 10px; }
+.control-settings { position: relative; flex: 0 0 36px; }
+.control-popup { position: absolute; top: calc(100% + 8px); right: 0; z-index: 95; padding: 10px; background: var(--gtb-panel-bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); width: max-content; max-width: calc(100vw - 24px); }
+.control-popup .mode-seg button { min-height: 44px; }
+.p-header #topbar { flex: 0 0 36px; }
+.p-header .icon-btn { width: 36px; height: 36px; flex-basis: 36px; padding: 7px; }
+.p-header .gtb-settings-panel { z-index: 95; }
+.p-header .gtb-settings-panel .secondary { width: 100%; justify-content: flex-start; }
+.player-shell .game-topbar { padding: 8px 10px; margin-bottom: 0; flex-wrap: nowrap; }
+.session-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0; }
+.session-heading h1 { font-size: 24px; }
+.session-heading .pname { max-height: 70px; overflow-y: auto; }
+.session-tools { display: flex; gap: 6px; }
+.practice .session-tools .icon-btn { width: 36px; height: 36px; flex-basis: 36px; padding: 7px; }
+.practice .session-heading h1 { font-size: 18px; white-space: nowrap; }
+.stats { display: flex; justify-content: center; align-items: center; gap: 20px; min-height: 30px; padding: 2px 3px; }
+.stats > div { display: flex; align-items: baseline; gap: 6px; }
+.stats span { color: var(--muted); font-size: 12px; }
+.stats strong { font-size: 19px; font-variant-numeric: tabular-nums; }
+.board-rail .board-label { display: block; margin-top: 8px; max-height: 90px; overflow-y: auto; overflow-wrap: anywhere; font-size: 12px; color: var(--accent); }
+.board-stage { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: flex-start; gap: 4px; }
+.board-frame { position: relative; flex: 0 0 auto; width: 160px; aspect-ratio: 1 / 2; background: #172422; outline: 1px solid rgba(255, 255, 255, .25); border-radius: 8px; box-shadow: 0 6px 20px rgba(0, 0, 0, .3); overflow: hidden; }
+.board-frame > canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.board-rail { width: 40px; flex: 0 0 40px; text-align: center; }
+.board-rail canvas { display: block; width: 100%; height: auto; }
+.rail-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0; color: var(--muted); font-weight: 800; }
+.incoming { padding: 7px; color: #94312b; background: #f9d9d2; border-radius: 3px; font-weight: 700; }
+.board-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 12px; background: #172422e8; color: white; text-align: center; overflow: auto; }
+.board-overlay strong { font-size: 26px; }
+.board-overlay span { font-size: 13px; color: #d2e3db; }
+.controller { padding-top: 12px; display: grid; gap: 6px; }
+.mode-seg { justify-self: center; }
+.mode-seg button { padding: 3px 18px; min-height: 30px; font-size: 13px; }
+.control-pad { display: flex; justify-content: space-between; gap: 8px; }
+.movement, .rotation { display: flex; gap: 5px; }
+.control-pad .icon-btn { width: 44px; height: 48px; padding: 8px; flex-basis: 44px; box-shadow: 0 3px 0 var(--line); }
+.control-pad .icon-btn:active { transform: translateY(2px); box-shadow: none; background: var(--accent-soft); }
+#dropBtn { color: #172422; background: var(--yellow); border-color: #d5ae30; }
+#cwBtn { color: #1a1a1a; background: var(--accent); border-color: var(--accent); }
+body[data-controls='gestures'] .movement { display: none; }
+body[data-controls='gestures'] .rotation { width: 100%; justify-content: center; gap: 14px; }
+.lobby-wait { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 12px; padding: 20px 0; }
+.lobby-wait .pulse { width: 96px; height: 96px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 44px; animation: pulseRing 1.8s infinite; }
+@keyframes pulseRing { 0% { box-shadow: 0 0 0 0 rgba(230, 169, 58, .5); } 70% { box-shadow: 0 0 0 20px rgba(230, 169, 58, 0); } 100% { box-shadow: 0 0 0 0 rgba(230, 169, 58, 0); } }
+@media (prefers-reduced-motion: reduce) { .lobby-wait .pulse { animation: none; } }
+.lobby-wait h1 { font-size: 20px; font-weight: 800; }
+.lobby-wait p { max-width: 280px; color: rgba(255, 255, 255, .8); }
+.lobby-player-count { display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; padding: 6px 12px; background: var(--surface); border-radius: 999px; color: var(--muted); font-size: 14px; }
+.lobby-player-count strong { color: var(--accent); font-weight: 800; }
+.pulse-dot { display: inline-block; width: 8px; height: 8px; flex: 0 0 8px; background: var(--accent); border-radius: 50%; animation: lobbyPulse 1.5s ease-in-out infinite; }
+@keyframes lobbyPulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.4); opacity: .6; } }
+@media (prefers-reduced-motion: reduce) { .pulse-dot { animation: none; } }
+.practice-link { display: inline-block; font-size: 13px; font-weight: 700; text-decoration: none; padding: 8px 14px; border-radius: 999px; background: rgba(255,255,255,.14); color: #fff; margin-bottom: 10px; }
+.player-attribution { flex: 0 0 auto; text-align: center; color: rgba(255,255,255,.5); font-size: 11px; padding: 14px 12px 10px; }
+.results { display: grid; gap: 12px; margin-top: 18px; border-top: 1px solid var(--line); padding-top: 16px; }
+.results h2 { font-size: 24px; }
+.player:not(.practice) .final-card { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 20px 10px; min-height: 0; margin: 0; border: 0; overflow-y: auto; }
+.final-card > .scroll-list, .final-card > .spectate-toolbar { width: 100%; }
+.spectate-toolbar { display: flex; align-items: center; gap: 8px; }
+.spectate-toolbar select { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-deep); color: #fff; padding: 8px; }
+.spectate-board { display: block; width: min(190px, 65%); height: auto; margin: auto; }
+.confirm-strip { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: #fff0c5; color: #332b17; padding: 8px 10px; border-radius: 8px; margin-bottom: 8px; font-size: 13px; }
+.confirm-strip .secondary { background: #155e50; }
+.ready-heading { font-size: 14px; color: var(--muted); }
+.practice .results { margin-bottom: 15px; }
+@media (max-width: 380px) { .control-pad { gap: 4px; } .movement, .rotation { gap: 3px; } .control-pad .icon-btn { width: 39px; flex-basis: 39px; padding: 7px; } .stats { gap: 10px; } .stats > div { gap: 3px; } .session-heading { margin-block: 7px; } .session-heading h1 { font-size: 21px; } }
+@media (max-height: 580px) { .session-heading { margin-block: 5px; } .session-tools .icon-btn { width: 36px; height: 36px; flex-basis: 36px; padding: 8px; } .stats { min-height: 30px; } .controller { padding-top: 12px; gap: 6px; } }

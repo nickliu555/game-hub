@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#087765">
+  <script src="/stackingroyale/js/controls.js?v=2"></script>
+  <title>Stacking Royale · Join</title>
+  <link rel="stylesheet" href="/stackingroyale/css/base.css">
+  <link rel="stylesheet" href="/stackingroyale/css/join.css">
+  <link rel="stylesheet" href="/stackingroyale/css/touch.css?v=2">
+  <script src="/socket.io/socket.io.js" defer></script>
+  <script src="/stackingroyale/js/common.js" defer></script>
+  <script src="/stackingroyale/js/join.js" defer></script>
+</head>
+<body class="join" data-role="join">
+  <div class="join-brand"><span class="brand-bg">🧱</span> Stacking Royale</div>
+    <main class="join-hero" inert>
+      <h1>Join the game</h1>
+      <p>Enter your name to play</p>
+      <div id="joinGate" class="join-gate" role="status"><h2 id="gateTitle">Connecting</h2><p id="gateDetail" class="muted">Finding the lobby...</p></div>
+      <form id="joinForm" class="join-form" autocomplete="off">
+        <label for="nameInput">Your name</label>
+        <input id="nameInput" name="name" maxlength="20" required autocomplete="given-name" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="Enter your name">
+        <button id="joinBtn" type="submit" class="primary" disabled>Join</button>
+        <p id="joinError" class="status-message error" role="alert"></p>
+      </form>
+      <button class="secondary" id="reconnectBtn" hidden>Return to game</button>
+    </main>
+    <footer class="player-attribution"><a class="practice-link" href="/stackingroyale/practice?from=join">Practice solo</a><div>Developed by Nick Liu (with help from Claude)</div></footer>
+    <div class="host-absent-overlay" id="hostAbsentOverlay" role="dialog" aria-modal="true" aria-labelledby="hostAbsentTitle">
+      <div class="host-absent-card">
+        <div class="icon" aria-hidden="true">🧱</div>
+        <div class="title" id="hostAbsentTitle">No game in progress</div>
+        <div class="sub"><span class="pulse-dot" aria-hidden="true"></span>The host isn't here right now. This page will unlock automatically when they return.</div>
+        <a class="overlay-practice-link" href="/stackingroyale/practice?from=join">Practice solo</a>
+      </div>
+    </div>
+    <div class="host-absent-overlay" id="roundLockedOverlay" role="dialog" aria-modal="true" aria-labelledby="roundLockedTitle" hidden>
+      <div class="host-absent-card">
+        <div class="icon" aria-hidden="true">🧱</div>
+        <div class="title" id="roundLockedTitle">Match in progress</div>
+        <div class="sub"><span class="pulse-dot" aria-hidden="true"></span>You can't hop in mid-game. This page will unlock when the host starts the next game.</div>
+        <a class="overlay-practice-link" href="/stackingroyale/practice?from=join">Practice solo</a>
+      </div>
+    </div>
+</body>
+</html>

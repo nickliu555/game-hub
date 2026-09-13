@@ -1,0 +1,14 @@
+body.join { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; background: linear-gradient(170deg, var(--bg), var(--bg-deep)); color: #fff; padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom); }
+html, body.join, body.join * { touch-action: pan-x pan-y; }
+.join-brand { align-self: stretch; margin-top: 42px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,.16); font-size: 30px; font-weight: 900; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.join-hero { flex: 1; width: 100%; max-width: 420px; display: flex; flex-direction: column; justify-content: center; text-align: center; gap: 6px; padding-block: 20px; }
+.join-hero h1 { font-size: 34px; margin: 0; }
+.join-hero > p { color: rgba(255,255,255,.8); font-size: 17px; margin: 0 0 18px; }
+.join-form { display: flex; flex-direction: column; gap: 14px; text-align: left; }
+.join-form label { font-size: 14px; font-weight: 700; color: rgba(255,255,255,.85); }
+.join-form input { font-family: inherit; font-size: 20px; height: auto; padding: 16px 18px; border-radius: var(--radius); border: 2px solid rgba(255,255,255,.25); background: rgba(255,255,255,.96); color: #1a1a1a; font-weight: 700; width: 100%; }
+.join-form input:focus { outline: none; border-color: var(--accent); }
+.join-form .primary { width: 100%; padding: 16px; font-size: 18px; margin-top: 4px; }
+.join-form .error { color: #ffd9d6; font-weight: 700; font-size: 15px; min-height: 20px; text-align: center; }
+.player-attribution { text-align: center; color: rgba(255,255,255,.5); font-size: 11px; padding: 14px 12px 18px; }
+.player-attribution .practice-link { display: inline-block; color: #fff; font-size: 13px; font-weight: 700; text-decoration: none; padding: 8px 14px; border-radius: 999px; background: rgba(255,255,255,.14); margin-bottom: 10px; }

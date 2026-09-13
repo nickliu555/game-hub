@@ -5,6 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "build:stackingroyale": "esbuild public/stackingroyale/js/engine.js --bundle --format=iife --global-name=StackingRoyale --target=es2018 --outfile=public/stackingroyale/js/engine.bundle.js",
+    "test:stackingroyale": "node scripts/test-stackingroyale-engine.js",
+    "itest:stackingroyale": "node scripts/itest-stackingroyale.js",
     "sim": "node scripts/sim-players.js",
     "gen:herdmind": "node scripts/gen-herdmind-questions.js",
     "test:herdmind": "node scripts/test-herdmind.js",
@@ -22,11 +25,15 @@
     "dotenv": "^17.3.1",
     "express": "^4.18.2",
     "express-rate-limit": "^8.2.1",
+    "lucide": "1.45.0",
     "nanoid": "^3.3.7",
     "qrcode": "^1.5.3",
-    "socket.io": "^4.7.5"
+    "socket.io": "^4.7.5",
+    "tetris-fumen": "1.1.3"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "esbuild": "0.28.2",
     "socket.io-client": "^4.8.3"
   }
 }

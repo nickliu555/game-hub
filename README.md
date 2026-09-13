@@ -160,6 +160,16 @@ Two teams, one ball, pure chaos — a HaxBall-style pitch on the Host screen wit
 8. The match runs until the **clock hits zero** — **highest score wins**, and level scores are a **draw**
 9. The host can **Pause** at any time, and players can fire off **reactions** that pop above their disc
 
+### 🧱 Stacking Royale
+**A falling-block Puzzle battle for 1–30 players, with classic endless solo practice.**
+
+1. Open the host screen and have players scan the QR code to join on their phones.
+2. Start the match, then move, rotate, hold, and drop pieces to complete rows. Choose touch buttons or gestures; keyboard controls are also supported.
+3. Build larger clears, combos, T-spins, and back-to-back bonuses to send garbage. Your clears cancel incoming garbage first.
+4. Attacks go to a random surviving opponent while the host follows live boards and eliminations.
+5. Avoid topping out. With multiple players, the last survivor wins and eliminated players can spectate. A one-player host match continues until that player tops out. Disconnected players continue as AFK and restore their current board when they return.
+6. Choose **Practice solo** from the Puzzle section to play endless falling blocks without a host, opponents, or garbage. Pause, resume, restart, or restore a paused session after refreshing.
+
 ## How It Works
 
 1. **The host** opens Game Hub on a laptop or TV screen and picks a game

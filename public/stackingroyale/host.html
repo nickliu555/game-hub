@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#087765">
+  <title>Stacking Royale · Host</title>
+  <script src="/shared/iris-preload.js"></script>
+  <link rel="stylesheet" href="/shared/iris.css">
+  <script src="/shared/iris.js" defer></script>
+  <link rel="stylesheet" href="/shared/topbar.css">
+  <link rel="stylesheet" href="/shared/modal.css">
+  <link rel="stylesheet" href="/stackingroyale/css/base.css">
+  <link rel="stylesheet" href="/stackingroyale/css/host.css?v=lines1">
+  <script src="/stackingroyale/vendor/lucide.js" defer></script>
+  <script src="/shared/topbar.js" defer></script>
+  <script src="/shared/modal.js" defer></script>
+  <script src="/socket.io/socket.io.js" defer></script>
+  <script src="/stackingroyale/js/render.js" defer></script>
+  <script src="/stackingroyale/js/common.js" defer></script>
+  <script src="/stackingroyale/js/host.js?v=lines1" defer></script>
+</head>
+<body class="host" data-role="host">
+  <div class="host-shell host-container">
+    <header id="topbar">
+      <div class="game-topbar">
+        <span class="gtb-brand"><span class="brand-bg">🧱</span> Stacking Royale</span>
+        <div class="gtb-controls">
+          <button id="backBtn" class="gtb-btn" type="button" title="Back to hub" aria-label="Back"><i data-lucide="arrow-left" aria-hidden="true"></i>Hub</button>
+          <button id="helpBtn" class="gtb-btn" type="button" data-gtb-help-open="helpOverlay" title="How to play" aria-label="How to play"><i data-lucide="circle-help" aria-hidden="true"></i>Help</button>
+          <div class="gtb-settings-wrapper">
+            <button id="settingsBtn" class="gtb-btn" type="button" data-gtb-settings-toggle aria-controls="settingsPanel" aria-expanded="false" title="Settings" aria-label="Settings"><i data-lucide="settings" aria-hidden="true"></i>Settings</button>
+            <div class="gtb-settings-panel" id="settingsPanel" hidden>
+              <button id="fullscreenBtn" class="gtb-btn" type="button" title="Toggle fullscreen"><i data-lucide="maximize" aria-hidden="true"></i>Fullscreen</button>
+              <div class="gtb-divider"></div>
+              <button id="resetBtn" class="gtb-btn gtb-btn-danger" type="button" title="Reset the whole game">Reset game</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+    <div id="network" class="network" role="status">Connecting to the game...</div>
+    <div id="hostNotice" class="status-message error" role="status" hidden></div>
+    <main class="host-main">
+      <section id="view-lobby" class="lobby-view lobby">
+        <div class="lobby-grid">
+          <div class="lobby-left">
+            <div class="qr-card">
+              <div class="qr-title">Scan to join</div>
+              <div class="qr-sub">Or type the URL below on your phone</div>
+              <div class="qr-slot" id="qrSlot"><img id="qrImage" alt="Scan to join Stacking Royale" hidden><span id="qrStatus">Loading QR code...</span></div>
+              <a class="qr-url" id="joinUrl"></a>
+            </div>
+          </div>
+          <div class="lobby-right">
+            <div class="lobby-header">
+              <h1 class="brand"><span class="brand-bg">🧱</span> Stacking Royale</h1>
+              <div class="player-count"><span id="playerCount">0</span> / <span id="playerCap">30</span> players</div>
+            </div>
+            <div class="cpu-config"><span id="cpuDifficultyLabel">CPU difficulty</span><div class="seg" id="diffSeg" role="group" aria-labelledby="cpuDifficultyLabel"><button type="button" data-diff="novice" aria-pressed="false">Novice</button><button type="button" data-diff="easy" aria-pressed="false">Easy</button><button type="button" data-diff="medium" aria-pressed="true">Medium</button><button type="button" data-diff="hard" aria-pressed="false">Hard</button></div></div>
+            <div class="player-grid" id="lobbyRoster"></div>
+            <div class="start-row"><button id="addBotBtn" class="btn-ghost-bot" type="button" disabled><i data-lucide="bot" aria-hidden="true"></i>Add CPU</button><button id="startBtn" class="primary btn-start" disabled><i data-lucide="play" aria-hidden="true"></i>Start game</button></div>
+          </div>
+        </div>
+        <footer class="lobby-attribution">Developed by Nick Liu (with help from Claude)</footer>
+      </section>
+      <section id="view-match" class="match-view" hidden>
+        <div class="match-heading"><div><div class="eyebrow">Battle live</div><h1 id="aliveCount">0 standing</h1></div><div id="matchClock" class="match-clock">0:00</div><div class="match-tools"><button id="pauseBtn" class="icon-btn" title="Pause match" aria-label="Pause match"><i data-lucide="pause" aria-hidden="true"></i></button></div></div>
+        <div class="battle-layout"><div class="featured-stage"><div id="featuredBoards" class="featured-boards"></div><div id="matchOverlay" class="match-overlay" hidden><span id="matchOverlayLabel">Get ready</span><strong id="matchOverlayTitle">3</strong></div></div><aside class="battle-sidebar"><div class="roster-head"><h2>Players</h2><span id="rosterTotal">0</span></div><div id="battleRoster" class="scroll-list battle-roster"></div><div id="battleFeed" class="battle-feed" role="log" aria-live="polite"></div></aside></div>
+      </section>
+      <section id="view-final" class="final-view" hidden><div class="final-header"><i data-lucide="trophy" aria-hidden="true"></i><div class="eyebrow">Last stack standing</div><h1 id="winnerTitle">Match complete</h1><p id="finalSummary" class="muted"></p></div><div class="final-columns"><span>Place / Player</span><span>Lines</span><span>Survived</span></div><div id="finalRoster" class="scroll-list final-roster"></div><div class="final-actions"><button id="againBtn" class="primary"><i data-lucide="rotate-ccw" aria-hidden="true"></i>New Game</button></div></section>
+    </main>
+  </div>
+</body>
+</html>

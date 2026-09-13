@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#087765">
+  <script src="/stackingroyale/js/controls.js?v=2"></script>
+  <title>Stacking Royale · Play</title>
+  <link rel="stylesheet" href="/stackingroyale/css/base.css">
+  <link rel="stylesheet" href="/stackingroyale/css/player.css">
+  <link rel="stylesheet" href="/stackingroyale/css/touch.css?v=2">
+  <script src="/stackingroyale/vendor/lucide.js" defer></script>
+  <script src="/socket.io/socket.io.js" defer></script>
+  <script src="/stackingroyale/js/engine.bundle.js" defer></script>
+  <script src="/stackingroyale/js/render.js" defer></script>
+  <script src="/stackingroyale/js/common.js" defer></script>
+  <script src="/stackingroyale/js/player.js" defer></script>
+</head>
+<body class="player" data-role="player">
+  <div class="player-shell">
+    <div class="p-header">
+      <div class="me"><span class="name" id="playerName">Your board</span><span class="score" id="playerPlace"></span></div>
+      <div id="controlSettings" class="control-settings" hidden>
+        <button id="controlSettingsBtn" class="icon-btn" type="button" title="Control mode" aria-label="Control mode" aria-expanded="false" aria-controls="controlPopup"><i data-lucide="settings" aria-hidden="true"></i></button>
+        <div id="controlPopup" class="control-popup" role="group" aria-label="Control mode" hidden></div>
+      </div>
+    </div>
+    <div id="network" class="network" role="status">Connecting...</div>
+    <main>
+      <div id="playerNotice" class="status-message error" role="status" hidden></div>
+      <section id="waiting" class="lobby-wait"><div class="pulse" aria-hidden="true">🧱</div><h1 id="waitTitle">You're in!</h1><p id="waitStatus">Waiting for the host to start...</p><div class="lobby-player-count"><span class="pulse-dot" aria-hidden="true"></span><span><strong id="lobbyCount">0</strong> <span id="lobbyCountLabel">players in the lobby</span></span></div></section>
+      <section id="playSurface" aria-label="Your game board" hidden></section>
+      <section id="results" class="results final-card" hidden><div id="resultEyebrow" class="eyebrow">Eliminated</div><h2 id="resultTitle">Your stack topped out.</h2><div id="standings" class="scroll-list"></div><div id="spectateTools" class="spectate-toolbar"><label for="spectateSelect">Watch</label><select id="spectateSelect" aria-label="Spectate player"><option value="">Choose a player</option></select></div><canvas id="spectateCanvas" class="spectate-board" width="300" height="600" aria-label="Spectated board" hidden></canvas></section>
+    </main>
+    <footer id="playerFooter" class="player-attribution"><a class="practice-link" href="/stackingroyale/practice?from=play">Practice solo</a><div id="attribution">Developed by Nick Liu (with help from Claude)</div></footer>
+  </div>
+  <div class="host-absent-overlay" id="hostAbsentOverlay" role="dialog" aria-modal="true" aria-labelledby="hostAbsentTitle">
+    <div class="host-absent-card">
+      <div class="icon" aria-hidden="true">🧱</div>
+      <div class="title" id="hostAbsentTitle">No game in progress</div>
+      <div class="sub"><span class="pulse-dot" aria-hidden="true"></span>The host isn't here right now. This page will unlock automatically when they return.</div>
+      <a class="overlay-practice-link" href="/stackingroyale/practice?from=play">Practice solo</a>
+    </div>
+  </div>
+</body>
+</html>
