@@ -93,7 +93,7 @@ A fast, physics-y arcade soccer showdown played on the shared screen, with each 
 
 The host can **pause** mid-match from the button under the top bar (the whole game freezes and controllers are locked, then everything resumes exactly where it left off). If the ball goes untouched for **10 seconds**, the point automatically resets from a fresh centre kickoff.
 
-### � Sling Soccer
+### 🥅 Shoot Ball
 A top-down, turn-based flick-soccer showdown — slingshot your tokens to knock the ball into the opponent's net.
 
 1. Players scan the QR code and join **Team Red** or **Team Blue** (up to **3 per team**, at least 1 each) — no opponent? the host can **Add CPU**
@@ -147,7 +147,7 @@ A four-way bomber battle on the Host screen — blast open the arena, grab power
 
 The host can **Pause** at any time. Every round generates a fresh arena.
 
-### 🏟️ Puck Ball
+### 🏟️ Puck Soccer
 Two teams, one ball, pure chaos — a HaxBall-style pitch on the Host screen with every phone as a controller.
 
 1. Players scan the QR code to join (**2–8 players**, from **1 v 1** up to **4 v 4**); the host can **Add CPU** players to fill a side

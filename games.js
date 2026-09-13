@@ -221,8 +221,8 @@ const games = [
         playPath: '/soccerhead/play',
     },
     {
-        id: 'slingsoccer',
-        name: 'Sling Soccer',
+        id: 'shootball',
+        name: 'Shoot Ball',
         tagline: 'Turn-based flick soccer — slingshot your tokens',
         emoji: '🥅',
         color: '#0f5132',
@@ -243,8 +243,8 @@ const games = [
             'After each goal the board resets and the team that conceded kicks off',
             'First team to reach the goal target wins!'
         ],
-        hostPath: '/slingsoccer/host',
-        playPath: '/slingsoccer/play',
+        hostPath: '/shootball/host',
+        playPath: '/shootball/play',
     },
     {
         id: 'rankfive',
@@ -321,8 +321,8 @@ const games = [
         playPath: '/bombbrawl/play',
     },
     {
-        id: 'puckball',
-        name: 'Puck Ball',
+        id: 'pucksoccer',
+        name: 'Puck Soccer',
         tagline: 'Two teams, one ball, pure chaos',
         emoji: '🏟️',
         color: '#4E7A3A',
@@ -342,8 +342,8 @@ const games = [
             'First team to the score limit wins; otherwise the leader when the clock hits zero takes it',
             'Level at full time? Golden goal — next goal wins!'
         ],
-        hostPath: '/puckball/host',
-        playPath: '/puckball/play',
+        hostPath: '/pucksoccer/host',
+        playPath: '/pucksoccer/play',
     },
 ];
 

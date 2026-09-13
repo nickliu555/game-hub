@@ -19,7 +19,7 @@ Games live in two mirrored places:
 
 **Do not invent structure.** Copy the closest existing game and adapt it. For turn-based /
 question-style games use **Herd Mind** (`server/herdmind`, `public/herdmind`) as the
-template; for real-time games use **Soccer Head** / **Sling Soccer**.
+template; for real-time games use **Soccer Head** / **Shoot Ball**.
 
 Reuse these patterns verbatim:
 - **Three-page flow:** `host` (projection + QR + lobby + view stack), `join` (name entry →

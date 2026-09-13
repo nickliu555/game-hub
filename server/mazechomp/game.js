@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 // Maze Chomp — server-side lobby + match-meta state machine.
 //
-// Like Soccer Head / Sling Soccer, the live game (maze, movement, ghost AI,
+// Like Soccer Head / Shoot Ball, the live game (maze, movement, ghost AI,
 // scoring) runs on the HOST browser for the lowest possible input latency
 // (player -> server -> host is a single relay hop). This module does NOT
 // simulate the game. It owns:
