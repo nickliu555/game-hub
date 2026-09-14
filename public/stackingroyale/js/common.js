@@ -108,7 +108,19 @@
     }
     const context = getAudioCtx();
     if (!context || context.state !== 'running') return;
-    const tunes = { join: [660, 880], start: [392, 523, 784], clear: [587, 880], drop: [160], lose: [330, 247, 165], win: [523, 659, 784, 1047], tick: [440], attack: [196, 262] };
+    // The lobby ding is the hub-wide one, so every game announces a join the same way.
+    if (kind === 'join') {
+      const osc = context.createOscillator(); const gain = context.createGain();
+      osc.connect(gain); gain.connect(context.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, context.currentTime);
+      osc.frequency.setValueAtTime(1174.66, context.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.3, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.4);
+      osc.start(context.currentTime); osc.stop(context.currentTime + 0.4);
+      return;
+    }
+    const tunes = { start: [392, 523, 784], clear: [587, 880], drop: [160], lose: [330, 247, 165], win: [523, 659, 784, 1047], tick: [440], attack: [196, 262] };
     (tunes[kind] || tunes.drop).forEach(function (frequency, index) {
       const oscillator = context.createOscillator(); const gain = context.createGain(); const time = context.currentTime + index * 0.095;
       oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(frequency, time);
