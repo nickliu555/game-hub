@@ -270,6 +270,38 @@ body.host {
 }
 @keyframes coPop { 0% { transform: scale(0.3); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 
+/* "{Player}'s Turn" card — shown briefly before the player gets control. */
+.turn-card {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4%;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0.6), rgba(0,0,0,0.34) 68%);
+  animation: tcDim 0.22s ease both;
+}
+.turn-card[hidden] { display: none; }
+@keyframes tcDim { from { opacity: 0; } to { opacity: 1; } }
+.tc-line {
+  max-width: 92%;
+  text-align: center;
+  font-size: clamp(38px, 9vh, 104px);
+  font-weight: 900;
+  line-height: 1.12;
+  color: #fff;
+  text-shadow: 0 8px 0 rgba(0,0,0,0.3);
+  overflow-wrap: anywhere;
+  animation: tcPop 0.42s cubic-bezier(.2,1.5,.4,1);
+}
+.turn-card.red .tc-name { color: var(--red-soft); }
+.turn-card.blue .tc-name { color: var(--blue-soft); }
+@keyframes tcPop { 0% { transform: scale(0.4); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .turn-card, .tc-line { animation: none; }
+}
+
 .goal-banner {
   position: absolute;
   inset: 0;

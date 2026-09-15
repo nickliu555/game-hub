@@ -9,6 +9,9 @@
   const SIM_MAX_MS = 12000;       // safety: force-settle a runaway simulation
   const GOAL_CELEBRATE_MS = 2600;
   const BOT_THINK_MS = 950;       // CPU "draw back" time before it fires
+  const TURN_INTRO_MS = 1500;     // "{Player}'s Turn" card before control opens
+  const SETTLE_MS = 450;          // breathe after the ball stops before the card
+  const RESPAWN_SETTLE_MS = 750;  // longer: a token popped out of a net is shown
 
   const TEAMS = ['red', 'blue'];
   const other = (t) => (t === 'red' ? 'blue' : 'red');
@@ -47,6 +50,8 @@
   const turnText = document.getElementById('turnText');
   const countOverlay = document.getElementById('countOverlay');
   const coNum = document.getElementById('coNum');
+  const turnCard = document.getElementById('turnCard');
+  const tcName = document.getElementById('tcName');
   const goalBanner = document.getElementById('goalBanner');
   const gbText = document.getElementById('gbText');
   const gbSub = document.getElementById('gbSub');
@@ -540,7 +545,7 @@
 
   // ---------------- Match state ----------------
   let world = null, renderer = null, rafId = null, lastFrame = 0, acc = 0;
-  let matchState = 'idle';        // idle | aim | sim | goal | ended
+  let matchState = 'idle';        // idle | countdown | settle | intro | aim | sim | goal | ended
   let redScore = 0, blueScore = 0, goalTarget = 3, roster = [];
   let redNames = 'Red', blueNames = 'Blue';
   let currentTeam = null, currentPlayerId = null, currentPlayerName = null;
@@ -552,6 +557,7 @@
   let prevBallSpeed = 0;
   let botTimer = null;
   let countdownTimer = null;
+  let turnHoldTimer = null;
 
   function rosterNames(team) {
     const names = roster.filter(function (r) { return r.team === team; }).map(function (r) { return r.name; });
@@ -632,21 +638,37 @@
   }
 
   function beginTurnFor(team, member) {
+    clearTurnHold();
     currentTeam = team;
     currentPlayerId = member.id;
     currentPlayerName = member.name;
     selectedIdx = null;
     aimVec = null;
-    matchState = 'aim';
     turnSeq++;
     const waiting = !member.isBot && member.connected === false;
     setTurnBanner(waiting);
-    socket.emit('host:turn', {
+    // Announce whose turn it is before handing over control: 'intro' fails
+    // aimAllowed(), so the board stays locked for the length of the card.
+    matchState = 'intro';
+    showTurnCard(team, member.name);
+    playTurnCue();
+    socket.emit('host:turnIntro', {
       team: currentTeam, playerId: currentPlayerId, playerName: currentPlayerName,
       red: redScore, blue: blueScore,
     });
-    if (member.isBot) scheduleBotShot(turnSeq, member);
-    // A disconnected human just holds the turn — we wait for player:rejoined.
+    const seq = turnSeq;
+    turnHoldTimer = setTimeout(function () {
+      turnHoldTimer = null;
+      if (seq !== turnSeq || matchState !== 'intro') return;
+      hideTurnCard();
+      matchState = 'aim';
+      socket.emit('host:turn', {
+        team: currentTeam, playerId: currentPlayerId, playerName: currentPlayerName,
+        red: redScore, blue: blueScore,
+      });
+      if (member.isBot) scheduleBotShot(turnSeq, member);
+      // A disconnected human just holds the turn — we wait for player:rejoined.
+    }, TURN_INTRO_MS);
   }
 
   // Restore the turn after a host refresh (do NOT advance the rotation).
@@ -655,6 +677,7 @@
     currentPlayerId = playerId || null;
     currentPlayerName = playerName || null;
     selectedIdx = null; aimVec = null;
+    // No intro card here — the player may already be mid-aim.
     matchState = 'aim';
     turnSeq++;
     const rmember = roster.find(function (r) { return r.id === currentPlayerId; });
@@ -696,10 +719,33 @@
   function hideCount() { if (countOverlay) countOverlay.hidden = true; }
   function playCountBlip(freq) { blip(freq || 440, 0.12, 'square', 0.14); }
 
+  // ---------------- "{Player}'s Turn" card ----------------
+  function showTurnCard(team, name) {
+    if (!turnCard) return;
+    turnCard.classList.remove('red', 'blue');
+    turnCard.classList.add(team === 'blue' ? 'blue' : 'red');
+    if (tcName) tcName.textContent = name || (team === 'blue' ? 'Blue' : 'Red');
+    turnCard.hidden = false;
+    turnCard.style.animation = 'none'; void turnCard.offsetWidth; turnCard.style.animation = '';
+    const line = turnCard.firstElementChild;
+    if (line) { line.style.animation = 'none'; void line.offsetWidth; line.style.animation = ''; }
+  }
+  function hideTurnCard() { if (turnCard) turnCard.hidden = true; }
+  function clearTurnHold() {
+    if (turnHoldTimer) { clearTimeout(turnHoldTimer); turnHoldTimer = null; }
+    hideTurnCard();
+  }
+  function playTurnCue() {
+    const c = getAudioCtx(); if (!c) return;
+    blip(660, 0.11, 'triangle', 0.16);
+    blip(990, 0.16, 'triangle', 0.14, c.currentTime + 0.1);
+  }
+
   // Show a 3-2-1 count over the formation, then hand the kicking team its turn.
   function beginKickoff(team) {
     if (botTimer) { clearTimeout(botTimer); botTimer = null; }
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+    clearTurnHold();
     matchState = 'countdown';
     currentTeam = team;
     currentPlayerId = null; currentPlayerName = null;
@@ -746,7 +792,16 @@
       for (const t of respawned) renderer.spawnBurst(t.x, t.y, '#ffffff', 10);
     }
     socket.emit('host:board', world.snapshot());
-    beginTurn(other(currentTeam));
+    const next = other(currentTeam);
+    // Let the board rest for a beat — longer when a token had to pop back out
+    // of a net — before the turn card covers the pitch.
+    matchState = 'settle';
+    const seq = turnSeq;
+    turnHoldTimer = setTimeout(function () {
+      turnHoldTimer = null;
+      if (seq !== turnSeq || matchState !== 'settle') return;
+      beginTurn(next);
+    }, respawned.length ? RESPAWN_SETTLE_MS : SETTLE_MS);
   }
 
   function onGoal(team) {
@@ -796,6 +851,7 @@
     matchState = 'ended';
     if (botTimer) { clearTimeout(botTimer); botTimer = null; }
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+    clearTurnHold();
     hideCount();
     socket.emit('host:matchEnd', { winner: winner, red: redScore, blue: blueScore });
     if (!afterGoal) setTimeout(playGoal, 200);
@@ -935,8 +991,11 @@
     if (m) m.connected = false;
     // If the ACTIVE player dropped, HOLD their turn and wait for them to return
     // — never skip to a teammate or hand it to a CPU.
-    if (matchState === 'aim' && d.id === currentPlayerId) {
+    if ((matchState === 'aim' || matchState === 'intro') && d.id === currentPlayerId) {
       if (botTimer) { clearTimeout(botTimer); botTimer = null; }
+      // Cut the announcement short — there's nobody to hand control to yet.
+      clearTurnHold();
+      matchState = 'aim';
       selectedIdx = null; aimVec = null;
       setTurnBanner(true);
     }
@@ -990,6 +1049,7 @@
     stopLoop();
     if (botTimer) { clearTimeout(botTimer); botTimer = null; }
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+    clearTurnHold();
     hideCount();
     matchState = 'idle';
     world = null; renderer = null;

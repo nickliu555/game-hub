@@ -68,7 +68,7 @@ async function main() {
 
   // Start.
   const pEvents = { p1: [], p2: [] };
-  ['m:start', 'm:turn', 'm:goal', 'm:end'].forEach((e) => {
+  ['m:start', 'm:turnIntro', 'm:turn', 'm:goal', 'm:end'].forEach((e) => {
     p1.on(e, (d) => pEvents.p1.push([e, d]));
     p2.on(e, (d) => pEvents.p2.push([e, d]));
   });
@@ -81,6 +81,15 @@ async function main() {
   check('players got m:start', pEvents.p1.some((e) => e[0] === 'm:start') && pEvents.p2.some((e) => e[0] === 'm:start'));
 
   // Host announces it's p1's turn.
+  host.emit('host:turnIntro', { team: 'red', playerId: 'p1', playerName: 'Alice', red: 0, blue: 0 });
+  await wait(50);
+  check('players got m:turnIntro (p1)', pEvents.p1.some((e) => e[0] === 'm:turnIntro' && e[1].playerId === 'p1' && e[1].team === 'red')
+    && pEvents.p2.some((e) => e[0] === 'm:turnIntro' && e[1].playerId === 'p1'));
+  check('m:turnIntro carries the name', pEvents.p1.some((e) => e[0] === 'm:turnIntro' && e[1].playerName === 'Alice'));
+  // The turn flips on the intro, so a mid-announcement reconnect is accurate.
+  const midIntro = await new Promise((r) => p2.emit('player:reconnect', { playerId: 'p2' }, r));
+  check('turn flipped to p1 during the intro', midIntro && midIntro.match && midIntro.match.currentPlayerId === 'p1');
+
   host.emit('host:turn', { team: 'red', playerId: 'p1', playerName: 'Alice', red: 0, blue: 0 });
   await wait(50);
   check('players got m:turn (currentPlayerId=p1)', pEvents.p1.some((e) => e[0] === 'm:turn' && e[1].playerId === 'p1'));

@@ -166,6 +166,22 @@
     if (waitCover) waitCover.classList.remove('goal-hide');
     if (waitText) waitText.textContent = 'Kickoff in ' + (n || 3) + '…';
   });
+  socket.on('m:turnIntro', function (d) {
+    if (!d) return;
+    currentPhase = 'PLAYING';
+    if (views.controller.style.display === 'none') showView('controller');
+    hideFlash();
+    // Controls stay locked for the whole announcement; m:turn unlocks them.
+    setMyTurn(false, d.team, d.playerName);
+    if (d.playerId === playerId && waitText) {
+      waitText.textContent = '';
+      const nameEl = document.createElement('span');
+      nameEl.textContent = 'You\u2019re up!';
+      nameEl.style.color = d.team === 'blue' ? 'var(--blue-soft)' : 'var(--red-soft)';
+      nameEl.style.fontWeight = '800';
+      waitText.appendChild(nameEl);
+    }
+  });
   socket.on('m:turn', function (d) {
     if (!d) return;
     currentPhase = 'PLAYING';

@@ -289,6 +289,18 @@ function mountShootBall(app, httpServer, opts) {
       if (role !== 'host') return;
       ns.to(PLAYER_ROOM).emit('m:countdown', { n: n | 0 });
     });
+    // The host announces the next player before unlocking their controls. The
+    // turn flips here so a reconnect mid-announcement sees the right player.
+    socket.on('host:turnIntro', ({ team, playerId: pid, playerName, red, blue } = {}) => {
+      if (role !== 'host') return;
+      touchActivity();
+      game.setTurn({ team, playerId: pid, playerName, red, blue });
+      ns.to(PLAYER_ROOM).emit('m:turnIntro', {
+        team: game.match.currentTeam,
+        playerId: game.match.currentPlayerId,
+        playerName: game.match.currentPlayerName,
+      });
+    });
     socket.on('host:goal', ({ team, red, blue } = {}) => {
       if (role !== 'host') return;
       touchActivity();
