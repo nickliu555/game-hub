@@ -54,6 +54,35 @@ function stepN(w, n) { let g = null; for (let i = 0; i < n; i++) { const s = w.s
   check('ball into right goal => red scores', g === 'red', 'got=' + g);
 })();
 
+// 3a. The goal is awarded on the crossing step, then the ball keeps travelling
+// on into the net for the celebration instead of freezing on the line.
+(function () {
+  const w = new HB.World({ mode: '1v1' });
+  w.setRoster([{ id: 'r', name: 'R', team: 'red', seat: 0 }, { id: 'b', name: 'B', team: 'blue', seat: 0 }]);
+  w.frozen = false;
+  w.byId.get('b').x = HB.W / 2;
+  w.ball.x = HB.W - 70; w.ball.y = HB.GROUND_Y - 90; w.ball.vx = 900; w.ball.vy = 0;
+  let g = null;
+  for (let i = 0; i < 60 && !g; i++) g = w.step(DT);
+  check('goal reported on the crossing step', g === 'red', 'got=' + g);
+  const crossX = w.ball.x;
+
+  let again = null, deepest = crossX;
+  for (let i = 0; i < 480; i++) {
+    const s = w.step(DT);
+    if (s) again = s;
+    if (w.ball.x > deepest) deepest = w.ball.x;
+  }
+  check('the same goal is not awarded twice', !again, 'again=' + again);
+  check('ball carried on into the net', deepest > crossX + 5, 'deepest=' + deepest.toFixed(1) + ' cross=' + crossX.toFixed(1));
+  // The netting absorbs the shot: it settles instead of firing back up the pitch.
+  check('ball settles by the end of the celebration', Math.abs(w.ball.vx) < 60, 'vx=' + w.ball.vx.toFixed(1));
+  check('ball does not rebound out of the defending half', w.ball.x > w.W / 2, 'x=' + w.ball.x.toFixed(1));
+
+  w.kickoff('blue');
+  check('kickoff clears the goal latch', w.goalScored === null, 'goalScored=' + w.goalScored);
+})();
+
 // 3b. THE KEY ONE: can an attacker chip the ball over an IDLE defender who is
 // standing in front of their own goal, and score? (The original bug.)
 (function () {

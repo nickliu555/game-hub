@@ -1,19 +1,20 @@
 (function () {
   'use strict';
 
-  const socket = io('/icesoccer', { transports: ['polling', 'websocket'] });
+  const socket = io('/nockey', { transports: ['polling', 'websocket'] });
 
   // ---------------- Tunables ----------------
   const FIXED_DT = 1 / 60;           // HaxBall runs at 60 Hz — this must stay 1/60
   const MAX_STEPS = 8;
   const COUNTDOWN_FROM = 3;
-  const COUNTDOWN_START_FROM = 5;    // longer count on the first kickoff
+  const COUNTDOWN_START_FROM = 5;    // longer count on the first face-off
   const COUNTDOWN_STEP_MS = 800;
   const GOAL_CELEBRATE_MS = 4800;
+  const OVERLAY_FADE_MS = 220;       // transient overlay fade-out; keep in sync with ovFade
   const CLOCK_EMIT_MS = 250;
   const EMOTE_MS = 2600;
 
-  const TIER_LABEL = { small: 'Rink', classic: 'Classic', big: 'Big', huge: 'Stadium' };
+  const TIER_LABEL = { small: 'Sheet', classic: 'Classic', big: 'Big', huge: 'Arena' };
 
   // ---------------- Element refs ----------------
   const views = {
@@ -179,6 +180,20 @@
       src.start();
     } catch (_) {}
   }
+  // A falling-pitch tone — impacts need a sweep, which `blip` can't do.
+  function sweep(f0, f1, glide, dur, type, gain, when) {
+    const c = getAudioCtx(); if (!c) return;
+    const t = when || c.currentTime;
+    const o = c.createOscillator(); const g = c.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + glide);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(c.destination);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
   function playJoinDing() {
     const c = getAudioCtx(); if (!c || c.state === 'suspended') return;
     const o = c.createOscillator(); const g = c.createGain();
@@ -196,8 +211,17 @@
     blip(1650, 0.18, 'square', 0.13);
     blip(2100, 0.18, 'square', 0.1, c.currentTime + 0.05);
   }
-  function playKickSfx() { blip(180, 0.07, 'triangle', 0.2); noise(0.06, 900, 0.05, 2); }
-  function playWallSfx(v) { blip(300, 0.05, 'sine', Math.min(0.14, 0.03 + v * 0.02)); }
+  // A stick connecting with the puck: a short, dry wooden crack.
+  function playKickSfx() {
+    sweep(760, 190, 0.045, 0.07, 'triangle', 0.16);
+    noise(0.035, 1900, 0.06, 1.2);
+  }
+  // Hollow knock of the puck banging off the boards.
+  function playWallSfx(v) {
+    const amp = Math.min(0.2, 0.05 + v * 0.025);
+    sweep(320, 110, 0.06, 0.12, 'sine', amp);
+    noise(0.04, 700, amp * 0.35, 1);
+  }
   function playPostSfx() { blip(1200, 0.22, 'triangle', 0.16); blip(1800, 0.16, 'sine', 0.08); }
   function playGoalSfx() {
     const c = getAudioCtx(); if (!c) return;
@@ -231,12 +255,12 @@
   function fmtDur(sec) { const m = Math.floor(sec / 60); const s = sec % 60; return m + ':' + (s < 10 ? '0' : '') + s; }
 
   function renderQR() {
-    fetch('/api/icesoccer/config')
+    fetch('/api/nockey/config')
       .then(function (r) { return r.json(); })
       .then(function (cfg) {
-        const url = (cfg && cfg.joinUrl) || (window.location.origin + '/icesoccer/join');
+        const url = (cfg && cfg.joinUrl) || (window.location.origin + '/nockey/join');
         joinUrlEl.textContent = url.replace(/^https?:\/\//, '');
-        return fetch('/api/icesoccer/qr?url=' + encodeURIComponent(url));
+        return fetch('/api/nockey/qr?url=' + encodeURIComponent(url));
       })
       .then(function (r) { return r.text(); })
       .then(function (svg) { qrSlot.innerHTML = svg; })
@@ -291,7 +315,7 @@
     timeVal.textContent = fmtDur(l.timeLimitSec);
 
     pitchNote.textContent = l.total
-      ? TIER_LABEL[l.tier] + ' pitch — ' + l.teams.red.length + ' v ' + l.teams.blue.length
+      ? TIER_LABEL[l.tier] + ' rink — ' + l.teams.red.length + ' v ' + l.teams.blue.length
       : 'Grows with the teams';
 
     function fill(slotEl, arr, team) {
@@ -552,7 +576,7 @@
     blueScore = initial ? initial.blue : 0;
     clockMs = initial ? initial.clockMs : timeLimitSec * 1000;
 
-    world = new window.IceSoccer.World({ tier: tier });
+    world = new window.Nockey.World({ tier: tier });
     world.setRoster(roster);
     world.kickoff(data && data.kickoffTeam === 'blue' ? 'blue' : 'red', true);
     world.frozen = true;
@@ -560,7 +584,7 @@
     world.blueScore = blueScore;
     botIds = roster.filter(function (r) { return r.isBot; }).map(function (r) { return r.id; });
 
-    renderer = new window.IceSoccerRender.Renderer(canvas, world);
+    renderer = new window.NockeyRender.Renderer(canvas, world);
     paused = false;
     clearTimers();
     if (pauseOverlay) pauseOverlay.hidden = true;
@@ -571,14 +595,39 @@
     updateScoreboard();
     updatePauseBtn();
     startLoop();
-    beginCountdown(COUNTDOWN_START_FROM, 'KICK OFF');
+    beginCountdown(COUNTDOWN_START_FROM, 'FACE OFF');
+  }
+
+  // ---------------- Transient overlays ----------------
+  // Overlays fade out rather than snapping off over live play. `immediate` skips
+  // the fade for hard state changes (reset) where the whole view swaps anyway.
+  function showOverlay(el) {
+    if (!el) return;
+    if (el._fadeTimer) { clearTimeout(el._fadeTimer); el._fadeTimer = null; }
+    el.classList.remove('fade-out');
+    el.hidden = false;
+  }
+  function hideOverlay(el, immediate) {
+    if (!el) return;
+    if (el._fadeTimer) { clearTimeout(el._fadeTimer); el._fadeTimer = null; }
+    if (immediate || el.hidden) {
+      el.classList.remove('fade-out');
+      el.hidden = true;
+      return;
+    }
+    el.classList.add('fade-out');
+    el._fadeTimer = setTimeout(function () {
+      el._fadeTimer = null;
+      el.classList.remove('fade-out');
+      el.hidden = true;
+    }, OVERLAY_FADE_MS);
   }
 
   function beginCountdown(from, note) {
     matchState = 'count';
     if (world) world.frozen = true;
     goalBanner.hidden = true;
-    countOverlay.hidden = false;
+    showOverlay(countOverlay);
     coNote.hidden = !note;
     coNote.textContent = note || '';
     let n = from || COUNTDOWN_FROM;
@@ -598,7 +647,7 @@
 
   function beginPlay() {
     matchState = 'play';
-    countOverlay.hidden = true;
+    hideOverlay(countOverlay);
     goalBanner.hidden = true;
     if (world) world.frozen = false;
     playWhistle();
@@ -608,7 +657,6 @@
 
   function onGoal(scored) {
     matchState = 'goal';
-    if (world) world.frozen = true;
     const team = scored.team;
     redScore = world.redScore;
     blueScore = world.blueScore;
@@ -623,7 +671,7 @@
 
     after(GOAL_CELEBRATE_MS, function () {
       goalBanner.hidden = true;
-      // The conceding team kicks off.
+      // The conceding team takes the face-off.
       world.kickoff(team === 'red' ? 'blue' : 'red');
       beginCountdown(COUNTDOWN_FROM, null);
     });
@@ -775,27 +823,27 @@
     if (!paused) {
       runTimers(dt * 1000);
 
-      if (matchState === 'play' && world) {
+      if (world && (matchState === 'play' || matchState === 'goal')) {
         acc += dt;
         let steps = 0;
         let scored = null;
         while (acc >= FIXED_DT && steps < MAX_STEPS) {
           world.stepBots();
-          scored = world.step();
+          const s = world.step();
+          if (s && !scored) scored = s;
           acc -= FIXED_DT;
           steps++;
-          if (scored) break;
         }
         drainEvents();
         if (scored) {
           acc = 0;
           onGoal(scored);
-        } else {
+        } else if (matchState === 'play') {
           clockMs -= dt * 1000;
           if (clockMs <= 0) { clockMs = 0; handleTimeUp(); }
           updateScoreboard();
         }
-      } else if (world && (matchState === 'count' || matchState === 'goal')) {
+      } else if (world && matchState === 'count') {
         // Keep resolving overlaps so nothing is stuck while frozen.
         acc = 0;
         world.step();
@@ -803,7 +851,7 @@
       }
     }
 
-    if (renderer) renderer.render(matchState === 'play' ? Math.min(1, acc / FIXED_DT) : 1, dt);
+    if (renderer) renderer.render((matchState === 'play' || matchState === 'goal') ? Math.min(1, acc / FIXED_DT) : 1, dt);
   }
 
   function drainEvents() {
@@ -901,7 +949,7 @@
     redScore = blueScore = 0;
     lastLobbyHumanTotal = -1;
     goalBanner.hidden = true;
-    countOverlay.hidden = true;
+    hideOverlay(countOverlay, true);
     if (pauseOverlay) pauseOverlay.hidden = true;
     show('lobby');
   });

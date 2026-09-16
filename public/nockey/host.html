@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Ice Soccer · Host</title>
+  <title>Nockey · Host</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="/shared/iris-preload.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11,8 +11,8 @@
   <link rel="stylesheet" href="/shared/topbar.css" />
   <link rel="stylesheet" href="/shared/modal.css" />
   <link rel="stylesheet" href="/shared/iris.css" />
-  <link rel="stylesheet" href="/icesoccer/css/base.css" />
-  <link rel="stylesheet" href="/icesoccer/css/host.css" />
+  <link rel="stylesheet" href="/nockey/css/base.css" />
+  <link rel="stylesheet" href="/nockey/css/host.css" />
   <script src="/shared/topbar.js" defer></script>
   <script src="/shared/modal.js" defer></script>
   <script src="/shared/iris.js" defer></script>
@@ -20,7 +20,7 @@
 <body class="host">
   <div class="host-container">
     <div class="game-topbar">
-      <span class="gtb-brand"><span class="brand-bg">🏟️</span> Ice Soccer</span>
+      <span class="gtb-brand"><span class="brand-bg">🏒</span> Nockey</span>
       <div class="gtb-controls">
         <a href="/" id="hubBtn" class="gtb-btn" title="Back to hub (resets game)">← Hub</a>
         <button class="gtb-btn" type="button" data-gtb-help-open="helpOverlay" title="How to play">? Help</button>
@@ -50,7 +50,7 @@
 
         <div class="lobby-right">
           <div class="lobby-header">
-            <div class="brand"><span class="brand-bg">🏟️</span> Ice Soccer</div>
+            <div class="brand"><span class="brand-bg">🏒</span> Nockey</div>
             <div class="player-count"><span id="playerCount">0</span> / <span id="playerCap">8</span></div>
           </div>
 
@@ -63,7 +63,7 @@
               </div>
             </div>
             <div class="config-row">
-              <label>Pitch</label>
+              <label>Rink</label>
               <div class="pitch-note" id="pitchNote">Grows with the teams</div>
             </div>
           </div>
@@ -83,7 +83,7 @@
           <div class="lobby-foot">
             <button id="addBotBtn" class="btn-ghost-bot" type="button">🤖 Add CPU</button>
             <div class="config-hint" id="configHint"></div>
-            <button id="startBtn" class="btn-start" disabled>Kick off!</button>
+            <button id="startBtn" class="btn-start" disabled>Play</button>
           </div>
         </div>
       </div>
@@ -142,31 +142,31 @@
   <!-- Another host screen took over the simulation -->
   <div class="superseded-overlay" id="supersededOverlay" hidden>
     <div class="so-card">
-      <div class="so-icon">🏟️</div>
+      <div class="so-icon">🏒</div>
       <div class="so-title">Another host screen took over</div>
-      <div class="so-sub">Ice Soccer can only run on one screen at a time. Close this tab, or reload it to take control back.</div>
+      <div class="so-sub">Nockey can only run on one screen at a time. Close this tab, or reload it to take control back.</div>
     </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/icesoccer/js/engine.js"></script>
-  <script src="/icesoccer/js/render.js"></script>
-  <script src="/icesoccer/js/host.js"></script>
+  <script src="/nockey/js/engine.js"></script>
+  <script src="/nockey/js/render.js"></script>
+  <script src="/nockey/js/host.js"></script>
 
   <!-- Help modal -->
   <div class="gtb-help-overlay" id="helpOverlay">
     <div class="gtb-help-modal">
       <button class="gtb-help-modal-close" type="button" data-gtb-help-close aria-label="Close help">&times;</button>
-      <h2><span class="brand-bg">🏟️</span> Ice Soccer</h2>
-      <p>Top-down disc soccer. The match plays out on <strong>this screen</strong> while every player uses their phone as a live controller.</p>
+      <h2><span class="brand-bg">🏒</span> Nockey</h2>
+      <p>Top-down disc hockey. The match plays out on <strong>this screen</strong> while every player uses their phone as a live controller.</p>
       <ol>
         <li>Players scan the QR code to join from their phone (2–8 players)</li>
         <li>Balance the sides — <strong>drag a player</strong> to reorder them or drop them on the other team (or just tap a name to swap)</li>
         <li>Short on players? Hit <strong>🤖 Add CPU</strong> to fill a side</li>
-        <li>Set the <strong>match length</strong>, then hit <strong>Kick off!</strong></li>
-        <li>On their phones: <strong>thumbstick</strong> on the left to move, big <strong>KICK</strong> button on the right</li>
-        <li>Bump the ball to nudge it; tap <strong>KICK</strong> while touching it to blast it</li>
-        <li>The pitch grows with the teams — a tight rink for 1v1, a full stadium for 4v4</li>
+        <li>Set the <strong>match length</strong>, then hit <strong>Play</strong></li>
+        <li>On their phones: <strong>thumbstick</strong> on the left to move, big <strong>HIT</strong> button on the right</li>
+        <li>Skate into the puck to nudge it; tap <strong>HIT</strong> while touching it to blast it</li>
+        <li>The rink grows with the teams — a tight sheet for 1v1, a full arena for 4v4</li>
         <li>When the clock hits zero the match is over — <strong>highest score wins</strong></li>
       </ol>
     </div>

@@ -38,6 +38,7 @@
   const STOP_SPEED = 26;             // below this a body is snapped to rest
   const REST = 1.0;                   // body-body restitution (fully elastic — lively deflections)
   const WALL_REST = 0.78;             // wall / post restitution
+  const NET_REST = 0.12;              // pocket walls: netting swallows a shot instead of spitting it back out
   const MAX_SPEED = 3400;             // hard cap (keeps 1/120 step tunnel-free)
   const COLLISION_ITERS = 4;          // relaxation passes for stacked tokens
 
@@ -112,6 +113,7 @@
         bt.x = W - rf.x; bt.y = rf.y; bt.vx = 0; bt.vy = 0;
       }
       this.ball.x = W / 2; this.ball.y = H / 2; this.ball.vx = 0; this.ball.vy = 0;
+      this.goalScored = null;
     }
 
     // Apply a flick to a token: the client sends the PULL vector (dx,dy) with
@@ -135,14 +137,15 @@
         b.x += b.vx * dt;
         b.y += b.vy * dt;
       }
-      // Goal check first: the ball crossing a goal line (within the mouth) ends
-      // the play immediately, before any wall clamps it back onto the pitch.
-      const g = this._checkGoal();
-      if (g) return g;
+      // The goal counts the moment the ball's centre crosses the line, but the
+      // rest of the step still runs so it keeps rolling on into the pocket.
+      // `goalScored` latches it so the crossing is only reported once.
+      const g = this.goalScored ? null : this._checkGoal();
+      if (g) this.goalScored = g;
       for (const b of this.bodies) this._walls(b);
       for (let it = 0; it < COLLISION_ITERS; it++) this._collisions();
       for (const b of this.bodies) this._clampSpeed(b);
-      return null;
+      return g;
     }
 
     _friction(b, dt) {
@@ -180,8 +183,8 @@
         else if (b.x > W - r) { b.x = W - r; b.vx = -Math.abs(b.vx) * WALL_REST; }
       } else {
         // Open mouth: allow travel into the pocket, stopped by its back wall.
-        if (b.x < -GOAL_DEPTH + r) { b.x = -GOAL_DEPTH + r; b.vx = Math.abs(b.vx) * WALL_REST; }
-        else if (b.x > W + GOAL_DEPTH - r) { b.x = W + GOAL_DEPTH - r; b.vx = -Math.abs(b.vx) * WALL_REST; }
+        if (b.x < -GOAL_DEPTH + r) { b.x = -GOAL_DEPTH + r; b.vx = Math.abs(b.vx) * NET_REST; }
+        else if (b.x > W + GOAL_DEPTH - r) { b.x = W + GOAL_DEPTH - r; b.vx = -Math.abs(b.vx) * NET_REST; }
       }
       // Vertical walls. On the main pitch use the outer walls; once the CENTRE
       // is past a goal line the body is in that pocket, so confine it to the
@@ -193,8 +196,8 @@
         if (b.y < r) { b.y = r; b.vy = Math.abs(b.vy) * WALL_REST; }
         else if (b.y > H - r) { b.y = H - r; b.vy = -Math.abs(b.vy) * WALL_REST; }
       } else {
-        if (b.y < GOAL_TOP + r) { b.y = GOAL_TOP + r; b.vy = Math.abs(b.vy) * WALL_REST; }
-        else if (b.y > GOAL_BOT - r) { b.y = GOAL_BOT - r; b.vy = -Math.abs(b.vy) * WALL_REST; }
+        if (b.y < GOAL_TOP + r) { b.y = GOAL_TOP + r; b.vy = Math.abs(b.vy) * NET_REST; }
+        else if (b.y > GOAL_BOT - r) { b.y = GOAL_BOT - r; b.vy = -Math.abs(b.vy) * NET_REST; }
       }
     }
 

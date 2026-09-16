@@ -1,4 +1,4 @@
-/* === Ice Soccer controller: a fixed, non-scrolling, non-zooming gamepad. === */
+/* === Nockey controller: a fixed, non-scrolling, non-zooming gamepad. === */
 /* The controller is a native-feeling app surface: the page itself can never
    scroll, pan, rubber-band, zoom or select — every touch belongs to a control. */
 html { height: 100%; overflow: hidden; }
@@ -210,7 +210,7 @@ body.team-blue .stick-knob { background: var(--blue); }
   justify-content: center;
   border-radius: 50%;
   background: var(--accent);
-  color: #17210F;
+  color: #06222F;
   font-size: 26px;
   font-weight: 900;
   letter-spacing: 0.06em;
@@ -218,7 +218,7 @@ body.team-blue .stick-knob { background: var(--blue); }
   pointer-events: none;
   transition: transform 0.06s ease, box-shadow 0.06s ease;
 }
-.kick-zone.held { background: rgba(245,213,71,0.14); border-color: rgba(245,213,71,0.4); }
+.kick-zone.held { background: rgba(79,209,240,0.16); border-color: rgba(79,209,240,0.45); }
 .kick-zone.held .kick-face { transform: translateY(6px); box-shadow: 0 2px 0 rgba(0,0,0,0.35); }
 
 .ctrl-overlay {
@@ -231,7 +231,7 @@ body.team-blue .stick-knob { background: var(--blue); }
   justify-content: center;
   gap: 6px;
   border-radius: 22px;
-  background: rgba(12,28,10,0.82);
+  background: rgba(8,26,42,0.84);
   padding: 20px;
   /* Purely informational: the stick underneath stays grabbable during the
      countdown so play starts the moment the whistle goes. */
@@ -256,7 +256,7 @@ body.team-blue .stick-knob { background: var(--blue); }
 #view-kicked .btn-primary {
   margin-top: 16px;
   background: var(--accent);
-  color: #17210F;
+  color: #06222F;
   padding: 14px 28px;
   border-radius: 14px;
   font-size: 17px;
@@ -273,7 +273,7 @@ body.team-blue .stick-knob { background: var(--blue); }
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: rgba(12,28,10,0.92);
+  background: rgba(8,26,42,0.92);
   text-align: center;
   padding: 26px;
 }
@@ -289,7 +289,7 @@ body.team-blue .stick-knob { background: var(--blue); }
   left: 50%;
   transform: translateX(-50%);
   z-index: 60;
-  background: rgba(12,28,10,0.88);
+  background: rgba(8,26,42,0.88);
   border: 1px solid rgba(255,255,255,0.18);
   color: #fff;
   font-size: 13px;

@@ -44,6 +44,7 @@
   const BALL_DRAG = 0.11;      // more air drag → shots bleed speed, keepers get time
   const GROUND_REST = 0.66;   // ball bounciness off the turf (higher = livelier)
   const WALL_REST = 0.72;
+  const NET_REST = 0.12;      // back of the net: netting swallows a shot instead of spitting it back out
   const BAR_REST = 0.68;
   const ROLL_FRIC = 1.4;       // horizontal decay while rolling on ground
   // Kicks land ~1040 so they stay saveable; the higher cap only lets a committed
@@ -172,6 +173,7 @@
       this.ball.vx = (towardTeam === 'red' ? -170 : towardTeam === 'blue' ? 170 : 0) * this.scale;
       this.ball.vy = 0;
       this.ball.spin = 0;
+      this.goalScored = null;
     }
 
     setInput(id, code, down) {
@@ -574,15 +576,20 @@
     _ballVsSidesAndGoals(b) {
       // A goal counts the instant the WHOLE ball has crossed the goal line
       // (the front of the net, x = GOAL_DEPTH) below the crossbar — not only
-      // when it reaches the screen edge.
-      if (b.y > this.TOP_Y) {
-        if (b.x + b.r <= GOAL_DEPTH) return 'blue';        // fully in the left net
-        if (b.x - b.r >= this.W - GOAL_DEPTH) return 'red';     // fully in the right net
+      // when it reaches the screen edge. `goalScored` latches it so the ball
+      // can carry on into the net without being awarded twice.
+      let scored = null;
+      if (!this.goalScored && b.y > this.TOP_Y) {
+        if (b.x + b.r <= GOAL_DEPTH) scored = 'blue';                // fully in the left net
+        else if (b.x - b.r >= this.W - GOAL_DEPTH) scored = 'red';   // fully in the right net
+        if (scored) this.goalScored = scored;
       }
-      // Solid side walls / back of the net (bounce).
-      if (b.x - b.r < 0) { b.x = b.r; if (b.vx < 0) b.vx = -b.vx * WALL_REST; }
-      if (b.x + b.r > this.W) { b.x = this.W - b.r; if (b.vx > 0) b.vx = -b.vx * WALL_REST; }
-      return null;
+      // Solid side walls. Below the crossbar that surface is the back of the
+      // net, which swallows the shot instead of firing it back onto the pitch.
+      const rest = b.y > this.TOP_Y ? NET_REST : WALL_REST;
+      if (b.x - b.r < 0) { b.x = b.r; if (b.vx < 0) b.vx = -b.vx * rest; }
+      if (b.x + b.r > this.W) { b.x = this.W - b.r; if (b.vx > 0) b.vx = -b.vx * rest; }
+      return scored;
     }
   }
 

@@ -1,9 +1,9 @@
 (function () {
   'use strict';
 
-  const playerId = localStorage.getItem('icesoccer.playerId');
-  const playerName = localStorage.getItem('icesoccer.playerName') || 'Player';
-  if (!playerId) { window.location.replace('/icesoccer/join'); return; }
+  const playerId = localStorage.getItem('nockey.playerId');
+  const playerName = localStorage.getItem('nockey.playerName') || 'Player';
+  if (!playerId) { window.location.replace('/nockey/join'); return; }
 
   const EMOTES = ['😂', '🔥', '👏', '😱', '😭', '😡'];
   const EMOTE_COOLDOWN_MS = 2000;
@@ -11,7 +11,7 @@
   const STICK_DEADZONE = 0.28;
 
   // ---------------- Kill all zoom / scroll / selection behaviour ----------------
-  // A two-thumb controller (stick + kick) reads as a pinch to the browser, and
+  // A two-thumb controller (stick + hit) reads as a pinch to the browser, and
   // iOS Safari ignores maximum-scale/user-scalable — so lock it in JS too. The
   // page never scrolls, so every touch move is swallowed outright.
   (function lockZoom() {
@@ -36,7 +36,7 @@
     window.addEventListener('scroll', function () { window.scrollTo(0, 0); }, { passive: true });
   })();
 
-  const socket = io('/icesoccer', { transports: ['polling', 'websocket'] });
+  const socket = io('/nockey', { transports: ['polling', 'websocket'] });
 
   // ---------------- Element refs ----------------
   const body = document.body;
@@ -457,21 +457,21 @@
   socket.on('state:reset', function () {
     setLive(false);
     setPaused(false);
-    localStorage.removeItem('icesoccer.playerId');
-    localStorage.setItem('icesoccer.rejoinName', playerName);
-    window.location.replace('/icesoccer/join');
+    localStorage.removeItem('nockey.playerId');
+    localStorage.setItem('nockey.rejoinName', playerName);
+    window.location.replace('/nockey/join');
   });
 
   socket.on('player:rejected', function () {
     kicked = true;
     setLive(false);
-    localStorage.removeItem('icesoccer.playerId');
+    localStorage.removeItem('nockey.playerId');
     showView('kicked');
   });
 
   kickRejoinBtn && kickRejoinBtn.addEventListener('click', function () {
-    localStorage.setItem('icesoccer.rejoinName', playerName);
-    window.location.replace('/icesoccer/join');
+    localStorage.setItem('nockey.rejoinName', playerName);
+    window.location.replace('/nockey/join');
   });
 
   // ---------------- Boot / reconnect ----------------
@@ -482,9 +482,9 @@
   function setReconnecting(on) { if (reconnectOverlay) reconnectOverlay.hidden = !on; }
 
   function backToJoin() {
-    localStorage.setItem('icesoccer.rejoinName', playerName);
-    localStorage.removeItem('icesoccer.playerId');
-    window.location.replace('/icesoccer/join');
+    localStorage.setItem('nockey.rejoinName', playerName);
+    localStorage.removeItem('nockey.playerId');
+    window.location.replace('/nockey/join');
   }
 
   function attemptReconnect() {

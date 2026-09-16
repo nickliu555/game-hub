@@ -1,16 +1,16 @@
 'use strict';
-// Headless probe of the Ice Soccer physics engine (public/icesoccer/js/engine.js).
+// Headless probe of the Nockey physics engine (public/nockey/js/engine.js).
 // Loads the browser IIFE with a minimal window shim and checks it against the
 // HaxBall reference numbers.
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const code = fs.readFileSync(path.join(__dirname, '..', 'public', 'icesoccer', 'js', 'engine.js'), 'utf8');
+const code = fs.readFileSync(path.join(__dirname, '..', 'public', 'nockey', 'js', 'engine.js'), 'utf8');
 const sandbox = { window: {}, Math: Math };
 vm.createContext(sandbox);
 vm.runInContext(code, sandbox);
-const PB = sandbox.window.IceSoccer;
+const PB = sandbox.window.Nockey;
 const PHYS = PB.PHYS;
 
 let failures = 0;
@@ -40,7 +40,7 @@ function emptyWorld(tier) {
 }
 function stepN(w, n) { let g = null; for (let i = 0; i < n; i++) { const r = w.step(); if (r) g = r; } return g; }
 
-console.log('Ice Soccer physics');
+console.log('Nockey physics');
 
 // 1. Terminal player speed = a·d/(1−d) = 2.4 u/tick.
 (function () {
@@ -142,6 +142,34 @@ console.log('Ice Soccer physics');
   check('ball wide of the post is not a goal', !g2, 'g=' + JSON.stringify(g2));
 })();
 
+// 8b. The goal counts on the crossing tick, then the puck keeps travelling into
+// the net for the celebration — without ever scoring a second time.
+(function () {
+  const w = emptyWorld();
+  const S = w.stadium;
+  w.ball.x = -(S.halfW - 30); w.ball.y = 0; w.ball.vx = -4; w.ball.vy = 0;
+  let g = null;
+  for (let i = 0; i < 40 && !g; i++) g = w.step();
+  check('goal reported on the crossing tick', !!g && g.team === 'blue', 'g=' + JSON.stringify(g));
+  const crossX = w.ball.x;
+  check('puck is only just over the line', crossX <= -S.halfW && crossX > -S.halfW - 6, 'x=' + crossX.toFixed(1));
+
+  let deepest = crossX;
+  let again = null;
+  for (let i = 0; i < 300; i++) {
+    const r = w.step();
+    if (r) again = r;
+    if (w.ball.x < deepest) deepest = w.ball.x;
+  }
+  check('the same goal is not scored twice', !again && w.blueScore === 1, 'again=' + JSON.stringify(again) + ' blue=' + w.blueScore);
+  check('puck carried on into the net', deepest < crossX - 5, 'deepest=' + deepest.toFixed(1) + ' cross=' + crossX.toFixed(1));
+  const back = -(S.halfW + S.netDepth);
+  check('puck stays inside the net', w.ball.x > back - 1 && w.ball.x < -S.halfW, 'x=' + w.ball.x.toFixed(1) + ' back=' + back);
+
+  w.kickoff('red');
+  check('kickoff clears the goal latch', w.goalLocked === false, 'goalLocked=' + w.goalLocked);
+})();
+
 // 9. The opening kickoff is unrestricted; later kickoffs hold the defending team.
 (function () {
   const w = makeWorld();
@@ -170,6 +198,79 @@ console.log('Ice Soccer physics');
   stepN(w, 120);
   check('barrier drops once the ball is played', w.koActive === false);
 })();
+
+// 9b. The face-off puck is spotted onto the restarting team's side of centre
+// (red defends the left goal, so red restarts on -x). The opening drop, which
+// nobody owns, stays on the centre spot.
+(function () {
+  const w = makeWorld();
+  const S = w.stadium;
+  w.kickoff('red', true);
+  check('opening drop is dead centre', w.ball.x === 0 && w.ball.y === 0, 'x=' + w.ball.x);
+
+  w.kickoff('red');
+  const redX = w.ball.x;
+  check('red restart is spotted on red\'s side', redX < 0, 'x=' + redX.toFixed(1));
+  w.kickoff('blue');
+  check('blue restart mirrors it', Math.abs(w.ball.x + redX) < 1e-9, 'x=' + w.ball.x.toFixed(1));
+  check('the puck stays well inside the face-off circle', Math.abs(w.ball.x) < S.circle - PHYS.ballRadius,
+    '|x|=' + Math.abs(w.ball.x).toFixed(1) + ' circle=' + S.circle);
+  check('interpolation starts from the spot, not the centre', w.ball.px === w.ball.x);
+})();
+
+// 9c. A CPU whose team did NOT win the face-off holds a goal-side shape instead
+// of pressing the centre circle, so the barrier dropping doesn't find it up ice.
+(function () {
+  const roster = [
+    { id: 'r', name: 'Red', team: 'red', seat: 0, isBot: true },
+    { id: 'b', name: 'Blue', team: 'blue', seat: 0, isBot: true },
+  ];
+  function runFaceoff(koTeam) {
+    const w = new PB.World({ tier: 'classic' });
+    w.setRoster(roster);
+    w.kickoff(koTeam);
+    w.frozen = false;
+    let closest = Infinity;
+    // Stop at the barrier release so we only measure face-off behaviour.
+    for (let i = 0; i < 240 && w.koActive; i++) {
+      w.stepBots();
+      w.step();
+      w.events.length = 0;
+      const blue = w.byId.get('b');
+      closest = Math.min(closest, Math.hypot(blue.x - w.ball.x, blue.y - w.ball.y));
+    }
+    return { w: w, closest: closest, blue: w.byId.get('b') };
+  }
+
+  const theirs = runFaceoff('red');   // blue did NOT win it -> should sit back
+  const ours = runFaceoff('blue');    // blue DID win it -> should attack
+  const S = theirs.w.stadium;
+  check('the CPU stays goal-side when the face-off is not its own', theirs.blue.x > S.halfW * 0.25,
+    'x=' + theirs.blue.x.toFixed(1) + ' ownGoal=' + S.halfW);
+  check('the CPU still goes for a face-off it owns', ours.closest < theirs.closest,
+    'own=' + ours.closest.toFixed(1) + ' theirs=' + theirs.closest.toFixed(1));
+})();
+
+// 9d. The net grows with the rink so a bigger sheet isn't a relatively smaller
+// target, and the posts stay inside the boards.
+(function () {
+  const tiers = ['small', 'classic', 'big', 'huge'];
+  const specs = tiers.map(function (t) { return emptyWorld(t).stadium; });
+  let grows = true, fits = true;
+  for (let i = 1; i < specs.length; i++) {
+    if (!(specs[i].goalHalf > specs[i - 1].goalHalf)) grows = false;
+  }
+  const shares = specs.map(function (s) { return s.goalHalf / s.halfH; });
+  for (let i = 0; i < specs.length; i++) {
+    if (specs[i].goalHalf >= specs[i].halfH) fits = false;
+  }
+  check('every bigger rink gets a bigger net', grows,
+    tiers.map(function (t, i) { return t + '=' + specs[i].goalHalf; }).join(' '));
+  check('the net stays a steady share of the rink height', Math.max.apply(null, shares) - Math.min.apply(null, shares) < 0.05,
+    shares.map(function (s) { return s.toFixed(3); }).join(' '));
+  check('the goal mouth fits between the boards', fits);
+})();
+
 
 // 9b. A kick thrown during the goal freeze must not still be flashing at kickoff.
 (function () {

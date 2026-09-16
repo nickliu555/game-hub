@@ -219,7 +219,7 @@ body.player input, body.player textarea {
 }
 
 /* The whole right-hand side drops a bomb — the disc is just the target to aim
-   at — so the button IS the zone (mirrors Ice Soccer's kick zone). The split is
+   at — so the button IS the zone (mirrors Nockey's slap zone). The split is
    deliberately uneven: steering is continuous and needs the room, the bomb is a
    single tap. */
 .bomb-zone {

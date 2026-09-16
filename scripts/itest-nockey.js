@@ -1,8 +1,8 @@
 'use strict';
-// Headless end-to-end smoke test for Ice Soccer: lobby, teams, bots, start,
+// Headless end-to-end smoke test for Nockey: lobby, teams, bots, start,
 // input relay, emote cooldown, pause, goal/end, reconnect and roster locking.
 const { io } = require('socket.io-client');
-const URL = process.env.ICESOCCER_URL || 'http://localhost:3000/icesoccer';
+const URL = process.env.NOCKEY_URL || 'http://localhost:3000/nockey';
 
 function mk(opts) { return io(URL, Object.assign({ transports: ['websocket'], forceNew: true }, opts)); }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));

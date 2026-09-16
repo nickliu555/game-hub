@@ -52,13 +52,13 @@
   setHostPresent(false);
   setRoundLocked(true);
 
-  const existing = localStorage.getItem('icesoccer.playerId');
-  if (existing) { window.location.replace('/icesoccer/play'); return; }
+  const existing = localStorage.getItem('nockey.playerId');
+  if (existing) { window.location.replace('/nockey/play'); return; }
 
-  const rejoinName = localStorage.getItem('icesoccer.rejoinName');
-  if (rejoinName) { nameInput.value = rejoinName; localStorage.removeItem('icesoccer.rejoinName'); }
+  const rejoinName = localStorage.getItem('nockey.rejoinName');
+  if (rejoinName) { nameInput.value = rejoinName; localStorage.removeItem('nockey.rejoinName'); }
 
-  const socket = io('/icesoccer', { transports: ['polling', 'websocket'] });
+  const socket = io('/nockey', { transports: ['polling', 'websocket'] });
 
   let socketReady = false;
   socket.on('connect', function () {
@@ -109,9 +109,9 @@
         }[reason] || 'Could not join. Please try again.';
         return showError(friendly);
       }
-      localStorage.setItem('icesoccer.playerId', pid);
-      localStorage.setItem('icesoccer.playerName', res.player.name);
-      window.location.replace('/icesoccer/play');
+      localStorage.setItem('nockey.playerId', pid);
+      localStorage.setItem('nockey.playerName', res.player.name);
+      window.location.replace('/nockey/play');
     });
   });
 })();

@@ -1,4 +1,4 @@
-/* === Ice Soccer host screen: built for a TV/laptop. === */
+/* === Nockey host screen: built for a TV/laptop. === */
 body.host {
   background: linear-gradient(160deg, var(--bg) 0%, var(--bg-deep) 100%);
   color: #fff;
@@ -132,7 +132,7 @@ body.host {
 }
 .team-red { box-shadow: inset 0 0 0 9999px rgba(228,59,59,0.06); }
 .team-blue { box-shadow: inset 0 0 0 9999px rgba(47,125,224,0.06); }
-.team-col.drag-over { border-color: var(--accent); background: rgba(245,213,71,0.12); }
+.team-col.drag-over { border-color: var(--accent); background: rgba(79,209,240,0.14); }
 .team-head { font-weight: 900; font-size: 18px; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .team-head .count { margin-left: auto; font-size: 14px; color: rgba(255,255,255,0.7); }
 .team-red .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--red); display: inline-block; }
@@ -202,7 +202,7 @@ body.host {
 .config-hint { flex: 1; min-width: 120px; font-size: 14px; color: rgba(255,255,255,0.72); text-align: center; }
 .btn-start {
   background: var(--accent);
-  color: #17210F;
+  color: #06222F;
   font-size: 20px;
   padding: 14px 34px;
   border-radius: var(--radius);
@@ -260,9 +260,12 @@ body.host {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: rgba(12,28,10,0.35);
+  background: rgba(8,26,42,0.38);
 }
 .match-overlay[hidden] { display: none; }
+/* The face-off dim fades out as the puck goes live instead of snapping off. */
+.match-overlay.fade-out { animation: ovFade 0.22s ease both; }
+@keyframes ovFade { from { opacity: 1; } to { opacity: 0; } }
 .co-note {
   font-size: 46px;
   font-weight: 900;
@@ -293,15 +296,30 @@ body.host {
   gap: 6px;
   pointer-events: none;
 }
+/* The dim is its own layer behind the text, so only the rink gets darkened. */
+.goal-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: rgba(8,26,42,0.38);
+  animation: gbDim 0.25s ease-out;
+}
 .goal-banner[hidden] { display: none; }
+@keyframes gbDim { from { opacity: 0; } }
 .gb-text {
+  position: relative;
   font-size: 128px;
   font-weight: 900;
   color: var(--accent);
-  text-shadow: 0 10px 0 rgba(0,0,0,0.3);
+  text-shadow: 0 10px 0 rgba(0,0,0,0.45), 0 0 18px rgba(255,255,255,0.5), 0 0 54px currentColor;
   animation: gbPop 0.5s cubic-bezier(.2,1.5,.4,1);
 }
 @keyframes gbPop { 0% { transform: scale(0.2) rotate(-6deg); opacity: 0; } 60% { transform: scale(1.15) rotate(3deg); } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+
+/* Placed after the overlay rules above so `none` wins on equal specificity. */
+@media (prefers-reduced-motion: reduce) {
+  .co-note, .co-num, .gb-text, .goal-banner::before, .match-overlay.fade-out { animation: none; }
+}
 
 /* ---------------- Pause ---------------- */
 .pause-btn {
@@ -321,7 +339,7 @@ body.host {
 }
 .pause-btn:hover { background: rgba(0,0,0,0.6); }
 .pause-btn:active { transform: scale(0.95); }
-.pause-btn.is-paused { background: var(--accent); color: #1b1300; border-color: transparent; }
+.pause-btn.is-paused { background: var(--accent); color: #06222F; border-color: transparent; }
 .pause-btn[hidden] { display: none; }
 
 .pause-overlay {
@@ -333,7 +351,7 @@ body.host {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  background: rgba(12,28,10,0.72);
+  background: rgba(8,26,42,0.74);
   text-align: center;
   padding: 30px;
 }

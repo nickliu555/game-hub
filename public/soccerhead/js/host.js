@@ -691,8 +691,9 @@
   function resumeMatch() {
     if (!paused) return;
     paused = false;
-    // Only active play unfreezes the ball; countdown/goal keep it frozen.
-    if (world && matchState === 'play') world.frozen = false;
+    // Only the countdown keeps the ball frozen; play and the goal celebration
+    // (where the ball is still rolling into the net) both resume live.
+    if (world && (matchState === 'play' || matchState === 'goal')) world.frozen = false;
     // Restart the frame clock so the first resumed frame has a normal dt.
     lastFrame = performance.now();
     acc = 0;
@@ -763,22 +764,26 @@
     lastFrame = now;
     if (dt > 0.1) dt = 0.1;
 
-    if (matchState === 'play' && !paused && world) {
-      driveBots(dt);
+    if ((matchState === 'play' || matchState === 'goal') && !paused && world) {
+      // Only while the ball is live: after a goal the CPUs stand still through
+      // the celebration instead of playing on until the next kickoff.
+      if (matchState === 'play') driveBots(dt);
       acc += dt;
       let steps = 0;
       let scored = null;
       let touched = false;
       while (acc >= FIXED_DT && steps < MAX_STEPS) {
-        scored = world.step(FIXED_DT);
+        const s = world.step(FIXED_DT);
+        if (s && !scored) scored = s;
         if (world.ball && world.ball.touchedThisStep) touched = true;
         acc -= FIXED_DT;
         steps++;
-        if (scored) break;
       }
       detectKickSfx();
+      // The goal is awarded on the crossing step; play carries on so the ball
+      // finishes its run into the net instead of stopping dead on the line.
       if (scored) { onGoal(scored); }
-      else {
+      else if (matchState === 'play') {
         // Idle-ball watchdog: nobody has touched the ball for a while -> reset
         // the point like a fresh kickoff (neutral centre drop + 3-2-1). Score
         // and match clock are preserved (beginCountdown doesn't touch them).
@@ -841,6 +846,18 @@
       const p = world.byId.get(botIds[i]);
       if (!p) continue;
       botThink(p, botState[p.id] || (botState[p.id] = { jumpCd: 0, holdJump: 0 }), dt);
+    }
+  }
+  // Drop every CPU's held input so they coast to a stop rather than keeping the
+  // last direction they were running in.
+  function stopBots() {
+    if (!world) return;
+    for (let i = 0; i < botIds.length; i++) {
+      const p = world.byId.get(botIds[i]);
+      if (!p) continue;
+      const st = botState[p.id];
+      if (st) { st.moveDir = 0; st.kick = false; st.wantJump = false; st.wantDash = false; st.holdJump = 0; st.react = 0; }
+      for (let c = 0; c < 4; c++) world.setInput(p.id, c, false);
     }
   }
   function botThink(p, st, dt) {
@@ -1019,8 +1036,8 @@
 
   function onGoal(team) {
     matchState = 'goal';
+    stopBots();
     updatePauseBtn();
-    if (world) world.frozen = true;
     // New goal: everyone may emote once again.
     emotedThisGoal.clear();
     // CPUs react automatically: the scorer's team celebrates, the conceding
@@ -1070,6 +1087,7 @@
       // with a fresh (neutral) kickoff + countdown — just like after a goal.
       sudden = true;
       matchState = 'goal';
+      stopBots();
       updatePauseBtn();
       if (world) world.frozen = true;
       socket.emit('host:sudden', {});

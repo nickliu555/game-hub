@@ -122,5 +122,33 @@ function settle(world, maxSec = 12) {
   ok(allSettled, 'all random flicks settle within 14s');
 }
 
+// 9) The goal is awarded on the crossing frame, then the ball keeps rolling on
+//    into the pocket instead of freezing on the line — and only scores once.
+{
+  const w = new World();
+  for (let i = 0; i < 5; i++) { const bt = w.tokenAt('blue', i); bt.y = 60; }
+  const t = w.tokenAt('red', 3);
+  t.x = w.ball.x - 80; t.y = w.ball.y;
+  w.applyFlick('red', 3, -1, 0);
+
+  let res = null;
+  for (let i = 0; i < Math.round(12 / DT) && !res; i++) res = w.step(DT);
+  ok(res === 'red', 'goal reported on the crossing frame: ' + res);
+  const crossX = w.ball.x;
+  ok(crossX >= w.field.W, 'ball is only just over the line: ' + crossX.toFixed(1));
+
+  let again = null;
+  for (let i = 0; i < Math.round(4 / DT); i++) { const g = w.step(DT); if (g) again = g; }
+  ok(again === null, 'the same goal is not reported twice: ' + again);
+  ok(w.ball.x > crossX + 10, 'ball travelled on into the net: ' + w.ball.x.toFixed(1));
+  const back = w.field.W + w.field.GOAL_DEPTH;
+  ok(w.ball.x <= back, 'ball stays inside the pocket back wall (<=' + back + '): ' + w.ball.x.toFixed(1));
+  ok(w.allAtRest(), 'everything settles during the celebration');
+
+  // A fresh kickoff clears the latch so the next goal counts.
+  w.setFormation();
+  ok(w.goalScored === null, 'kickoff clears the goal latch');
+}
+
 console.log('\nShoot Ball physics: ' + pass + ' passed, ' + fail + ' failed.');
 process.exit(fail ? 1 : 0);

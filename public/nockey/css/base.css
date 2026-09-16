@@ -1,14 +1,14 @@
 :root {
-  /* Ice Soccer palette: a floodlit grass pitch with the classic red/blue kits. */
-  --bg: #33502B;
-  --bg-deep: #1B2E17;
+  /* Nockey palette: a floodlit ice rink with the classic red/blue sweaters. */
+  --bg: #1A3D5C;
+  --bg-deep: #0B1B2B;
   --surface: #FFFFFF;
-  --ink: #17210F;
-  --ink-soft: #4a5a44;
-  --muted: #8a9785;
+  --ink: #0F2233;
+  --ink-soft: #46617a;
+  --muted: #8ca2b5;
 
-  --accent: #F5D547;        /* floodlight gold */
-  --accent-deep: #C9A711;
+  --accent: #4FD1F0;        /* rink floodlight */
+  --accent-deep: #1FA8CB;
   --warn: #E14B4B;
   --good: #2FBF71;
 
@@ -20,10 +20,10 @@
   --blue-deep: #1B4E96;
   --blue-soft: #6aa8f2;
 
-  /* Pitch. */
-  --grass: #4E7A3A;
-  --grass-lite: #5C8C45;
-  --grass-dark: #3F6430;
+  /* Ice. */
+  --ice: #EEF6FC;
+  --ice-lite: #FFFFFF;
+  --ice-dark: #C8DDEE;
 
   --radius: 14px;
   --shadow: 0 8px 30px rgba(0, 0, 0, 0.28);
@@ -38,7 +38,7 @@
   --gtb-btn-hover-bg: rgba(255, 255, 255, 0.26);
   --gtb-accent: var(--accent);
   --gtb-danger: #E14B4B;
-  --gtb-panel-bg: #2A4222;
+  --gtb-panel-bg: #143349;
   --gtb-panel-fg: #ffffff;
 
   /* Shared modal theme. */
@@ -47,13 +47,13 @@
   --gm-text: var(--ink);
   --gm-border: rgba(0, 0, 0, 0.08);
   --gm-radius: var(--radius);
-  --gm-btn-secondary-bg: #eaefe6;
+  --gm-btn-secondary-bg: #e6eef5;
   --gm-btn-secondary-fg: var(--ink-soft);
   --gm-btn-secondary-border: rgba(0, 0, 0, 0.08);
   --gm-btn-secondary-hover-border: rgba(0, 0, 0, 0.18);
   --gm-btn-secondary-hover-fg: var(--ink);
   --gm-btn-primary-bg: var(--accent);
-  --gm-btn-primary-fg: #17210F;
+  --gm-btn-primary-fg: #06222F;
   --gm-btn-primary-border: var(--accent);
   --gm-btn-primary-hover: var(--accent-deep);
   --gm-btn-danger-bg: var(--warn);
@@ -84,7 +84,7 @@ h1, h2, h3 { font-family: var(--font-sans); font-weight: 800; letter-spacing: -0
   align-items: center;
   justify-content: center;
   background: var(--accent);
-  color: #17210F;
+  color: #06222F;
   font-weight: 900;
   border-radius: 8px;
   padding: 2px 8px;
@@ -114,7 +114,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
 @media (hover: hover) {
   button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--shadow); }
 }
-.btn-primary { background: var(--accent); color: #17210F; }
+.btn-primary { background: var(--accent); color: #06222F; }
 
 /* A player's name inside a sentence always reads as a person, not body text. */
 .pname {

@@ -1,7 +1,7 @@
 'use strict';
 
 // ─────────────────────────────────────────────────────────────────────────
-// Ice Soccer — server-side lobby + match-meta state machine.
+// Nockey — server-side lobby + match-meta state machine.
 //
 // Like Soccer Head, the live match (disc physics, ball, scoring) is simulated
 // on the HOST browser so controller input travels player -> server -> host in a
@@ -32,7 +32,7 @@ const DEFAULT_TIME_LIMIT_SEC = 180;
 const TEAMS = ['red', 'blue'];
 
 // Pitch tier is chosen from the larger team's size, HaxBall style: bigger teams
-// get a bigger stadium. Mirrors STADIUM_TIERS in public/icesoccer/js/engine.js.
+// get a bigger stadium. Mirrors STADIUM_TIERS in public/nockey/js/engine.js.
 const TIERS = ['small', 'classic', 'big', 'huge'];
 function tierForTeamSize(n) {
   const i = Math.min(TIERS.length, Math.max(1, n | 0)) - 1;

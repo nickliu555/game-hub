@@ -2,7 +2,7 @@
   'use strict';
 
   // ───────────────────────────────────────────────────────────────────────
-  // Ice Soccer engine — a faithful re-implementation of HaxBall's disc physics.
+  // Nockey engine — a faithful re-implementation of HaxBall's disc physics.
   //
   // Everything below is expressed in HaxBall units and PER 60 Hz TICK (not per
   // second): the world is stepped at a fixed 1/60 s and the constants are taken
@@ -48,14 +48,20 @@
   };
 
   // Pitch size grows with the larger team, HaxBall Classic/Big/Huge style.
-  // Mirrors TIERS in server/icesoccer/game.js.
+  // Mirrors TIERS in server/nockey/game.js. The net grows with the rink so a
+  // bigger sheet doesn't mean a relatively smaller target — goalHalf stays at
+  // roughly a third of halfH across every tier.
   var TIER_SPECS = {
-    small: { halfW: 315, halfH: 145, goalHalf: 58, circle: 62 },
-    classic: { halfW: 370, halfH: 170, goalHalf: 64, circle: 75 },
-    big: { halfW: 480, halfH: 220, goalHalf: 72, circle: 90 },
+    small: { halfW: 315, halfH: 145, goalHalf: 50, circle: 62 },
+    classic: { halfW: 370, halfH: 170, goalHalf: 57, circle: 75 },
+    big: { halfW: 480, halfH: 220, goalHalf: 69, circle: 90 },
     huge: { halfW: 575, halfH: 260, goalHalf: 80, circle: 100 },
   };
   var TIERS = ['small', 'classic', 'big', 'huge'];
+  // How far off the centre spot a face-off puck sits, as a share of the centre
+  // circle's radius, toward the team restarting play: halfway between the
+  // centre line and the edge of the circle.
+  var KICKOFF_BIAS = 0.5;
 
   function pickTier(maxTeamSize) {
     var i = Math.min(TIERS.length, Math.max(1, maxTeamSize | 0)) - 1;
@@ -93,15 +99,38 @@
     var gh = S.goalHalf;
     var outX = hw + NET_DEPTH;
     var outY = hh + OUT_PAD;
+    // Rounded corners, hockey style. The last term keeps a straight run of end
+    // board between the goal mouth and where the curve starts.
+    var corner = Math.min(hh * 0.5, hw * 0.26, hh - gh - 8);
+    var cx = hw - corner;
+    var cy = hh - corner;
 
     var segments = [];
     // Ball area — bCoef 1, ball only, so the ball keeps its pace off the boards.
-    segments.push(seg(-hw, -hh, hw, -hh, 1, CG.ball));
-    segments.push(seg(-hw, hh, hw, hh, 1, CG.ball));
-    segments.push(seg(-hw, -hh, -hw, -gh, 1, CG.ball));
-    segments.push(seg(-hw, gh, -hw, hh, 1, CG.ball));
-    segments.push(seg(hw, -hh, hw, -gh, 1, CG.ball));
-    segments.push(seg(hw, gh, hw, hh, 1, CG.ball));
+    segments.push(seg(-cx, -hh, cx, -hh, 1, CG.ball));
+    segments.push(seg(-cx, hh, cx, hh, 1, CG.ball));
+    segments.push(seg(-hw, -cy, -hw, -gh, 1, CG.ball));
+    segments.push(seg(-hw, gh, -hw, cy, 1, CG.ball));
+    segments.push(seg(hw, -cy, hw, -gh, 1, CG.ball));
+    segments.push(seg(hw, gh, hw, cy, 1, CG.ball));
+    // The engine only knows straight segments, so each corner arc is a
+    // polyline; skaters get a single chord so they can't slip round the outside
+    // of it via the run-off strip.
+    var ARC_STEPS = 6;
+    for (var sx = -1; sx <= 1; sx += 2) {
+      for (var sy = -1; sy <= 1; sy += 2) {
+        var prevX = sx * cx;
+        var prevY = sy * hh;
+        for (var k = 1; k <= ARC_STEPS; k++) {
+          var a = (Math.PI / 2) * (k / ARC_STEPS);
+          var px = sx * (cx + corner * Math.sin(a));
+          var py = sy * (cy + corner * Math.cos(a));
+          segments.push(seg(prevX, prevY, px, py, 1, CG.ball));
+          prevX = px; prevY = py;
+        }
+        segments.push(seg(sx * cx, sy * outY, sx * hw, sy * cy, 0.1, CG.player));
+      }
+    }
     // Goal nets — ball only, deadens the ball so it settles in the net.
     segments.push(seg(-hw, -gh, -outX, -gh, 0.1, CG.ball));
     segments.push(seg(-hw, gh, -outX, gh, 0.1, CG.ball));
@@ -134,7 +163,7 @@
     return {
       tier: tier,
       halfW: hw, halfH: hh, goalHalf: gh,
-      netDepth: NET_DEPTH, circle: S.circle,
+      netDepth: NET_DEPTH, circle: S.circle, corner: corner,
       outX: outX, outY: outY,
       segments: segments, planes: planes, posts: posts,
     };
@@ -311,8 +340,14 @@
     this.koTeam = team === 'blue' ? 'blue' : 'red';
     this.koActive = !unrestricted;
     this.koTicks = 0;
-    this.ball.x = 0; this.ball.y = 0; this.ball.vx = 0; this.ball.vy = 0;
-    this.ball.px = 0; this.ball.py = 0;
+    this.goalLocked = false;
+    // Spot the puck a little onto the restarting team's side of the centre spot
+    // so the face-off visibly belongs to them. Red defends the left goal, so
+    // their side is -x. An unrestricted drop (match start) stays dead centre,
+    // where it's anybody's puck.
+    var koX = unrestricted ? 0 : (this.koTeam === 'red' ? -1 : 1) * S.circle * KICKOFF_BIAS;
+    this.ball.x = koX; this.ball.y = 0; this.ball.vx = 0; this.ball.vy = 0;
+    this.ball.px = koX; this.ball.py = 0;
     var counts = { red: 0, blue: 0 };
     var sizes = { red: this.teamSize('red'), blue: this.teamSize('blue') };
     var sorted = this.players.slice().sort(function (a, b) { return a.seat - b.seat; });
@@ -429,17 +464,23 @@
     // 4. Collisions.
     this._collide();
 
-    // 5. Goal line — the ball's centre has to cross it between the posts.
+    // 5. Goal line — the ball's centre has to cross it between the posts. It
+    // counts on the crossing tick, then `goalLocked` lets the puck carry on
+    // into the net (and even back out) without scoring twice.
     var line = S.halfW;
-    if (prevBallX > -line && ball.x <= -line && Math.abs(ball.y) < S.goalHalf) {
-      this.blueScore++;
-      this.events.push({ t: 'goal', team: 'blue' });
-      return { team: 'blue' };
-    }
-    if (prevBallX < line && ball.x >= line && Math.abs(ball.y) < S.goalHalf) {
-      this.redScore++;
-      this.events.push({ t: 'goal', team: 'red' });
-      return { team: 'red' };
+    if (!this.goalLocked && Math.abs(ball.y) < S.goalHalf) {
+      if (prevBallX > -line && ball.x <= -line) {
+        this.goalLocked = true;
+        this.blueScore++;
+        this.events.push({ t: 'goal', team: 'blue' });
+        return { team: 'blue' };
+      }
+      if (prevBallX < line && ball.x >= line) {
+        this.goalLocked = true;
+        this.redScore++;
+        this.events.push({ t: 'goal', team: 'red' });
+        return { team: 'red' };
+      }
     }
     return null;
   };
@@ -568,7 +609,15 @@
       var tx, ty;
       var kick = false;
 
-      if (chaser[p.team] === p) {
+      if (this.koActive && p.team !== this.koTeam) {
+        // Face-off that isn't ours: hold a goal-side shape. Pressing the centre
+        // circle just means the barrier dropping finds us all up the ice, with
+        // the net open to the first bounce off a board. Only spread off the
+        // centre line when there's a teammate left to cover it.
+        var mates = this.teamSize(p.team);
+        tx = ownGoalX + (ball.x - ownGoalX) * 0.34 + b.jx;
+        ty = ball.y * 0.4 + (mates > 2 ? (p.seat % 2 === 0 ? -1 : 1) * S.halfH * 0.32 : 0) + b.jy;
+      } else if (chaser[p.team] === p) {
         // Attack: line up behind the ball and drive it at the goal.
         tx = ball.x - gx * behind + b.jx;
         ty = ball.y - gy * behind + b.jy;
@@ -625,6 +674,6 @@
     NET_DEPTH: NET_DEPTH,
   };
 
-  if (typeof window !== 'undefined') window.IceSoccer = api;
+  if (typeof window !== 'undefined') window.Nockey = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 }());

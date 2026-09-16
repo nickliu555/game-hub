@@ -10,6 +10,7 @@
   const GOAL_CELEBRATE_MS = 2600;
   const BOT_THINK_MS = 950;       // CPU "draw back" time before it fires
   const TURN_INTRO_MS = 1500;     // "{Player}'s Turn" card before control opens
+  const OVERLAY_FADE_MS = 220;    // transient overlay fade-out; keep in sync with ovFade
   const SETTLE_MS = 450;          // breathe after the ball stops before the card
   const RESPAWN_SETTLE_MS = 750;  // longer: a token popped out of a net is shown
 
@@ -619,7 +620,8 @@
     return members[rrIndex[team]];
   }
 
-  function beginTurn(team) {
+  // `silent` suppresses the turn chime when another cue just played (the kickoff whistle).
+  function beginTurn(team, silent) {
     if (botTimer) { clearTimeout(botTimer); botTimer = null; }
     const member = pickNextMember(team);
     if (!member) {
@@ -631,13 +633,13 @@
         setTurnBanner();
         return;
       }
-      beginTurnFor(other(team), alt);
+      beginTurnFor(other(team), alt, silent);
       return;
     }
-    beginTurnFor(team, member);
+    beginTurnFor(team, member, silent);
   }
 
-  function beginTurnFor(team, member) {
+  function beginTurnFor(team, member, silent) {
     clearTurnHold();
     currentTeam = team;
     currentPlayerId = member.id;
@@ -651,7 +653,7 @@
     // aimAllowed(), so the board stays locked for the length of the card.
     matchState = 'intro';
     showTurnCard(team, member.name);
-    playTurnCue();
+    if (!silent) playTurnCue();
     socket.emit('host:turnIntro', {
       team: currentTeam, playerId: currentPlayerId, playerName: currentPlayerName,
       red: redScore, blue: blueScore,
@@ -709,31 +711,56 @@
     });
   }
 
+  // ---------------- Transient overlays ----------------
+  // Overlays fade out rather than snapping off over live play. `immediate` skips
+  // the fade for hard state changes (match end, reset) where the view swaps too.
+  function showOverlay(el) {
+    if (!el) return;
+    if (el._fadeTimer) { clearTimeout(el._fadeTimer); el._fadeTimer = null; }
+    el.classList.remove('fade-out');
+    el.hidden = false;
+  }
+  function hideOverlay(el, immediate) {
+    if (!el) return;
+    if (el._fadeTimer) { clearTimeout(el._fadeTimer); el._fadeTimer = null; }
+    if (immediate || el.hidden) {
+      el.classList.remove('fade-out');
+      el.hidden = true;
+      return;
+    }
+    el.classList.add('fade-out');
+    el._fadeTimer = setTimeout(function () {
+      el._fadeTimer = null;
+      el.classList.remove('fade-out');
+      el.hidden = true;
+    }, OVERLAY_FADE_MS);
+  }
+
   // ---------------- Kickoff countdown (match start + after every goal) ----------------
   function showCount(n) {
     if (!countOverlay) return;
-    countOverlay.hidden = false;
+    showOverlay(countOverlay);
     coNum.textContent = n;
     coNum.style.animation = 'none'; void coNum.offsetWidth; coNum.style.animation = '';
   }
-  function hideCount() { if (countOverlay) countOverlay.hidden = true; }
+  function hideCount(immediate) { hideOverlay(countOverlay, immediate); }
   function playCountBlip(freq) { blip(freq || 440, 0.12, 'square', 0.14); }
 
   // ---------------- "{Player}'s Turn" card ----------------
   function showTurnCard(team, name) {
     if (!turnCard) return;
+    showOverlay(turnCard);
     turnCard.classList.remove('red', 'blue');
     turnCard.classList.add(team === 'blue' ? 'blue' : 'red');
     if (tcName) tcName.textContent = name || (team === 'blue' ? 'Blue' : 'Red');
-    turnCard.hidden = false;
     turnCard.style.animation = 'none'; void turnCard.offsetWidth; turnCard.style.animation = '';
     const line = turnCard.firstElementChild;
     if (line) { line.style.animation = 'none'; void line.offsetWidth; line.style.animation = ''; }
   }
-  function hideTurnCard() { if (turnCard) turnCard.hidden = true; }
+  function hideTurnCard(immediate) { hideOverlay(turnCard, immediate); }
   function clearTurnHold() {
     if (turnHoldTimer) { clearTimeout(turnHoldTimer); turnHoldTimer = null; }
-    hideTurnCard();
+    hideTurnCard(true);
   }
   function playTurnCue() {
     const c = getAudioCtx(); if (!c) return;
@@ -769,7 +796,7 @@
         clearInterval(countdownTimer); countdownTimer = null;
         hideCount();
         playWhistle();
-        beginTurn(team);
+        beginTurn(team, true);
       }
     }, 800);
   }
@@ -827,7 +854,7 @@
     gbText.textContent = (team === 'red' ? redNames : blueNames);
     gbText.style.color = team === 'red' ? 'var(--red-soft)' : 'var(--blue-soft)';
     if (gbSub) gbSub.textContent = 'GOAL!!';
-    goalBanner.hidden = false;
+    showOverlay(goalBanner);
     gbText.style.animation = 'none'; void gbText.offsetWidth; gbText.style.animation = '';
     if (gbSub) { gbSub.style.animation = 'none'; void gbSub.offsetWidth; gbSub.style.animation = ''; }
     playGoal();
@@ -835,7 +862,7 @@
 
     setTimeout(function () {
       if (matchState !== 'goal') return;
-      goalBanner.hidden = true;
+      hideOverlay(goalBanner);
       if (redScore >= goalTarget || blueScore >= goalTarget) {
         endMatch(redScore > blueScore ? 'red' : 'blue', true);
         return;
@@ -871,24 +898,26 @@
     lastFrame = now;
     if (dt > 0.1) dt = 0.1;
 
-    if (matchState === 'sim' && world) {
+    if ((matchState === 'sim' || matchState === 'goal') && world) {
       acc += dt;
       simElapsedMs += dt * 1000;
       let scored = null;
       let steps = 0;
       while (acc >= FIXED_DT && steps < MAX_STEPS) {
-        scored = world.step(FIXED_DT);
+        const s = world.step(FIXED_DT);
+        if (s && !scored) scored = s;
         acc -= FIXED_DT;
         steps++;
-        if (scored) break;
       }
       // Ball-contact clack: a sharp jump in ball speed = it got struck.
       const bs = world.ball ? Math.hypot(world.ball.vx, world.ball.vy) : 0;
       if (bs - prevBallSpeed > 380) playClack();
       prevBallSpeed = bs;
 
+      // The goal is awarded on the crossing frame; the ball carries on rolling
+      // into the net for the rest of the celebration.
       if (scored) { onGoal(scored); }
-      else if (world.allAtRest() || simElapsedMs >= SIM_MAX_MS) {
+      else if (matchState === 'sim' && (world.allAtRest() || simElapsedMs >= SIM_MAX_MS)) {
         acc = 0;
         endSim();
       }
@@ -1050,7 +1079,8 @@
     if (botTimer) { clearTimeout(botTimer); botTimer = null; }
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
     clearTurnHold();
-    hideCount();
+    hideCount(true);
+    hideOverlay(goalBanner, true);
     matchState = 'idle';
     world = null; renderer = null;
     redScore = blueScore = 0;
