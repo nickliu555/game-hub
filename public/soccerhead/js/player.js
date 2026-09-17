@@ -34,7 +34,6 @@
   const flash = document.getElementById('flash');
   const flashText = document.getElementById('flashText');
   const pauseCover = document.getElementById('pauseCover');
-  const rotateHint = document.getElementById('rotateHint');
   const finalEmoji = document.getElementById('finalEmoji');
   const finalTitle = document.getElementById('finalTitle');
   const finalScore = document.getElementById('finalScore');
@@ -78,7 +77,6 @@
     body.classList.toggle('playing', name === 'controller');
     // Credit belongs on the lobby wait only — never mid-match or on the final.
     if (playerAttribution) playerAttribution.hidden = (name !== 'lobby');
-    updateRotateHint();
   }
 
   function setTeam(team) {
@@ -485,7 +483,6 @@
   function setGamepadBadge(on) {
     if (gamepadBadge) gamepadBadge.hidden = !on;
     body.classList.toggle('has-gamepad', !!on);
-    updateRotateHint();
   }
   function releaseGamepadHeld() {
     [LEFT, RIGHT, JUMP, KICK].forEach(function (code) {
@@ -550,31 +547,31 @@
 
   // ---------------- Lock zoom ----------------
   // iOS Safari ignores `user-scalable=no`, so pinch- and double-tap-zoom still
-  // work and would drift the controller off-screen. Suppress them explicitly so
-  // the gamepad stays rock-steady while players hammer the buttons.
-  ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (evt) {
-    document.addEventListener(evt, function (e) { e.preventDefault(); }, { passive: false });
-  });
-  let lastTouchEnd = 0;
-  document.addEventListener('touchend', function (e) {
-    const now = Date.now();
-    if (now - lastTouchEnd <= 300) e.preventDefault(); // double-tap zoom
-    lastTouchEnd = now;
-  }, { passive: false });
-  document.addEventListener('touchmove', function (e) {
-    if (e.touches && e.touches.length > 1) e.preventDefault(); // pinch zoom
-  }, { passive: false });
-
-  // ---------------- Rotate hint ----------------
-  const portraitMq = window.matchMedia('(orientation: portrait)');
-  function updateRotateHint() {
-    const inController = body.classList.contains('playing');
-    const usingGamepad = body.classList.contains('has-gamepad');
-    if (rotateHint) rotateHint.hidden = !(inController && portraitMq.matches && !usingGamepad);
-  }
-  if (portraitMq.addEventListener) portraitMq.addEventListener('change', updateRotateHint);
-  else if (portraitMq.addListener) portraitMq.addListener(updateRotateHint);
-  window.addEventListener('resize', updateRotateHint);
+  // work and would drift the controller off-screen. Every cancelable touchmove
+  // is swallowed, not just multi-finger ones: iOS decides a gesture is a pinch
+  // on the FIRST move, and the follow-ups then arrive with cancelable === false
+  // — which is exactly what two thumbs on the pad look like.
+  (function lockZoom() {
+    const stop = function (e) { e.preventDefault(); };
+    document.addEventListener('gesturestart', stop, { passive: false });
+    document.addEventListener('gesturechange', stop, { passive: false });
+    document.addEventListener('gestureend', stop, { passive: false });
+    document.addEventListener('touchmove', function (e) {
+      if (e.cancelable) e.preventDefault();
+    }, { passive: false });
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', function (e) {
+      const now = Date.now();
+      if (now - lastTouchEnd <= 350) e.preventDefault();
+      lastTouchEnd = now;
+    }, { passive: false });
+    document.addEventListener('dblclick', stop, { passive: false });
+    document.addEventListener('contextmenu', stop, { passive: false });
+    document.addEventListener('selectstart', stop, { passive: false });
+    document.addEventListener('dragstart', stop, { passive: false });
+    // iOS still scrolls the document behind a fixed body on some versions.
+    window.addEventListener('scroll', function () { window.scrollTo(0, 0); }, { passive: true });
+  })();
 
   // ---------------- Kicked → rejoin ----------------
   if (kickRejoinBtn) {

@@ -7,6 +7,8 @@ body.player {
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
   background: linear-gradient(160deg, var(--bg) 0%, var(--bg-deep) 100%);
   color: #fff;
   -webkit-user-select: none;
@@ -47,21 +49,6 @@ body.player[data-team="blue"] { --me: var(--blue); --me-deep: var(--blue-deep); 
 @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
 .wait-title { font-size: 24px; font-weight: 800; }
 .wait-sub { color: rgba(255,255,255,0.75); font-size: 15px; max-width: 300px; line-height: 1.5; }
-/* Only worth saying while the phone is upright and there's no gamepad. */
-.wait-rotate { display: none; }
-@media (orientation: portrait) {
-  .wait-rotate {
-    display: block;
-    margin-top: 10px;
-    padding: 7px 14px;
-    border-radius: 999px;
-    background: rgba(255,255,255,0.09);
-    border: 1px solid rgba(255,255,255,0.14);
-    font-size: 14px; font-weight: 800;
-    color: var(--accent);
-  }
-  body.has-gamepad .wait-rotate { display: none; }
-}
 .kick-icon { font-size: 60px; margin-bottom: 6px; }
 .final-emoji { font-size: 72px; }
 .final-title { font-size: 30px; margin: 6px 0; }
@@ -108,17 +95,17 @@ body.player[data-team="blue"] { --me: var(--blue); --me-deep: var(--blue-deep); 
   padding: max(14px, env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
   gap: 16px;
 }
-/* Both halves are identical: two equal, full-height pill buttons. Left half =
-   move ◀ ▶, right half = Jump + Kick. Big symmetric targets, easy to thumb. */
+/* Movement left, actions right. Left = ◀ ▶ side by side; right = Jump stacked
+   over Kick. Movement gets the wider share — it is two targets, not one. */
 .pad-left, .pad-right {
-  flex: 1;
   display: flex;
-  flex-direction: row;
   align-items: stretch;
   gap: 14px;
   min-height: 0;
   min-width: 0;
 }
+.pad-left { flex: 1 1 auto; flex-direction: row; }
+.pad-right { flex: 0 0 40%; flex-direction: column; }
 
 .mv-btn, .act-btn {
   position: relative;
@@ -283,25 +270,6 @@ body.player[data-team="blue"] { --me: var(--blue); --me-deep: var(--blue-deep); 
 }
 .emote-panel.locked .emote-btn:not(.picked) { opacity: 0.32; pointer-events: none; }
 .emote-panel.locked .emote-btn.picked { pointer-events: none; }
-
-/* ---------------- Rotate hint ---------------- */
-.rotate-hint {
-  position: fixed;
-  inset: 0;
-  background: rgba(6, 24, 40, 0.92);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  z-index: 40;
-  text-align: center;
-  padding: 30px;
-}
-.rotate-hint[hidden] { display: none; }
-.rot-icon { font-size: 60px; animation: rotWiggle 1.6s ease-in-out infinite; }
-@keyframes rotWiggle { 0%,100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
-.rot-text { font-size: 18px; font-weight: 700; max-width: 320px; }
 
 /* Controller-connected badge */
 .gamepad-badge {
