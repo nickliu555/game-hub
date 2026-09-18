@@ -16,7 +16,7 @@
   // ───────────────────────────────────────────────────────────────────────
 
   var PHYS = {
-    playerRadius: 15,
+    playerRadius: 13.5,
     playerInvMass: 0.5,
     playerBCoef: 0.5,
     playerDamping: 0.96,
@@ -27,7 +27,9 @@
     // so shots get a deliberate ~30% bump to feel punchy on the host screen.
     kickStrength: 6.5,
     kickback: 0,
-    ballRadius: 10,
+    // HaxBall's default is 10. A smaller puck slips past a goalie's disc more
+    // easily, so the net is harder to shut down.
+    ballRadius: 8,
     ballInvMass: 1,
     ballBCoef: 0.5,
     ballDamping: 0.99,
@@ -458,7 +460,15 @@
       p.x += p.vx; p.y += p.vy;
       p.vx *= p.damping; p.vy *= p.damping;
     }
-    ball.x += ball.vx; ball.y += ball.vy;
+    // A hard shot covers more than the puck's own radius in a tick, and segment
+    // collision is positional — one jump would land it clean outside the boards
+    // with nothing to push it back, so the puck's move is split into hops no
+    // longer than 0.9r and the rink is resolved between them.
+    var hops = Math.max(1, Math.ceil(Math.hypot(ball.vx, ball.vy) / (ball.r * 0.9)));
+    for (var h = 0; h < hops; h++) {
+      ball.x += ball.vx / hops; ball.y += ball.vy / hops;
+      if (h < hops - 1) this._collideBallStatic();
+    }
     ball.vx *= ball.damping; ball.vy *= ball.damping;
 
     // 4. Collisions.
@@ -528,6 +538,30 @@
         for (j = 0; j < this._koBarriers.length; j++) collidePlane(d, this._koBarriers[j], null);
         if (this._koCircle) collideDiscs(d, this._koCircle, null);
       }
+    }
+  };
+
+  // Ball vs the static rink only — used between integration hops so a fast puck
+  // bounces off the boards at the point it reaches them instead of skipping past.
+  World.prototype._collideBallStatic = function () {
+    var S = this.stadium;
+    var ball = this.ball;
+    var hit = { impact: 0, hit: false };
+    var j;
+    for (j = 0; j < S.posts.length; j++) {
+      hit.impact = 0;
+      collideDiscs(ball, S.posts[j], hit);
+      if (hit.impact > 1.5) this.events.push({ t: 'post', x: ball.x, y: ball.y });
+    }
+    for (j = 0; j < S.segments.length; j++) {
+      hit.impact = 0;
+      collideSegment(ball, S.segments[j], hit);
+      if (hit.impact > 1.5) this.events.push({ t: 'wall', x: ball.x, y: ball.y, v: hit.impact });
+    }
+    for (j = 0; j < S.planes.length; j++) collidePlane(ball, S.planes[j], null);
+    if (this.koActive) {
+      for (j = 0; j < this._koBarriers.length; j++) collidePlane(ball, this._koBarriers[j], null);
+      if (this._koCircle) collideDiscs(ball, this._koCircle, null);
     }
   };
 

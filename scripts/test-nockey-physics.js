@@ -85,10 +85,12 @@ console.log('Nockey physics');
   w.step();
   check('re-press kicks again', w.ball.vx > 4, 'vx=' + w.ball.vx.toFixed(3) + ' (first ' + after1.toFixed(2) + ')');
 })();
-// 4. Kick range is exactly r_p + r_b + 4 = 29.
+// 4. Kick range is exactly r_p + r_b + 4 — the reach beyond contact is what
+// matters, and it stays 4 whatever the puck radius is.
 (function () {
   const reach = PHYS.playerRadius + PHYS.ballRadius + PHYS.kickRange;
-  check('kick reach constant is 29', reach === 29, 'reach=' + reach);
+  const gap = reach - (PHYS.playerRadius + PHYS.ballRadius);
+  check('kick reach is 4 beyond contact', gap === 4, 'reach=' + reach + ' gap=' + gap);
   const w = soloWorld();
   const p = w.byId.get('r');
   p.x = 0; p.y = 0;

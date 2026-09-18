@@ -388,7 +388,7 @@
 
       // The goal line is a marking on the ice, not part of the frame, so it
       // stays thinner than the tubing.
-      ctx.strokeStyle = COLORS.redLine;
+      ctx.strokeStyle = side < 0 ? COLORS.redLine : COLORS.blueLine;
       ctx.lineWidth = 2.5;
       ctx.beginPath();
       ctx.moveTo(line, -gh);
