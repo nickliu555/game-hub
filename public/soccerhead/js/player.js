@@ -192,6 +192,13 @@
     setClock(0, true);
     showFlash('SUDDEN DEATH', false);
   });
+  socket.on('m:timeup', function () {
+    hideEmotePanel();
+    setControls(false);
+    setClock(0, false);
+    // Text only — the big count slot would overflow on a narrow phone.
+    showOverlay(null, "Time's up!");
+  });
   socket.on('m:pause', function () {
     // Drop any held buttons and lock the pad, then cover it so no touch lands.
     setControls(false);

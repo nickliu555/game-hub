@@ -10,6 +10,8 @@
   const COUNTDOWN_START_FROM = 5;    // longer count on the first face-off
   const COUNTDOWN_STEP_MS = 800;
   const GOAL_CELEBRATE_MS = 4800;
+  const FINAL_BEEP_FROM = 5;         // beep on each of the last five seconds
+  const TIME_UP_MS = 2500;           // "TIME'S UP!" holds before the results
   const OVERLAY_FADE_MS = 220;       // transient overlay fade-out; keep in sync with ovFade
   const CLOCK_EMIT_MS = 250;
   const EMOTE_MS = 2600;
@@ -52,6 +54,8 @@
   const coNote = document.getElementById('coNote');
   const goalBanner = document.getElementById('goalBanner');
   const gbText = document.getElementById('gbText');
+  const timeUpBanner = document.getElementById('timeUpBanner');
+  const tuText = document.getElementById('tuText');
 
   const finalTrophy = document.getElementById('finalTrophy');
   const finalHeading = document.getElementById('finalHeading');
@@ -206,6 +210,9 @@
     o.start(c.currentTime); o.stop(c.currentTime + 0.4);
   }
   function playCountBlip(n) { blip(520 + (COUNTDOWN_FROM - Math.min(n, COUNTDOWN_FROM)) * 60, 0.13, 'square', 0.14); }
+  // Runs-out-of-time ticks. One flat pitch, set above the rising face-off count
+  // so the two countdowns never sound alike from across the room.
+  function playFinalTick() { blip(860, 0.12, 'square', 0.16); }
   function playWhistle() {
     const c = getAudioCtx(); if (!c) return;
     blip(1650, 0.18, 'square', 0.13);
@@ -540,7 +547,8 @@
   let redScore = 0;
   let blueScore = 0;
   let paused = false;
-  let matchState = 'idle'; // idle | count | play | goal | over
+  let matchState = 'idle'; // idle | count | play | goal | timeup | over
+  let lastTickSec = -1;    // last whole second announced, so a beep fires once
   let superseded = false;  // another host screen took over the simulation
   let rafId = null;
   let lastFrame = 0;
@@ -587,8 +595,10 @@
     renderer = new window.NockeyRender.Renderer(canvas, world);
     paused = false;
     clearTimers();
+    lastTickSec = -1;
     if (pauseOverlay) pauseOverlay.hidden = true;
     goalBanner.hidden = true;
+    timeUpBanner.hidden = true;
 
     show('match');
     requestAnimationFrame(function () { renderer.resize(); });
@@ -626,6 +636,7 @@
   function beginCountdown(from, note) {
     matchState = 'count';
     if (world) world.frozen = true;
+    lastTickSec = -1;
     goalBanner.hidden = true;
     showOverlay(countOverlay);
     coNote.hidden = !note;
@@ -695,16 +706,35 @@
     });
   }
 
+  // The buzzer gets its own beat: horn, banner, and only then the result, so
+  // nobody is still watching the puck when the scores appear.
   function handleTimeUp() {
-    endMatch(redScore === blueScore ? null : (redScore > blueScore ? 'red' : 'blue'));
+    if (matchState !== 'play') return;
+    matchState = 'timeup';
+    if (world) world.frozen = true;
+    goalBanner.hidden = true;
+    timeUpBanner.hidden = false;
+    tuText.style.animation = 'none';
+    void tuText.offsetWidth;
+    tuText.style.animation = '';
+    playHorn();
+    socket.emit('host:timeup', {});
+    updateScoreboard();
+    updatePauseBtn();
+    const winner = redScore === blueScore ? null : (redScore > blueScore ? 'red' : 'blue');
+    after(TIME_UP_MS, function () {
+      timeUpBanner.hidden = true;
+      endMatch(winner, true);
+    });
   }
 
-  function endMatch(winner) {
+  function endMatch(winner, hornPlayed) {
     matchState = 'over';
     if (world) world.frozen = true;
     stopLoop();
     clearTimers();
-    playHorn();
+    timeUpBanner.hidden = true;
+    if (!hornPlayed) playHorn();
     socket.emit('host:matchEnd', { winner: winner, red: redScore, blue: blueScore });
 
     finalTrophy.textContent = winner ? '🏆' : '🤝';
@@ -774,7 +804,7 @@
     pauseBtn.classList.toggle('is-paused', paused);
   }
   function pauseMatch() {
-    if (paused || matchState === 'idle' || matchState === 'over') return;
+    if (paused || matchState === 'idle' || matchState === 'timeup' || matchState === 'over') return;
     paused = true;
     if (pauseOverlay) pauseOverlay.hidden = false;
     updatePauseBtn();
@@ -840,6 +870,11 @@
           onGoal(scored);
         } else if (matchState === 'play') {
           clockMs -= dt * 1000;
+          const secLeft = Math.ceil(Math.max(0, clockMs) / 1000);
+          if (secLeft !== lastTickSec) {
+            if (lastTickSec >= 0 && secLeft >= 1 && secLeft <= FINAL_BEEP_FROM) playFinalTick();
+            lastTickSec = secLeft;
+          }
           if (clockMs <= 0) { clockMs = 0; handleTimeUp(); }
           updateScoreboard();
         }
@@ -949,6 +984,7 @@
     redScore = blueScore = 0;
     lastLobbyHumanTotal = -1;
     goalBanner.hidden = true;
+    timeUpBanner.hidden = true;
     hideOverlay(countOverlay, true);
     if (pauseOverlay) pauseOverlay.hidden = true;
     show('lobby');

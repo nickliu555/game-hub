@@ -10,6 +10,8 @@
   const COUNTDOWN_START_FROM = 5;    // longer count on the very first kickoff so players can settle in
   const COUNTDOWN_STEP_MS = 850;
   const GOAL_CELEBRATE_MS = 3600;
+  const FINAL_BEEP_FROM = 5;         // beep on each of the last five seconds
+  const TIME_UP_MS = 2500;           // "TIME'S UP!" holds before the result
   // Emotes normally clear when the next kickoff goes live; this is just a safety
   // cap so a bubble can never get stuck if play never resumes.
   const EMOTE_MAX_MS = 12000;
@@ -57,6 +59,8 @@
   const goalBanner = document.getElementById('goalBanner');
   const gbText = document.getElementById('gbText');
   const gbSub = document.getElementById('gbSub');
+  const timeUpBanner = document.getElementById('timeUpBanner');
+  const tuText = document.getElementById('tuText');
 
   const finalTrophy = document.getElementById('finalTrophy');
   const finalHeading = document.getElementById('finalHeading');
@@ -172,6 +176,9 @@
     o.connect(g); g.connect(c.destination);
     o.start(t); o.stop(t + dur + 0.02);
   }
+  // Runs-out-of-time ticks. One flat pitch, set above the rising kickoff count
+  // so the two countdowns never sound alike from across the room.
+  function playFinalTick() { blip(860, 0.12, 'square', 0.16); }
   // Kickoff whistle. Decoded into a Web Audio buffer so it fires with near-zero
   // latency exactly on "GO" (an <audio> element's play() has a noticeable start
   // delay + a currentTime seek). Any leading silence in the file is skipped so
@@ -582,8 +589,9 @@
 
   // ---------------- Match engine ----------------
   let world = null, renderer = null, rafId = null, lastFrame = 0, acc = 0;
-  let matchState = 'idle'; // idle | countdown | play | goal | ended
+  let matchState = 'idle'; // idle | countdown | play | goal | timeup | ended
   let redScore = 0, blueScore = 0, clockMs = 0, sudden = false;
+  let lastTickSec = -1;    // last whole second announced, so a beep fires once
   let durationSec = 90, mode = '1v1', roster = [];
   let redNames = 'Red', blueNames = 'Blue';
   let lastClockEmit = 0;
@@ -740,6 +748,8 @@
     // Fresh match: clear any leftover pause state / stray timers.
     paused = false;
     pClearAll();
+    lastTickSec = -1;
+    timeUpBanner.hidden = true;
     if (pauseOverlay) pauseOverlay.hidden = true;
 
     show('match');
@@ -798,6 +808,13 @@
         if (matchState === 'play') {
           // Advance the match clock in real time.
           clockMs -= dt * 1000;
+          if (!sudden) {
+            const secLeft = Math.ceil(Math.max(0, clockMs) / 1000);
+            if (secLeft !== lastTickSec) {
+              if (lastTickSec >= 0 && secLeft >= 1 && secLeft <= FINAL_BEEP_FROM) playFinalTick();
+              lastTickSec = secLeft;
+            }
+          }
           if (!sudden && clockMs <= 0) { clockMs = 0; handleTimeUp(); }
           updateScoreboard();
           const t = now;
@@ -995,6 +1012,7 @@
     matchState = 'countdown';
     updatePauseBtn();
     if (world) { world.kickoff(concedeTeam); world.frozen = true; }
+    lastTickSec = -1;
     goalBanner.hidden = true;
     updateScoreboard();
     if (countdownTimer) pClear(countdownTimer);
@@ -1081,42 +1099,60 @@
     }, GOAL_CELEBRATE_MS);
   }
 
+  // The whistle gets its own beat: "TIME'S UP!" holds for a moment so nobody is
+  // still chasing the ball when the result (or sudden death) lands.
   function handleTimeUp() {
-    if (redScore === blueScore) {
-      // Golden goal: freeze + announce, then restart the ball and ALL players
-      // with a fresh (neutral) kickoff + countdown — just like after a goal.
-      sudden = true;
-      matchState = 'goal';
-      stopBots();
-      updatePauseBtn();
-      if (world) world.frozen = true;
-      socket.emit('host:sudden', {});
-      socket.emit('host:clock', { ms: 0, sudden: true });
-      updateScoreboard();
-      playWhistle();
-      // Brief announce banner.
-      gbText.textContent = 'SUDDEN DEATH';
-      gbText.style.color = 'var(--accent)';
-      if (gbSub) gbSub.textContent = '';
-      goalBanner.hidden = false;
-      gbText.style.animation = 'none'; void gbText.offsetWidth; gbText.style.animation = '';
-      pTimeout(function () {
-        if (matchState !== 'ended') beginCountdown(null);
-      }, GOAL_CELEBRATE_MS);
-    } else {
-      endMatch(redScore > blueScore ? 'red' : 'blue');
-    }
+    if (matchState !== 'play') return;
+    matchState = 'timeup';
+    stopBots();
+    updatePauseBtn();
+    if (world) world.frozen = true;
+    socket.emit('host:clock', { ms: 0, sudden: false });
+    updateScoreboard();
+    playWhistle();
+    goalBanner.hidden = true;
+    timeUpBanner.hidden = false;
+    tuText.style.animation = 'none'; void tuText.offsetWidth; tuText.style.animation = '';
+    socket.emit('host:timeup', {});
+    pTimeout(function () {
+      timeUpBanner.hidden = true;
+      if (redScore === blueScore) beginSuddenDeath();
+      else endMatch(redScore > blueScore ? 'red' : 'blue', false, true);
+    }, TIME_UP_MS);
   }
 
-  function endMatch(winner, afterGoal) {
+  function beginSuddenDeath() {
+    // Golden goal: freeze + announce, then restart the ball and ALL players
+    // with a fresh (neutral) kickoff + countdown — just like after a goal.
+    sudden = true;
+    matchState = 'goal';
+    stopBots();
+    updatePauseBtn();
+    if (world) world.frozen = true;
+    socket.emit('host:sudden', {});
+    socket.emit('host:clock', { ms: 0, sudden: true });
+    updateScoreboard();
+    // Brief announce banner.
+    gbText.textContent = 'SUDDEN DEATH';
+    gbText.style.color = 'var(--accent)';
+    if (gbSub) gbSub.textContent = '';
+    goalBanner.hidden = false;
+    gbText.style.animation = 'none'; void gbText.offsetWidth; gbText.style.animation = '';
+    pTimeout(function () {
+      if (matchState !== 'ended') beginCountdown(null);
+    }, GOAL_CELEBRATE_MS);
+  }
+
+  function endMatch(winner, afterGoal, whistlePlayed) {
     matchState = 'ended';
     paused = false;
     pClearAll();
     if (pauseOverlay) pauseOverlay.hidden = true;
     updatePauseBtn();
     if (world) world.frozen = true;
+    timeUpBanner.hidden = true;
     socket.emit('host:matchEnd', { winner: winner, red: redScore, blue: blueScore });
-    playWhistle();
+    if (!whistlePlayed) playWhistle();
     // Only play the victory fanfare when the match ends on the clock; if it
     // ended on a goal, onGoal already played it (avoids a double goal sound).
     if (!afterGoal) setTimeout(playGoal, 200);
@@ -1222,6 +1258,9 @@
     updatePauseBtn();
     world = null; renderer = null;
     redScore = blueScore = 0; sudden = false;
+    lastTickSec = -1;
+    goalBanner.hidden = true;
+    timeUpBanner.hidden = true;
     lastLobbyHumanTotal = -1;
     show('lobby');
   });

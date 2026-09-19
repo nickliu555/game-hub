@@ -360,6 +360,12 @@ function mountNockey(app, httpServer, opts) {
       game.setPaused(false);
       ns.to(PLAYER_ROOM).emit('m:resume', { live: !!live });
     });
+    socket.on('host:timeup', () => {
+      if (!isActiveHost()) return;
+      touchActivity();
+      game.setLive(false);
+      ns.to(PLAYER_ROOM).emit('m:timeup', {});
+    });
     socket.on('host:matchEnd', ({ winner, red, blue } = {}) => {
       if (!isActiveHost()) return;
       touchActivity();

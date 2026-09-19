@@ -391,6 +391,8 @@
     if (hudBlue) hudBlue.textContent = '0';
     if (hudClock) hudClock.textContent = fmtClock((d && d.timeLimitSec ? d.timeLimitSec : 180) * 1000);
     setPaused(false);
+    if (coNote) { coNote.textContent = ''; coNote.hidden = true; }
+    if (coCount) coCount.textContent = '';
     setLive(false);
     showView('controller');
     vibrate(30);
@@ -429,6 +431,17 @@
     if (coCount) coCount.textContent = d.red + ' – ' + d.blue;
     if (ctrlOverlay) ctrlOverlay.hidden = false;
     vibrate(d.team === myTeam ? [30, 60, 30] : 60);
+  });
+  socket.on('m:timeup', function () {
+    setLive(false);
+    resetStick();
+    setKick(false);
+    // The wide 74px count slot would overflow on a narrow phone, so the words
+    // go in the small note line instead.
+    if (coNote) { coNote.textContent = "Time's up!"; coNote.hidden = false; }
+    if (coCount) coCount.textContent = '';
+    if (ctrlOverlay) ctrlOverlay.hidden = false;
+    vibrate(60);
   });
   socket.on('m:pause', function () { setPaused(true); });
   socket.on('m:resume', function (d) { setPaused(false); setLive(!!(d && d.live)); });

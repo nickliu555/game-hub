@@ -100,7 +100,7 @@ async function main() {
   // ---- Start ----
   const p0 = players[0];
   const evs = [];
-  ['m:start', 'm:countdown', 'm:play', 'm:clock', 'm:goal', 'm:pause', 'm:resume', 'm:end']
+  ['m:start', 'm:countdown', 'm:play', 'm:clock', 'm:goal', 'm:pause', 'm:resume', 'm:timeup', 'm:end']
     .forEach((e) => p0.s.on(e, (d) => evs.push([e, d])));
   const relayed = [];
   host.on('in', (d) => relayed.push(d));
@@ -172,6 +172,9 @@ async function main() {
   check('reconnect returns the same team', rec && rec.player && rec.player.team);
 
   // ---- End + reset ----
+  host.emit('host:timeup', {});
+  await wait(60);
+  check('player got m:timeup before the result', evs.some((e) => e[0] === 'm:timeup'));
   host.emit('host:matchEnd', { winner: 'red', red: 2, blue: 0 });
   await wait(80);
   check('player got m:end with winner', evs.some((e) => e[0] === 'm:end' && e[1] && e[1].winner === 'red'));

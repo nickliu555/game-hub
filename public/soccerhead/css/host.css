@@ -318,6 +318,15 @@ body.host {
 .gb-sub:empty { display: none; }
 @keyframes gbPop { 0% { transform: scale(0.2) rotate(-6deg); opacity: 0; } 60% { transform: scale(1.15) rotate(3deg); } 100% { transform: scale(1) rotate(0); opacity: 1; } }
 
+/* "TIME'S UP!" is twice the width of "GOAL!", so it shrinks and wraps instead
+   of running off a narrow window. */
+.time-up-banner .gb-text {
+  font-size: min(128px, 13vw);
+  max-width: 92%;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
 /* ---------------- Pause ---------------- */
 .pause-btn {
   position: absolute;

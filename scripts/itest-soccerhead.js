@@ -2,7 +2,7 @@
 // Headless end-to-end smoke test for Soccer Head: lobby, teams, start, relay,
 // match meta rebroadcast, sudden-death path. Not a unit test — a flow probe.
 const { io } = require('socket.io-client');
-const URL = 'http://localhost:3000/soccerhead';
+const URL = process.env.SOCCERHEAD_URL || 'http://localhost:3000/soccerhead';
 
 function mk(opts) { return io(URL, Object.assign({ transports: ['websocket'], forceNew: true }, opts)); }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -47,7 +47,7 @@ async function main() {
 
   // Player receives m:start; host input relay works.
   const p1Events = [];
-  ['m:start', 'm:countdown', 'm:play', 'm:goal', 'm:clock', 'm:sudden', 'm:end'].forEach((e) => p1.on(e, (d) => p1Events.push([e, d])));
+  ['m:start', 'm:countdown', 'm:play', 'm:goal', 'm:clock', 'm:sudden', 'm:timeup', 'm:end'].forEach((e) => p1.on(e, (d) => p1Events.push([e, d])));
   const relayed = [];
   host.on('in', (d) => relayed.push(d));
   host.on('dash', (d) => relayed.push(['dash', d]));
@@ -78,6 +78,10 @@ async function main() {
   await new Promise((r) => p1b.on('connect', r));
   const rec = await new Promise((r) => p1b.emit('player:reconnect', { playerId: 'p1' }, r));
   check('reconnect returns PLAYING + match meta', rec && rec.ok && rec.phase === 'PLAYING' && rec.match && rec.match.redScore === 1);
+
+  host.emit('host:timeup', {});
+  await wait(60);
+  check('player got m:timeup before the result', p1Events.some((e) => e[0] === 'm:timeup'));
 
   host.emit('host:matchEnd', { winner: 'red', red: 2, blue: 1 });
   await wait(60);

@@ -323,6 +323,12 @@ function mountSoccerHead(app, httpServer, opts) {
       game.setPaused(false);
       ns.to(PLAYER_ROOM).emit('m:resume', { live: !!live });
     });
+    socket.on('host:timeup', () => {
+      if (role !== 'host') return;
+      touchActivity();
+      game.setLive(false);
+      ns.to(PLAYER_ROOM).emit('m:timeup', {});
+    });
     socket.on('host:matchEnd', ({ winner, red, blue } = {}) => {
       if (role !== 'host') return;
       touchActivity();

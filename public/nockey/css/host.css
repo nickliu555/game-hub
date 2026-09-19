@@ -316,6 +316,20 @@ body.host {
 }
 @keyframes gbPop { 0% { transform: scale(0.2) rotate(-6deg); opacity: 0; } 60% { transform: scale(1.15) rotate(3deg); } 100% { transform: scale(1) rotate(0); opacity: 1; } }
 
+/* "TIME'S UP!" is twice the width of "GOAL!", so it shrinks and wraps instead
+   of running off a narrow window. Amber rather than the cyan accent, which sits
+   too close to the blue team; nobody should read the buzzer as a side scoring.
+   The pale ice needs a heavier scrim than the GOAL! text does. */
+.time-up-banner .gb-text {
+  font-size: min(128px, 13vw);
+  max-width: 92%;
+  text-align: center;
+  overflow-wrap: anywhere;
+  color: #FFC94A;
+  text-shadow: 0 10px 0 rgba(0,0,0,0.5), 0 0 18px rgba(255,210,120,0.55), 0 0 54px currentColor;
+}
+.time-up-banner::before { background-color: rgba(8,26,42,0.66); }
+
 /* Placed after the overlay rules above so `none` wins on equal specificity. */
 @media (prefers-reduced-motion: reduce) {
   .co-note, .co-num, .gb-text, .goal-banner::before, .match-overlay.fade-out { animation: none; }
