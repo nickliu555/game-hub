@@ -130,6 +130,29 @@ console.log('Nockey physics');
   check('player is stopped by the goal line', p.x > -S.halfW - 1 && p.x < -S.halfW + PHYS.playerRadius + 1, 'x=' + p.x.toFixed(1));
 })();
 
+// 7b. The touchlines hold skaters in just as firmly as the goal lines do, and
+// the corner cut stops anyone slipping round the outside of the boards.
+(function () {
+  const lim = 1;
+  ['small', 'classic', 'big', 'huge'].forEach(function (tier) {
+    const dirs = [[0, -1], [0, 1], [1, -1], [-1, 1], [1, 1], [-1, -1]];
+    let worst = 0;
+    let where = '';
+    dirs.forEach(function (d) {
+      const w = soloWorld(tier);
+      const S = w.stadium;
+      const p = w.byId.get('r');
+      p.x = 0; p.y = 0; p.vx = 0; p.vy = 0;
+      w.ball.x = 0; w.ball.y = 0;
+      w.setInput('r', d[0], d[1], false);
+      stepN(w, 900);
+      const over = Math.abs(p.y) - (S.halfH - PHYS.playerRadius);
+      if (over > worst) { worst = over; where = tier + ' ' + d + ' y=' + p.y.toFixed(1) + '/' + S.halfH; }
+    });
+    check(tier + ': skaters never cross the touchline', worst < lim, where || 'over=' + worst.toFixed(1));
+  });
+})();
+
 // 8. Goal only counts between the posts.
 (function () {
   const w = emptyWorld();

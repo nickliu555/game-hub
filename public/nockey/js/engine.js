@@ -72,7 +72,7 @@
 
   var NET_DEPTH = 32;
   var POST_RADIUS = 8;
-  var OUT_PAD = 26; // strip of grass outside the touchline (players stay inside)
+  var OUT_PAD = 26; // decorative strip of grass drawn outside the touchline
 
   // Kickoff formations per team size, as fractions of (halfW, halfH) on the
   // left (red) half; blue is mirrored.
@@ -130,7 +130,7 @@
           segments.push(seg(prevX, prevY, px, py, 1, CG.ball));
           prevX = px; prevY = py;
         }
-        segments.push(seg(sx * cx, sy * outY, sx * hw, sy * cy, 0.1, CG.player));
+        segments.push(seg(sx * cx, sy * hh, sx * hw, sy * cy, 0.1, CG.player));
       }
     }
     // Goal nets — ball only, deadens the ball so it settles in the net.
@@ -141,11 +141,11 @@
     segments.push(seg(hw, gh, outX, gh, 0.1, CG.ball));
     segments.push(seg(outX, -gh, outX, gh, 0.1, CG.ball));
 
-    // Players are confined to the pitch + a small run-off strip; they can stand
-    // on the goal line but not inside the net.
+    // Players are confined to the rink itself: they can lean on the boards and
+    // stand on the goal line, but never skate out onto the run-off strip.
     var planes = [
-      plane(0, 1, -outY, 0.1, CG.player),
-      plane(0, -1, -outY, 0.1, CG.player),
+      plane(0, 1, -hh, 0.1, CG.player),
+      plane(0, -1, -hh, 0.1, CG.player),
       plane(1, 0, -hw, 0.1, CG.player),
       plane(-1, 0, -hw, 0.1, CG.player),
     ];
