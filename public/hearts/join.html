@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Join Hearts</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#12402C" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/hearts/css/base.css" />
+  <link rel="stylesheet" href="/hearts/css/player.css" />
+</head>
+<body class="player join-page">
+  <div class="join-wrap">
+    <div class="join-card">
+      <div class="join-suits" aria-hidden="true">
+        <span class="js-red">♥</span><span>♠</span><span class="js-red">♦</span><span>♣</span>
+      </div>
+      <h1>Hearts</h1>
+
+      <form id="joinForm" autocomplete="off">
+        <label for="nameInput" class="join-label">Your name</label>
+        <input type="text" id="nameInput" maxlength="20" placeholder="Enter your name"
+               autocomplete="given-name" autocorrect="off" autocapitalize="words" spellcheck="false"
+               enterkeyhint="go" required />
+        <button type="submit" class="btn-accent join-btn">Take a seat</button>
+        <div class="error-msg" id="errorMsg" role="alert"></div>
+      </form>
+    </div>
+    <div class="player-attribution">Developed by Nick Liu (with help from Claude)</div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/hearts/js/join.js"></script>
+</body>
+</html>

@@ -12,6 +12,10 @@
     "gen:herdmind": "node scripts/gen-herdmind-questions.js",
     "test:herdmind": "node scripts/test-herdmind.js",
     "itest:herdmind": "node scripts/itest-herdmind.js",
+    "assets:hearts": "node scripts/fetch-hearts-cards.js",
+    "test:hearts": "node scripts/test-hearts-engine.js",
+    "test:hearts-bot": "node scripts/test-hearts-bot.js",
+    "itest:hearts": "node scripts/itest-hearts.js",
     "itest:catclash": "node scripts/itest-catclash.js",
     "gen:rankfive": "node scripts/gen-rankfive-words.js",
     "itest:rankfive": "node scripts/itest-rankfive.js",
@@ -34,6 +38,7 @@
   "devDependencies": {
     "@playwright/test": "1.63.0",
     "esbuild": "0.28.2",
-    "socket.io-client": "^4.8.3"
+    "socket.io-client": "^4.8.3",
+    "svgo": "^3.3.2"
   }
 }

@@ -42,6 +42,19 @@ Everyone answers the same open question — score by matching the herd, and dodg
 4. You **can't win while holding the Pink Cow** — pass it on by making someone else the odd one out
 5. **First to the target score (without the cow) wins the herd!**
 
+### ♥️ Hearts
+The classic four-player trick-taking card game — dodge the Queen, chase the Jack.
+
+1. Hearts seats **exactly four players** — fill any empty seats with **CPUs** (Easy / Normal / Hard)
+2. **Drag the players in the lobby** to set who sits North, East, South and West, then pick a target score of **50, 75 or 100** (default 100)
+3. Everyone is dealt **13 cards**, then passes **3 cards** clockwise, then counter-clockwise, then across — and **holds** on every fourth hand
+4. The **2♣ leads** the first trick; follow the suit led if you can, and you **can't lead hearts** until they've been broken
+5. Highest card of the suit led **wins the trick** and leads the next one
+6. Each **heart is +1**, the **Q♠ is +13**, and the **J♦ is −10** — points are bad, so duck them
+7. Win **all 13 hearts and the Q♠** to **shoot the moon**: you score 0 and everyone else takes 26
+8. Your hand stays **private on your phone**, and illegal cards can't even be tapped
+9. When anyone reaches the target score the game ends and the **lowest score wins!**
+
 ### � Category Clash
 One random letter, twelve categories, one timer — only answers nobody else thought of score.
 

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Hearts · Host</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="/shared/iris-preload.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/topbar.css" />
+  <link rel="stylesheet" href="/shared/modal.css" />
+  <link rel="stylesheet" href="/shared/iris.css" />
+  <link rel="stylesheet" href="/hearts/css/base.css" />
+  <link rel="stylesheet" href="/hearts/css/host.css" />
+  <script src="/shared/topbar.js" defer></script>
+  <script src="/shared/modal.js" defer></script>
+  <script src="/shared/iris.js" defer></script>
+</head>
+<body class="host">
+  <div class="host-shell">
+    <div class="game-topbar">
+      <span class="gtb-brand">♥️ Hearts</span>
+      <div class="gtb-controls">
+        <a href="/" id="hubBtn" class="gtb-btn" title="Back to hub (resets game)">← Hub</a>
+        <button class="gtb-btn" type="button" data-gtb-help-open="helpOverlay" title="How to play">? Help</button>
+        <div class="gtb-settings-wrapper">
+          <button class="gtb-btn" type="button" data-gtb-settings-toggle aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️ Settings</button>
+          <div class="gtb-settings-panel" id="settingsPanel" hidden>
+            <button id="fullscreenBtn" class="gtb-btn" type="button" title="Toggle fullscreen">⛶ Fullscreen</button>
+            <div class="gtb-divider"></div>
+            <button id="resetBtn" class="gtb-btn gtb-btn-danger" type="button" title="Reset the whole game">Reset game</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="host-main">
+
+      <!-- ─────────────── Lobby ─────────────── -->
+      <section class="view active" id="view-lobby">
+        <div class="lobby-grid">
+          <div class="qr-panel">
+            <h2>Scan to join</h2>
+            <p>Or type the URL below on your phone</p>
+            <div class="qr-slot" id="qrSlot"></div>
+            <div class="join-url" id="joinUrl"></div>
+          </div>
+
+          <div class="seats-panel">
+            <div class="seats-head">
+              <h3>Around the table</h3>
+              <div class="count"><span id="playerCount">0</span> / <span id="playerCap">4</span></div>
+            </div>
+            <p class="seats-hint">Drag to change where everyone sits</p>
+            <div class="seat-list" id="seatList"></div>
+
+            <div class="lobby-config">
+              <div class="config-row">
+                <label>Play to</label>
+                <div class="seg" id="targetSeg" data-attr="targetScore">
+                  <button class="seg-btn" type="button" data-value="50">50</button>
+                  <button class="seg-btn" type="button" data-value="75">75</button>
+                  <button class="seg-btn on" type="button" data-value="100">100</button>
+                </div>
+              </div>
+              <div class="config-row">
+                <label>CPU skill</label>
+                <div class="seg" id="difficultySeg" data-attr="botDifficulty">
+                  <button class="seg-btn" type="button" data-value="easy">Easy</button>
+                  <button class="seg-btn on" type="button" data-value="normal">Normal</button>
+                  <button class="seg-btn" type="button" data-value="hard">Hard</button>
+                </div>
+              </div>
+              <div class="config-row">
+                <label>Auto-advance hands</label>
+                <div class="seg" id="autoSeg" data-attr="autoAdvance">
+                  <button class="seg-btn" type="button" data-value="on">On</button>
+                  <button class="seg-btn on" type="button" data-value="off">Off</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="lobby-actions">
+              <button id="addBotBtn" class="btn-ghost" type="button">🤖 Add CPU</button>
+              <button id="startBtn" class="btn-accent" type="button">Deal the cards</button>
+            </div>
+          </div>
+        </div>
+        <div class="lobby-attribution">Developed by Nick Liu (with help from Claude)</div>
+      </section>
+
+      <!-- ─────────────── Dealing ─────────────── -->
+      <section class="view" id="view-deal">
+        <div class="stage-view">
+          <div class="stage-meta">Hand <span id="dealHand">1</span></div>
+          <h1 class="stage-title">Dealing…</h1>
+          <div class="deal-fan" id="dealFan" aria-hidden="true"></div>
+          <p class="stage-sub" id="dealSub">Check your phone for your hand</p>
+        </div>
+      </section>
+
+      <!-- ───────── Passing: the table holds this screen from "choose 3 cards"
+           straight through the hand-off animation ───────── -->
+      <section class="view" id="view-pass">
+        <div class="stage-view">
+          <h1 class="stage-title"><span id="exVerb">Pass</span> <span class="pass-dir" id="exDirBig">Clockwise</span></h1>
+          <div class="exchange-map" id="exchangeMap" aria-hidden="true">
+            <div class="ex-seat ex-seat-n" id="ex-seat-N" data-seat="N">
+              <span class="ex-pip" data-seat="N">N</span>
+              <span class="pname"></span>
+              <span class="ex-status"></span>
+            </div>
+            <div class="ex-seat ex-seat-w" id="ex-seat-W" data-seat="W">
+              <span class="ex-pip" data-seat="W">W</span>
+              <span class="pname"></span>
+              <span class="ex-status"></span>
+            </div>
+            <div class="ex-dir" id="exArrow">←</div>
+            <div class="ex-seat ex-seat-e" id="ex-seat-E" data-seat="E">
+              <span class="ex-pip" data-seat="E">E</span>
+              <span class="pname"></span>
+              <span class="ex-status"></span>
+            </div>
+            <div class="ex-seat ex-seat-s" id="ex-seat-S" data-seat="S">
+              <span class="ex-pip" data-seat="S">S</span>
+              <span class="pname"></span>
+              <span class="ex-status"></span>
+            </div>
+            <div class="ex-flights" id="exFlights"></div>
+          </div>
+          <p class="ex-progress" id="exProgress"></p>
+          <p class="stage-sub" id="exSub">Choose 3 cards to pass on your phone</p>
+        </div>
+      </section>
+
+      <!-- ─────────────── The table ─────────────── -->
+      <section class="view" id="view-table">
+        <div class="table-view">
+          <div class="table-strip">
+            <div class="strip-item"><span class="strip-label">Trick</span><span class="strip-value"><span id="tTrick">1</span> / 13</span></div>
+            <div class="strip-item strip-hearts" id="tHeartsItem">
+              <span class="strip-label">Hearts</span><span class="strip-value" id="tHearts">Not broken</span>
+            </div>
+          </div>
+
+          <div class="felt" id="felt">
+            <div class="seat seat-n" id="seat-N"></div>
+            <div class="seat seat-e" id="seat-E"></div>
+            <div class="seat seat-s" id="seat-S"></div>
+            <div class="seat seat-w" id="seat-W"></div>
+
+            <div class="play-area">
+              <div class="played played-n" id="played-N"></div>
+              <div class="played played-e" id="played-E"></div>
+              <div class="played played-s" id="played-S"></div>
+              <div class="played played-w" id="played-W"></div>
+              <div class="trick-badge" id="trickBadge" hidden></div>
+            </div>
+
+            <div class="waiting-note" id="waitingNote" hidden></div>
+          </div>
+        </div>
+        <div class="shatter-layer" id="shatterLayer" aria-hidden="true"></div>
+        <div class="shatter-layer" id="sparkleLayer" aria-hidden="true"></div>
+      </section>
+
+      <!-- ─────────────── Hand scoreboard ─────────────── -->
+      <section class="view" id="view-handend">
+        <div class="handend-view">
+          <div class="handend-head">
+            <div class="stage-meta">Hand <span id="heHand">1</span> complete · playing to <span id="heTarget">100</span></div>
+            <h1 class="stage-title" id="heTitle">Scores</h1>
+            <div class="moon-banner" id="moonBanner" hidden></div>
+          </div>
+          <div class="score-table">
+            <div class="score-head" aria-hidden="true">
+              <span class="sh-name">Player</span>
+              <span>Hearts</span>
+              <span>Queen</span>
+              <span>Jack</span>
+              <span>Hand</span>
+              <span>Total</span>
+            </div>
+            <div class="score-rows scroll-region" id="scoreRows"></div>
+          </div>
+          <div class="handend-foot">
+            <button id="nextHandBtn" class="btn-accent" type="button">Next hand</button>
+            <div class="auto-note" id="autoNote" hidden></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────── Final ─────────────── -->
+      <section class="view" id="view-final">
+        <div class="final-view">
+          <div class="final-head">
+            <div class="final-trophy" id="finalTrophy">🏆</div>
+            <h1 class="final-heading" id="finalHeading">Winner</h1>
+            <div class="final-sub" id="finalSub"></div>
+          </div>
+          <div class="final-list scroll-region" id="finalList"></div>
+          <div class="final-foot">
+            <button id="playAgainBtn" class="btn-accent" type="button">Back to lobby</button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- Host-absent / connection overlay -->
+  <div class="host-overlay" id="connOverlay" hidden>
+    <div class="host-overlay-card">
+      <div class="ho-spinner"></div>
+      <h2>Reconnecting…</h2>
+      <p>Hold tight — the table is still here.</p>
+    </div>
+  </div>
+
+  <!-- Help modal -->
+  <div class="gtb-help-overlay" id="helpOverlay">
+    <div class="gtb-help-modal">
+      <button class="gtb-help-modal-close" type="button" data-gtb-help-close aria-label="Close help">&times;</button>
+      <h2>♥️ Hearts</h2>
+      <p>The classic four-player trick-taking game. Points are <strong>bad</strong> — the lowest score wins.</p>
+      <ol>
+        <li>Exactly <strong>four</strong> players sit at the table — add CPUs to fill empty seats.</li>
+        <li>Each hand starts by passing <strong>3 cards</strong> to another player. The direction rotates clockwise, counter-clockwise, across, then a <strong>hold</strong> hand with no passing.</li>
+        <li>The player holding the <strong>2♣</strong> leads the first trick. Follow the led suit if you can; otherwise play anything.</li>
+        <li>Highest card of the led suit wins the trick and leads the next one.</li>
+        <li>Every <strong>♥</strong> is <strong>+1</strong>, the <strong>Q♠</strong> is <strong>+13</strong>, and the <strong>J♦</strong> is <strong>−10</strong>.</li>
+        <li>You can't <em>lead</em> hearts until they've been broken — unless hearts are all you hold.</li>
+        <li><strong>Shoot the moon:</strong> take all 13 hearts <em>and</em> the Q♠ and you score 0 while everyone else takes 26.</li>
+        <li>When anyone reaches the target score the game ends, and the <strong>lowest</strong> score wins.</li>
+      </ol>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/hearts/js/host.js"></script>
+</body>
+</html>

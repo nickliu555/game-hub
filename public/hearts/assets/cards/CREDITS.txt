@@ -1,0 +1,4 @@
+Card faces: "Vector Playing Cards" by Byron Knoll — public domain.
+Retrieved from https://github.com/rnvannatta/playing-cards (CC0-1.0).
+Court cards rasterised to WebP; pips/aces optimised as SVG.
+Card back drawn for Game Hub.

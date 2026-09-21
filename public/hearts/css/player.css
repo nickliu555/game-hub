@@ -1,0 +1,454 @@
+/* ─────────────────────────────────────────────────────────────
+   Hearts — phone screens (join + controller).
+   Mobile-first: safe-area aware, no horizontal overflow, comfortable tap
+   targets, and never zoomable or selectable.
+   ───────────────────────────────────────────────────────────── */
+
+body.player {
+  background:
+    radial-gradient(900px 520px at 50% 0%, rgba(63, 160, 105, 0.32), transparent 62%),
+    linear-gradient(170deg, var(--bg) 0%, var(--bg-deep) 100%);
+  background-attachment: fixed;
+  color: #fff;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+/* Never zoom, never select, never pop the iOS magnifier. The viewport meta
+   and the JS lock in player.js back this up — iOS ignores user-scalable. */
+body.player * {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+body.player input {
+  touch-action: auto;
+  -webkit-user-select: text;
+  user-select: text;
+}
+body.player .scrollable-region { touch-action: pan-y; overflow-y: auto; }
+
+/* ═══════════════════════ Join screen ═══════════════════════ */
+
+.join-wrap {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 18px calc(18px + env(safe-area-inset-bottom));
+  padding-top: calc(24px + env(safe-area-inset-top));
+}
+/* Auto margins centre the card in the space left over, so the attribution
+   still lands on the very bottom edge. */
+.join-card {
+  margin: auto 0;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 24px;
+  padding: 30px 22px 26px;
+  text-align: center;
+  backdrop-filter: blur(6px);
+}
+.join-suits, .wait-suits {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  font-size: 30px;
+  line-height: 1.25;
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: 12px;
+}
+.join-suits .js-red, .wait-suits .js-red { color: var(--suit-red); }
+.join-card h1 { font-size: 38px; letter-spacing: -0.02em; margin-bottom: 22px; }
+.join-label {
+  display: block;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+  margin-bottom: 7px;
+}
+.join-btn { width: 100%; margin-top: 16px; font-size: 18px; padding: 16px; }
+.error-msg {
+  color: #FF9DAF;
+  font-size: 14px;
+  font-weight: 600;
+  min-height: 19px;
+  margin-top: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* Blocking overlays (no host / game running / table full) */
+.host-absent-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 26, 16, 0.93);
+  backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  z-index: 300;
+  padding: 24px;
+}
+.host-absent-overlay[hidden] { display: none; }
+.host-absent-card {
+  text-align: center;
+  max-width: 340px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 22px;
+  padding: 30px 24px;
+}
+.host-absent-card .icon { font-size: 46px; line-height: 1; }
+.host-absent-card .title { font-size: 23px; font-weight: 800; margin: 12px 0 8px; }
+.host-absent-card .sub {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.62);
+  line-height: 1.55;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  text-align: left;
+}
+.pulse-dot {
+  flex: 0 0 auto;
+  width: 9px; height: 9px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--accent-bright);
+  animation: dotPulse 1.5s ease-in-out infinite;
+}
+@keyframes dotPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+/* ═══════════════════════ Controller ═══════════════════════ */
+
+.p-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.p-top {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 15px;
+  background: rgba(0, 0, 0, 0.32);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  min-width: 0;
+}
+.p-seat {
+  flex: 0 0 auto;
+  width: 30px; height: 30px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 800;
+  color: #10261b;
+  background: rgba(255, 255, 255, 0.4);
+}
+.p-seat[data-seat="N"] { background: var(--seat-n); }
+.p-seat[data-seat="E"] { background: var(--seat-e); }
+.p-seat[data-seat="S"] { background: var(--seat-s); }
+.p-seat[data-seat="W"] { background: var(--seat-w); }
+.p-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 800;
+  /* One line is intended here; the full name is shown on the host screen. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.p-score {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.62);
+  white-space: nowrap;
+}
+
+/* ---- View stack ---- */
+.p-view {
+  display: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+}
+.p-view.active { display: flex; }
+
+.wait-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 26px 20px;
+  gap: 4px;
+}
+.wait-card h2 { font-size: 27px; }
+.wait-card p { color: rgba(255, 255, 255, 0.62); font-size: 15px; margin: 6px 0 0; max-width: 320px; }
+.swap-from { font-weight: 800; }
+.swap-from[data-seat="N"] { color: var(--seat-n); }
+.swap-from[data-seat="E"] { color: var(--seat-e); }
+.swap-from[data-seat="S"] { color: var(--seat-s); }
+.swap-from[data-seat="W"] { color: var(--seat-w); }
+.wait-check {
+  width: 62px; height: 62px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 32px;
+  font-weight: 800;
+  background: rgba(63, 163, 92, 0.25);
+  border: 2px solid var(--good);
+  color: #86E6A4;
+  margin-bottom: 12px;
+}
+.result-emoji { font-size: 56px; line-height: 1; }
+
+.p-banner {
+  flex: 0 0 auto;
+  text-align: center;
+  font-size: 19px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  padding: 10px 16px 2px;
+  overflow-wrap: anywhere;
+}
+.p-banner strong { color: var(--gold); }
+.p-banner.your-turn { color: var(--gold); font-size: 22px; }
+.p-hint {
+  flex: 0 0 auto;
+  text-align: center;
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.55);
+  padding: 4px 18px 0;
+  min-height: 18px;
+  overflow-wrap: anywhere;
+}
+.p-hint.warn { color: #FFC48A; }
+
+.p-meta {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 7px;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 8px 12px 0;
+}
+.meta-chip {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+}
+.meta-chip strong { color: #fff; }
+.meta-chip.broken { color: #FF8AA0; background: rgba(142, 27, 46, 0.45); }
+.meta-chip.scoring { color: #FF8AA0; }
+.meta-chip.bonus { color: #86E6A4; }
+
+/* ---- The hand ---- */
+/* 13 cards have to fit a 320px phone, so the fan overlaps. Cards overlap
+   left-to-right, which keeps each card's top-left index visible. */
+.hand-area {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  overflow: hidden;
+}
+.hand-fan {
+  /* Both custom properties are recomputed from the real container box by
+     fitFan() in player.js; these are only the pre-measure fallback. */
+  --card-w: 76px;
+  --overlap: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 36px 8px 6px;        /* headroom for a lifted card and its badge */
+  max-width: 100%;
+}
+.fan-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.hand-card {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--card-w);
+  height: calc(var(--card-w) * 1.4);
+  margin-right: calc(var(--overlap) - var(--card-w));
+  border: none;
+  padding: 0;
+  background: transparent;
+  border-radius: calc(var(--card-w) * 0.07);
+  transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.3, 1), filter 0.16s ease, opacity 0.16s ease;
+}
+.hand-card:last-child { margin-right: 0; }
+.hand-card img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  box-shadow: var(--card-shadow);
+  pointer-events: none;
+}
+@media (hover: hover) { .hand-card:hover { transform: none; box-shadow: none; } }
+
+/* Armed / selected cards lift out of the fan. No z-index bump: pulling a card
+   in front of the whole fan buries the corner index of the card to its right. */
+.hand-card.armed { transform: translateY(-26px); }
+.hand-card.armed img { box-shadow: 0 0 0 3px var(--gold), 0 8px 20px rgba(0, 0, 0, 0.5); }
+.hand-card.picked { transform: translateY(-24px); }
+.hand-card.picked img { box-shadow: 0 0 0 3px var(--accent-bright), 0 8px 20px rgba(0, 0, 0, 0.5); }
+.hand-card.picked::after {
+  content: attr(data-pick);
+  position: absolute;
+  top: -9px; right: -7px;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--accent-bright);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.45);
+}
+
+/* Inert cards are dimmed but stay fully opaque — a translucent card lets the
+   one it overlaps show through, and the two faces become unreadable. */
+.hand-card.illegal {
+  pointer-events: none;
+}
+.hand-card.illegal img {
+  filter: saturate(0.35) brightness(0.78);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.mini-fan {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+  /* Three overlapped cards span 2.56× the card width, which still fits a 320px phone. */
+  --card-w: clamp(84px, 30vw, 140px);
+}
+.mini-fan img {
+  width: var(--card-w);
+  height: calc(var(--card-w) * 1.4);
+  border-radius: 7px;
+  box-shadow: var(--card-shadow);
+  margin-right: calc(var(--card-w) * -0.22);
+}
+.mini-fan img:last-child { margin-right: 0; }
+
+.p-actions {
+  flex: 0 0 auto;
+  padding: 10px 16px calc(14px + env(safe-area-inset-bottom));
+}
+.action-btn {
+  width: 100%;
+  font-size: 18px;
+  padding: 17px;
+  min-height: 56px;
+  overflow-wrap: anywhere;
+}
+.action-btn.ready { background: var(--good); }
+
+/* ---- Hand / game result ---- */
+.result-rows {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+  max-height: 46vh;
+  overflow-y: auto;
+  touch-action: pan-y;
+}
+.result-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 13px;
+  padding: 11px 14px;
+  text-align: left;
+  min-width: 0;
+}
+.result-row.is-me { border-color: rgba(232, 184, 58, 0.6); background: rgba(232, 184, 58, 0.12); }
+.rr-seat {
+  width: 24px; height: 24px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: #10261b;
+}
+.rr-seat[data-seat="N"] { background: var(--seat-n); }
+.rr-seat[data-seat="E"] { background: var(--seat-e); }
+.rr-seat[data-seat="S"] { background: var(--seat-s); }
+.rr-seat[data-seat="W"] { background: var(--seat-w); }
+.rr-name { font-size: 15px; font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.rr-score { font-size: 15px; font-weight: 800; white-space: nowrap; }
+.rr-score .rr-delta { font-size: 13px; color: rgba(255, 255, 255, 0.55); margin-left: 6px; }
+.rr-score .rr-delta.plus { color: #FF8AA0; }
+.rr-score .rr-delta.minus { color: #86E6A4; }
+
+/* ---- Toast ---- */
+.p-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(86px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.88);
+  color: #fff;
+  border-radius: 999px;
+  padding: 11px 20px;
+  font-size: 14.5px;
+  font-weight: 700;
+  z-index: 250;
+  max-width: 88vw;
+  text-align: center;
+  overflow-wrap: anywhere;
+  animation: toastIn 0.2s ease both;
+}
+.p-toast[hidden] { display: none; }
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translateX(-50%); } }
+
+/* ---- Small phones ---- */
+@media (max-width: 360px) {
+  .p-banner { font-size: 17px; }
+  .action-btn { font-size: 16px; padding: 15px; }
+  .join-card h1 { font-size: 32px; }
+}
+@media (max-height: 640px) {
+  .hand-fan { padding-top: 30px; }
+  .wait-card h2 { font-size: 23px; }
+  .result-emoji { font-size: 44px; }
+}
