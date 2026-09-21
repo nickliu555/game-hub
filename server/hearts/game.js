@@ -733,15 +733,19 @@ class Game {
     const p = this.players.get(playerId);
     if (!p) return null;
     const isTurn = this.phase === PHASES.TRICK && this.currentPlayer() === p;
+    const cur = this.phase === PHASES.TRICK ? this.currentPlayer() : null;
     return {
       phase: this.phase,
       hand: p.hand.slice(),
       legal: isTurn ? this.legalFor(playerId) : [],
       yourTurn: isTurn,
+      turnName: cur ? cur.name : null,
+      turnSeat: cur ? SEATS[this.seatOrder().indexOf(cur)] || null : null,
       reason: isTurn ? this._legalReason(p) : null,
       passDirection: this.passDirection(),
       passLabel: PASS_LABEL[this.passDirection()],
       passArrow: PASS_ARROW[this.passDirection()],
+      passTo: this._passTargetFor(p),
       passed: p.passed,
       myPass: p.pass.slice(),
       received: p.received.slice(),
@@ -753,6 +757,16 @@ class Game {
       handNumber: this.handIndex + 1,
       targetScore: this.targetScore,
     };
+  }
+
+  /** Who this player's three cards go to — null on a hold hand. */
+  _passTargetFor(p) {
+    const offset = PASS_OFFSET[this.passDirection()];
+    const order = this.seatOrder();
+    const i = order.indexOf(p);
+    if (!offset || i < 0) return null;
+    const to = (i + offset) % PLAYER_COUNT;
+    return { name: order[to].name, seat: SEATS[to] };
   }
 
   /** One short line explaining why some cards are greyed out. */

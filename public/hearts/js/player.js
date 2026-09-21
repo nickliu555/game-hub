@@ -285,8 +285,16 @@
 
   // ---- Passing ----
   function renderPass() {
-    const dirWord = { left: 'clockwise', right: 'counter-clockwise', across: 'across the table' }[hand.passDirection] || '';
-    passDirText.textContent = '3 cards ' + dirWord;
+    const to = hand.passTo;
+    passDirText.textContent = '3 cards';
+    if (to) {
+      passDirText.appendChild(document.createTextNode(' to '));
+      const who = document.createElement('span');
+      who.className = 'pname turn-name';
+      who.dataset.seat = to.seat;
+      who.textContent = to.name;
+      passDirText.appendChild(who);
+    }
     passHint.textContent = picks.length === 3
       ? 'Ready to pass — tap a card to swap it out'
       : 'Tap ' + (3 - picks.length) + ' more card' + (3 - picks.length === 1 ? '' : 's');
@@ -374,11 +382,24 @@
     mPoints.classList.toggle('bonus', hand.handPoints < 0);
 
     const yourTurn = !!hand.yourTurn;
-    playBanner.textContent = yourTurn ? 'Your turn!' : 'Waiting for the table…';
+    playBanner.textContent = '';
+    if (yourTurn) {
+      playBanner.textContent = 'Your turn!';
+    } else if (hand.turnName) {
+      const who = document.createElement('span');
+      who.className = 'pname turn-name';
+      if (hand.turnSeat) who.dataset.seat = hand.turnSeat;
+      who.textContent = hand.turnName;
+      playBanner.appendChild(document.createTextNode('Waiting for '));
+      playBanner.appendChild(who);
+      playBanner.appendChild(document.createTextNode('…'));
+    } else {
+      playBanner.textContent = 'Waiting for the table…';
+    }
     playBanner.classList.toggle('your-turn', yourTurn);
 
     if (yourTurn && hand.reason) { playHint.textContent = hand.reason; playHint.classList.add('warn'); }
-    else if (yourTurn) { playHint.textContent = 'Tap a card, then tap again to play it'; playHint.classList.remove('warn'); }
+    else if (yourTurn) { playHint.textContent = 'Tap a card, then press Play'; playHint.classList.remove('warn'); }
     else { playHint.textContent = ''; playHint.classList.remove('warn'); }
 
     const legal = hand.legal || [];
@@ -411,9 +432,9 @@
   function armCard(code) {
     if (!hand || !hand.yourTurn) return;
     if ((hand.legal || []).indexOf(code) < 0) return;
-    // Tapping the armed card again commits it; tapping another re-arms.
-    if (armed === code) { commitPlay(); return; }
-    armed = code;
+    // Tapping the armed card again only deselects it — the Play button is the
+    // one and only way to commit, so a stray double tap can't throw a card away.
+    armed = armed === code ? null : code;
     buzz(12);
     renderPlay();
   }
@@ -466,7 +487,7 @@
       resultTitle.textContent = me.delta < 0 ? '−' + (-me.delta) + ' points' : 'Clean hand!';
       resultSub.textContent = 'Hand ' + s.handNumber + ' complete.';
     } else {
-      resultEmoji.textContent = me && me.delta >= 13 ? '😬' : '🃏';
+      resultEmoji.textContent = me && me.delta >= 13 ? '😬' : '♥️';
       resultTitle.textContent = me ? '+' + me.delta + ' points' : 'Hand over';
       resultSub.textContent = 'Hand ' + s.handNumber + ' complete.';
     }

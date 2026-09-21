@@ -57,7 +57,7 @@
     ensureOverlay('hostAbsentOverlay', '♥️', 'No game in progress',
       "The host isn't here right now. This page will unlock automatically when they return.")
       .hidden = hostPresent;
-    ensureOverlay('roundLockedOverlay', '🃏', 'Game in progress',
+    ensureOverlay('roundLockedOverlay', '♥️', 'Game in progress',
       "You can't join a hand that's already underway. This page will unlock when the host starts a new game.")
       .hidden = !(hostPresent && roundLocked);
     ensureOverlay('tableFullOverlay', '🪑', 'The table is full',

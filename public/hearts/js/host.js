@@ -664,7 +664,6 @@
     const done = s.passed || 0;
     exProgress.textContent = done + ' of ' + total + ' passed';
     exProgress.classList.toggle('all-in', done >= total);
-    exFlights.classList.toggle('pending', done < total);
     // Re-renders are idempotent, so the ding only fires on a genuine increase.
     if (passedSeen >= 0 && done > passedSeen) playJoinDing();
     passedSeen = done;
@@ -679,7 +678,6 @@
     exSub.textContent = 'Check your new hand';
     exProgress.textContent = 'All cards in!';
     exProgress.classList.add('all-in');
-    exFlights.classList.remove('pending');
     const key = 'h' + s.handNumber;
     if (key !== exchangeKey) { exchangeKey = key; passedSeen = -1; playPassSwoosh(); }
     show('pass', ensureFlights);
@@ -767,6 +765,42 @@
   let collectTimer = null;
   let collectKey = null;
 
+  let nameProbe = null;
+  // The seat box is width-capped, so a name too long for it shrinks its own
+  // text down to a readable floor rather than wrapping and stealing height.
+  function fitSeatName(name) {
+    name.style.removeProperty('font-size');
+    if (!name.textContent) return;
+    const label = name.parentElement;
+    const pip = label.firstElementChild;
+    const labelCs = getComputedStyle(label);
+    const avail = label.clientWidth - pip.offsetWidth - (parseFloat(labelCs.columnGap) || 0);
+    if (avail <= 0) return;
+    const cs = getComputedStyle(name);
+    const natural = parseFloat(cs.fontSize) || 20;
+    if (!nameProbe) {
+      nameProbe = document.createElement('span');
+      nameProbe.style.cssText = 'position:absolute;left:-9999px;top:0;white-space:pre;visibility:hidden;pointer-events:none;';
+      document.body.appendChild(nameProbe);
+    }
+    nameProbe.style.font = cs.fontWeight + ' ' + natural + 'px ' + cs.fontFamily;
+    nameProbe.style.letterSpacing = cs.letterSpacing;
+    nameProbe.textContent = name.textContent;
+    const full = nameProbe.offsetWidth;
+    if (full <= avail) return;
+    name.style.fontSize = Math.max(15, Math.floor(natural * avail / full)) + 'px';
+  }
+
+  function fitSeatNames() {
+    SEATS.forEach(function (letter) {
+      const el = document.getElementById('seat-' + letter);
+      const name = el && el.querySelector('.seat-label .pname');
+      if (name) fitSeatName(name);
+    });
+  }
+  window.addEventListener('resize', fitSeatNames);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitSeatNames);
+
   function renderSeats(seats, opts) {
     const o = opts || {};
     SEATS.forEach(function (letter) {
@@ -794,21 +828,18 @@
         : (s.handPoints > 0 ? '+' + s.handPoints : String(s.handPoints)) + ' this hand';
       el.appendChild(pts);
 
-      // A CPU is always "present"; only a real phone can be away.
-      if (!s.isBot && s.connected === false) {
-        el.classList.add('offline');
-        const tag = document.createElement('div');
-        tag.className = 'seat-offline-tag'; tag.textContent = 'Away';
-        el.appendChild(tag);
-      } else if (s.isBot) {
-        const tag = document.createElement('div');
-        tag.className = 'seat-offline-tag'; tag.textContent = 'CPU';
-        el.appendChild(tag);
-      }
+      // A CPU is always "present"; only a real phone can be away. Dimming the
+      // seat says it on its own, and the glow says whose turn it is, so neither
+      // needs a label stealing height from the played cards.
+      if (!s.isBot && s.connected === false) el.classList.add('offline');
 
       if (o.turnPlayerId && s.playerId === o.turnPlayerId) el.classList.add('turn');
       if (o.winnerId && s.playerId === o.winnerId) el.classList.add('winner');
     });
+    fitSeatNames();
+    // The felt may still be hidden on the first render, where nothing has a
+    // width yet to measure against.
+    requestAnimationFrame(fitSeatNames);
   }
 
   function renderTrickCards(trick, opts) {

@@ -230,6 +230,11 @@ body.player .scrollable-region { touch-action: pan-y; overflow-y: auto; }
 }
 .p-banner strong { color: var(--gold); }
 .p-banner.your-turn { color: var(--gold); font-size: 22px; }
+.p-banner .turn-name { font-weight: 800; }
+.p-banner .turn-name[data-seat="N"] { color: var(--seat-n); }
+.p-banner .turn-name[data-seat="E"] { color: var(--seat-e); }
+.p-banner .turn-name[data-seat="S"] { color: var(--seat-s); }
+.p-banner .turn-name[data-seat="W"] { color: var(--seat-w); }
 .p-hint {
   flex: 0 0 auto;
   text-align: center;
