@@ -435,6 +435,10 @@ function chooseFollow(view, legal, hard, rng) {
       const safer = forced.filter((c) => c !== QUEEN_OF_SPADES);
       if (safer.length) forced = safer;
     }
+    // Last to act with nothing that ducks: the trick is already ours whatever
+    // we play, and every card left of this suit costs the same, so spend the
+    // biggest one rather than nurse it into a trick we lose later.
+    if (hard && isLast) return highest(forced);
     return lowest(forced);
   }
 

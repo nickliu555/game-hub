@@ -132,18 +132,19 @@ async function sharedGameShell(page) {
     await check(page.locator('.game-topbar .brand-bg')).toHaveText('🧱');
     await check(page.locator('.game-topbar .gtb-brand')).toHaveText('🧱 Stacking Royale');
     await check(page.locator('.game-topbar .gtb-controls .gtb-btn:not(#settingsPanel .gtb-btn)')).toHaveCount(3);
-    await contained(page, ['.game-topbar', '.gtb-brand', '#backBtn', '#helpBtn', '#settingsBtn']);
+    await contained(page, ['.game-topbar', '.gtb-brand', '#backBtn', '#fullscreenBtn', '#settingsBtn']);
+    await iconsVisible(page, '#fullscreenBtn');
     if (await page.locator('body[data-role="host"]').count()) {
       await check(page.locator('#settingsPanel')).toBeHidden();
       await page.locator('#settingsBtn').click();
       await check(page.locator('#settingsPanel')).toBeVisible();
       await check(page.locator('#settingsPanel > .gtb-btn')).toHaveCount(2);
-      await check(page.locator('#settingsPanel > #fullscreenBtn.gtb-btn')).toHaveText('Fullscreen');
+      await check(page.locator('#settingsPanel > #helpBtn.gtb-btn')).toHaveText('Help');
       await check(page.locator('#settingsPanel > .gtb-divider')).toHaveCount(1);
       await check(page.locator('#settingsPanel > #resetBtn.gtb-btn')).toHaveText('Reset game');
       await check(page.locator('#soundSeg')).toHaveCount(0);
-      await iconsVisible(page, '#fullscreenBtn');
-      await contained(page, ['#settingsPanel', '#fullscreenBtn', '#resetBtn']);
+      await iconsVisible(page, '#helpBtn');
+      await contained(page, ['#settingsPanel', '#helpBtn', '#resetBtn']);
       await page.locator('#settingsBtn').click();
       await check(page.locator('#settingsPanel')).toBeHidden();
     }
@@ -923,12 +924,12 @@ async function holdResource(page, url) {
   };
 }
 
-async function irisArrival(page, label, releaseScript) {
+async function irisArrival(page, label, releaseScript, emoji = '🧱') {
   try {
     await check(page.locator('html')).toHaveClass(/iris-incoming/);
     await check(page.locator('#irisOverlay')).toHaveClass(/no-transition/);
-    await check(page.locator('#irisOverlay .iris-emoji')).toHaveText('🧱');
-    assert.equal(await page.evaluate(() => JSON.parse(sessionStorage.getItem('iris_entering')).emoji), '🧱');
+    await check(page.locator('#irisOverlay .iris-emoji')).toHaveText(emoji);
+    assert.equal(await page.evaluate(() => JSON.parse(sessionStorage.getItem('iris_entering')).emoji), emoji);
     const fontWait = process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY;
     try {
       process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY = '1';
@@ -950,19 +951,24 @@ async function irisArrival(page, label, releaseScript) {
 }
 
 async function irisJourney(page, server, destination, trigger, label) {
+  // The cover always wears the DESTINATION's theme, never the page we are leaving.
+  const game = require('../games').find(entry => entry.id === 'stackingroyale');
+  const theme = destination === '/'
+    ? { emoji: '🎮', color: '#1b2838' }
+    : { emoji: game.emoji, color: game.color };
   const releaseDocument = await holdResource(page, `${server.base}${destination}`);
   const releaseScript = await holdResource(page, '**/shared/iris.js');
   try {
     await trigger();
     await check(page.locator('#irisOverlay')).toHaveClass(/revealing/);
-    await check(page.locator('#irisOverlay .iris-emoji')).toHaveText('🧱');
+    await check(page.locator('#irisOverlay .iris-emoji')).toHaveText(theme.emoji);
     const entering = await page.evaluate(() => JSON.parse(sessionStorage.getItem('iris_entering')));
-    assert.equal(entering.emoji, '🧱');
-    assert.equal(entering.color, destination === '/' ? '#1b2838' : require('../games').find(entry => entry.id === 'stackingroyale').color);
+    assert.equal(entering.emoji, theme.emoji);
+    assert.equal(entering.color, theme.color);
     await shot(page, `${label}-source`, true);
     await releaseDocument();
     await page.waitForURL(`${server.base}${destination}`, { waitUntil: 'commit' });
-    await irisArrival(page, label, releaseScript);
+    await irisArrival(page, label, releaseScript, theme.emoji);
   } finally {
     await releaseDocument();
     await releaseScript();

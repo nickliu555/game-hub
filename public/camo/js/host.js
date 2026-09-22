@@ -596,7 +596,7 @@
         if (navigated) return;
         navigated = true;
         if (window.Iris && typeof window.Iris.transitionTo === 'function') {
-          window.Iris.transitionTo(href, origin, { emoji: '🎮', name: 'Game Hub', color: '#1b2838' });
+          window.Iris.transitionTo(href, origin, window.Iris.HUB);
         } else {
           window.location.href = href;
         }

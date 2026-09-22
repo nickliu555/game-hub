@@ -68,6 +68,17 @@
     return '/';
   }
 
+  // The cover always wears the destination's theme, so hub-bound exits use the
+  // shared hub theme, never this game's.
+  function goBack() {
+    const target = getBackTarget();
+    if (target === '/' && window.Iris && typeof window.Iris.transitionTo === 'function') {
+      window.Iris.transitionTo(target, null, window.Iris.HUB);
+      return;
+    }
+    window.location.href = target;
+  }
+
   // ---------------- Data loading ----------------
   // Both files live at /twentyfour/data/ and are committed as static assets.
   let puzzles = null;        // [[a,b,c,d], ...]
@@ -460,7 +471,7 @@
     // Nothing accomplished yet → just navigate away.
     if (solvedCount === 0 && gaveUpCount === 0) {
       clearSession();
-      window.location.href = getBackTarget();
+      goBack();
       return;
     }
     // Otherwise show a summary modal.
@@ -479,7 +490,7 @@
   });
   exitLeaveBtn.addEventListener('click', function () {
     clearSession();
-    window.location.href = getBackTarget();
+    goBack();
   });
 
   // ---------------- Boot ----------------

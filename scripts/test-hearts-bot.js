@@ -380,6 +380,39 @@ test('hard will not lead the A♠ while the Queen is still out there', () => {
   assert.notStrictEqual(card, 'AS', 'leading the A♠ invites the Queen straight onto it');
 });
 
+// ──────────────── Skill: a trick we cannot avoid winning ────────────────
+
+test('hard spends its biggest card on a trick it is already stuck winning', () => {
+  const card = decide({
+    hand: ['AC', 'KC', '9C'],
+    legal: ['AC', 'KC', '9C'],
+    trick: ['2C', '3C', '7H'],   // last seat, nothing ducks under the 3♣
+    taken: [[], ['2H'], [], []], // the points are split, so no moon is on
+  }, 'hard');
+  assert.strictEqual(card, 'AC',
+    'the trick is ours whatever we play — shed the A♣ (got ' + card + ')');
+});
+
+test('hard still refuses to add its own Queen to a trick it is stuck winning', () => {
+  const card = decide({
+    hand: ['QS', 'KS', 'AS'],
+    legal: ['QS', 'KS', 'AS'],
+    trick: ['5S', '6S', '7H'],   // last seat, and nothing here ducks the 6♠
+    taken: [[], ['2H'], [], []],
+  }, 'hard');
+  assert.strictEqual(card, 'AS', 'dumping our own Queen into it costs 13 (got ' + card + ')');
+});
+
+test('hard takes a trick it cannot duck as cheaply as it can when others follow', () => {
+  const card = decide({
+    hand: ['AC', 'KC', '9C'],
+    legal: ['AC', 'KC', '9C'],
+    trick: ['2C', '3C'],         // two still to play — a big card can be beaten
+    taken: [[], ['2H'], [], []],
+  }, 'hard');
+  assert.strictEqual(card, '9C', 'with players behind us the cheap card is right');
+});
+
 test('hard will not lead a suit the rest of the table has shown out of', () => {
   const card = decide({
     hand: ['2C', '9H'],

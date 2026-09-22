@@ -129,6 +129,13 @@
     });
   }
   function getBackTarget() { const from = new URLSearchParams(location.search).get('from'); return from === 'join' ? root + '/join' : from === 'play' ? root + '/play' : '/'; }
+  // The cover always wears the destination's theme, so hub-bound exits use the
+  // shared hub theme, never this game's.
+  function goBack() {
+    const target = getBackTarget();
+    if (target === '/' && window.Iris && typeof window.Iris.transitionTo === 'function') { window.Iris.transitionTo(target, null, window.Iris.HUB); return; }
+    location.href = target;
+  }
   function mountTopbar() {
     if (role === 'player') {
       el('topbar').innerHTML = '<div class="gtb-settings-wrapper"><button type="button" class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings" data-gtb-settings-toggle aria-controls="settingsPanel" aria-expanded="false">' + icon('settings') + '</button><div id="settingsPanel" class="gtb-settings-panel" hidden><button type="button" class="secondary" id="helpBtn" data-gtb-help-open="helpOverlay">' + icon('circle-help') + 'Help</button><div class="setting-row"><span>Sound</span><div id="soundSeg" class="seg" role="group" aria-label="Sound"><button data-sound="on" data-gtb-settings-keep-open>On</button><button data-sound="off" data-gtb-settings-keep-open>Off</button></div></div><button type="button" class="secondary" id="backBtn" title="Back to hub">' + icon('arrow-left') + 'Hub</button><div id="extraSettings"></div></div></div>';
@@ -159,6 +166,6 @@
     observer.observe(el('helpOverlay'), { attributes: true, attributeFilter: ['class'] });
   }
   function friendly(reason) { return ({ 'host-absent': 'The host is away. Please wait for them to return.', 'game-full': 'All 30 places are taken.', 'round-in-progress': 'A match is underway. Join the next lobby.', 'game-in-progress': 'A match is underway. Join the next lobby.', 'name-taken': 'That name is already taken.', 'name-too-short': 'Please enter a name.', 'unknown-player': 'Your place is no longer in this lobby.', 'not-in-lobby': 'Wait for the next lobby.' })[reason] || 'Could not complete that request. Please try again.'; }
-  window.SRUI = { el: el, storage: storage, seed: seed, identity: identity, icons: icons, icon: icon, tool: tool, activate: activate, clock: clock, name: name, standings: standings, winner: winner, controllerMarkup: controllerMarkup, paint: paint, controls: controls, sound: sound, unlockAudio: unlockAudio, getBackTarget: getBackTarget, overlayOpen: overlayOpen, observeOverlays: observeOverlays, friendly: friendly };
+  window.SRUI = { el: el, storage: storage, seed: seed, identity: identity, icons: icons, icon: icon, tool: tool, activate: activate, clock: clock, name: name, standings: standings, winner: winner, controllerMarkup: controllerMarkup, paint: paint, controls: controls, sound: sound, unlockAudio: unlockAudio, getBackTarget: getBackTarget, goBack: goBack, overlayOpen: overlayOpen, observeOverlays: observeOverlays, friendly: friendly };
   if (role === 'host') mountTopbar();
 }());

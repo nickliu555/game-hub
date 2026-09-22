@@ -352,7 +352,7 @@
         const go = function () {
           if (navigated) return; navigated = true;
           if (window.Iris && typeof window.Iris.transitionTo === 'function') {
-            window.Iris.transitionTo('/', origin, { emoji: '♥️', name: 'Hearts', color: '#8E1B2E' });
+            window.Iris.transitionTo('/', origin, window.Iris.HUB);
           } else window.location.href = '/';
         };
         socket.emit('host:leave', {}, go);

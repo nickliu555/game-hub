@@ -121,7 +121,7 @@
         let navigated = false;
         const go = function () {
           if (navigated) return; navigated = true;
-          if (window.Iris && typeof window.Iris.transitionTo === 'function') window.Iris.transitionTo('/', origin, { emoji: '💣', name: 'Game Hub', color: '#171233' });
+          if (window.Iris && typeof window.Iris.transitionTo === 'function') window.Iris.transitionTo('/', origin, window.Iris.HUB);
           else window.location.href = '/';
         };
         socket.emit('host:leave', {}, go);

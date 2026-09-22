@@ -56,6 +56,17 @@
     return '/';
   }
 
+  // The cover always wears the destination's theme, so hub-bound exits use the
+  // shared hub theme, never Noggle's.
+  function goBack() {
+    const target = getBackTarget();
+    if (target === '/' && window.Iris && typeof window.Iris.transitionTo === 'function') {
+      window.Iris.transitionTo(target, null, window.Iris.HUB);
+      return;
+    }
+    window.location.href = target;
+  }
+
   // ---------------- Session state ----------------
   let selectedSize = 5;
   let board = null;          // 2D array of tile strings
@@ -504,7 +515,7 @@
   // ---------------- Back ----------------
   backBtn.addEventListener('click', function () {
     clearSession();
-    window.location.href = getBackTarget();
+    goBack();
   });
 
   // ---------------- Audio ----------------

@@ -13,6 +13,10 @@
  *     fades out and the page is revealed. If never called, auto-collapses
  *     on `window.load` or after a max-wait fallback.
  *
+ *   Iris.HUB
+ *     The hub's own theme. The cover always shows where you are GOING, so
+ *     pass this when navigating back to `/` — never the game's own theme.
+ *
  * Auto-binding:
  *   <a data-iris href="..." data-iris-emoji="🧠" data-iris-color="#46178F">
  */
@@ -21,6 +25,8 @@
     var HOLD_MS = 350;          // Destination: minimum cover time before fading out.
     var MAX_WAIT_MS = 2500;     // Destination: collapse no later than this.
     var DEFAULT_COLOR = '#1b2838';
+    // Matches the hub's page background (public/hub.css).
+    var HUB_THEME = { emoji: '🎮', name: 'Game Hub', color: '#1b2838' };
     var overlay = null;
 
     function buildLoader(emojiText) {
@@ -188,5 +194,6 @@
     window.Iris = {
         transitionTo: transitionTo,
         ready: requestCollapse,
+        HUB: HUB_THEME,
     };
 })();

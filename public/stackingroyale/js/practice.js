@@ -60,8 +60,8 @@
     disarm(); ui.unlockAudio(); const before = board.view(); board.action(action); observe(before); ui.paint(board.view()); save();
   } });
   function confirm(action) {
-    if (!board || phase === 'final') { if (action === 'back') location.href = ui.getBackTarget(); else start(); return; }
-    if (armed === action) { disarm(); if (action === 'back') { ui.storage.remove('practice.session'); location.href = ui.getBackTarget(); } else start(); return; }
+    if (!board || phase === 'final') { if (action === 'back') ui.goBack(); else start(); return; }
+    if (armed === action) { disarm(); if (action === 'back') { ui.storage.remove('practice.session'); ui.goBack(); } else start(); return; }
     pause(); armed = action;
     el('confirmText').textContent = action === 'back' ? 'Tap Back again to abandon this session.' : 'Tap Restart again to start a new session.';
     el('confirmStrip').hidden = false;

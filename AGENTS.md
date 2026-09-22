@@ -176,6 +176,37 @@ universal, so it must degrade silently where unsupported.
 
 ---
 
+## ✅ Page transitions always wear the DESTINATION's theme
+
+The iris loading cover shows **where you are going, never where you are leaving**. The
+source page passes the destination's theme into `Iris.transitionTo`, which stashes it in
+`sessionStorage` so the destination's preload script can paint it before first paint.
+
+- **Hub → game** is driven by the game's `emoji` and `color` in `games.js`. A new game
+  **must** add both, or it inherits the default grey cover.
+- **Game → hub** must always pass `window.Iris.HUB`:
+  ```js
+  if (window.Iris && typeof window.Iris.transitionTo === 'function') {
+    window.Iris.transitionTo('/', origin, window.Iris.HUB);
+  } else window.location.href = '/';
+  ```
+  **Never hand-copy the theme literal, and never pass your own game's theme here** — that
+  is the bug this rule exists to prevent: leaving the game looks exactly like entering it,
+  because the cover comes up in the game's own colour and emoji. Keep the
+  `else window.location.href = …` fallback so navigation still works if `iris.js` fails to
+  load.
+- **Every page that can navigate away needs all three includes** in `<head>` — not just
+  `host.html`, but secondary pages like `practice.html` too:
+  ```html
+  <script src="/shared/iris-preload.js"></script>   <!-- sync, BEFORE iris.css/iris.js -->
+  <link rel="stylesheet" href="/shared/iris.css" />
+  <script src="/shared/iris.js" defer></script>
+  ```
+  `iris-preload.js` must stay **synchronous and first** — it has to run pre-paint or the
+  cover flickers on arrival.
+
+---
+
 ## Mobile / touch (player pages)
 
 - **Mobile-first & cross-browser:** player pages are used on real phones, so they must be

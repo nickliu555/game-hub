@@ -1195,11 +1195,11 @@
       <span class="gtb-brand">👑 Empire</span>
       <div class="gtb-controls">
         <a href="/" id="empireHubBtn" class="gtb-btn" title="Back to hub (resets game)">← Hub</a>
-        <button class="gtb-btn" type="button" title="How to play" onclick="document.getElementById('helpOverlay').classList.add('show')">? Help</button>
+        <button id="empireFullscreenBtn" class="gtb-btn" type="button" title="Toggle fullscreen" onclick="togglePageFullscreen()">⛶ Fullscreen</button>
         <div class="gtb-settings-wrapper">
           <button class="gtb-btn" type="button" data-gtb-settings-toggle aria-controls="empireSettingsPanel" aria-expanded="false" title="Settings">⚙️ Settings</button>
           <div class="gtb-settings-panel" id="empireSettingsPanel" hidden>
-            <button id="empireFullscreenBtn" class="gtb-btn" type="button" title="Toggle fullscreen" onclick="togglePageFullscreen()">⛶ Fullscreen</button>
+            <button class="gtb-btn" type="button" title="How to play" onclick="document.getElementById('helpOverlay').classList.add('show')">? Help</button>
             <button id="empireReactionsBtn" class="gtb-btn" type="button" data-gtb-settings-keep-open title="Mute player reactions">🔔 Reactions</button>
             <div class="gtb-divider"></div>
             <button id="empireResetBtn" class="gtb-btn gtb-btn-danger" type="button" title="Reset the game" onclick="resetSubmissions()">Reset game</button>
@@ -2120,7 +2120,7 @@
                         await fetch('/api/empire/host-leave', { method: 'POST' });
                     } catch (_) { /* navigate anyway */ }
                     if (window.Iris && typeof window.Iris.transitionTo === 'function') {
-                        window.Iris.transitionTo('/', origin, { emoji: '🎮', name: 'Game Hub', color: '#1b2838' });
+                        window.Iris.transitionTo('/', origin, window.Iris.HUB);
                     } else {
                         window.location.href = '/';
                     }
@@ -2394,13 +2394,6 @@
                 }
             });
         }
-
-        // Set fullscreen flag when going back to hub while in fullscreen
-        document.getElementById('backHubBtn').addEventListener('click', () => {
-            if (document.fullscreenElement || document.webkitFullscreenElement) {
-                sessionStorage.setItem('hub_fullscreen', '1');
-            }
-        });
 
         // ─── Timer Logic ────────────────────────────────
 
