@@ -4,3 +4,7 @@ node_modules/
 # macOS
 .DS_Store
 **/.DS_Store
+
+# Scratch harnesses from tuning/debugging sessions
+scripts/tmp-*
+server/**/.bot-*.js

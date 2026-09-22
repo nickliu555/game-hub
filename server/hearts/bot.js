@@ -384,6 +384,12 @@ function chooseFollow(view, legal, hard, rng) {
       const rest = list.filter((c) => c !== JACK_OF_DIAMONDS);
       return rest.length ? rest : list;
     };
+    // Last to act and already taking the trick: every winner costs us the same,
+    // so spend the biggest — but never our own Queen, which would be +13 to us.
+    const dump = (list) => {
+      const safe = list.filter((c) => c !== QUEEN_OF_SPADES);
+      return highest(safe.length ? safe : list);
+    };
 
     // The Queen is a bomb. Hand her over the instant it can be done without
     // winning the trick — every extra turn she spends in our hand is a turn she
@@ -394,7 +400,7 @@ function chooseFollow(view, legal, hard, rng) {
     }
 
     // Taking the trick is GOOD when the Jack is in it and nothing else stings.
-    if (jackInTrick && pot < 0 && over.length) return isLast ? lowest(over) : highest(over);
+    if (jackInTrick && pot < 0 && over.length) return isLast ? dump(over) : highest(over);
 
     // Holding the Jack into a diamond trick we are going to win: cash it. Only
     // once it is certain — either we are last, or no bigger diamond is left out.
@@ -404,9 +410,19 @@ function chooseFollow(view, legal, hard, rng) {
       return JACK_OF_DIAMONDS;
     }
 
+    // Nothing has topped the Jack in this diamond trick yet, so the last seat
+    // can drop it and pocket the −10. Cover it with our cheapest catcher. Only
+    // worth it with a single opponent left: with two behind us they simply play
+    // over the top and the catcher is gone for nothing (measured +0.31 vs −0.25).
+    if (hard && leadSuit === 'D' && trick.length === 2 && !queenInTrick
+        && mem.jackLoose && winnerValue <= JACK_VALUE) {
+      const catchers = legal.filter((c) => rankValue(c) > JACK_VALUE);
+      if (catchers.length) return lowest(catchers);
+    }
+
     // Break a moon run by taking the points ourselves while it is still cheap.
     if (hard && mem.moonThreat && isLast && pot > 0 && !queenInTrick && over.length) {
-      return lowest(over);
+      return dump(over);
     }
 
     // Last in, nothing on the table to lose, and holding a card of this suit

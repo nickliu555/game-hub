@@ -413,6 +413,81 @@ test('hard takes a trick it cannot duck as cheaply as it can when others follow'
   assert.strictEqual(card, '9C', 'with players behind us the cheap card is right');
 });
 
+test('hard spends its biggest diamond on the trick that hands it the J♦', () => {
+  const card = decide({
+    hand: ['AD', 'QD', '2D'],
+    legal: ['AD', 'QD', '2D'],
+    trick: ['5D', 'JD', '3D'],   // last seat, the −10 is already on the table
+    taken: [[], ['2H'], [], []],
+  }, 'hard');
+  assert.strictEqual(card, 'AD',
+    'the J♦ is ours either way — take it with the card we want gone (got ' + card + ')');
+});
+
+test('hard breaks a moon with its biggest card when it is last to act', () => {
+  const card = decide({
+    hand: ['AC', 'KC', '2C'],
+    legal: ['AC', 'KC', '2C'],
+    trick: ['5C', '6C', '7H'],   // last seat, a heart in the pot
+    taken: [[], ['2H', '3H', '4H', '5H', '6H'], [], []], // seat 1 is shooting
+  }, 'hard');
+  assert.strictEqual(card, 'AC',
+    'we are taking these points on purpose — shed the A♣ doing it (got ' + card + ')');
+});
+
+// ──────────── Skill: covering a loose J♦ on a diamond trick ────────────
+
+test('hard covers a diamond trick the J♦ could still steal', () => {
+  const card = decide({
+    hand: ['KD', 'QD', '3D'],
+    legal: ['KD', 'QD', '3D'],
+    trick: ['4D', '9D'],         // nothing above the Jack yet, one seat behind us
+    taken: [[], ['2H'], [], []],
+  }, 'hard');
+  assert.strictEqual(card, 'QD',
+    'the cheapest catcher stops a free J♦ drop (got ' + card + ')');
+});
+
+test('hard does not burn a catcher once the J♦ is already covered', () => {
+  const card = decide({
+    hand: ['AD', '3D', '2D'],
+    legal: ['AD', '3D', '2D'],
+    trick: ['4D', 'KD'],         // the K♦ already tops the Jack
+    taken: [[], ['2H'], [], []],
+  }, 'hard');
+  assert.strictEqual(card, '3D', 'somebody else is holding the cover (got ' + card + ')');
+});
+
+test('hard does not cover when it is holding the J♦ itself', () => {
+  const card = decide({
+    hand: ['JD', 'KD', '3D'],
+    legal: ['JD', 'KD', '3D'],
+    trick: ['4D', '9D'],
+    taken: [[], ['2H'], [], []],
+  }, 'hard');
+  assert.strictEqual(card, '3D', 'there is no loose Jack to catch (got ' + card + ')');
+});
+
+test('hard does not cover when nobody is left to drop the J♦', () => {
+  const card = decide({
+    hand: ['KD', 'QD', '3D'],
+    legal: ['KD', 'QD', '3D'],
+    trick: ['4D', '9D', '2D'],   // last seat — the Jack can no longer be played
+    taken: [[], ['2H'], [], []],
+  }, 'hard');
+  assert.strictEqual(card, '3D', 'nothing to protect against (got ' + card + ')');
+});
+
+test('hard does not cover with two opponents still behind it', () => {
+  const card = decide({
+    hand: ['KD', 'QD', '3D'],
+    legal: ['KD', 'QD', '3D'],
+    trick: ['9D'],               // two seats left — either can play over the Q♦
+    taken: [[], ['2H'], [], []],
+  }, 'hard');
+  assert.strictEqual(card, '3D', 'the catcher would just be topped (got ' + card + ')');
+});
+
 test('hard will not lead a suit the rest of the table has shown out of', () => {
   const card = decide({
     hand: ['2C', '9H'],
