@@ -27,7 +27,6 @@ function makeWorld(tier, roster) {
     { id: 'b', name: 'Blue', team: 'blue', seat: 0 },
   ]);
   w.frozen = false;
-  w.koActive = false;
   return w;
 }
 // Discs can't be parked off-pitch (the walls push them back), so tests that need
@@ -195,43 +194,38 @@ console.log('Nockey physics');
   check('kickoff clears the goal latch', w.goalLocked === false, 'goalLocked=' + w.goalLocked);
 })();
 
-// 9. The opening kickoff is unrestricted; later kickoffs hold the defending team.
+// 9. Nothing holds a team back at a face-off — there is no invisible line and
+// no seven-second wait, so the defending side can cross the moment play starts.
 (function () {
   const w = makeWorld();
-  w.kickoff('red', true);
-  w.frozen = false;
-  const openingBlue = w.byId.get('b');
-  openingBlue.x = 40; openingBlue.y = 0;
-  w.setInput('b', -1, 0, false);
-  stepN(w, 120);
-  check('opening kickoff has no barrier', w.koActive === false && openingBlue.x < 0, 'x=' + openingBlue.x.toFixed(1));
-
+  const S = w.stadium;
   w.kickoff('red');
+  w.frozen = false;
   const blue = w.byId.get('b');
   blue.x = 40; blue.y = 0;
   w.setInput('b', -1, 0, false);
-  stepN(w, 419);
-  check('kickoff barrier holds the defending team back', blue.x > -1, 'x=' + blue.x.toFixed(1));
-  check('kickoff barrier stays active before seven seconds', w.koActive === true);
-  w.step();
-  check('kickoff barrier drops after seven seconds', w.koActive === false);
-
-  w.kickoff('red');
-  const red = w.byId.get('r');
-  red.x = -60; red.y = 0;
-  w.setInput('r', 1, 0, true); // touch/kick the ball
   stepN(w, 120);
-  check('barrier drops once the ball is played', w.koActive === false);
+  check('the defending team can cross the centre line at once', blue.x < -1, 'x=' + blue.x.toFixed(1));
+
+  // The centre circle used to be walled off from the defending team too.
+  w.kickoff('red');
+  const inner = w.byId.get('b');
+  inner.x = S.circle * 0.9; inner.y = 0;
+  w.setInput('b', -1, 0, false);
+  stepN(w, 60);
+  const dist = Math.hypot(inner.x - w.ball.x, inner.y - w.ball.y);
+  check('the defending team can enter the face-off circle', Math.abs(inner.x) < S.circle,
+    'x=' + inner.x.toFixed(1) + ' circle=' + S.circle + ' toPuck=' + dist.toFixed(1));
 })();
 
 // 9b. The face-off puck is spotted onto the restarting team's side of centre
-// (red defends the left goal, so red restarts on -x). The opening drop, which
+// (red defends the left goal, so red restarts on -x). A neutral drop, which
 // nobody owns, stays on the centre spot.
 (function () {
   const w = makeWorld();
   const S = w.stadium;
-  w.kickoff('red', true);
-  check('opening drop is dead centre', w.ball.x === 0 && w.ball.y === 0, 'x=' + w.ball.x);
+  w.kickoff(null);
+  check('a neutral drop is dead centre', w.ball.x === 0 && w.ball.y === 0, 'x=' + w.ball.x);
 
   w.kickoff('red');
   const redX = w.ball.x;
@@ -243,8 +237,8 @@ console.log('Nockey physics');
   check('interpolation starts from the spot, not the centre', w.ball.px === w.ball.x);
 })();
 
-// 9c. A CPU whose team did NOT win the face-off holds a goal-side shape instead
-// of pressing the centre circle, so the barrier dropping doesn't find it up ice.
+// 9c. A CPU whose team did NOT win the face-off holds a goal-side shape rather
+// than losing a race for a puck spotted on the other side of the rink.
 (function () {
   const roster = [
     { id: 'r', name: 'Red', team: 'red', seat: 0, isBot: true },
@@ -256,8 +250,8 @@ console.log('Nockey physics');
     w.kickoff(koTeam);
     w.frozen = false;
     let closest = Infinity;
-    // Stop at the barrier release so we only measure face-off behaviour.
-    for (let i = 0; i < 240 && w.koActive; i++) {
+    // Stop once the puck is played so we only measure face-off behaviour.
+    for (let i = 0; i < 240 && w.koUntouched; i++) {
       w.stepBots();
       w.step();
       w.events.length = 0;
@@ -269,14 +263,101 @@ console.log('Nockey physics');
 
   const theirs = runFaceoff('red');   // blue did NOT win it -> should sit back
   const ours = runFaceoff('blue');    // blue DID win it -> should attack
+  const neutral = runFaceoff(null);   // nobody's puck -> should attack
   const S = theirs.w.stadium;
   check('the CPU stays goal-side when the face-off is not its own', theirs.blue.x > S.halfW * 0.25,
     'x=' + theirs.blue.x.toFixed(1) + ' ownGoal=' + S.halfW);
+  check('a neutral drop is nobody\'s face-off, so the CPU races for it',
+    neutral.closest < theirs.closest,
+    'neutral=' + neutral.closest.toFixed(1) + ' theirs=' + theirs.closest.toFixed(1));
   check('the CPU still goes for a face-off it owns', ours.closest < theirs.closest,
     'own=' + ours.closest.toFixed(1) + ' theirs=' + theirs.closest.toFixed(1));
 })();
 
-// 9d. The net grows with the rink so a bigger sheet isn't a relatively smaller
+// 9d. A puck nobody plays is whistled dead after ten seconds, but only once it
+// has stopped — a shot still travelling is live hockey.
+(function () {
+  const w = soloWorld();
+  const red = w.byId.get('r');
+  // Park the skater in a corner so it can never brush the puck.
+  red.x = -w.stadium.halfW * 0.8; red.y = -w.stadium.halfH * 0.8;
+  w.kickoff(null);
+  red.x = -w.stadium.halfW * 0.8; red.y = -w.stadium.halfH * 0.8;
+  check('a fresh face-off starts the dead-puck clock at zero', w.idleTicks === 0);
+
+  const early = stepN(w, 599);
+  check('a dead puck survives just under ten seconds', early === null && w.idleTicks === 599,
+    'ticks=' + w.idleTicks);
+  const late = w.step();
+  check('a dead puck is whistled at ten seconds', late !== null && late.idle === true,
+    'got=' + JSON.stringify(late));
+  check('the whistle rearms the clock', w.idleTicks === 0, 'ticks=' + w.idleTicks);
+})();
+
+// 9e. Touching the puck resets the clock; so does a puck that is still moving.
+(function () {
+  const w = soloWorld();
+  const red = w.byId.get('r');
+  w.kickoff(null);
+  red.x = -w.stadium.halfW * 0.8; red.y = -w.stadium.halfH * 0.8;
+  stepN(w, 300);
+  check('the clock runs while nobody is near the puck', w.idleTicks === 300, 'ticks=' + w.idleTicks);
+
+  // Skate onto the puck and hit it.
+  red.x = w.ball.x - (PHYS.playerRadius + PHYS.ballRadius) - 1; red.y = w.ball.y;
+  w.setInput('r', 1, 0, true);
+  w.step();
+  check('a hit marks the puck as touched', w.ball.touched === true);
+  check('a hit resets the dead-puck clock', w.idleTicks === 0, 'ticks=' + w.idleTicks);
+  check('a hit also ends the face-off', w.koUntouched === false);
+
+  // A puck still flying does not age toward the whistle.
+  w.clearInput('r');
+  red.x = -w.stadium.halfW * 0.8; red.y = -w.stadium.halfH * 0.8;
+  w.ball.vx = 6; w.ball.vy = 0;
+  w.idleTicks = 0;
+  stepN(w, 5);
+  check('a travelling puck does not age toward the whistle', w.idleTicks === 0,
+    'ticks=' + w.idleTicks + ' v=' + speed(w.ball).toFixed(2));
+})();
+
+// 9f. Skaters can work the corners: the boards they run into are the rounded
+// arcs the rink is drawn with, not a straight chord cutting the corner off.
+(function () {
+  const w = soloWorld();
+  const S = w.stadium;
+  const p = w.byId.get('r');
+  const cx = S.halfW - S.corner;
+  const cy = S.halfH - S.corner;
+  w.ball.x = 0; w.ball.y = 0;
+
+  // Skate down the top board and round the corner.
+  p.x = 0; p.y = -S.halfH + p.r; p.vx = 0; p.vy = 0;
+  w.setInput('r', 1, 0, false);
+  stepN(w, 200);
+  const gap = S.corner - p.r - Math.hypot(p.x - cx, p.y - -cy);
+  check('a skater follows the corner arc instead of stopping at a chord',
+    Math.abs(gap) < 1.5 && p.x > cx,
+    'x=' + p.x.toFixed(1) + ' y=' + p.y.toFixed(1) + ' gap=' + gap.toFixed(2));
+
+  // Pressing into the corner diagonally must not squeeze them out behind it.
+  w.setInput('r', 1, -1, false);
+  stepN(w, 200);
+  check('a skater cannot be pushed out behind the corner',
+    Math.hypot(p.x - cx, p.y - -cy) <= S.corner - p.r + 0.01,
+    'd=' + Math.hypot(p.x - cx, p.y - -cy).toFixed(1) + ' max=' + (S.corner - p.r).toFixed(1));
+
+  // The far corner is reachable too, and the whole sheet stays in bounds.
+  w.setInput('r', 1, 1, false);
+  stepN(w, 300);
+  check('the opposite corner is reachable', p.y > cy && p.x > cx,
+    'x=' + p.x.toFixed(1) + ' y=' + p.y.toFixed(1));
+  check('the skater is still inside the boards',
+    Math.abs(p.x) <= S.halfW - p.r + 0.01 && Math.abs(p.y) <= S.halfH - p.r + 0.01,
+    'x=' + p.x.toFixed(1) + ' y=' + p.y.toFixed(1));
+})();
+
+// 9g. The net grows with the rink so a bigger sheet isn't a relatively smaller
 // target, and the posts stay inside the boards.
 (function () {
   const tiers = ['small', 'classic', 'big', 'huge'];

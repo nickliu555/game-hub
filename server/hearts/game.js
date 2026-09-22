@@ -59,7 +59,7 @@ const PASS_ARROW = { left: '↻', right: '↺', across: '↑', hold: '—' };
 // Seat offset applied to the passer's index to find the receiver.
 const PASS_OFFSET = { left: 1, right: 3, across: 2, hold: 0 };
 
-const TARGET_SCORES = [50, 75, 100];
+const TARGET_SCORES = [50, 75, 100, 125, 150];
 const DEFAULT_TARGET = 100;
 
 const DEAL_DURATION_MS = 2600;
@@ -82,6 +82,7 @@ function makePlayer(id, name, socketId) {
     lastDelta: 0,      // what the last completed hand cost them
     hand: [],
     taken: [],         // cards captured in won tricks this hand
+    voids: {},         // suits they have publicly shown they cannot follow
     pass: [],          // the 3 cards they selected to pass
     received: [],      // the 3 cards they got back, for the EXCHANGE highlight
     receivedFrom: null, // { name, seat } of whoever sent them
@@ -97,8 +98,7 @@ class Game {
     this._orderSeq = 0;
 
     this.targetScore = DEFAULT_TARGET;
-    this.botDifficulty = 'normal';
-    this.autoAdvance = false;
+    this.autoAdvance = true;
 
     this._resetGameState();
 
@@ -235,13 +235,6 @@ class Game {
     return { ok: true };
   }
 
-  setBotDifficulty(level) {
-    if (this.phase !== PHASES.LOBBY) return { ok: false, reason: 'not-lobby' };
-    if (['easy', 'normal', 'hard'].indexOf(level) < 0) return { ok: false, reason: 'bad-difficulty' };
-    this.botDifficulty = level;
-    return { ok: true };
-  }
-
   setAutoAdvance(on) {
     if (this.phase !== PHASES.LOBBY) return { ok: false, reason: 'not-lobby' };
     this.autoAdvance = !!on;
@@ -304,6 +297,7 @@ class Game {
     this.seatOrder().forEach((p, i) => {
       p.hand = hands[i];
       p.taken = [];
+      p.voids = {};
       p.handPoints = 0;
       p.pass = [];
       p.received = [];
@@ -423,6 +417,9 @@ class Game {
 
     p.hand.splice(p.hand.indexOf(card), 1);
     this.trick.push({ playerId, card });
+    // Failing to follow is public at the table, so it is fair game for the CPUs.
+    const led = suitOf(this.trick[0].card);
+    if (this.trick.length > 1 && suitOf(card) !== led) p.voids[led] = true;
 
     const brokeHearts = isHeart(card) && !this.heartsBroken;
     if (brokeHearts) this.heartsBroken = true;
@@ -589,14 +586,37 @@ class Game {
     return seen;
   }
 
+  /**
+   * Everything a CPU is allowed to know: its own cards plus the public record
+   * of the hand — what has been played, what each seat has captured, and who
+   * has shown out of which suit. Built here so the transport and the self-play
+   * harness can never drift apart.
+   */
+  botView(playerId) {
+    const order = this.seatOrder();
+    const seatIndex = order.findIndex((p) => p.id === playerId);
+    if (seatIndex < 0) return null;
+    const p = order[seatIndex];
+    return {
+      seatIndex,
+      hand: p.hand.slice(),
+      legal: this.legalFor(playerId),
+      trick: this.trick.map((t) => t.card),
+      heartsBroken: this.heartsBroken,
+      trickNumber: this.trickNumber,
+      seen: this.seenCards(),
+      taken: order.map((o) => o.taken.slice()),
+      voids: order.map((o) => Object.assign({}, o.voids)),
+    };
+  }
+
   reset() {
     this._clearTimers();
     this.players.clear();
     this._orderSeq = 0;
     this._resetGameState();
     this.targetScore = DEFAULT_TARGET;
-    this.botDifficulty = 'normal';
-    this.autoAdvance = false;
+    this.autoAdvance = true;
   }
 
   // ─────────────────── Public snapshots (never contain a hand) ───────────────────
@@ -616,7 +636,6 @@ class Game {
       capacity: PLAYER_COUNT,
       canStart: this.canStart(),
       targetScore: this.targetScore,
-      botDifficulty: this.botDifficulty,
       autoAdvance: this.autoAdvance,
     };
   }

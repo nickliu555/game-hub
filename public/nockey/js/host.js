@@ -49,6 +49,7 @@
   const sbRedScore = document.getElementById('sbRedScore');
   const sbBlueScore = document.getElementById('sbBlueScore');
   const sbClock = document.getElementById('sbClock');
+  const sbTag = document.getElementById('sbTag');
   const countOverlay = document.getElementById('countOverlay');
   const coNum = document.getElementById('coNum');
   const coNote = document.getElementById('coNote');
@@ -244,6 +245,13 @@
   function playHorn() {
     const c = getAudioCtx(); if (!c) return;
     [330, 262].forEach(function (f, i) { blip(f, 0.6, 'sawtooth', 0.12, c.currentTime + i * 0.22); });
+  }
+  // Golden goal. A low rising fanfare, darker than the goal sound, so the room
+  // hears that the stakes just changed.
+  function playSuddenDeath() {
+    const c = getAudioCtx(); if (!c) return;
+    [196, 247, 294, 392].forEach(function (f, i) { blip(f, 0.55, 'sawtooth', 0.15, c.currentTime + i * 0.17); });
+    noise(1.2, 520, 0.07, 1);
   }
 
   // ---------------- Lobby ----------------
@@ -548,6 +556,7 @@
   let blueScore = 0;
   let paused = false;
   let matchState = 'idle'; // idle | count | play | goal | timeup | over
+  let sudden = false;      // golden goal: clock spent, next goal wins
   let lastTickSec = -1;    // last whole second announced, so a beep fires once
   let superseded = false;  // another host screen took over the simulation
   let rafId = null;
@@ -573,7 +582,8 @@
     sbRedScore.textContent = redScore;
     sbBlueScore.textContent = blueScore;
     sbClock.textContent = fmtClock(Math.max(0, clockMs));
-    sbClock.classList.toggle('urgent', clockMs <= 15000);
+    sbClock.classList.toggle('urgent', !sudden && clockMs <= 15000);
+    if (sbTag) sbTag.hidden = !sudden;
   }
 
   function startMatch(data, initial) {
@@ -586,7 +596,7 @@
 
     world = new window.Nockey.World({ tier: tier });
     world.setRoster(roster);
-    world.kickoff(data && data.kickoffTeam === 'blue' ? 'blue' : 'red', true);
+    world.kickoff(null);
     world.frozen = true;
     world.redScore = redScore;
     world.blueScore = blueScore;
@@ -594,6 +604,7 @@
 
     renderer = new window.NockeyRender.Renderer(canvas, world);
     paused = false;
+    sudden = !!(initial && initial.sudden);
     clearTimers();
     lastTickSec = -1;
     if (pauseOverlay) pauseOverlay.hidden = true;
@@ -682,10 +693,20 @@
 
     after(GOAL_CELEBRATE_MS, function () {
       goalBanner.hidden = true;
+      // Golden goal: the buzzer already went, so this one ends it.
+      if (sudden) { endMatch(team, false); return; }
       // The conceding team takes the face-off.
       world.kickoff(team === 'red' ? 'blue' : 'red');
       beginCountdown(COUNTDOWN_FROM, null);
     });
+  }
+
+  // Nobody has gone near the puck for ten seconds — whistle it dead and drop a
+  // fresh neutral face-off rather than let the match stall in a corner.
+  function onPuckIdle() {
+    playWhistle();
+    world.kickoff(null);
+    beginCountdown(COUNTDOWN_FROM, 'PUCK RESET');
   }
 
   // Confetti out of the net: a dense team-colour burst plus a white sparkle at
@@ -724,7 +745,31 @@
     const winner = redScore === blueScore ? null : (redScore > blueScore ? 'red' : 'blue');
     after(TIME_UP_MS, function () {
       timeUpBanner.hidden = true;
-      endMatch(winner, true);
+      if (winner === null) beginSuddenDeath();
+      else endMatch(winner, true);
+    });
+  }
+
+  // Level at the buzzer: no more clock, next goal takes it. Everyone goes back
+  // to their face-off spots and the puck is dropped on the centre dot.
+  function beginSuddenDeath() {
+    sudden = true;
+    matchState = 'goal';
+    if (world) world.frozen = true;
+    socket.emit('host:sudden', {});
+    updateScoreboard();
+    updatePauseBtn();
+    playSuddenDeath();
+    gbText.textContent = 'SUDDEN DEATH';
+    gbText.style.color = 'var(--accent)';
+    goalBanner.hidden = false;
+    gbText.style.animation = 'none';
+    void gbText.offsetWidth;
+    gbText.style.animation = '';
+    after(GOAL_CELEBRATE_MS, function () {
+      goalBanner.hidden = true;
+      world.kickoff(null);
+      beginCountdown(COUNTDOWN_FROM, 'NEXT GOAL WINS');
     });
   }
 
@@ -845,6 +890,7 @@
         ms: Math.max(0, clockMs),
         red: redScore,
         blue: blueScore,
+        sudden: sudden,
         live: matchState === 'play' && !paused,
         paused: paused,
       });
@@ -857,10 +903,12 @@
         acc += dt;
         let steps = 0;
         let scored = null;
+        let idled = false;
         while (acc >= FIXED_DT && steps < MAX_STEPS) {
           world.stepBots();
           const s = world.step();
-          if (s && !scored) scored = s;
+          if (s && s.team && !scored) scored = s;
+          else if (s && s.idle) idled = true;
           acc -= FIXED_DT;
           steps++;
         }
@@ -868,14 +916,20 @@
         if (scored) {
           acc = 0;
           onGoal(scored);
+        } else if (idled && matchState === 'play') {
+          acc = 0;
+          onPuckIdle();
         } else if (matchState === 'play') {
-          clockMs -= dt * 1000;
-          const secLeft = Math.ceil(Math.max(0, clockMs) / 1000);
-          if (secLeft !== lastTickSec) {
-            if (lastTickSec >= 0 && secLeft >= 1 && secLeft <= FINAL_BEEP_FROM) playFinalTick();
-            lastTickSec = secLeft;
+          // Overtime has no clock at all — it runs until somebody scores.
+          if (!sudden) {
+            clockMs -= dt * 1000;
+            const secLeft = Math.ceil(Math.max(0, clockMs) / 1000);
+            if (secLeft !== lastTickSec) {
+              if (lastTickSec >= 0 && secLeft >= 1 && secLeft <= FINAL_BEEP_FROM) playFinalTick();
+              lastTickSec = secLeft;
+            }
+            if (clockMs <= 0) { clockMs = 0; handleTimeUp(); }
           }
-          if (clockMs <= 0) { clockMs = 0; handleTimeUp(); }
           updateScoreboard();
         }
       } else if (world && matchState === 'count') {
@@ -939,7 +993,7 @@
       authedOnce = true;
       renderLobby(res.lobby);
       if (res.phase === 'PLAYING' && res.match) {
-        startMatch(res.match, { red: res.match.redScore, blue: res.match.blueScore, clockMs: res.match.clockMs });
+        startMatch(res.match, { red: res.match.redScore, blue: res.match.blueScore, clockMs: res.match.clockMs, sudden: res.match.sudden });
       } else if (res.phase === 'FINAL' && res.match) {
         roster = res.match.roster || [];
         redScore = res.match.redScore;

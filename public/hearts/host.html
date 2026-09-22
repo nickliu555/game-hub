@@ -28,6 +28,7 @@
           <button class="gtb-btn" type="button" data-gtb-settings-toggle aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️ Settings</button>
           <div class="gtb-settings-panel" id="settingsPanel" hidden>
             <button id="fullscreenBtn" class="gtb-btn" type="button" title="Toggle fullscreen">⛶ Fullscreen</button>
+            <button id="muteReactionsBtn" class="gtb-btn" type="button" data-gtb-settings-keep-open title="Mute player reactions">🔔 Reactions</button>
             <div class="gtb-divider"></div>
             <button id="resetBtn" class="gtb-btn gtb-btn-danger" type="button" title="Reset the whole game">Reset game</button>
           </div>
@@ -62,21 +63,15 @@
                   <button class="seg-btn" type="button" data-value="50">50</button>
                   <button class="seg-btn" type="button" data-value="75">75</button>
                   <button class="seg-btn on" type="button" data-value="100">100</button>
-                </div>
-              </div>
-              <div class="config-row">
-                <label>CPU skill</label>
-                <div class="seg" id="difficultySeg" data-attr="botDifficulty">
-                  <button class="seg-btn" type="button" data-value="easy">Easy</button>
-                  <button class="seg-btn on" type="button" data-value="normal">Normal</button>
-                  <button class="seg-btn" type="button" data-value="hard">Hard</button>
+                  <button class="seg-btn" type="button" data-value="125">125</button>
+                  <button class="seg-btn" type="button" data-value="150">150</button>
                 </div>
               </div>
               <div class="config-row">
                 <label>Auto-advance hands</label>
                 <div class="seg" id="autoSeg" data-attr="autoAdvance">
-                  <button class="seg-btn" type="button" data-value="on">On</button>
-                  <button class="seg-btn on" type="button" data-value="off">Off</button>
+                  <button class="seg-btn on" type="button" data-value="on">On</button>
+                  <button class="seg-btn" type="button" data-value="off">Off</button>
                 </div>
               </div>
             </div>
@@ -110,22 +105,26 @@
               <span class="ex-pip" data-seat="N">N</span>
               <span class="pname"></span>
               <span class="ex-status"></span>
+              <span class="ex-hand"></span>
             </div>
             <div class="ex-seat ex-seat-w" id="ex-seat-W" data-seat="W">
               <span class="ex-pip" data-seat="W">W</span>
               <span class="pname"></span>
               <span class="ex-status"></span>
+              <span class="ex-hand"></span>
             </div>
             <div class="ex-dir" id="exArrow">←</div>
             <div class="ex-seat ex-seat-e" id="ex-seat-E" data-seat="E">
               <span class="ex-pip" data-seat="E">E</span>
               <span class="pname"></span>
               <span class="ex-status"></span>
+              <span class="ex-hand"></span>
             </div>
             <div class="ex-seat ex-seat-s" id="ex-seat-S" data-seat="S">
               <span class="ex-pip" data-seat="S">S</span>
               <span class="pname"></span>
               <span class="ex-status"></span>
+              <span class="ex-hand"></span>
             </div>
             <div class="ex-flights" id="exFlights"></div>
           </div>
@@ -167,11 +166,15 @@
 
       <!-- ─────────────── Hand scoreboard ─────────────── -->
       <section class="view" id="view-handend">
+        <div class="moon-sky" id="moonSky" aria-hidden="true"></div>
         <div class="handend-view">
           <div class="handend-head">
             <div class="stage-meta">Hand <span id="heHand">1</span> complete · playing to <span id="heTarget">100</span></div>
             <h1 class="stage-title" id="heTitle">Scores</h1>
-            <div class="moon-banner" id="moonBanner" hidden></div>
+            <div class="moon-banner" id="moonBanner" hidden>
+              <span class="moon-orb" aria-hidden="true">🌙</span>
+              <span class="moon-text" id="moonText"></span>
+            </div>
           </div>
           <div class="score-table">
             <div class="score-head" aria-hidden="true">
@@ -208,6 +211,9 @@
 
     </div>
   </div>
+
+  <!-- Floating reaction emojis from players -->
+  <div class="reaction-layer" id="reactionLayer" aria-hidden="true"></div>
 
   <!-- Host-absent / connection overlay -->
   <div class="host-overlay" id="connOverlay" hidden>

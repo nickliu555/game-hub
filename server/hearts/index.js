@@ -11,12 +11,18 @@ const {
   TRICKS_PER_HAND,
   TARGET_SCORES,
 } = require('./game');
-const { BOT_SETTINGS, choosePass, choosePlay, normalizeDifficulty } = require('./bot');
+const { BOT_SETTINGS, choosePass, choosePlay } = require('./bot');
 
 const HOST_ROOM = 'hosts';
 const PLAYER_ROOM = 'players';
+// CPUs always play at full strength — the table has no skill setting.
+const BOT_LEVEL = 'hard';
 const INACTIVITY_RESET_MS = 60 * 60 * 1000;
 const HOST_GRACE_MS = 15000;
+const REACTION_COUNT = 6;
+const REACTION_COOLDOWN_MS = 10 * 1000;
+// Reactions belong to the downtime screens, never to a hand in progress.
+const REACTION_PHASES = new Set([PHASES.LOBBY, PHASES.HAND_END, PHASES.FINAL]);
 
 /**
  * Mount the Hearts game onto the hub's Express app and HTTP server.
@@ -40,6 +46,9 @@ function mountHearts(app, httpServer, opts) {
   // was armed for a turn that has since moved on can never fire a card.
   let botTimers = [];
   let botSeq = 0;
+
+  let reactionsMuted = false;
+  const lastReactionAt = new Map();
 
   function isHostPresent() {
     if (hostLeftIntentionally) return false;
@@ -164,7 +173,7 @@ function mountHearts(app, httpServer, opts) {
     const pending = game.pendingBots();
     if (!pending) return;
     const seq = botSeq;
-    const settings = BOT_SETTINGS[normalizeDifficulty(game.botDifficulty)];
+    const settings = BOT_SETTINGS[BOT_LEVEL];
     for (const bot of pending.players) {
       const delay = pending.phase === PHASES.PASS
         ? settings.passMs + Math.floor(game.rng() * 700)
@@ -190,7 +199,7 @@ function mountHearts(app, httpServer, opts) {
       if (game.phase !== PHASES.PASS || bot.passed) return;
       const res = game.submitPass({
         playerId: bot.id,
-        cards: choosePass(bot.hand, game.botDifficulty, game.rng),
+        cards: choosePass(bot.hand, BOT_LEVEL, game.rng),
       });
       if (!res.ok) return;
       pushState();
@@ -200,14 +209,7 @@ function mountHearts(app, httpServer, opts) {
     if (game.phase !== PHASES.TRICK) return;
     const current = game.currentPlayer();
     if (!current || current.id !== bot.id) return;
-    const card = choosePlay({
-      hand: bot.hand,
-      legal: game.legalFor(bot.id),
-      trick: game.trick.map((t) => t.card),
-      heartsBroken: game.heartsBroken,
-      trickNumber: game.trickNumber,
-      seen: game.seenCards(),
-    }, game.botDifficulty, game.rng);
+    const card = choosePlay(game.botView(bot.id), BOT_LEVEL, game.rng);
     if (!card) return;
     const res = game.playCard({ playerId: bot.id, card });
     if (!res.ok) return;
@@ -254,6 +256,7 @@ function mountHearts(app, httpServer, opts) {
         ok: true,
         player: { id: res.player.id, name: res.player.name },
         hostPresent: isHostPresent(),
+        reactionsMuted,
       });
       broadcastLobby();
     });
@@ -270,6 +273,7 @@ function mountHearts(app, httpServer, opts) {
         player: { id: res.player.id, name: res.player.name, seat: game.seatOf(pid) },
         phase: game.phase,
         hostPresent: isHostPresent(),
+        reactionsMuted,
         lobby: game.getLobbyPublic(),
       };
       if (game.phase === PHASES.DEAL) payload.deal = game.getDealPublic();
@@ -310,6 +314,24 @@ function mountHearts(app, httpServer, opts) {
       }
       ack && ack({ ok: true, card: res.card });
       afterPlay(res);
+    });
+
+    socket.on('player:reaction', ({ index } = {}, ack) => {
+      if (!playerId) return ack && ack({ ok: false, reason: 'not-joined' });
+      if (!isHostPresent()) return ack && ack({ ok: false, reason: 'host-absent' });
+      if (typeof index !== 'number' || index < 0 || index >= REACTION_COUNT) {
+        return ack && ack({ ok: false, reason: 'bad-index' });
+      }
+      if (!REACTION_PHASES.has(game.phase)) return ack && ack({ ok: false, reason: 'phase-closed' });
+      if (reactionsMuted) return ack && ack({ ok: false, reason: 'muted' });
+      const now = Date.now();
+      const last = lastReactionAt.get(playerId) || 0;
+      if (now - last < REACTION_COOLDOWN_MS) {
+        return ack && ack({ ok: false, reason: 'cooldown', retryInMs: REACTION_COOLDOWN_MS - (now - last) });
+      }
+      lastReactionAt.set(playerId, now);
+      ack && ack({ ok: true });
+      ns.to(HOST_ROOM).emit('host:reaction', { index });
     });
 
     // ---- Host flows ----
@@ -367,14 +389,6 @@ function mountHearts(app, httpServer, opts) {
       broadcastLobby();
     });
 
-    socket.on('host:setBotDifficulty', ({ level } = {}, ack) => {
-      if (!requireHost(ack)) return;
-      const res = game.setBotDifficulty(level);
-      if (!res.ok) return ack && ack(res);
-      ack && ack({ ok: true, botDifficulty: game.botDifficulty });
-      broadcastLobby();
-    });
-
     socket.on('host:setAutoAdvance', ({ on } = {}, ack) => {
       if (!requireHost(ack)) return;
       const res = game.setAutoAdvance(on);
@@ -402,6 +416,13 @@ function mountHearts(app, httpServer, opts) {
       if (!res.ok) return ack && ack(res);
       ack && ack({ ok: true, phase: game.phase });
       pushState();
+    });
+
+    socket.on('host:setReactionsMuted', ({ muted } = {}, ack) => {
+      if (!requireHost(ack)) return;
+      reactionsMuted = !!muted;
+      ack && ack({ ok: true, reactionsMuted });
+      ns.emit('state:reactionsMuted', { muted: reactionsMuted });
     });
 
     socket.on('host:kick', ({ playerId: pid } = {}, ack) => {

@@ -135,6 +135,9 @@ body.player .scrollable-region { touch-action: pan-y; overflow-y: auto; }
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* Your turn, said on the one strip that is always on screen and never sits over
+   the cards: the bar holds gold for as long as it's yours, and the rule beneath
+   it sweeps out at the moment it arrives. Colour is the state, motion the event. */
 .p-top {
   flex: 0 0 auto;
   display: flex;
@@ -144,6 +147,34 @@ body.player .scrollable-region { touch-action: pan-y; overflow-y: auto; }
   background: rgba(0, 0, 0, 0.32);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   min-width: 0;
+  position: relative;
+  transition: background 0.28s ease, border-color 0.28s ease;
+}
+body.player.my-turn .p-top {
+  background: linear-gradient(180deg, #F0C755, #D5A227);
+  /* A hard dark edge, or the bright rule below merges into the gold and stops
+     reading as its own thing. */
+  border-bottom-color: rgba(0, 0, 0, 0.55);
+}
+body.player.my-turn .p-name { color: #2A1D05; }
+body.player.my-turn .p-score { color: rgba(42, 29, 5, 0.72); }
+/* Hangs in the 8px of padding above the meta chips, so it overlaps nothing. */
+.p-top::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  height: 4px;
+  pointer-events: none;
+  background: linear-gradient(90deg, #E8B83A, #FFFBEF 50%, #E8B83A);
+  box-shadow: 0 3px 14px rgba(255, 226, 140, 0.55);
+  transform: scaleX(0);
+  transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+body.player.my-turn .p-top::after { transform: scaleX(1); }
+@media (prefers-reduced-motion: reduce) {
+  .p-top, .p-top::after { transition: none; }
 }
 .p-seat {
   flex: 0 0 auto;
@@ -383,6 +414,9 @@ body.player .scrollable-region { touch-action: pan-y; overflow-y: auto; }
 
 /* ---- Hand / game result ---- */
 .result-rows {
+  /* Fixed numeric tracks, so the deltas and the totals line up down the column
+     instead of each row sizing itself around its own digits. */
+  --rr-cols: auto minmax(0, 1fr) 46px 56px;
   width: 100%;
   max-width: 380px;
   display: flex;
@@ -393,9 +427,10 @@ body.player .scrollable-region { touch-action: pan-y; overflow-y: auto; }
   overflow-y: auto;
   touch-action: pan-y;
 }
+.result-rows.no-delta { --rr-cols: auto minmax(0, 1fr) 56px; }
 .result-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: var(--rr-cols);
   align-items: center;
   gap: 10px;
   background: rgba(255, 255, 255, 0.08);
@@ -420,10 +455,65 @@ body.player .scrollable-region { touch-action: pan-y; overflow-y: auto; }
 .rr-seat[data-seat="S"] { background: var(--seat-s); }
 .rr-seat[data-seat="W"] { background: var(--seat-w); }
 .rr-name { font-size: 15px; font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
-.rr-score { font-size: 15px; font-weight: 800; white-space: nowrap; }
-.rr-score .rr-delta { font-size: 13px; color: rgba(255, 255, 255, 0.55); margin-left: 6px; }
-.rr-score .rr-delta.plus { color: #FF8AA0; }
-.rr-score .rr-delta.minus { color: #86E6A4; }
+.rr-delta {
+  font-size: 13px;
+  font-weight: 800;
+  text-align: right;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.55);
+}
+.rr-delta.plus { color: #FF8AA0; }
+.rr-delta.minus { color: #86E6A4; }
+/* The running total decides the game, so it gets the host scoreboard's chip. */
+.rr-score {
+  font-size: 15px;
+  font-weight: 800;
+  text-align: center;
+  white-space: nowrap;
+  background: rgba(232, 184, 58, 0.16);
+  border: 1px solid rgba(232, 184, 58, 0.5);
+  border-radius: 9px;
+  padding: 4px 5px;
+  min-width: 0;
+}
+
+/* ---- Reaction bar ---- */
+.reaction-bar {
+  position: sticky; bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  margin: auto 14px 30px; padding: 10px 8px 8px;
+  background: rgba(255,255,255,0.94); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  border-radius: 999px; box-shadow: 0 4px 18px rgba(0,0,0,0.20);
+  display: flex; align-items: center; justify-content: space-around; gap: 4px; z-index: 5;
+}
+.reaction-bar[hidden] { display: none; }
+.reaction-btn {
+  appearance: none; -webkit-appearance: none; background: transparent; border: none;
+  font-size: 30px; line-height: 1; padding: 10px 6px; cursor: pointer; border-radius: 999px;
+  transition: transform 0.08s ease, opacity 0.2s ease; -webkit-tap-highlight-color: transparent;
+  flex: 1 1 0; min-width: 0;
+}
+.reaction-btn:not(:disabled):active { transform: scale(1.25); }
+.reaction-btn:disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+.reaction-cooldown {
+  position: absolute; top: -22px; right: 14px; font-size: 11px; color: white;
+  background: rgba(0,0,0,0.55); padding: 2px 8px; border-radius: 999px; font-variant-numeric: tabular-nums;
+}
+.reaction-cooldown[hidden] { display: none; }
+
+/* Pinned to the very bottom edge (like the other games) so it sits below the
+   reaction bar and never floats mid-screen. */
+body.player .player-attribution {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+  font-size: 10px;
+  line-height: 1.2;
+  padding: 0 12px;
+  pointer-events: none;
+  z-index: 6;
+}
+.player-attribution[hidden] { display: none; }
 
 /* ---- Toast ---- */
 .p-toast {
@@ -443,17 +533,21 @@ body.player .scrollable-region { touch-action: pan-y; overflow-y: auto; }
   overflow-wrap: anywhere;
   animation: toastIn 0.2s ease both;
 }
+.p-toast.leaving { animation: toastOut 0.28s ease both; }
 .p-toast[hidden] { display: none; }
 @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translateX(-50%); } }
+@keyframes toastOut { from { opacity: 1; transform: translateX(-50%); } to { opacity: 0; transform: translate(-50%, 8px); } }
 
 /* ---- Small phones ---- */
 @media (max-width: 360px) {
   .p-banner { font-size: 17px; }
   .action-btn { font-size: 16px; padding: 15px; }
   .join-card h1 { font-size: 32px; }
+  .reaction-btn { font-size: 26px; padding: 10px 0; }
 }
 @media (max-height: 640px) {
   .hand-fan { padding-top: 30px; }
   .wait-card h2 { font-size: 23px; }
   .result-emoji { font-size: 44px; }
+  .reaction-bar { padding: 8px 8px 6px; }
 }

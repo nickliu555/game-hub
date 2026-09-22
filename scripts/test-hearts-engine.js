@@ -480,14 +480,19 @@ test('lobby: drag-reorder rewrites the seat assignment', () => {
   g._clearTimers();
 });
 
-test('lobby: target score only accepts 50 / 75 / 100', () => {
+test('lobby: target score only accepts 50 / 75 / 100 / 125 / 150', () => {
   const g = lobbyGame();
   assert.strictEqual(g.targetScore, 100);
   assert.ok(g.setTargetScore(100).ok);
   assert.strictEqual(g.targetScore, 100);
   assert.strictEqual(g.setTargetScore(63).reason, 'bad-target');
+  assert.strictEqual(g.setTargetScore(200).reason, 'bad-target');
   assert.strictEqual(g.setTargetScore('75').ok, true);
   assert.strictEqual(g.targetScore, 75);
+  assert.ok(g.setTargetScore(125).ok);
+  assert.strictEqual(g.targetScore, 125);
+  assert.ok(g.setTargetScore(150).ok);
+  assert.strictEqual(g.targetScore, 150);
   g._clearTimers();
 });
 
@@ -495,7 +500,6 @@ test('lobby: config is locked once the game starts', () => {
   const g = lobbyGame();
   assert.ok(g.start().ok);
   assert.strictEqual(g.setTargetScore(100).reason, 'not-lobby');
-  assert.strictEqual(g.setBotDifficulty('hard').reason, 'not-lobby');
   assert.strictEqual(g.addBot().reason, 'not-lobby');
   assert.strictEqual(g.reorderPlayer('pN', 'pE').reason, 'not-lobby');
   assert.strictEqual(g.removePlayer('pN'), null, 'kicking is lobby-only');

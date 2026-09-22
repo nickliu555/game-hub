@@ -249,6 +249,14 @@ body.host {
 .sb-mid { text-align: center; }
 .sb-clock { font-size: 40px; font-weight: 900; font-variant-numeric: tabular-nums; }
 .sb-clock.urgent { color: #ffb0b0; }
+.sb-tag {
+  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+}
+.sb-tag[hidden] { display: none; }
 
 .pitch-wrap { position: relative; flex: 1; min-height: 0; display: flex; }
 #pitch { width: 100%; height: 100%; display: block; }

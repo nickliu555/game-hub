@@ -56,6 +56,7 @@ class Game {
       redScore: 0,
       blueScore: 0,
       clockMs: this.timeLimitSec * 1000,
+      sudden: false, // golden goal: the clock is spent and the next goal wins
       live: false, // true only while controls are active (host:play)
       paused: false,
       winner: null, // 'red' | 'blue' | null (null = draw)
@@ -230,9 +231,11 @@ class Game {
   }
 
   setLive(live) { this.match.live = !!live; }
-  setClock(ms) {
+  setClock(ms, sudden) {
     if (Number.isFinite(ms)) this.match.clockMs = Math.max(0, Math.round(ms));
+    if (typeof sudden === 'boolean') this.match.sudden = sudden;
   }
+  setSudden(on) { this.match.sudden = !!on; }
   setScore(redScore, blueScore) {
     if (Number.isFinite(redScore)) this.match.redScore = redScore | 0;
     if (Number.isFinite(blueScore)) this.match.blueScore = blueScore | 0;
@@ -287,6 +290,7 @@ class Game {
       redScore: this.match.redScore,
       blueScore: this.match.blueScore,
       clockMs: this.match.clockMs,
+      sudden: this.match.sudden,
       paused: this.match.paused,
       live: this.match.live,
       winner: this.match.winner,

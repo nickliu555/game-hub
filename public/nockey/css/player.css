@@ -101,6 +101,7 @@ body.team-blue .hud-name { color: var(--blue-soft); }
   font-variant-numeric: tabular-nums;
 }
 .hud-clock.urgent { color: #ffb0b0; }
+.hud-clock.sudden { color: var(--accent); }
 
 .emote-bar {
   flex: 0 0 auto;

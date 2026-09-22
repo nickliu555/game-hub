@@ -282,6 +282,28 @@ code inspection alone.
 - **Attribution footer** ("Developed by Nick Liu …") only shows on the **join and lobby**
   screens — never during gameplay. Keep it out of the Host match/final views and the player
   controller/eliminated/final views (hide it whenever the active view isn't the lobby/waiting one).
+  Gate it on the **game phase**, not just the active view: a "waiting" view is usually reused
+  mid-game ("Dealing…", "Waiting for your turn…"), so a view-only check leaks the footer into
+  gameplay. On the player page it is a page-level element placed **after** the reaction bar and
+  pinned to the very bottom edge — copy the rule from an existing game verbatim:
+  ```css
+  body.player .player-attribution, body.join .player-attribution {
+    position: fixed; left: 0; right: 0; bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+    text-align: center; color: rgba(255,255,255,0.55); font-size: 10px; line-height: 1.2;
+    padding: 0 12px; pointer-events: none; z-index: 6;
+  }
+  .player-attribution[hidden] { display: none; }
+  ```
+  Leave room for it under the bar (the reaction bar's `margin-bottom` ends ~30px above the
+  viewport bottom) and verify the two never overlap.
+- **Reaction panel = downtime only.** The 6-emoji bar belongs on the **lobby/waiting screen
+  after joining** and on the **results screens** (round/hand results and the final standings) —
+  nowhere else. During live gameplay it steals space the controller needs and invites a
+  mis-tap, so hide it for every playing phase. Gate on the **phase** (e.g.
+  `LOBBY` / `HAND_END` / `FINAL`), not the active view, for the same reuse reason as the footer,
+  and **enforce the same gate on the server** — reject a reaction sent from a playing phase
+  (`reason: 'phase-closed'`) so a stale client can't spam the host mid-round. The bar is still
+  additionally gated by the host mute and host presence.
 - **A player's name inside a sentence always gets its own colour** (wrap it in the game's
   name span, e.g. `<span class="pname">`), so it reads as a person and not as body text.
 - Only implement what's asked; don't add unrequested features, comments, or docs.

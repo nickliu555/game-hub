@@ -103,6 +103,9 @@ function collectCardStrings(node, out) {
   check(fullStatus && fullStatus.full === true, 'status now reports the table as full');
   spare.close();
 
+  const lobbyReact = await emit(socks.Bob, 'player:reaction', { index: 0 });
+  check(lobbyReact && lobbyReact.ok, 'a player may react from the lobby');
+
   // ═══════════ Seating order ═══════════
   section('Seating');
 
@@ -284,6 +287,32 @@ function collectCardStrings(node, out) {
     'the hand scored ' + expected + ' points in total (got ' + totalDelta + ')');
   check(handEnd.rows.every((r) => r.total === r.delta), 'hand 1 totals equal the hand deltas');
 
+  // ═══════════ Reactions ═══════════
+  section('Reactions');
+
+  const gotReaction = once(host, 'host:reaction', 3000);
+  const react1 = await emit(socks.Alice, 'player:reaction', { index: 2 });
+  check(react1 && react1.ok, 'a player may react on the scoreboard');
+  const seenReaction = await gotReaction;
+  check(seenReaction && seenReaction.index === 2, 'the host receives the reaction index');
+
+  const react2 = await emit(socks.Alice, 'player:reaction', { index: 3 });
+  check(react2 && react2.ok === false && react2.reason === 'cooldown' && react2.retryInMs > 0,
+    'a second reaction inside the cooldown is refused with a retry hint');
+  const badIdx = await emit(socks.Bob, 'player:reaction', { index: 9 });
+  check(badIdx && badIdx.reason === 'bad-index', 'an out-of-range reaction index is rejected');
+
+  const mutedEvt = once(socks.Bob, 'state:reactionsMuted', 3000);
+  const muteAck = await emit(host, 'host:setReactionsMuted', { muted: true });
+  check(muteAck && muteAck.ok && muteAck.reactionsMuted === true, 'the host can mute reactions');
+  const mutedPayload = await mutedEvt;
+  check(mutedPayload && mutedPayload.muted === true, 'players are told reactions are muted');
+  const whileMuted = await emit(socks.Bob, 'player:reaction', { index: 0 });
+  check(whileMuted && whileMuted.reason === 'muted', 'a reaction sent while muted is refused');
+  const unmute = await emit(socks.Bob, 'host:setReactionsMuted', { muted: false });
+  check(unmute && unmute.ok === false && unmute.reason === 'not-host', 'a player cannot unmute reactions');
+  await emit(host, 'host:setReactionsMuted', { muted: false });
+
   const nextDeal = once(host, 'state:deal', 10000);
   const nextAck = await emit(host, 'host:nextHand', {});
   check(nextAck && nextAck.ok, 'host advances to the next hand');
@@ -293,6 +322,9 @@ function collectCardStrings(node, out) {
   check(deal2.seats.every((s) => s.handPoints === 0), 'hand points reset for the new hand');
   check(deal2.seats.reduce((a, s) => a + s.total, 0) === totalDelta,
     'running totals carry over into hand 2');
+
+  const midHand = await emit(socks.Bob, 'player:reaction', { index: 1 });
+  check(midHand && midHand.reason === 'phase-closed', 'reactions are closed once a hand is under way');
 
   check(provedIllegal, 'an illegal card was rejected during play');
   check(illegalKeptHand === true, 'a rejected play left the hand untouched');

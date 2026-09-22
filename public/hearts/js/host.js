@@ -45,7 +45,6 @@
   const addBotBtn = document.getElementById('addBotBtn');
   const startBtn = document.getElementById('startBtn');
   const targetSeg = document.getElementById('targetSeg');
-  const difficultySeg = document.getElementById('difficultySeg');
   const autoSeg = document.getElementById('autoSeg');
 
   const dealHand = document.getElementById('dealHand');
@@ -73,6 +72,8 @@
   const heTarget = document.getElementById('heTarget');
   const heTitle = document.getElementById('heTitle');
   const moonBanner = document.getElementById('moonBanner');
+  const moonText = document.getElementById('moonText');
+  const moonSky = document.getElementById('moonSky');
   const scoreRows = document.getElementById('scoreRows');
   const nextHandBtn = document.getElementById('nextHandBtn');
   const autoNote = document.getElementById('autoNote');
@@ -215,6 +216,12 @@
     for (let i = 0; i < 4; i++) noise(0.09, 0.1, 2400 + i * 700, b + i * 0.07, 'bandpass');
     [659, 880, 1047].forEach(function (f, i) { blip(f, 0.2, 'sine', 0.15, b + 0.11 + i * 0.07); });
   }
+  /** The packets touching down: three cards now sit in front of everyone. */
+  function playCardsLanded() {
+    const c = getAudioCtx(); if (!c) return; const b = c.currentTime;
+    for (let i = 0; i < 3; i++) noise(0.06, 0.085, 3000 + i * 500, b + i * 0.06, 'bandpass');
+    [784, 1046.5].forEach(function (f, i) { blip(f, 0.26, 'triangle', 0.17, b + 0.15 + i * 0.09); });
+  }
   /** "Look up!" cue when a new trick or a new turn begins. */
   function playTurnCue() {
     const c = getAudioCtx(); if (!c) return; const b = c.currentTime;
@@ -301,6 +308,40 @@
     }, { okLabel: 'Reset', danger: true });
   });
 
+  // ---------------- Reactions ----------------
+  const REACTION_EMOJIS = ['😂', '🔥', '👀', '🎉', '😱', '😡'];
+  const REACTION_MAX = 30;
+  const reactionLayer = document.getElementById('reactionLayer');
+  function spawnReaction(index) {
+    const emoji = REACTION_EMOJIS[index];
+    if (!emoji || !reactionLayer) return;
+    while (reactionLayer.children.length >= REACTION_MAX) reactionLayer.removeChild(reactionLayer.firstChild);
+    const e = document.createElement('div');
+    e.className = 'reaction-emoji';
+    e.textContent = emoji;
+    e.style.left = (5 + Math.random() * 90) + '%';
+    e.style.fontSize = (44 * (0.85 + Math.random() * 0.5)) + 'px';
+    e.style.animationDuration = (3.0 + Math.random() * 1.2) + 's';
+    e.addEventListener('animationend', function () { if (e.parentNode) e.parentNode.removeChild(e); });
+    reactionLayer.appendChild(e);
+  }
+  socket.on('host:reaction', function (p) { if (p && typeof p.index === 'number') spawnReaction(p.index); });
+
+  let reactionsMuted = false;
+  const muteBtn = document.getElementById('muteReactionsBtn');
+  function updateMuteBtn() {
+    if (!muteBtn) return;
+    if (reactionsMuted) { muteBtn.textContent = '🔕 Reactions: Off'; muteBtn.classList.add('is-muted'); }
+    else { muteBtn.textContent = '🔔 Reactions: On'; muteBtn.classList.remove('is-muted'); }
+  }
+  if (muteBtn) muteBtn.addEventListener('click', function () {
+    socket.emit('host:setReactionsMuted', { muted: !reactionsMuted }, function (res) {
+      if (res && res.ok) { reactionsMuted = !!res.reactionsMuted; updateMuteBtn(); }
+    });
+  });
+  socket.on('state:reactionsMuted', function (p) { reactionsMuted = !!(p && p.muted); updateMuteBtn(); });
+  updateMuteBtn();
+
   const hubBtn = document.getElementById('hubBtn');
   if (hubBtn) {
     hubBtn.addEventListener('click', function (e) {
@@ -321,7 +362,7 @@
   }
 
   // ---------------- Lobby ----------------
-  let lobby = { players: [], total: 0, capacity: 4, canStart: false, targetScore: 100, botDifficulty: 'normal', autoAdvance: false };
+  let lobby = { players: [], total: 0, capacity: 4, canStart: false, targetScore: 100, autoAdvance: true };
   let lastHumanTotal = -1;
   let dragActive = false;    // a row is mid-drag; defer lobby rebuilds
   let pendingLobby = null;   // latest snapshot to apply once the drag settles
@@ -353,7 +394,6 @@
     playerCountEl.textContent = l.total;
     playerCapEl.textContent = l.capacity;
     setSeg(targetSeg, l.targetScore);
-    setSeg(difficultySeg, l.botDifficulty);
     setSeg(autoSeg, l.autoAdvance ? 'on' : 'off');
 
     seatList.innerHTML = '';
@@ -554,7 +594,6 @@
     });
   }
   wireSeg(targetSeg, 'host:setTargetScore', function (v) { return { targetScore: Number(v) }; });
-  wireSeg(difficultySeg, 'host:setBotDifficulty', function (v) { return { level: v }; });
   wireSeg(autoSeg, 'host:setAutoAdvance', function (v) { return { on: v === 'on' }; });
 
   startBtn.addEventListener('click', function () {
@@ -623,10 +662,45 @@
   // straight through the hand-off animation, so nothing cuts away mid-pass.
   // Seat index i passes to (i + offset) % 4 over SEATS, matching the server.
   const PASS_STEP = { left: 1, right: 3, across: 2, hold: 0 };
+  // The flight animation's travel time — the cards are dropped in front of the
+  // receivers as the packets touch down.
+  const DELIVER_MS = 860;
+  const reduceMotion = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
   let passKey = '';
   let exchangeKey = '';
   let exchangeStep = 0;
   let passedSeen = -1;
+  let flightMode = '';
+  let landTimer = null;
+
+  function bump(el, cls) {
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
+  }
+
+  function clearHands() {
+    SEATS.forEach(function (l) {
+      const el = document.getElementById('ex-seat-' + l);
+      el.classList.remove('landed');
+      el.querySelector('.ex-hand').innerHTML = '';
+    });
+  }
+
+  function dropHands() {
+    SEATS.forEach(function (l) {
+      const el = document.getElementById('ex-seat-' + l);
+      const slot = el.querySelector('.ex-hand');
+      slot.innerHTML = '';
+      for (let k = 0; k < 3; k++) {
+        const c = document.createElement('span');
+        c.className = 'ex-card';
+        c.style.setProperty('--er', ((k - 1) * 7) + 'deg');
+        slot.appendChild(c);
+      }
+      el.classList.add('landed');
+    });
+  }
 
   function renderMap(s, status) {
     indexSeats(s.seats);
@@ -657,7 +731,11 @@
       passKey = key;
       exchangeKey = '';
       passedSeen = -1;
+      if (landTimer) { clearTimeout(landTimer); landTimer = null; }
+      flightMode = 'preview';
       exFlights.innerHTML = '';
+      exFlights.classList.remove('is-delivering');
+      clearHands();
       playTurnCue();
     }
     const total = s.total || 4;
@@ -679,18 +757,48 @@
     exProgress.textContent = 'All cards in!';
     exProgress.classList.add('all-in');
     const key = 'h' + s.handNumber;
-    if (key !== exchangeKey) { exchangeKey = key; passedSeen = -1; playPassSwoosh(); }
-    show('pass', ensureFlights);
+    const fresh = key !== exchangeKey;
+    if (fresh) { exchangeKey = key; passedSeen = -1; }
+    show('pass', function () {
+      if (fresh) deliver(); else ensureFlights();
+    });
+  }
+
+  // The hand-off, as one event: the looping preview is replaced by a single
+  // synchronised run that lands on the receivers and leaves three cards behind.
+  function deliver() {
+    if (landTimer) { clearTimeout(landTimer); landTimer = null; }
+    clearHands();
+    playPassSwoosh();
+    bump(exVerb, 'swap');
+    if (!exArrow.hidden) bump(exArrow, 'spin');
+    const land = function () {
+      landTimer = null;
+      flightMode = 'landed';
+      dropHands();
+      playCardsLanded();
+    };
+    if (reduceMotion && reduceMotion.matches) {
+      exFlights.innerHTML = '';
+      exFlights.classList.remove('is-delivering');
+      land();
+      return;
+    }
+    flightMode = 'deliver';
+    buildExchangeFlights(true);
+    landTimer = setTimeout(land, DELIVER_MS);
   }
 
   // The flights are measured from the laid-out map, so they can only be built
   // once the view has actually been swapped in.
   function ensureFlights() {
-    if (!exFlights.childElementCount) buildExchangeFlights();
+    if (flightMode !== 'preview') return;
+    if (!exFlights.childElementCount) buildExchangeFlights(false);
   }
 
-  function buildExchangeFlights() {
+  function buildExchangeFlights(deliverRun) {
     exFlights.innerHTML = '';
+    exFlights.classList.toggle('is-delivering', !!deliverRun);
     if (!exchangeStep) return;
     const seatEl = {};
     SEATS.forEach(function (l) { seatEl[l] = document.getElementById('ex-seat-' + l); });
@@ -699,7 +807,10 @@
     // by the view's entry transform.
     const left = seatEl.W.offsetLeft + seatEl.W.offsetWidth;
     const right = seatEl.E.offsetLeft;
-    const top = seatEl.N.offsetTop + seatEl.N.offsetHeight;
+    // N is the one seat whose card slot faces the middle, and it sits empty
+    // until the hand-off — measuring past it would hang the ring a slot's
+    // height below the label while everyone is still choosing.
+    const top = seatEl.N.querySelector('.ex-hand').offsetTop;
     const bottom = seatEl.S.offsetTop;
     // Inset by the packet's own half-size (rotated) so the card box, not just
     // its centre, stays inside the hole.
@@ -731,24 +842,37 @@
         from = { x: from.x + ox, y: from.y + oy };
         to = { x: to.x + ox, y: to.y + oy };
       }
+      if (deliverRun) {
+        // The real hand-off ends on the receiver's card slot, so the packet
+        // becomes the three cards it drops there.
+        const slot = seatEl[SEATS[(i + exchangeStep) % 4]].querySelector('.ex-hand');
+        to = { x: slot.offsetLeft + slot.offsetWidth / 2, y: slot.offsetTop + slot.offsetHeight / 2 };
+      }
       for (let k = 0; k < 3; k++) {
         const c = document.createElement('span');
         c.className = 'ex-flight';
-        c.style.left = Math.round(from.x) + 'px';
+        // The hand-off flies its three cards as one fanned packet, so the count
+        // is readable in the air as well as on the table.
+        const spread = deliverRun ? (k - 1) * 8 : 0;
+        c.style.left = Math.round(from.x + spread) + 'px';
         c.style.top = Math.round(from.y) + 'px';
         c.style.setProperty('--fx', Math.round(to.x - from.x) + 'px');
         c.style.setProperty('--fy', Math.round(to.y - from.y) + 'px');
         c.style.setProperty('--frot', ((k - 1) * 10) + 'deg');
         // All four seats fly in unison — offsetting them made the loop read as a
         // stagger rather than one table-wide pass.
-        c.style.animationDelay = (k * 0.12).toFixed(2) + 's';
+        c.style.animationDelay = deliverRun ? '0s' : (k * 0.12).toFixed(2) + 's';
         exFlights.appendChild(c);
       }
     });
   }
 
   window.addEventListener('resize', function () {
-    if (currentView === 'pass' && exFlights.childElementCount) buildExchangeFlights();
+    // Rebuilding mid-delivery would restart the flight, and the landed cards
+    // need no re-measuring, so only the idle preview is re-fitted.
+    if (currentView === 'pass' && flightMode === 'preview' && exFlights.childElementCount) {
+      buildExchangeFlights(false);
+    }
   });
 
   // ---------------- The table ----------------
@@ -1050,6 +1174,7 @@
 
   // ---------------- Hand end ----------------
   let autoTimer = null;
+  let moonKey = '';
   function renderHandEnd(s) {
     indexSeats(s.seats);
     heHand.textContent = s.handNumber;
@@ -1057,11 +1182,14 @@
     heTitle.textContent = s.gameOver ? 'Final hand!' : 'Scores';
 
     if (s.moonShooterName) {
-      moonBanner.textContent = '🌙 ' + s.moonShooterName + ' shot the moon!';
+      moonText.textContent = s.moonShooterName + ' shot the moon!';
       moonBanner.hidden = false;
     } else {
       moonBanner.hidden = true;
+      moonBanner.classList.remove('shot');
     }
+    const freshMoon = !!s.moonShooterName && moonKey !== 'h' + s.handNumber;
+    moonKey = s.moonShooterName ? 'h' + s.handNumber : '';
 
     scoreRows.innerHTML = '';
     (s.rows || []).slice().sort(function (a, b) { return a.total - b.total; }).forEach(function (r) {
@@ -1118,7 +1246,36 @@
       if (s.moonShooterName) playMoon(); else playHandEnd();
     }
     lastTrickNumber = 0; lastTurnId = null;
-    show('handend');
+    // Measured after the view is on screen, or the banner has no box to burst from.
+    show('handend', function () { if (freshMoon) moonBurst(); });
+  }
+
+  function moonBurst() {
+    bump(moonBanner, 'shot');
+    const row = scoreRows.querySelector('.score-row.moon');
+    if (row) bump(row, 'shot');
+    moonSky.innerHTML = '';
+    if (reduceMotion && reduceMotion.matches) return;
+    const vb = views.handend.getBoundingClientRect();
+    const bb = moonBanner.getBoundingClientRect();
+    const ox = bb.left - vb.left + bb.width / 2;
+    const oy = bb.top - vb.top + bb.height / 2;
+    for (let i = 0; i < 24; i++) {
+      const st = document.createElement('span');
+      st.className = 'moon-star';
+      st.style.setProperty('--ms', (8 + Math.random() * 15).toFixed(1) + 'px');
+      st.style.left = Math.round(ox) + 'px';
+      st.style.top = Math.round(oy) + 'px';
+      const a = Math.random() * Math.PI * 2;
+      const d = 90 + Math.random() * 300;
+      st.style.setProperty('--mx', Math.round(Math.cos(a) * d) + 'px');
+      // Biased upward, so the stars climb away from the scoreboard below.
+      st.style.setProperty('--my', Math.round(Math.sin(a) * d * 0.55 - 60) + 'px');
+      st.style.setProperty('--mr', Math.round(Math.random() * 360 - 180) + 'deg');
+      st.style.animationDelay = (Math.random() * 0.32).toFixed(2) + 's';
+      moonSky.appendChild(st);
+    }
+    setTimeout(function () { moonSky.innerHTML = ''; }, 2100);
   }
   function cell(text, cls, has) {
     const el = document.createElement('span');
@@ -1200,7 +1357,14 @@
 
   socket.on('state:reset', function () {
     if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
-    dealKey = ''; passKey = ''; exchangeKey = '';
+    dealKey = ''; passKey = ''; exchangeKey = ''; moonKey = '';
+    moonSky.innerHTML = '';
+    moonBanner.classList.remove('shot');
+    flightMode = '';
+    if (landTimer) { clearTimeout(landTimer); landTimer = null; }
+    exFlights.innerHTML = '';
+    exFlights.classList.remove('is-delivering');
+    clearHands();
     lastTurnId = null; lastTrickNumber = 0;
     fxHandKey = null; fxTrickKey = null;
     collectKey = null;

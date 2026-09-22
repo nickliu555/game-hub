@@ -37,7 +37,11 @@
   };
 
   var STEP = 1 / 60;
-  var KICKOFF_LIMIT_TICKS = 7 / STEP;
+  // A puck nobody is playing gets dropped back at centre so the match can't die
+  // in a corner. Speed is per tick, and only a dead puck counts — a shot still
+  // rattling around the boards is live hockey.
+  var IDLE_RESET_TICKS = 10 / STEP;
+  var IDLE_SPEED = 2.5;
 
   // Collision groups (HaxBall cGroup/cMask bitmasks).
   var CG = {
@@ -89,6 +93,12 @@
   function plane(nx, ny, dist, bCoef, mask) {
     return { nx: nx, ny: ny, dist: dist, bCoef: bCoef, mask: mask };
   }
+  // A concave quarter-pipe: the disc is held inside a circle of radius r centred
+  // at (x, y), but only in the quadrant the signs point to, where the straight
+  // boards have already run out.
+  function bend(x, y, r, sx, sy, bCoef, mask) {
+    return { x: x, y: y, r: r, sx: sx, sy: sy, bCoef: bCoef, mask: mask };
+  }
 
   /**
    * Build the stadium for a tier. Origin is the centre spot; +x is right, +y is
@@ -108,6 +118,7 @@
     var cy = hh - corner;
 
     var segments = [];
+    var bends = [];
     // Ball area — bCoef 1, ball only, so the ball keeps its pace off the boards.
     segments.push(seg(-cx, -hh, cx, -hh, 1, CG.ball));
     segments.push(seg(-cx, hh, cx, hh, 1, CG.ball));
@@ -115,9 +126,9 @@
     segments.push(seg(-hw, gh, -hw, cy, 1, CG.ball));
     segments.push(seg(hw, -cy, hw, -gh, 1, CG.ball));
     segments.push(seg(hw, gh, hw, cy, 1, CG.ball));
-    // The engine only knows straight segments, so each corner arc is a
-    // polyline; skaters get a single chord so they can't slip round the outside
-    // of it via the run-off strip.
+    // The engine only knows straight segments, so each corner arc is a polyline
+    // for the ball; skaters ride the exact arc instead, which can't be tunnelled
+    // through into the dead space behind it.
     var ARC_STEPS = 6;
     for (var sx = -1; sx <= 1; sx += 2) {
       for (var sy = -1; sy <= 1; sy += 2) {
@@ -130,7 +141,7 @@
           segments.push(seg(prevX, prevY, px, py, 1, CG.ball));
           prevX = px; prevY = py;
         }
-        segments.push(seg(sx * cx, sy * hh, sx * hw, sy * cy, 0.1, CG.player));
+        bends.push(bend(sx * cx, sy * cy, corner, sx, sy, 0.1, CG.player));
       }
     }
     // Goal nets — ball only, deadens the ball so it settles in the net.
@@ -167,7 +178,7 @@
       halfW: hw, halfH: hh, goalHalf: gh,
       netDepth: NET_DEPTH, circle: S.circle, corner: corner,
       outX: outX, outY: outY,
-      segments: segments, planes: planes, posts: posts,
+      segments: segments, planes: planes, bends: bends, posts: posts,
     };
   }
 
@@ -246,6 +257,27 @@
     if (out) out.impact = -vn;
   }
 
+  function collideBend(d, c, out) {
+    if ((d.cGroup & c.mask) === 0 || d.invMass <= 0) return;
+    // Outside the corner quadrant the straight boards are still in charge.
+    if ((d.x - c.x) * c.sx <= 0 || (d.y - c.y) * c.sy <= 0) return;
+    var dx = d.x - c.x;
+    var dy = d.y - c.y;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    var lim = c.r - d.r;
+    if (dist <= lim || dist <= 0) return;
+    var nx = -dx / dist;
+    var ny = -dy / dist;
+    d.x += nx * (dist - lim);
+    d.y += ny * (dist - lim);
+    var vn = d.vx * nx + d.vy * ny;
+    if (vn >= 0) return;
+    var e = 1 + d.bCoef * c.bCoef;
+    d.vx -= nx * vn * e;
+    d.vy -= ny * vn * e;
+    if (out) out.impact = -vn;
+  }
+
   // ───────────────────────────── world ─────────────────────────────
 
   function World(opts) {
@@ -260,14 +292,12 @@
     };
     this.frozen = true;
     this.koTeam = 'red';
-    this.koActive = true;
-    this.koTicks = 0;
+    this.koUntouched = true;
+    this.idleTicks = 0;
     this.redScore = 0;
     this.blueScore = 0;
     this.events = [];
     this.tick = 0;
-    this._koBarriers = [];
-    this._koCircle = null;
     this._all = [this.ball];
   }
 
@@ -336,18 +366,20 @@
     if (!on) { p.inX = 0; p.inY = 0; p.inKick = false; }
   };
 
-  /** Place everyone in their kickoff formation and stop the ball. */
-  World.prototype.kickoff = function (team, unrestricted) {
+  /**
+   * Place everyone in their kickoff formation and stop the ball. `team` is the
+   * side restarting play, or null for a neutral drop nobody owns.
+   */
+  World.prototype.kickoff = function (team) {
     var S = this.stadium;
-    this.koTeam = team === 'blue' ? 'blue' : 'red';
-    this.koActive = !unrestricted;
-    this.koTicks = 0;
+    this.koTeam = team === 'red' || team === 'blue' ? team : null;
+    this.koUntouched = true;
+    this.idleTicks = 0;
     this.goalLocked = false;
     // Spot the puck a little onto the restarting team's side of the centre spot
     // so the face-off visibly belongs to them. Red defends the left goal, so
-    // their side is -x. An unrestricted drop (match start) stays dead centre,
-    // where it's anybody's puck.
-    var koX = unrestricted ? 0 : (this.koTeam === 'red' ? -1 : 1) * S.circle * KICKOFF_BIAS;
+    // their side is -x. A neutral drop stays dead centre, where it's anybody's.
+    var koX = this.koTeam ? (this.koTeam === 'red' ? -1 : 1) * S.circle * KICKOFF_BIAS : 0;
     this.ball.x = koX; this.ball.y = 0; this.ball.vx = 0; this.ball.vy = 0;
     this.ball.px = koX; this.ball.py = 0;
     var counts = { red: 0, blue: 0 };
@@ -368,23 +400,6 @@
       // the goal freeze would otherwise still be ringing at the next kickoff.
       p.kickFlash = 0;
     }
-    this._buildKickoffBarriers();
-  };
-
-  World.prototype._buildKickoffBarriers = function () {
-    var S = this.stadium;
-    var other = this.koTeam === 'red' ? CG.blue : CG.red;
-    // Halfway line: each team stays on its own side until the ball is touched.
-    this._koBarriers = [
-      plane(-1, 0, 0, 0.1, CG.red),
-      plane(1, 0, 0, 0.1, CG.blue),
-    ];
-    // The defending team also has to stay out of the centre circle.
-    this._koCircle = {
-      x: 0, y: 0, vx: 0, vy: 0, r: S.circle,
-      invMass: 0, bCoef: 0.1, damping: 1,
-      cGroup: CG.wall, cMask: other,
-    };
   };
 
   World.prototype.reset = function () {
@@ -395,9 +410,10 @@
   };
 
   /**
-   * Advance one fixed 60 Hz tick. Returns { team } when a goal was scored.
-   * Notable collisions/kicks are pushed onto `world.events` for the host's
-   * sound layer to drain.
+   * Advance one fixed 60 Hz tick. Returns { team } when a goal was scored, or
+   * { idle: true } when the puck has sat dead and untouched long enough to be
+   * dropped back at centre. Notable collisions/kicks are pushed onto
+   * `world.events` for the host's sound layer to drain.
    */
   World.prototype.step = function () {
     var S = this.stadium;
@@ -417,7 +433,8 @@
       return null;
     }
 
-    if (this.koActive && ++this.koTicks >= KICKOFF_LIMIT_TICKS) this.koActive = false;
+    // Set by any player kick or contact below; the boards don't count.
+    ball.touched = false;
 
     // 1. Movement acceleration.
     for (i = 0; i < this.players.length; i++) {
@@ -449,7 +466,8 @@
       p.vy -= ny * PHYS.kickback;
       p.kickArmed = false;
       p.kickFlash = 8;
-      this.koActive = false;
+      ball.touched = true;
+      this.koUntouched = false;
       this.events.push({ t: 'kick', x: ball.x, y: ball.y, team: p.team });
     }
 
@@ -492,6 +510,15 @@
         return { team: 'red' };
       }
     }
+
+    // 6. Dead puck. A shot still travelling is live hockey, so the clock only
+    // runs once it has settled and nobody has gone near it.
+    if (ball.touched) this.idleTicks = 0;
+    else if (Math.hypot(ball.vx, ball.vy) <= IDLE_SPEED) this.idleTicks++;
+    if (this.idleTicks >= IDLE_RESET_TICKS) {
+      this.idleTicks = 0;
+      return { idle: true };
+    }
     return null;
   };
 
@@ -512,8 +539,8 @@
         if (hit.hit && (all[i] === ball || all[j] === ball)) {
           contacts++;
           if (hit.impact <= 1.2) assistPlayer = all[i] === ball ? all[j] : all[i];
-          // Any touch releases the kickoff barrier.
-          this.koActive = false;
+          ball.touched = true;
+          this.koUntouched = false;
           if (hit.impact > 1.2) this.events.push({ t: 'bump', x: ball.x, y: ball.y, v: hit.impact });
         }
       }
@@ -534,10 +561,7 @@
         if (hit.impact > 1.5 && d === ball) this.events.push({ t: 'wall', x: d.x, y: d.y, v: hit.impact });
       }
       for (j = 0; j < S.planes.length; j++) collidePlane(d, S.planes[j], null);
-      if (this.koActive) {
-        for (j = 0; j < this._koBarriers.length; j++) collidePlane(d, this._koBarriers[j], null);
-        if (this._koCircle) collideDiscs(d, this._koCircle, null);
-      }
+      for (j = 0; j < S.bends.length; j++) collideBend(d, S.bends[j], null);
     }
   };
 
@@ -559,10 +583,6 @@
       if (hit.impact > 1.5) this.events.push({ t: 'wall', x: ball.x, y: ball.y, v: hit.impact });
     }
     for (j = 0; j < S.planes.length; j++) collidePlane(ball, S.planes[j], null);
-    if (this.koActive) {
-      for (j = 0; j < this._koBarriers.length; j++) collidePlane(ball, this._koBarriers[j], null);
-      if (this._koCircle) collideDiscs(ball, this._koCircle, null);
-    }
   };
 
   World.prototype._assistDribble = function (player) {
@@ -643,11 +663,11 @@
       var tx, ty;
       var kick = false;
 
-      if (this.koActive && p.team !== this.koTeam) {
-        // Face-off that isn't ours: hold a goal-side shape. Pressing the centre
-        // circle just means the barrier dropping finds us all up the ice, with
-        // the net open to the first bounce off a board. Only spread off the
-        // centre line when there's a teammate left to cover it.
+      if (this.koUntouched && this.koTeam && p.team !== this.koTeam) {
+        // Face-off spotted on the other team's side: the race for that puck is
+        // already lost, and losing it up ice leaves the net open to the first
+        // bounce off a board. Hold a goal-side shape instead. Only spread off
+        // the centre line when there's a teammate left to cover it.
         var mates = this.teamSize(p.team);
         tx = ownGoalX + (ball.x - ownGoalX) * 0.34 + b.jx;
         ty = ball.y * 0.4 + (mates > 2 ? (p.seat % 2 === 0 ? -1 : 1) * S.halfH * 0.32 : 0) + b.jy;

@@ -69,8 +69,12 @@
   };
   function show(name) {
     Object.keys(views).forEach(function (k) { views[k].classList.toggle('active', k === name); });
-    // The attribution footer only belongs on the waiting/lobby screen.
+    // The attribution footer belongs to the lobby only — the waiting view is
+    // reused for "Dealing…" once the game is under way.
+    if (attribution) attribution.hidden = !(name === 'wait' && publicPhase === 'LOBBY');
+    if (name !== 'play') document.body.classList.remove('my-turn');
     currentView = name;
+    updateReactionState();
   }
   let currentView = 'wait';
 
@@ -104,13 +108,32 @@
 
   const connOverlay = el('pConnOverlay');
   const toastEl = el('pToast');
+  const reactionBar = el('reactionBar');
+  const reactionCooldown = el('reactionCooldown');
+  const attribution = el('playerAttribution');
 
+  const TOAST_FADE_MS = 280;
   let toastTimer = null;
+  let toastFadeTimer = null;
   function toast(msg) {
+    if (toastTimer) clearTimeout(toastTimer);
+    if (toastFadeTimer) clearTimeout(toastFadeTimer);
+    toastEl.classList.remove('leaving');
     toastEl.textContent = msg;
     toastEl.hidden = false;
-    if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { toastEl.hidden = true; toastTimer = null; }, 2400);
+    // Replay the entrance when a toast replaces one that's already up.
+    toastEl.style.animation = 'none';
+    void toastEl.offsetWidth;
+    toastEl.style.animation = '';
+    toastTimer = setTimeout(function () {
+      toastTimer = null;
+      toastEl.classList.add('leaving');
+      toastFadeTimer = setTimeout(function () {
+        toastFadeTimer = null;
+        toastEl.hidden = true;
+        toastEl.classList.remove('leaving');
+      }, TOAST_FADE_MS);
+    }, 2400);
   }
 
   function buzz(ms) {
@@ -125,6 +148,8 @@
   let armed = null;        // card lifted, awaiting the confirm tap
   let publicPhase = 'LOBBY';
   let lastHandEnd = null;
+  let hostPresent = true;
+  let reactionsMutedByHost = false;
 
   pName.textContent = myName;
 
@@ -140,17 +165,35 @@
   }
 
   /**
+   * Where to break a big hand into two rows, or 0 to keep it on one. Splitting
+   * by index tears whichever suit straddles the middle across both rows, so the
+   * break lands on a suit boundary instead — the one leaving the shortest long
+   * row. A single-suit hand has no boundary and stays on one row.
+   */
+  function suitBreak(cards) {
+    // Squeezing 13 cards into one row leaves a sliver too thin to read or aim
+    // at, so a big hand is dealt over two rows — that buys back card size and
+    // overlap. The hand arrives grouped by suit from the server.
+    if (cards.length <= 7) return 0;
+    let best = 0;
+    let bestLongest = Infinity;
+    for (let i = 1; i < cards.length; i++) {
+      if (cards[i].slice(-1) === cards[i - 1].slice(-1)) continue;
+      const longest = Math.max(i, cards.length - i);
+      if (longest < bestLongest) { bestLongest = longest; best = i; }
+    }
+    return best;
+  }
+
+  /**
    * Build a fan of tappable cards.
    * @param {HTMLElement} container
    * @param {string[]} cards
    * @param {(code:string)=>{state:string,label:string}} decorate
    */
   function renderFan(container, cards, decorate, onTap) {
-    // Squeezing 13 cards into one row leaves a sliver too thin to read or aim
-    // at, so a big hand is dealt over two rows instead — that buys back both
-    // card size and overlap.
-    const rowCount = cards.length > 7 ? 2 : 1;
-    const perRow = Math.ceil(cards.length / rowCount);
+    const breakAt = suitBreak(cards);
+    const rowCount = breakAt ? 2 : 1;
 
     // Rebuilding the fan reloads every <img> and restarts every transition, so
     // the whole hand flashes when only one card's selection changed. Reuse the
@@ -184,7 +227,7 @@
           e.preventDefault();
           btn._onTap(code);
         });
-        rows[Math.floor(i / perRow)].appendChild(btn);
+        rows[breakAt && i >= breakAt ? 1 : 0].appendChild(btn);
         return btn;
       });
     }
@@ -216,8 +259,14 @@
     if (!count) return;
     const area = container.parentElement;
     if (!area) return;
-    const rowCount = container.querySelectorAll('.fan-row').length || 1;
-    const perRow = Math.ceil(count / rowCount);
+    const rowEls = container.querySelectorAll('.fan-row');
+    const rowCount = rowEls.length || 1;
+    // Rows break on a suit boundary, so they are uneven — size everything from
+    // the longest one or it spills off the edge.
+    let perRow = count;
+    for (let i = 0; i < rowEls.length; i++) {
+      perRow = i ? Math.max(perRow, rowEls[i].children.length) : rowEls[i].children.length;
+    }
     // Measured rather than hard-coded: the paddings change with the viewport
     // media queries, and guessing them either overflows or wastes space.
     const fcs = getComputedStyle(container);
@@ -231,7 +280,7 @@
     const availH = area.clientHeight - padY - (rowCount - 1) * gap;
     if (avail <= 0 || availH <= 0) return;
     // Also guards the ResizeObserver against feeding itself.
-    const sig = avail + ':' + availH + ':' + count + ':' + rowCount;
+    const sig = avail + ':' + availH + ':' + count + ':' + rowCount + ':' + perRow;
     if (container._fitSig === sig) return;
     container._fitSig = sig;
 
@@ -382,6 +431,9 @@
     mPoints.classList.toggle('bonus', hand.handPoints < 0);
 
     const yourTurn = !!hand.yourTurn;
+    // The phone is face-down on the table between turns, so the whole screen
+    // edge lights up rather than only the banner changing.
+    document.body.classList.toggle('my-turn', yourTurn);
     playBanner.textContent = '';
     if (yourTurn) {
       playBanner.textContent = 'Your turn!';
@@ -493,6 +545,7 @@
     }
 
     resultRows.innerHTML = '';
+    resultRows.classList.remove('no-delta');
     rows.forEach(function (r) { resultRows.appendChild(resultRow(r.seat, r.name, r.total, r.delta, r.playerId === PID)); });
     show('result');
   }
@@ -509,6 +562,7 @@
       resultSub.textContent = 'Better luck next hand.';
     }
     resultRows.innerHTML = '';
+    resultRows.classList.add('no-delta');
     (s.standings || []).forEach(function (r) {
       resultRows.appendChild(resultRow(r.seat, r.name, r.total, null, r.playerId === PID));
     });
@@ -523,16 +577,17 @@
     s.className = 'rr-seat'; s.dataset.seat = seat; s.textContent = seat;
     const n = document.createElement('span');
     n.className = 'rr-name pname'; n.textContent = name;
-    const sc = document.createElement('span');
-    sc.className = 'rr-score';
-    sc.textContent = total;
+    row.appendChild(s); row.appendChild(n);
     if (delta !== null && delta !== undefined) {
       const d = document.createElement('span');
       d.className = 'rr-delta ' + (delta > 0 ? 'plus' : (delta < 0 ? 'minus' : ''));
       d.textContent = delta > 0 ? '+' + delta : String(delta);
-      sc.appendChild(d);
+      row.appendChild(d);
     }
-    row.appendChild(s); row.appendChild(n); row.appendChild(sc);
+    const sc = document.createElement('span');
+    sc.className = 'rr-score';
+    sc.textContent = total;
+    row.appendChild(sc);
     return row;
   }
 
@@ -589,6 +644,8 @@
       connOverlay.hidden = true;
       myName = res.player.name;
       mySeat = res.player.seat;
+      hostPresent = res.hostPresent !== false;
+      reactionsMutedByHost = !!res.reactionsMuted;
       localStorage.setItem('hearts.playerName', myName);
       publicPhase = res.phase;
       if (res.myHand) { hand = res.myHand; picks = []; armed = null; }
@@ -641,4 +698,73 @@
 
   socket.on('state:reset', function () { goRejoin(); });
   socket.on('player:rejected', function () { goRejoin(); });
+
+  socket.on('state:hostPresence', function (p) {
+    hostPresent = !!(p && p.present);
+    updateReactionState();
+  });
+  socket.on('state:reactionsMuted', function (p) {
+    reactionsMutedByHost = !!(p && p.muted);
+    updateReactionState();
+  });
+
+  // ---------------- Reactions ----------------
+  // Downtime only: the lobby and the two scoreboards. Never over a live hand,
+  // where the bar would cover cards and the tap would cost someone a trick.
+  const REACTION_COOLDOWN_MS = 10 * 1000;
+  const REACTION_LS_KEY = 'hearts.lastReactionAt';
+  const reactionBtns = Array.prototype.slice.call(reactionBar.querySelectorAll('.reaction-btn'));
+  let reactionUntil = 0;
+  let cooldownRaf = null;
+
+  function reactionsOpen() {
+    return publicPhase === 'LOBBY' || publicPhase === 'HAND_END' || publicPhase === 'FINAL';
+  }
+  function updateReactionState() {
+    if (!reactionBar) return;
+    reactionBar.hidden = !(reactionsOpen() && !reactionsMutedByHost && hostPresent);
+  }
+  function startCooldown() {
+    if (cooldownRaf) cancelAnimationFrame(cooldownRaf);
+    (function tick() {
+      const left = reactionUntil - Date.now();
+      if (left <= 0) {
+        reactionBtns.forEach(function (b) { b.disabled = false; });
+        reactionCooldown.hidden = true;
+        cooldownRaf = null;
+        return;
+      }
+      reactionBtns.forEach(function (b) { b.disabled = true; });
+      reactionCooldown.hidden = false;
+      reactionCooldown.textContent = Math.ceil(left / 1000) + 's';
+      cooldownRaf = requestAnimationFrame(tick);
+    }());
+  }
+
+  const storedLast = parseInt(localStorage.getItem(REACTION_LS_KEY) || '0', 10);
+  if (storedLast && Date.now() - storedLast < REACTION_COOLDOWN_MS) {
+    reactionUntil = storedLast + REACTION_COOLDOWN_MS;
+    startCooldown();
+  }
+
+  reactionBar.addEventListener('click', function (e) {
+    const btn = e.target.closest('.reaction-btn');
+    if (!btn || btn.disabled) return;
+    const idx = parseInt(btn.dataset.reaction, 10);
+    if (isNaN(idx)) return;
+    const now = Date.now();
+    reactionUntil = now + REACTION_COOLDOWN_MS;
+    localStorage.setItem(REACTION_LS_KEY, String(now));
+    startCooldown();
+    buzz(15);
+    socket.emit('player:reaction', { index: idx }, function (res) {
+      if (res && !res.ok && res.reason === 'cooldown' && res.retryInMs) {
+        reactionUntil = Date.now() + res.retryInMs;
+        localStorage.setItem(REACTION_LS_KEY, String(Date.now() + res.retryInMs - REACTION_COOLDOWN_MS));
+        startCooldown();
+      }
+    });
+  });
+
+  updateReactionState();
 })();

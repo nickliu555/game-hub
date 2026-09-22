@@ -45,7 +45,7 @@ Everyone answers the same open question — score by matching the herd, and dodg
 ### ♥️ Hearts
 The classic four-player trick-taking card game — dodge the Queen, chase the Jack.
 
-1. Hearts seats **exactly four players** — fill any empty seats with **CPUs** (Easy / Normal / Hard)
+1. Hearts seats **exactly four players** — fill any empty seats with **CPUs**
 2. **Drag the players in the lobby** to set who sits North, East, South and West, then pick a target score of **50, 75 or 100** (default 100)
 3. Everyone is dealt **13 cards**, then passes **3 cards** clockwise, then counter-clockwise, then across — and **holds** on every fourth hand
 4. The **2♣ leads** the first trick; follow the suit led if you can, and you **can't lead hearts** until they've been broken
@@ -169,9 +169,11 @@ Two teams, one puck, pure chaos — a HaxBall-style rink on the Host screen with
 4. Each phone is a **thumbstick + HIT button**: drag anywhere on the left to move, tap **HIT** when the puck is in range
 5. Skate straight at a slow puck and it **sticks to your stick** — you can **carry** it up the ice, turn with it, then tap **HIT** to release a pass or a shot
 6. Bank shots off the **boards**, ring one off the **post**, and body-check opponents out of the way
-7. After every goal both teams **reset for a face-off** and the countdown restarts
-8. The match runs until the **clock hits zero** — **highest score wins**, and level scores are a **draw**
-9. The host can **Pause** at any time, and players can fire off **reactions** that pop above their skater
+7. After every goal both teams **reset for a face-off** and the countdown restarts, with the puck spotted on the **conceding team's** side
+8. If the puck sits **untouched for 10 seconds** it's whistled dead and dropped back at centre for a fresh face-off
+9. The match runs until the **clock hits zero** — **highest score wins**
+10. Level at the buzzer? **Sudden death** — the clock stops, both teams line up for a fresh centre face-off, and the **next goal wins**
+11. The host can **Pause** at any time, and players can fire off **reactions** that pop above their skater
 
 ### 🧱 Stacking Royale
 **A falling-block Puzzle battle for 1–30 players, with classic endless solo practice.**

@@ -100,7 +100,7 @@ async function main() {
   // ---- Start ----
   const p0 = players[0];
   const evs = [];
-  ['m:start', 'm:countdown', 'm:play', 'm:clock', 'm:goal', 'm:pause', 'm:resume', 'm:timeup', 'm:end']
+  ['m:start', 'm:countdown', 'm:play', 'm:clock', 'm:goal', 'm:pause', 'm:resume', 'm:sudden', 'm:timeup', 'm:end']
     .forEach((e) => p0.s.on(e, (d) => evs.push([e, d])));
   const relayed = [];
   host.on('in', (d) => relayed.push(d));
@@ -175,6 +175,23 @@ async function main() {
   host.emit('host:timeup', {});
   await wait(60);
   check('player got m:timeup before the result', evs.some((e) => e[0] === 'm:timeup'));
+
+  // ---- Sudden death: level at the buzzer, so the next goal takes it ----
+  host.emit('host:sudden', {});
+  await wait(80);
+  check('player got m:sudden', evs.some((e) => e[0] === 'm:sudden'));
+  const sdMeta = await new Promise((r) => host.emit('host:auth', {}, r));
+  check('the server remembers sudden death', sdMeta && sdMeta.match && sdMeta.match.sudden === true);
+  const sdRec = await new Promise((r) => {
+    const s = mk();
+    s.on('connect', () => s.emit('player:reconnect', { playerId: 'p0' }, (res) => { s.close(); r(res); }));
+  });
+  check('a reconnecting phone learns it is sudden death', sdRec && sdRec.match && sdRec.match.sudden === true);
+  host.emit('host:clock', { ms: 0, sudden: false });
+  await wait(80);
+  const clockOff = evs.filter((e) => e[0] === 'm:clock').pop();
+  check('the clock heartbeat carries the sudden flag', clockOff && clockOff[1].sudden === false);
+
   host.emit('host:matchEnd', { winner: 'red', red: 2, blue: 0 });
   await wait(80);
   check('player got m:end with winner', evs.some((e) => e[0] === 'm:end' && e[1] && e[1].winner === 'red'));

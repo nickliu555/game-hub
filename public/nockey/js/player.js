@@ -112,6 +112,14 @@
     return m + ':' + (s < 10 ? '0' : '') + s;
   }
 
+  // Overtime has no clock left to show, so the slot becomes a status badge.
+  function setClock(ms, sudden) {
+    if (!hudClock) return;
+    hudClock.textContent = sudden ? 'SD' : fmtClock(ms);
+    hudClock.classList.toggle('sudden', !!sudden);
+    hudClock.classList.toggle('urgent', !sudden && ms <= 15000);
+  }
+
   function vibrate(ms) {
     try { if (navigator.vibrate) navigator.vibrate(ms); } catch (_) {}
   }
@@ -377,7 +385,7 @@
     if (!m) return;
     if (hudRed) hudRed.textContent = m.redScore;
     if (hudBlue) hudBlue.textContent = m.blueScore;
-    if (hudClock) hudClock.textContent = fmtClock(m.clockMs);
+    setClock(m.clockMs, !!m.sudden);
     setPaused(!!m.paused);
     setLive(!!m.live && !m.paused);
   }
@@ -389,7 +397,7 @@
     }
     if (hudRed) hudRed.textContent = '0';
     if (hudBlue) hudBlue.textContent = '0';
-    if (hudClock) hudClock.textContent = fmtClock((d && d.timeLimitSec ? d.timeLimitSec : 180) * 1000);
+    setClock((d && d.timeLimitSec ? d.timeLimitSec : 180) * 1000, false);
     setPaused(false);
     if (coNote) { coNote.textContent = ''; coNote.hidden = true; }
     if (coCount) coCount.textContent = '';
@@ -411,10 +419,7 @@
   socket.on('m:play', function () { setLive(true); resendInput(); vibrate(20); });
   socket.on('m:clock', function (d) {
     if (!d) return;
-    if (hudClock) {
-      hudClock.textContent = fmtClock(d.ms);
-      hudClock.classList.toggle('urgent', d.ms <= 15000);
-    }
+    setClock(d.ms, !!d.sudden);
     // The clock is also the match heartbeat — trust it over any event we may
     // have missed while the phone was asleep or the signal dropped.
     if (typeof d.red === 'number' && hudRed) hudRed.textContent = d.red;
@@ -442,6 +447,16 @@
     if (coCount) coCount.textContent = '';
     if (ctrlOverlay) ctrlOverlay.hidden = false;
     vibrate(60);
+  });
+  socket.on('m:sudden', function () {
+    setLive(false);
+    resetStick();
+    setKick(false);
+    setClock(0, true);
+    if (coNote) { coNote.textContent = 'SUDDEN DEATH'; coNote.hidden = false; }
+    if (coCount) coCount.textContent = '';
+    if (ctrlOverlay) ctrlOverlay.hidden = false;
+    vibrate([40, 60, 40, 60, 40]);
   });
   socket.on('m:pause', function () { setPaused(true); });
   socket.on('m:resume', function (d) { setPaused(false); setLive(!!(d && d.live)); });

@@ -348,7 +348,14 @@ body.host {
   justify-items: center;
   gap: 8px;
 }
-.ex-seat-n { grid-area: 1 / 2; }
+/* N owns the whole top row, so it drifts away from the ring while E/W sit right
+   on it. Pull it down into that gap without shifting the rows below. */
+.ex-seat-n {
+  grid-area: 1 / 2;
+  --n-drop: min(4.5vh, 46px);
+  margin-top: var(--n-drop);
+  margin-bottom: calc(-1 * var(--n-drop));
+}
 .ex-seat-w { grid-area: 2 / 1; }
 .ex-dir    { grid-area: 2 / 2; }
 .ex-seat-e { grid-area: 2 / 3; }
@@ -412,6 +419,54 @@ body.host {
   border-color: #86E6A4;
 }
 
+/* The three cards that just landed in front of each player. The slot is held
+   empty through the choosing phase so the map never reflows mid-flight — the
+   packets are measured against these positions. */
+.ex-hand {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ex-card {
+  width: 26px;
+  height: 36px;
+  border-radius: 4px;
+  background-image: url('/hearts/assets/cards/back.svg');
+  background-size: cover;
+  box-shadow: 0 3px 9px rgba(0, 0, 0, 0.5), 0 0 0 1.5px rgba(255, 255, 255, 0.35);
+  opacity: 0;
+  animation: exLand 0.36s cubic-bezier(0.2, 1.35, 0.4, 1) forwards;
+}
+.ex-card + .ex-card { margin-left: -13px; }
+.ex-card:nth-child(2) { animation-delay: 0.08s; }
+.ex-card:nth-child(3) { animation-delay: 0.16s; }
+@keyframes exLand {
+  0%   { opacity: 0; transform: translateY(-16px) rotate(0deg) scale(0.55); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: translateY(0) rotate(var(--er, 0deg)) scale(1); }
+}
+.ex-seat.landed .ex-pip { animation: exPipPop 0.6s ease-out; }
+@keyframes exPipPop {
+  0%   { box-shadow: 0 0 0 0 rgba(232, 184, 58, 0.9); }
+  100% { box-shadow: 0 0 0 18px rgba(232, 184, 58, 0); }
+}
+
+/* "Pass" → "Passed" drops in rather than swapping silently, so the title
+   change is visible from across the room. */
+#exVerb { display: inline-block; }
+#exVerb.swap { animation: exVerbSwap 0.45s ease-out; }
+@keyframes exVerbSwap {
+  0%   { opacity: 0; transform: translateY(-0.3em) scale(0.92); filter: blur(5px); }
+  100% { opacity: 1; transform: none; filter: blur(0); }
+}
+.ex-dir.spin { animation: exDirSpin 0.6s ease-out; }
+@keyframes exDirSpin {
+  0%   { transform: rotate(0deg) scale(1); }
+  55%  { transform: rotate(180deg) scale(1.25); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
 .ex-progress {
   margin: 16px 0 0;
   font-size: clamp(15px, 1.7vw, 24px);
@@ -456,8 +511,24 @@ body.host {
   76%  { opacity: 0; transform: translate(var(--fx, 0), var(--fy, 0)) rotate(var(--frot, 0deg)); }
   100% { opacity: 0; transform: translate(var(--fx, 0), var(--fy, 0)) rotate(var(--frot, 0deg)); }
 }
+/* The hand-off itself: one synchronised run that ends on the receiver's card
+   slot and shrinks into it, instead of the loop's fade in mid-air. */
+.ex-flights.is-delivering .ex-flight {
+  animation: exDeliver 1s cubic-bezier(0.34, 0.05, 0.2, 1) forwards;
+}
+@keyframes exDeliver {
+  0%   { opacity: 0; transform: translate(0, 0) rotate(0deg) scale(1); }
+  8%   { opacity: 1; }
+  84%  { opacity: 1; transform: translate(var(--fx, 0), var(--fy, 0)) rotate(var(--frot, 0deg)) scale(0.7); }
+  100% { opacity: 0; transform: translate(var(--fx, 0), var(--fy, 0)) rotate(0deg) scale(0.6); }
+}
 @media (prefers-reduced-motion: reduce) {
   .ex-flight { animation: none; opacity: 0.85; transform: none; }
+  .ex-flights.is-delivering .ex-flight { animation: none; opacity: 0; }
+  .ex-card { animation: none; opacity: 1; transform: rotate(var(--er, 0deg)); }
+  .ex-seat.landed .ex-pip,
+  #exVerb.swap,
+  .ex-dir.spin { animation: none; }
 }
 
 /* ═══════════════════════ The table ═══════════════════════ */
@@ -826,6 +897,7 @@ body.host {
 /* ═══════════════════════ Hand scoreboard ═══════════════════════ */
 
 #view-handend, #view-final { align-self: stretch; min-height: 0; }
+#view-handend { position: relative; }
 
 .handend-view, .final-view {
   display: flex;
@@ -844,8 +916,11 @@ body.host {
 
 .handend-head { padding-bottom: 12px; }
 .moon-banner {
+  position: relative;
   margin: 12px auto 0;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   background: linear-gradient(135deg, #2b1a4a, #4b2c7a);
   border: 2px solid rgba(232, 184, 58, 0.6);
   border-radius: 999px;
@@ -857,6 +932,74 @@ body.host {
   overflow-wrap: anywhere;
 }
 .moon-banner[hidden] { display: none; }
+.moon-text { min-width: 0; }
+
+/* Shooting the moon is the rarest thing that can happen in a hand, so the
+   scoreboard announces it: the banner lands, the moon lifts into place,
+   stars scatter, and light sweeps the shooter's row. */
+.moon-banner.shot { animation: moonBannerIn 0.66s cubic-bezier(0.2, 1.25, 0.35, 1) both; }
+@keyframes moonBannerIn {
+  0%   { opacity: 0; transform: translateY(16px) scale(0.7); }
+  55%  { opacity: 1; transform: translateY(0) scale(1.07); }
+  100% { opacity: 1; transform: none; }
+}
+.moon-banner.shot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 999px;
+  border: 2px solid rgba(232, 184, 58, 0.85);
+  pointer-events: none;
+  animation: moonRing 0.95s ease-out 0.16s both;
+}
+@keyframes moonRing {
+  0%   { opacity: 0.9; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.45); }
+}
+.moon-orb {
+  display: inline-block;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 0 10px rgba(255, 214, 102, 0.85));
+}
+.moon-banner.shot .moon-orb {
+  animation: moonRise 0.8s cubic-bezier(0.2, 0.9, 0.3, 1) both,
+             moonBob 3.4s ease-in-out 0.8s 2;
+}
+@keyframes moonRise {
+  0%   { opacity: 0; transform: translateY(38px) scale(0.3) rotate(-140deg); }
+  55%  { opacity: 1; }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes moonBob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-5px) rotate(-7deg); }
+}
+
+/* Stars are placed from JS at the banner's centre, so the burst follows the
+   banner however wide the name makes it. */
+.moon-sky {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 3;
+}
+.moon-star {
+  position: absolute;
+  width: var(--ms);
+  height: var(--ms);
+  margin: calc(var(--ms) / -2) 0 0 calc(var(--ms) / -2);
+  background: linear-gradient(160deg, #FFF8DC, #FFD76A 55%, #E0A500);
+  clip-path: polygon(50% 0%, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0% 50%, 39% 39%);
+  filter: drop-shadow(0 0 8px rgba(255, 214, 102, 0.9));
+  animation: moonStarFly 1.35s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+@keyframes moonStarFly {
+  0%   { opacity: 0; transform: translate(0, 0) scale(0.2) rotate(0deg); }
+  16%  { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--mx), var(--my)) scale(1) rotate(var(--mr)); }
+}
 
 /* Every row shares one column template so the hearts / Q♠ / J♦ / score
    columns line up down the board instead of drifting with each row's content. */
@@ -901,7 +1044,33 @@ body.host {
   text-align: left;
   min-width: 0;
 }
-.score-row.moon { border-color: rgba(232, 184, 58, 0.6); background: rgba(232, 184, 58, 0.12); }
+.score-row.moon {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(232, 184, 58, 0.6);
+  background: rgba(232, 184, 58, 0.12);
+}
+.score-row.moon.shot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 32%, rgba(255, 233, 168, 0.5) 50%, transparent 68%);
+  animation: moonSheen 1.1s ease-out 0.34s both;
+}
+@keyframes moonSheen {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(120%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .moon-banner.shot,
+  .moon-banner.shot::after,
+  .moon-banner.shot .moon-orb,
+  .score-row.moon.shot::after { animation: none; }
+  .moon-banner.shot::after,
+  .score-row.moon.shot::after { display: none; }
+  .moon-star { display: none; }
+}
 .sr-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .sr-name {
   font-size: clamp(17px, 1.7vw, 24px);
@@ -1090,4 +1259,21 @@ body.host {
   .deal-fan { height: 150px; }
   .exchange-map { grid-template-rows: auto minmax(160px, 27vh) auto; }
   .ex-dir { font-size: clamp(30px, 3.6vw, 48px); }
+  .ex-hand { height: 30px; }
+  .ex-card { width: 22px; height: 30px; }
+  .ex-card + .ex-card { margin-left: -11px; }
+}
+
+/* ---- Reactions ---- */
+.reaction-layer { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 5; }
+.reaction-emoji {
+  position: absolute; bottom: -60px; font-size: 56px; line-height: 1;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.35)); will-change: transform, opacity;
+  animation: reactionFloat 3.5s ease-out forwards; user-select: none;
+}
+@keyframes reactionFloat {
+  0%   { transform: translateY(0)     rotate(0deg)  scale(0.4); opacity: 0; }
+  15%  { transform: translateY(-15vh) rotate(-6deg) scale(1);   opacity: 1; }
+  85%  { transform: translateY(-90vh) rotate(6deg)  scale(1);   opacity: 1; }
+  100% { transform: translateY(-105vh) rotate(0deg) scale(0.85); opacity: 0; }
 }

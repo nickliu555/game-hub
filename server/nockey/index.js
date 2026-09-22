@@ -327,9 +327,9 @@ function mountNockey(app, httpServer, opts) {
     // The clock tick doubles as the match heartbeat: it carries the full
     // authoritative snapshot so a phone that missed an event (backgrounded,
     // signal blip) re-syncs within a quarter of a second.
-    socket.on('host:clock', ({ ms, red, blue, live, paused } = {}) => {
+    socket.on('host:clock', ({ ms, red, blue, live, paused, sudden } = {}) => {
       if (!isActiveHost()) return;
-      game.setClock(ms);
+      game.setClock(ms, sudden);
       if (typeof red === 'number' && typeof blue === 'number') game.setScore(red, blue);
       if (typeof paused === 'boolean') game.setPaused(paused);
       if (typeof live === 'boolean') game.setLive(live);
@@ -337,6 +337,7 @@ function mountNockey(app, httpServer, opts) {
         ms: game.match.clockMs,
         red: game.match.redScore,
         blue: game.match.blueScore,
+        sudden: game.match.sudden,
         live: game.match.live,
         paused: game.match.paused,
       });
@@ -365,6 +366,13 @@ function mountNockey(app, httpServer, opts) {
       touchActivity();
       game.setLive(false);
       ns.to(PLAYER_ROOM).emit('m:timeup', {});
+    });
+    socket.on('host:sudden', () => {
+      if (!isActiveHost()) return;
+      touchActivity();
+      game.setSudden(true);
+      game.setLive(false);
+      ns.to(PLAYER_ROOM).emit('m:sudden', {});
     });
     socket.on('host:matchEnd', ({ winner, red, blue } = {}) => {
       if (!isActiveHost()) return;
