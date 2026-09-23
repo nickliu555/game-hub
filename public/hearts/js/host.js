@@ -1187,6 +1187,9 @@
     } else {
       moonBanner.hidden = true;
       moonBanner.classList.remove('shot');
+      // A hand with no moon must not inherit the last one's sky.
+      if (moonRainTimer) { clearTimeout(moonRainTimer); moonRainTimer = null; }
+      moonSky.innerHTML = '';
     }
     const freshMoon = !!s.moonShooterName && moonKey !== 'h' + s.handNumber;
     moonKey = s.moonShooterName ? 'h' + s.handNumber : '';
@@ -1250,10 +1253,17 @@
     show('handend', function () { if (freshMoon) moonBurst(); });
   }
 
+  const MOON_GLYPHS = ['🌙', '⭐', '🌟', '✨', '🌛', '💫'];
+  const MOON_DROPS = 46;
+  const MOON_SPAWN_S = 3.2;   // how long new drops keep appearing
+  const MOON_FALL_MS = 8400;  // spawn window + the slowest fall, then wipe
+  let moonRainTimer = null;
+
   function moonBurst() {
     bump(moonBanner, 'shot');
     const row = scoreRows.querySelector('.score-row.moon');
     if (row) bump(row, 'shot');
+    if (moonRainTimer) { clearTimeout(moonRainTimer); moonRainTimer = null; }
     moonSky.innerHTML = '';
     if (reduceMotion && reduceMotion.matches) return;
     const vb = views.handend.getBoundingClientRect();
@@ -1275,7 +1285,30 @@
       st.style.animationDelay = (Math.random() * 0.32).toFixed(2) + 's';
       moonSky.appendChild(st);
     }
-    setTimeout(function () { moonSky.innerHTML = ''; }, 2100);
+    moonRain();
+    moonRainTimer = setTimeout(function () {
+      moonRainTimer = null;
+      moonSky.innerHTML = '';
+    }, MOON_FALL_MS);
+  }
+
+  /** Moons and stars falling the full height of the scoreboard view. */
+  function moonRain() {
+    // Measured, not assumed: the view stretches, so this is the real drop.
+    const fall = moonSky.clientHeight + 140;
+    for (let i = 0; i < MOON_DROPS; i++) {
+      const d = document.createElement('span');
+      d.className = 'moon-drop';
+      d.textContent = MOON_GLYPHS[Math.floor(Math.random() * MOON_GLYPHS.length)];
+      d.style.left = (Math.random() * 100).toFixed(2) + '%';
+      d.style.setProperty('--md', (14 + Math.random() * 26).toFixed(1) + 'px');
+      d.style.setProperty('--mf', fall + 'px');
+      d.style.setProperty('--mx', Math.round(Math.random() * 140 - 70) + 'px');
+      d.style.setProperty('--mr', Math.round(Math.random() * 520 - 260) + 'deg');
+      d.style.animationDuration = (2.6 + Math.random() * 2.4).toFixed(2) + 's';
+      d.style.animationDelay = (Math.random() * MOON_SPAWN_S).toFixed(2) + 's';
+      moonSky.appendChild(d);
+    }
   }
   function cell(text, cls, has) {
     const el = document.createElement('span');

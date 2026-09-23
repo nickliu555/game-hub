@@ -1001,6 +1001,26 @@ body.host {
   100% { opacity: 0; transform: translate(var(--mx), var(--my)) scale(1) rotate(var(--mr)); }
 }
 
+/* …and the sky comes down with it: moons and stars fall the height of the
+   view, drifting and tumbling, for as long as the scoreboard is up. */
+.moon-drop {
+  position: absolute;
+  top: 0;
+  font-size: var(--md);
+  line-height: 1;
+  filter: drop-shadow(0 0 10px rgba(255, 214, 102, 0.7));
+  animation: moonRain 3.2s linear both;
+}
+@keyframes moonRain {
+  0%   { opacity: 0; transform: translate(0, -60px) rotate(0deg); }
+  10%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--mx), var(--mf)) rotate(var(--mr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .moon-drop { display: none; }
+}
+
 /* Every row shares one column template so the hearts / Q♠ / J♦ / score
    columns line up down the board instead of drifting with each row's content. */
 .score-table {
