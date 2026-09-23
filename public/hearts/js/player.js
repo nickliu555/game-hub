@@ -674,7 +674,14 @@
     publicPhase = phase;
     route();
   }
-  socket.on('state:lobby', function () { hand = null; setPhase('LOBBY'); });
+  socket.on('state:lobby', function (l) {
+    hand = null;
+    // The host can drag players into new seats in the lobby, so take the seat
+    // from the snapshot rather than trusting the one the join ack gave us.
+    const me = l && l.players && l.players.filter(function (p) { return p.id === PID; })[0];
+    if (me && me.seat) mySeat = me.seat;
+    setPhase('LOBBY');
+  });
   socket.on('state:deal', function () { setPhase('DEAL'); });
   socket.on('state:pass', function () { setPhase('PASS'); });
   socket.on('state:exchange', function () { setPhase('EXCHANGE'); });

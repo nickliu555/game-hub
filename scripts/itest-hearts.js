@@ -110,11 +110,18 @@ function collectCardStrings(node, out) {
   section('Seating');
 
   const lobbyState = once(host, 'state:lobby');
+  const aliceLobby = once(socks.Alice, 'state:lobby');
   await emit(host, 'host:reorder', { playerId: players.Bob, beforeId: players.Alice });
   const reordered = await lobbyState;
   check(reordered.players[0].id === players.Bob, 'drag-reorder puts Bob first');
   check(reordered.players.map((p) => p.seat).join('') === 'NESW', 'seats are always N/E/S/W in order');
   check(reordered.canStart === true, 'lobby can start with exactly 4');
+
+  // The reseated player must learn their new seat without reloading, so the
+  // broadcast has to reach the phones with their own seat in it.
+  const aliceSeen = await aliceLobby;
+  const aliceRow = aliceSeen.players.filter((p) => p.id === players.Alice)[0];
+  check(!!aliceRow && aliceRow.seat === 'E', 'the reseated player is told their new seat (E) by the lobby broadcast');
 
   // ═══════════ Start + deal + passing ═══════════
   section('Deal & pass');
