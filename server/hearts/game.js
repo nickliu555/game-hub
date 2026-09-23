@@ -597,16 +597,24 @@ class Game {
     const seatIndex = order.findIndex((p) => p.id === playerId);
     if (seatIndex < 0) return null;
     const p = order[seatIndex];
+    const offset = PASS_OFFSET[this.passDirection()];
     return {
       seatIndex,
       hand: p.hand.slice(),
       legal: this.legalFor(playerId),
       trick: this.trick.map((t) => t.card),
+      trickLeadSeat: this.trick.length
+        ? order.findIndex((o) => o.id === this.trick[0].playerId)
+        : seatIndex,
       heartsBroken: this.heartsBroken,
       trickNumber: this.trickNumber,
       seen: this.seenCards(),
       taken: order.map((o) => o.taken.slice()),
       voids: order.map((o) => Object.assign({}, o.voids)),
+      // The 3 cards we handed over are the only cards whose owner we know for
+      // certain. `offset` of 0 means a hold hand, where nothing changed seats.
+      passedTo: offset ? (seatIndex + offset) % PLAYER_COUNT : -1,
+      passedCards: offset ? p.pass.slice() : [],
     };
   }
 

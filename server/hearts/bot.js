@@ -20,9 +20,11 @@ const {
   pointsOf,
   trickWinnerIndex,
 } = require('./deck');
+const endgame = require('./endgame');
 
 const QUEEN_VALUE = rankValue(QUEEN_OF_SPADES);
 const JACK_VALUE = rankValue(JACK_OF_DIAMONDS);
+const SEAT_COUNT = 4;
 
 const DIFFICULTIES = ['easy', 'normal', 'hard'];
 
@@ -78,6 +80,22 @@ function readTable(view) {
   const voids = Array.isArray(view.voids) ? view.voids : [];
   const seat = typeof view.seatIndex === 'number' ? view.seatIndex : -1;
 
+  // The 3 cards we passed are the only ones whose owner we know rather than
+  // infer. They stay known until they hit the table.
+  const knownSeat = new Map();
+  if (typeof view.passedTo === 'number' && view.passedTo >= 0) {
+    for (const c of view.passedCards || []) {
+      if (!seen.has(c) && !mine.has(c)) knownSeat.set(c, view.passedTo);
+    }
+  }
+
+  // Who has already acted this trick, in seat order from whoever led.
+  const acted = new Set();
+  const played = Array.isArray(view.trick) ? view.trick.length : 0;
+  if (typeof view.trickLeadSeat === 'number' && view.trickLeadSeat >= 0) {
+    for (let k = 0; k < played; k++) acted.add((view.trickLeadSeat + k) % SEAT_COUNT);
+  }
+
   const higherOut = (card) => {
     const v = rankValue(card);
     let n = 0;
@@ -88,6 +106,27 @@ function readTable(view) {
   return {
     outstanding,
     higherOut,
+    /** Which seat holds this card, when we know for certain. -1 when we don't. */
+    holderOf(card) {
+      const at = knownSeat.get(card);
+      return at === undefined ? -1 : at;
+    },
+    /**
+     * Higher cards that can still land on THIS trick. Differs from higherOut
+     * only for a card we passed to a seat that has already played — it is still
+     * live for the rest of the hand, but it cannot beat us here.
+     */
+    higherOutToCome(card) {
+      const v = rankValue(card);
+      let n = 0;
+      for (const c of outstanding[suitOf(card)]) {
+        if (rankValue(c) <= v) continue;
+        const at = knownSeat.get(c);
+        if (at !== undefined && acted.has(at)) continue;
+        n++;
+      }
+      return n;
+    },
     /** How many are below it — zero means the card cannot possibly win a trick. */
     lowerOut(card) {
       const v = rankValue(card);
@@ -99,6 +138,20 @@ function readTable(view) {
     voidCount(suit) {
       let n = 0;
       for (let i = 0; i < voids.length; i++) if (i !== seat && voids[i] && voids[i][suit]) n++;
+      return n;
+    },
+    /**
+     * Seats still to act this trick that could still follow `suit`. Nothing but
+     * the led suit can win a trick, so a zero here means the trick is already
+     * decided — whoever is winning it now keeps it.
+     */
+    liveBehind(suit) {
+      let n = 0;
+      for (let i = 0; i < SEAT_COUNT; i++) {
+        if (i === seat || acted.has(i)) continue;
+        if (voids[i] && voids[i][suit]) continue;
+        n++;
+      }
       return n;
     },
     jackLoose: !mine.has(JACK_OF_DIAMONDS) && !seen.has(JACK_OF_DIAMONDS),
@@ -256,6 +309,12 @@ function choosePlay(view, difficulty, rng) {
 
 function chooseLead(view, legal, hard, rng) {
   const mem = readTable(view);
+  // Few enough cards left to search it properly. Moon hands are excluded: the
+  // search scores each seat's own points and has no notion of shooting.
+  if (hard && !mem.moonRun && !mem.moonThreat) {
+    const solved = endgame.solve(view, rng);
+    if (solved) return solved;
+  }
   const hand = view.hand || legal;
   const mySpades = bySuit(hand, 'S');
   // No Queen of our own and nothing above her to be caught by her: spades
@@ -365,6 +424,10 @@ function chooseLead(view, legal, hard, rng) {
 
 function chooseFollow(view, legal, hard, rng) {
   const mem = readTable(view);
+  if (hard && !mem.moonRun && !mem.moonThreat) {
+    const solved = endgame.solve(view, rng);
+    if (solved) return solved;
+  }
   const trick = view.trick;
   const leadSuit = suitOf(trick[0]);
   const following = legal.every((c) => suitOf(c) === leadSuit);
@@ -373,6 +436,10 @@ function chooseFollow(view, legal, hard, rng) {
   const pot = trick.reduce((sum, c) => sum + pointsOf(c), 0);
   const jackInTrick = trick.indexOf(JACK_OF_DIAMONDS) >= 0;
   const queenInTrick = trick.indexOf(QUEEN_OF_SPADES) >= 0;
+  // Being last is only a proxy for what we actually care about: that nobody
+  // left to act can take the trick off us. A seat void in the led suit cannot
+  // win it, so a table that has shown out counts as last just the same.
+  const sealed = isLast || (hard && mem.liveBehind(leadSuit) === 0);
 
   if (following) {
     const under = legal.filter((c) => rankValue(c) < winnerValue);
@@ -400,13 +467,14 @@ function chooseFollow(view, legal, hard, rng) {
     }
 
     // Taking the trick is GOOD when the Jack is in it and nothing else stings.
-    if (jackInTrick && pot < 0 && over.length) return isLast ? dump(over) : highest(over);
+    if (jackInTrick && pot < 0 && over.length) return sealed ? dump(over) : highest(over);
 
     // Holding the Jack into a diamond trick we are going to win: cash it. Only
-    // once it is certain — either we are last, or no bigger diamond is left out.
+    // once it is certain — either nobody left can take it, or no bigger diamond
+    // is still live.
     if (hard && legal.indexOf(JACK_OF_DIAMONDS) >= 0 && !queenInTrick
         && JACK_VALUE > winnerValue
-        && (isLast || mem.higherOut(JACK_OF_DIAMONDS) === 0)) {
+        && (sealed || mem.higherOutToCome(JACK_OF_DIAMONDS) === 0)) {
       return JACK_OF_DIAMONDS;
     }
 
@@ -421,7 +489,7 @@ function chooseFollow(view, legal, hard, rng) {
     }
 
     // Break a moon run by taking the points ourselves while it is still cheap.
-    if (hard && mem.moonThreat && isLast && pot > 0 && !queenInTrick && over.length) {
+    if (hard && mem.moonThreat && sealed && pot > 0 && !queenInTrick && over.length) {
       return dump(over);
     }
 
@@ -429,7 +497,7 @@ function chooseFollow(view, legal, hard, rng) {
     // nobody can beat. That master is a trick we will be forced to win sooner or
     // later; a trick that costs zero is the cheapest place it will ever go, and
     // spending it now keeps the low cards that duck us out of trouble at the end.
-    if (hard && isLast && pot === 0) {
+    if (hard && sealed && pot === 0) {
       const boss = highest(legal);
       // A♠/K♠ count too: they are not masters of the suit, but they are what
       // the Queen gets fed to, and a free trick is the only safe place to spend them.
@@ -454,7 +522,7 @@ function chooseFollow(view, legal, hard, rng) {
     // Last to act with nothing that ducks: the trick is already ours whatever
     // we play, and every card left of this suit costs the same, so spend the
     // biggest one rather than nurse it into a trick we lose later.
-    if (hard && isLast) return highest(forced);
+    if (hard && sealed) return highest(forced);
     return lowest(forced);
   }
 

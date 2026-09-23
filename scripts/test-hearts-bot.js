@@ -13,6 +13,7 @@ const path = require('path');
 const deck = require(path.join('..', 'server', 'hearts', 'deck'));
 const { Game, PHASES } = require(path.join('..', 'server', 'hearts', 'game'));
 const bot = require(path.join('..', 'server', 'hearts', 'bot'));
+const endgame = require(path.join('..', 'server', 'hearts', 'endgame'));
 
 let passed = 0;
 const failures = [];
@@ -486,6 +487,87 @@ test('hard does not cover with two opponents still behind it', () => {
     taken: [[], ['2H'], [], []],
   }, 'hard');
   assert.strictEqual(card, '3D', 'the catcher would just be topped (got ' + card + ')');
+});
+
+// ──────── Skill: a table that has shown out is as good as being last ────────
+
+// Seats 2 and 3 have played, we are seat 0, and seat 1 is the only one left.
+const sealedTable = { trickLeadSeat: 2, voids: [{}, { C: true, D: true }, {}, {}] };
+
+test('hard cashes the J♦ once the only seat left cannot follow diamonds', () => {
+  const card = decide(Object.assign({
+    hand: ['JD', '2D'],
+    legal: ['JD', '2D'],
+    trick: ['5D', '9D'],         // bigger diamonds are still out, but not behind us
+    taken: [[], ['2H'], [], []],
+  }, sealedTable), 'hard');
+  assert.strictEqual(card, 'JD', 'the −10 was there for the taking (got ' + card + ')');
+});
+
+test('hard still ducks when the seat behind it can follow', () => {
+  const card = decide({
+    hand: ['JD', '2D'],
+    legal: ['JD', '2D'],
+    trick: ['5D', '9D'],
+    trickLeadSeat: 2,            // seat 1 is live — Q♦/K♦/A♦ could still land
+    taken: [[], ['2H'], [], []],
+  }, 'hard');
+  assert.strictEqual(card, '2D', 'handed the J♦ to a live seat (got ' + card + ')');
+});
+
+test('hard spends its master on a sealed trick that costs nothing', () => {
+  const card = decide(Object.assign({
+    hand: ['AC', 'KC', '3C'],
+    legal: ['AC', 'KC', '3C'],
+    trick: ['5C', '9C'],
+    taken: [[], ['2H'], [], []],
+  }, sealedTable), 'hard');
+  assert.strictEqual(card, 'AC', 'a free trick is the cheapest place for it (got ' + card + ')');
+});
+
+// ──────────────────── Skill: the endgame search ────────────────────
+
+/** A consistent endgame view: everything not held and not outstanding is spent. */
+function endgameView(hand, outstanding, extra) {
+  const seen = [];
+  for (const s of deck.SUITS) {
+    for (const r of deck.RANKS) {
+      const c = r + s;
+      if (hand.indexOf(c) < 0 && outstanding.indexOf(c) < 0) seen.push(c);
+    }
+  }
+  return Object.assign({
+    seatIndex: 0, trickLeadSeat: 0, hand: hand.slice(), legal: hand.slice(),
+    trick: [], seen, heartsBroken: true, trickNumber: 12,
+    voids: [{}, {}, {}, {}], passedTo: -1, passedCards: [],
+  }, extra);
+}
+
+test('endgame search avoids the lead that feeds itself the Q♠', () => {
+  // Leading A♠ drags the Queen out onto our own trick; the club lead leaves
+  // the spade to be discarded harmlessly on somebody else's club.
+  const view = endgameView(['AS', '2C'], ['QS', '3C', '4C', '5C', '6C', '7C']);
+  const card = endgame.solve(view, deck.makeRng(7));
+  assert.strictEqual(card, '2C', 'the ace eats the Queen (got ' + card + ')');
+});
+
+test('endgame search declines a position too big to search', () => {
+  const hand = ['AS', 'KS', '2C', '3C', '4C', '5C'];
+  const out = [];
+  for (const s of deck.SUITS) {
+    for (const r of deck.RANKS) {
+      const c = r + s;
+      if (hand.indexOf(c) < 0 && out.length < 18) out.push(c);
+    }
+  }
+  assert.strictEqual(endgame.solve(endgameView(hand, out), deck.makeRng(3)), null,
+    'searched a position it cannot afford');
+});
+
+test('endgame search refuses an inconsistent table rather than guessing', () => {
+  // Hand sizes that cannot be squared with the cards still unaccounted for.
+  const view = endgameView(['AS', '2C'], ['QS', '3C']);
+  assert.strictEqual(endgame.solve(view, deck.makeRng(5)), null, 'accepted an impossible table');
 });
 
 test('hard will not lead a suit the rest of the table has shown out of', () => {
