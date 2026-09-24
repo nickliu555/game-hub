@@ -66,7 +66,7 @@ const DEAL_DURATION_MS = 2600;
 // Long enough to actually read the three cards you were handed.
 const EXCHANGE_DURATION_MS = 7000;
 const TRICK_END_DURATION_MS = 3000;
-const AUTO_ADVANCE_MS = 12000;
+const AUTO_ADVANCE_MS = 15000;
 
 function makePlayer(id, name, socketId) {
   return {

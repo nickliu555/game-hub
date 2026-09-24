@@ -1201,6 +1201,137 @@ body.host {
 
 .final-foot { padding-top: 18px; }
 
+/* ═══════════════════════ Standings peek ═══════════════════════ */
+/* Sits on the stage, not the topbar, so it reads as part of the game screen. */
+.standings-dock {
+  position: absolute;
+  top: 6px;
+  right: 14px;
+  z-index: 30;
+}
+.standings-dock[hidden] { display: none; }
+
+/* Flex-centred with zero padding and a block-level SVG: an emoji or a text
+   glyph carries its own baseline and side-bearings, which is what knocks a
+   centre-aligned icon off in a small square button. */
+.standings-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 16px rgba(6, 26, 16, 0.35);
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+.standings-btn .sp-icon {
+  display: block;
+  width: 19px;
+  height: 19px;
+  fill: currentColor;
+}
+.standings-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.36);
+  color: #fff;
+  transform: translateY(-1px);
+}
+.standings-btn:active { transform: translateY(0) scale(0.95); }
+.standings-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.standings-btn[aria-expanded="true"] {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #241A05;
+}
+
+.standings-pop {
+  position: absolute;
+  top: 54px;
+  right: 0;
+  width: min(370px, 82vw);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(10, 42, 28, 0.96);
+  box-shadow: var(--shadow-strong);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  animation: viewIn 0.18s ease both;
+}
+.standings-pop[hidden] { display: none; }
+
+.sp-head { display: flex; align-items: flex-start; gap: 10px; }
+.sp-titles { display: flex; flex-direction: column; min-width: 0; }
+.sp-title { font-size: 17px; font-weight: 800; color: #fff; letter-spacing: 0.2px; }
+.sp-note { font-size: 12px; color: rgba(255, 255, 255, 0.55); }
+.sp-close {
+  margin-left: auto;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.sp-close svg {
+  display: block;
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+.sp-close:hover { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.3); color: #fff; }
+.sp-close:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.sp-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: min(48vh, 360px);
+}
+.sp-row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.07);
+  min-width: 0;
+}
+.sp-rank { font-size: 13px; font-weight: 800; color: rgba(255, 255, 255, 0.45); min-width: 22px; }
+.sp-name {
+  font-size: 16px;
+  font-weight: 700;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sp-row[data-seat="N"] .sp-name { color: var(--seat-n); }
+.sp-row[data-seat="E"] .sp-name { color: var(--seat-e); }
+.sp-row[data-seat="S"] .sp-name { color: var(--seat-s); }
+.sp-row[data-seat="W"] .sp-name { color: var(--seat-w); }
+.sp-total { font-size: 19px; font-weight: 800; color: #fff; white-space: nowrap; }
+.sp-foot { font-size: 12px; color: rgba(255, 255, 255, 0.5); }
+
 /* ═══════════════════════ Overlays ═══════════════════════ */
 
 .host-overlay {

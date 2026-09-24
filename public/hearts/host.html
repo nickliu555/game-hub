@@ -38,6 +38,34 @@
 
     <div class="host-main">
 
+      <!-- Peek at the running totals mid-hand; hidden in the lobby and on the
+           scoreboards, which already show them. -->
+      <div class="standings-dock" id="standingsDock" hidden>
+        <button class="standings-btn" id="standingsBtn" type="button" title="Show scores"
+                aria-label="Show scores" aria-haspopup="dialog" aria-expanded="false" aria-controls="standingsPop">
+          <svg class="sp-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="3.5" y="12" width="4.6" height="8.5" rx="1.3" />
+            <rect x="9.7" y="6.5" width="4.6" height="14" rx="1.3" />
+            <rect x="15.9" y="9.5" width="4.6" height="11" rx="1.3" />
+          </svg>
+        </button>
+        <div class="standings-pop" id="standingsPop" role="dialog" aria-label="Scores" hidden>
+          <div class="sp-head">
+            <div class="sp-titles">
+              <span class="sp-title">Scores</span>
+              <span class="sp-note">Not counting this hand</span>
+            </div>
+            <button class="sp-close" id="standingsClose" type="button" aria-label="Close">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M7 7 L17 17 M17 7 L7 17" />
+              </svg>
+            </button>
+          </div>
+          <div class="sp-rows scroll-region" id="standingsRows"></div>
+          <div class="sp-foot" id="standingsFoot"></div>
+        </div>
+      </div>
+
       <!-- ─────────────── Lobby ─────────────── -->
       <section class="view active" id="view-lobby">
         <div class="lobby-grid">

@@ -84,6 +84,13 @@
   const finalList = document.getElementById('finalList');
   const playAgainBtn = document.getElementById('playAgainBtn');
 
+  const standingsDock = document.getElementById('standingsDock');
+  const standingsBtn = document.getElementById('standingsBtn');
+  const standingsPop = document.getElementById('standingsPop');
+  const standingsRows = document.getElementById('standingsRows');
+  const standingsFoot = document.getElementById('standingsFoot');
+  const standingsClose = document.getElementById('standingsClose');
+
   const connOverlay = document.getElementById('connOverlay');
   const fullscreenBtn = document.getElementById('fullscreenBtn');
   const resetBtn = document.getElementById('resetBtn');
@@ -1164,7 +1171,7 @@
       collectTimer = setTimeout(function () {
         collectTimer = null;
         collectTrick(seatByPlayer[r.winnerId]);
-      }, 1400);
+      }, 2000);
     }
 
     checkCardFx(s);
@@ -1359,6 +1366,74 @@
     show('final');
   }
 
+  // ---------------- Standings peek ----------------
+  // `seat.total` only moves at hand end, so mid-hand it is already the
+  // "not counting this hand" figure the popup promises.
+  let standingsKey = '';
+
+  function closeStandings() {
+    standingsPop.hidden = true;
+    standingsBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  /** Offer the peek during live play only — the scoreboards already show totals. */
+  function setStandings(s) {
+    if (!s || !s.seats) { closeStandings(); standingsDock.hidden = true; standingsKey = ''; return; }
+    standingsDock.hidden = false;
+
+    const rows = s.seats.slice().sort(function (a, b) {
+      return a.total - b.total || a.name.localeCompare(b.name);
+    });
+    const key = rows.map(function (r) { return r.seat + '\u0001' + r.name + '\u0001' + r.total; })
+      .join('|') + '@' + s.targetScore;
+    if (key === standingsKey) return;   // don't rebuild under the host's eyes
+    standingsKey = key;
+
+    standingsRows.innerHTML = '';
+    let rank = 0;
+    let prev = null;
+    rows.forEach(function (r, i) {
+      if (prev === null || r.total !== prev) { rank = i + 1; prev = r.total; }
+
+      const row = document.createElement('div');
+      row.className = 'sp-row';
+      row.dataset.seat = r.seat;
+
+      const rk = document.createElement('span');
+      rk.className = 'sp-rank'; rk.textContent = '#' + rank;
+
+      const pip = document.createElement('span');
+      pip.className = 'seat-pip'; pip.dataset.seat = r.seat; pip.textContent = r.seat;
+
+      const name = document.createElement('span');
+      name.className = 'sp-name pname';
+      name.textContent = r.name + (r.isBot ? ' (CPU)' : '');
+
+      const total = document.createElement('span');
+      total.className = 'sp-total'; total.textContent = r.total;
+
+      row.appendChild(rk); row.appendChild(pip); row.appendChild(name); row.appendChild(total);
+      standingsRows.appendChild(row);
+    });
+    standingsFoot.textContent = 'Lowest score wins · playing to ' + s.targetScore;
+  }
+
+  standingsBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (standingsPop.hidden) {
+      standingsPop.hidden = false;
+      standingsBtn.setAttribute('aria-expanded', 'true');
+    } else closeStandings();
+  });
+  standingsClose.addEventListener('click', closeStandings);
+  document.addEventListener('click', function (e) {
+    if (standingsPop.hidden) return;
+    if (!standingsDock.contains(e.target)) closeStandings();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !standingsPop.hidden) closeStandings();
+  });
+
   // ---------------- Clock sync ----------------
   let clockOffset = 0;
   function syncClock(payload) {
@@ -1379,14 +1454,14 @@
   socket.on('connect', function () { connOverlay.hidden = true; authenticate(); });
   socket.on('disconnect', function () { connOverlay.hidden = false; });
 
-  socket.on('state:lobby', function (l) { renderLobby(l); if (l.phase === 'LOBBY') show('lobby'); });
-  socket.on('state:deal', function (s) { syncClock(s); renderDeal(s); });
-  socket.on('state:pass', function (s) { syncClock(s); renderPass(s); });
-  socket.on('state:exchange', function (s) { syncClock(s); renderExchange(s); });
-  socket.on('state:table', function (s) { syncClock(s); renderTable(s); });
-  socket.on('state:trickEnd', function (s) { syncClock(s); renderTrickEnd(s); });
-  socket.on('state:handEnd', function (s) { syncClock(s); renderHandEnd(s); });
-  socket.on('state:final', function (s) { renderFinal(s); });
+  socket.on('state:lobby', function (l) { renderLobby(l); if (l.phase === 'LOBBY') show('lobby'); setStandings(null); });
+  socket.on('state:deal', function (s) { syncClock(s); renderDeal(s); setStandings(s); });
+  socket.on('state:pass', function (s) { syncClock(s); renderPass(s); setStandings(s); });
+  socket.on('state:exchange', function (s) { syncClock(s); renderExchange(s); setStandings(s); });
+  socket.on('state:table', function (s) { syncClock(s); renderTable(s); setStandings(s); });
+  socket.on('state:trickEnd', function (s) { syncClock(s); renderTrickEnd(s); setStandings(s); });
+  socket.on('state:handEnd', function (s) { syncClock(s); renderHandEnd(s); setStandings(null); });
+  socket.on('state:final', function (s) { renderFinal(s); setStandings(null); });
 
   socket.on('state:reset', function () {
     if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
@@ -1404,6 +1479,7 @@
     if (collectTimer) { clearTimeout(collectTimer); collectTimer = null; }
     seenQueen = false; seenJack = false; heartsWereBroken = false;
     lastHumanTotal = -1;
+    setStandings(null);
     show('lobby');
   });
 
