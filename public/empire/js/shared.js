@@ -1,9 +1,9 @@
 // Shared client-side utilities for the Empire player pages
 // (join.html + player.html). Exposed as `window.Empire`.
 //
-// All Empire player pages talk to the same REST + SSE backend, share the
-// same easter-egg pink theme, the same host-absent overlay, the same
-// localStorage submission record, and the same reaction-bar cooldown.
+// All Empire player pages talk to the same `/empire` Socket.IO namespace,
+// share the same easter-egg pink theme, the same host-absent overlay, the
+// same localStorage submission record, and the same reaction-bar cooldown.
 // Centralizing those concerns here keeps join.js / player.js focused on
 // their own state machines.
 (function (global) {
@@ -69,33 +69,75 @@
         return true;
     };
 
-    // ─── State fetch ────────────────────────────────────────
-    Empire.fetchState = async function () {
-        const res = await fetch('/api/empire/state');
-        return res.json();
+    // ─── Player identity ────────────────────────────────────
+    // A stable per-device id, minted client-side. The server keys the
+    // roster off this rather than the display name, so a reconnecting
+    // phone gets its own submission back and nobody can withdraw or
+    // kick someone else by guessing their name.
+    Empire.PLAYER_ID_KEY = 'empire.playerId';
+
+    function uuid() {
+        if (global.crypto && global.crypto.randomUUID) return global.crypto.randomUUID();
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            const r = (Math.random() * 16) | 0;
+            const v = c === 'x' ? r : ((r & 0x3) | 0x8);
+            return v.toString(16);
+        });
+    }
+
+    Empire.getPlayerId = function () {
+        try {
+            let id = localStorage.getItem(Empire.PLAYER_ID_KEY);
+            if (!id) {
+                id = uuid();
+                localStorage.setItem(Empire.PLAYER_ID_KEY, id);
+            }
+            return id;
+        } catch (_) {
+            // Private mode / disabled storage — fall back to a per-tab id.
+            if (!Empire._memPlayerId) Empire._memPlayerId = uuid();
+            return Empire._memPlayerId;
+        }
     };
 
-    // ─── SSE connection ─────────────────────────────────────
-    // Callers pass { onState, onKicked }. Returns the EventSource so
-    // callers can close it if needed (rarely required — pages live
-    // for the full session).
-    Empire.connectSSE = function (handlers) {
+    Empire.clearPlayerId = function () {
+        try { localStorage.removeItem(Empire.PLAYER_ID_KEY); } catch (_) {}
+        Empire._memPlayerId = null;
+    };
+
+    // ─── Socket connection ──────────────────────────────────
+    // Callers pass { onState, onKicked }. Returns the socket.
+    Empire.socket = null;
+
+    Empire.connect = function (handlers) {
         const onState  = (handlers && handlers.onState)  || function () {};
         const onKicked = (handlers && handlers.onKicked) || function () {};
-        const es = new EventSource('/api/empire/events');
-        es.onmessage = function (evt) {
-            try { onState(JSON.parse(evt.data)); }
-            catch (e) { console.error('SSE parse error:', e); }
-        };
-        es.addEventListener('kicked', function (evt) {
-            try { onKicked(JSON.parse(evt.data)); }
-            catch (_) { /* ignore malformed event */ }
+        const onReady  = (handlers && handlers.onReady)  || function () {};
+
+        const socket = global.io('/empire', { transports: ['polling', 'websocket'] });
+        Empire.socket = socket;
+
+        socket.on('state:update', onState);
+        socket.on('player:kicked', onKicked);
+        socket.on('connect', function () { onReady(socket); });
+        return socket;
+    };
+
+    // Promise wrapper around an emit-with-ack. Always resolves — a dead
+    // socket or a missing ack surfaces as { ok: false } rather than a
+    // rejected promise the caller has to guard.
+    Empire.emit = function (event, payload) {
+        return new Promise(function (resolve) {
+            if (!Empire.socket) return resolve({ ok: false, reason: 'not-connected' });
+            let settled = false;
+            const done = function (res) {
+                if (settled) return;
+                settled = true;
+                resolve(res || { ok: false, reason: 'no-ack' });
+            };
+            setTimeout(function () { done({ ok: false, reason: 'timeout' }); }, 30000);
+            Empire.socket.emit(event, payload || {}, done);
         });
-        es.onerror = function () {
-            // EventSource auto-reconnects; nothing to do here.
-            console.warn('SSE connection lost, reconnecting...');
-        };
-        return es;
     };
 
     // ─── Host-presence overlay ──────────────────────────────
@@ -176,20 +218,18 @@
         }, 250);
     }
 
-    async function sendReaction(emoji) {
-        try {
-            const r = await fetch('/api/empire/react', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ emoji })
-            });
-            if (r.status === 403) {
-                // Host muted reactions mid-tap — reflect locally so the
-                // button feedback updates immediately.
-                reactionsMutedByHost = true;
-                updateReactionButtonState();
-            }
-        } catch (_) { /* ignore network blip */ }
+    async function sendReaction(index) {
+        const res = await Empire.emit('player:reaction', { index });
+        if (res && !res.ok && res.reason === 'muted') {
+            // Host muted reactions mid-tap — reflect locally so the
+            // button feedback updates immediately.
+            reactionsMutedByHost = true;
+            updateReactionButtonState();
+        }
+        if (res && !res.ok && res.reason === 'cooldown' && res.retryInMs) {
+            reactionUntilMs = Date.now() + res.retryInMs;
+            startReactionCountdown();
+        }
     }
 
     // Sets up the document-level click delegate exactly once. Safe to
@@ -215,13 +255,13 @@
         document.addEventListener('click', function (e) {
             const btn = e.target.closest('.empire-reaction-bar .reaction-btn');
             if (!btn || btn.disabled) return;
-            const emoji = btn.dataset.emoji;
-            if (!emoji) return;
+            const index = parseInt(btn.dataset.reaction, 10);
+            if (isNaN(index)) return;
             const now = Date.now();
             reactionUntilMs = now + REACTION_COOLDOWN_MS;
             try { localStorage.setItem(REACTION_LS_KEY, String(now)); } catch (_) {}
             startReactionCountdown();
-            sendReaction(emoji);
+            sendReaction(index);
         });
     };
 

@@ -120,18 +120,19 @@
              `margin-top: auto` pushes it to the bottom on tall screens and
              `position: sticky` keeps it visible if the page is scrolled. -->
         <div class="empire-reaction-bar" id="globalReactionBar" data-reaction-bar>
-            <button type="button" class="reaction-btn" data-emoji="😂" aria-label="laugh">😂</button>
-            <button type="button" class="reaction-btn" data-emoji="🔥" aria-label="fire">🔥</button>
-            <button type="button" class="reaction-btn" data-emoji="🎉" aria-label="party">🎉</button>
-            <button type="button" class="reaction-btn" data-emoji="😱" aria-label="shock">😱</button>
-            <button type="button" class="reaction-btn" data-emoji="😭" aria-label="cry">😭</button>
-            <button type="button" class="reaction-btn" data-emoji="😡" aria-label="angry">😡</button>
+            <button type="button" class="reaction-btn" data-reaction="0" aria-label="laugh">😂</button>
+            <button type="button" class="reaction-btn" data-reaction="1" aria-label="fire">🔥</button>
+            <button type="button" class="reaction-btn" data-reaction="2" aria-label="party">🎉</button>
+            <button type="button" class="reaction-btn" data-reaction="3" aria-label="shock">😱</button>
+            <button type="button" class="reaction-btn" data-reaction="4" aria-label="cry">😭</button>
+            <button type="button" class="reaction-btn" data-reaction="5" aria-label="angry">😡</button>
             <span class="empire-reaction-cooldown" hidden></span>
         </div>
 
         <div class="player-attribution" id="playerAttribution" hidden>Developed by Nick Liu (with help from Claude)</div>
     </div>
 
+    <script src="/socket.io/socket.io.js"></script>
     <script src="js/shared.js"></script>
     <script src="js/player.js"></script>
 </body>

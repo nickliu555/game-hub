@@ -11,7 +11,7 @@
 //     back to /empire/join.
 //   • Render the secret-card reveal + auto-hide.
 //   • Withdraw flow (clear submission → /empire/join).
-//   • Show the kicked view if a `kicked` SSE event names this player.
+//   • Show the kicked view if a `player:kicked` event names this player.
 //   • Sticky reaction bar (shared logic lives in shared.js).
 (function () {
     'use strict';
@@ -53,19 +53,17 @@
         Empire.hideAllViews();
         Empire.initReactionBar();
 
-        // Fast path: a quick state fetch decides whether we should
-        // even bother subscribing. (e.g., server restarted → /join.)
-        try {
-            const state = await Empire.fetchState();
-            if (state.gameId && knownGameId && state.gameId !== knownGameId) {
-                // Server restarted: clear stale local state and bail.
-                Empire.clearSubmission();
-                window.location.replace('/empire/join');
-                return;
-            }
-        } catch (_) { /* network blip — let SSE take over */ }
-
-        Empire.connectSSE({ onState: render, onKicked: handleKicked });
+        // Re-attach this phone to its existing submission. The ack
+        // carries a full snapshot so we can render without waiting
+        // for the next broadcast.
+        Empire.connect({
+            onState: render,
+            onKicked: handleKicked,
+            onReady: async function () {
+                const res = await Empire.emit('player:reconnect', { playerId: Empire.getPlayerId() });
+                if (res && res.ok && res.state) render(res.state);
+            },
+        });
     }
 
     // ─── Render loop ────────────────────────────────────────
@@ -211,25 +209,18 @@
         const btn = document.getElementById('btnChangeWord');
         const msgEl = document.getElementById('withdrawMsg');
         if (btn) btn.disabled = true;
-        try {
-            const res = await fetch('/api/empire/withdraw', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ player: submittedName })
-            });
-            const data = await res.json();
-            if (!res.ok) {
-                Empire.showMsg(msgEl, data.error, 'error');
-                if (btn) btn.disabled = false;
-                return;
-            }
-            Empire.clearSubmission();
-            navigatingAway = true;
-            window.location.replace('/empire/join');
-        } catch (e) {
-            Empire.showMsg(msgEl, 'Connection error. Check your internet and try again.', 'error');
+        const res = await Empire.emit('player:withdraw', { playerId: Empire.getPlayerId() });
+        if (!res || !res.ok) {
+            const msg = res && res.reason === 'wrong-phase'
+                ? 'The game has already started.'
+                : 'Could not withdraw. Check your connection and try again.';
+            Empire.showMsg(msgEl, msg, 'error');
             if (btn) btn.disabled = false;
+            return;
         }
+        Empire.clearSubmission();
+        navigatingAway = true;
+        window.location.replace('/empire/join');
     }
 
     // ─── Reset / new-round dismiss ─────────────────────────
@@ -242,9 +233,7 @@
 
     // ─── Kicked-by-host handling ───────────────────────────
     function handleKicked(data) {
-        const playerName = data && data.player;
-        if (!playerName || !submittedName) return;
-        if (playerName.toLowerCase() !== submittedName.toLowerCase()) return;
+        if (!data || data.playerId !== Empire.getPlayerId()) return;
         kickedByHost = true;
         Empire.clearSubmission();
         Empire.hideAllViews();

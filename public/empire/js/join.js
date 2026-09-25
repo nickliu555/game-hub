@@ -4,21 +4,26 @@
 //   • Render the "submit your word" form (the default view).
 //   • Render the appropriate non-form view based on the current phase
 //     (waiting for host in `setup`, locked out in `playing`).
-//   • Render the "removed by host" view if a `kicked` SSE event names
-//     this player.
+//   • Render the "removed by host" view if a `player:kicked` event
+//     names this player.
 //   • As soon as the user submits a word — OR if a prior valid
 //     submission is restored from localStorage — redirect to
 //     /empire/play.
 //
-// Pages share `window.Empire` from shared.js for SSE, host-presence,
+// Pages share `window.Empire` from shared.js for the socket, host-presence,
 // easter egg, localStorage helpers, etc.
 (function () {
     'use strict';
 
-    // ─── Local page state ───────────────────────────────────
+    // ─── Local page state ──────────────────────────────
     let knownRound = null;
     let knownGameId = null;
     let kickedByHost = false;
+    let lastState = null;
+    // Set once we've committed to leaving for /empire/play, so a state
+    // broadcast landing mid-navigation can't fire a second redirect
+    // (which aborts the first).
+    let navigatingAway = false;
     // Set true after the first state callback fires so we know what
     // round/game we are about to submit into.
     let stateReady = false;
@@ -40,24 +45,37 @@
             Empire.checkEasterEgg(savedName);
         }
 
-        // Fast path: if we already have a valid in-flight submission
-        // before the SSE stream even opens, redirect immediately.
-        try {
-            const state = await Empire.fetchState();
-            if (Empire.isSavedSubmissionFresh(saved, state)) {
-                window.location.replace('/empire/play');
-                return;
-            }
-        } catch (_) { /* network blip — proceed normally */ }
-
         Empire.hideAllViews();
-        Empire.connectSSE({ onState: render, onKicked: handleKicked });
+        Empire.connect({ onState: render, onKicked: handleKicked });
 
         wireInputs();
     }
 
+    // Reason codes from the server, turned into something a player can act on.
+    const SUBMIT_ERRORS = {
+        'host-absent': 'The host has left the game.',
+        'wrong-phase': 'Not accepting submissions right now.',
+        'missing-fields': 'Enter both your name and word.',
+        'reserved-name': 'That name is reserved. Please choose another.',
+        'already-submitted': 'You have already submitted a word this round.',
+        'word-taken': 'That word is not available. Try another!',
+        'rate-limited': 'Too many tries. Please wait a moment and try again.',
+        'bad-player-id': 'Something went wrong. Please reload the page.',
+        'not-connected': 'Still connecting — try again in a moment.',
+        'timeout': 'The server took too long to answer. Try again.',
+    };
+
+    function submitErrorMessage(res) {
+        if (res && res.reason === 'name-taken') {
+            return (res.name || 'That name') + ' is already another player\'s name.';
+        }
+        return (res && SUBMIT_ERRORS[res.reason]) || 'Could not submit. Please try again.';
+    }
+
     // ─── Render loop ────────────────────────────────────────
     function render(state) {
+        if (navigatingAway) return;
+        lastState = state;
         Empire.updateHostPresence(state.hostPresent !== false);
 
         // Track round/gameId so submit() can write the right values.
@@ -82,6 +100,7 @@
         // submitting elsewhere), hop over to /play.
         const saved = Empire.getSavedSubmission();
         if (Empire.isSavedSubmissionFresh(saved, state)) {
+            navigatingAway = true;
             window.location.replace('/empire/play');
             return;
         }
@@ -128,45 +147,41 @@
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner"></span>Checking...';
 
-        try {
-            const res = await fetch('/api/empire/submit', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ player: name, word, skipCategoryCheck: !!skipCategoryCheck })
-            });
-            const data = await res.json();
-            if (!res.ok) {
-                Empire.showMsg(msgEl, data.error, 'error');
-                btn.disabled = false;
-                btn.textContent = 'Submit Word';
-                return;
-            }
-            // Category warning (soft) — show "submit anyway" UI.
-            if (data.categoryWarning) {
-                msgEl.classList.remove('show');
-                document.getElementById('categoryWarningText').textContent = data.reason;
-                document.getElementById('categoryWarningBox').style.display = 'block';
-                document.getElementById('submitBtnRow').style.display = 'none';
-                btn.disabled = false;
-                btn.textContent = 'Submit Word';
-                return;
-            }
+        const res = await Empire.emit('player:submit', {
+            playerId: Empire.getPlayerId(),
+            name: name,
+            word: word,
+            skipCategoryCheck: !!skipCategoryCheck,
+        });
 
-            Empire.checkEasterEgg(name);
-            Empire.saveSubmission({
-                round: knownRound,
-                gameId: knownGameId,
-                name: name,
-                word: word
-            });
-            // Hand off to the play page — it renders the "done" /
-            // "playing" views with the secret card and reactions.
-            window.location.replace('/empire/play');
-        } catch (e) {
-            Empire.showMsg(msgEl, 'Connection error. Check your internet and try again.', 'error');
+        if (!res || !res.ok) {
+            Empire.showMsg(msgEl, submitErrorMessage(res), 'error');
             btn.disabled = false;
             btn.textContent = 'Submit Word';
+            return;
         }
+        // Category warning (soft) — show "submit anyway" UI.
+        if (res.categoryWarning) {
+            msgEl.classList.remove('show');
+            document.getElementById('categoryWarningText').textContent = res.reason;
+            document.getElementById('categoryWarningBox').style.display = 'block';
+            document.getElementById('submitBtnRow').style.display = 'none';
+            btn.disabled = false;
+            btn.textContent = 'Submit Word';
+            return;
+        }
+
+        Empire.checkEasterEgg(name);
+        Empire.saveSubmission({
+            round: res.round !== undefined ? res.round : knownRound,
+            gameId: res.gameId || knownGameId,
+            name: res.name || name,
+            word: res.word || word
+        });
+        // Hand off to the play page — it renders the "done" /
+        // "playing" views with the secret card and reactions.
+        navigatingAway = true;
+        window.location.replace('/empire/play');
     }
 
     function playerClear() {
@@ -192,10 +207,7 @@
 
     // ─── Kicked-by-host handling ────────────────────────────
     function handleKicked(data) {
-        const playerName = data && data.player;
-        const localName = (document.getElementById('playerName').value || '').trim().toLowerCase();
-        if (!playerName || !localName) return;
-        if (playerName.toLowerCase() !== localName) return;
+        if (!data || data.playerId !== Empire.getPlayerId()) return;
         kickedByHost = true;
         Empire.clearSubmission();
         Empire.hideAllViews();
@@ -212,8 +224,8 @@
         const submitBtn = document.getElementById('btnPlayerSubmit');
         if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit Word'; }
         Empire.hideAllViews();
-        // Pull fresh state and let render() decide which view to show.
-        Empire.fetchState().then(render).catch(function () {});
+        // Re-render from the last state the server pushed.
+        if (lastState) render(lastState);
     }
 
     // ─── Input wiring ───────────────────────────────────────
