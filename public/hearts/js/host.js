@@ -316,7 +316,7 @@
   });
 
   // ---------------- Reactions ----------------
-  const REACTION_EMOJIS = ['😂', '🔥', '👀', '🎉', '😱', '😡'];
+  const REACTION_EMOJIS = ['😂', '🔥', '🎉', '😱', '😭', '😡'];
   const REACTION_MAX = 30;
   const reactionLayer = document.getElementById('reactionLayer');
   function spawnReaction(index) {

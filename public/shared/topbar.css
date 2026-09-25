@@ -245,3 +245,10 @@
 }
 .gtb-help-modal li { margin-bottom: 6px; }
 .gtb-help-modal li strong { color: var(--gtb-accent); }
+
+/* ───────────────────────────────────────────────
+ * Idle cursor (fullscreen host screens)
+ * ─────────────────────────────────────────────── */
+/* Needs `*` + !important to beat the per-element cursors above (.gtb-btn etc). */
+html.gtb-cursor-hidden,
+html.gtb-cursor-hidden * { cursor: none !important; }

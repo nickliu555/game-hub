@@ -381,7 +381,7 @@ app.post('/api/empire/ai-bot', (req, res) => {
 });
 
 // Send a reaction (players)
-const ALLOWED_REACTIONS = ['😂', '🔥', '👀', '👑', '💀', '🎉', '😱', '😡'];
+const ALLOWED_REACTIONS = ['😂', '🔥', '🎉', '😱', '😭', '😡'];
 app.post('/api/empire/react', reactLimiter, (req, res) => {
     if (!isHostPresent()) {
         return res.status(503).json({ error: 'Host has left the game.' });

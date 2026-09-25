@@ -584,7 +584,7 @@
   socket.on('state:reset', function () { show('lobby'); lastLobbyCount = -1; });
 
   // ---- Reactions ----
-  var REACTION_EMOJIS = ['😂', '🔥', '👀', '🎉', '😱', '😡'];
+  var REACTION_EMOJIS = ['😂', '🔥', '🎉', '😱', '😭', '😡'];
   var REACTION_MAX = 30;
   var reactionLayer = document.getElementById('reactionLayer');
   function spawnReaction(index) {

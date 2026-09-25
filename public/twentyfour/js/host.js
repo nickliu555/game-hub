@@ -149,7 +149,7 @@
   // Host can globally pause player reactions; players see a "Reactions paused
   // by host" pill until re-enabled. Floating emoji bursts arrive via the
   // `host:reaction` event and animate from the bottom of the screen upward.
-  const REACTION_EMOJIS = ['😂', '🔥', '👀', '🎉', '😱', '😡'];
+  const REACTION_EMOJIS = ['😂', '🔥', '🎉', '😱', '😭', '😡'];
   const REACTION_MAX_ON_SCREEN = 30;
   let reactionsMuted = false;
   function updateMuteReactionsBtn() {

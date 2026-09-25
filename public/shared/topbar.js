@@ -92,3 +92,60 @@
     }
   });
 })();
+
+/* Hide the mouse pointer on a fullscreen host screen once it has sat still for a
+ * while, so it doesn't linger on the TV. Windowed pages keep their cursor.
+ */
+(function () {
+  var IDLE_MS = 5000;
+  var timer = null;
+
+  function isFullscreen() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+
+  function hide() {
+    timer = null;
+    document.documentElement.classList.add('gtb-cursor-hidden');
+  }
+
+  function show() {
+    document.documentElement.classList.remove('gtb-cursor-hidden');
+  }
+
+  function poke() {
+    show();
+    if (timer) clearTimeout(timer);
+    timer = isFullscreen() ? setTimeout(hide, IDLE_MS) : null;
+  }
+
+  document.addEventListener('mousemove', function (e) {
+    // Animation moving under a stationary pointer emits a zero-delta mousemove,
+    // which would un-hide the cursor the instant it hides.
+    if (e.movementX === 0 && e.movementY === 0) return;
+    poke();
+  }, { passive: true });
+
+  document.addEventListener('mousedown', poke, { passive: true });
+  document.addEventListener('wheel', poke, { passive: true });
+  document.addEventListener('keydown', poke, { passive: true });
+
+  function onFullscreenChange() {
+    if (isFullscreen()) poke();
+    else {
+      if (timer) clearTimeout(timer);
+      timer = null;
+      show();
+    }
+  }
+  document.addEventListener('fullscreenchange', onFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') {
+      if (timer) clearTimeout(timer);
+      timer = null;
+      show();
+    }
+  });
+})();

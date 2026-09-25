@@ -1265,7 +1265,7 @@
   socket.on('state:prompt', renderPrompt);
 
   // ---------------- Floating reactions ----------------
-  const REACTION_EMOJIS = ['😂', '🔥', '👀', '🎉', '😱', '😡'];
+  const REACTION_EMOJIS = ['😂', '🔥', '🎉', '😱', '😭', '😡'];
   const REACTION_MAX_ON_SCREEN = 30;
   const reactionLayer = document.getElementById('reactionLayer');
   function spawnReaction(index) {

@@ -134,7 +134,7 @@
   }
 
   // ---------------- Reactions ----------------
-  const REACTION_EMOJIS = ['😂', '🔥', '👀', '🎉', '😱', '😡'];
+  const REACTION_EMOJIS = ['😂', '🔥', '🎉', '😱', '😭', '😡'];
   const REACTION_MAX_ON_SCREEN = 30;
   let reactionsMuted = false;
   function updateMuteReactionsBtn() {
