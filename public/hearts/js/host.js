@@ -155,7 +155,10 @@
     if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) {} }
     return audioCtx;
   }
-  function unlockAudio() { const c = getAudioCtx(); if (c && c.state === 'suspended') c.resume(); }
+  function unlockAudio() {
+    const c = getAudioCtx(); if (c && c.state === 'suspended') c.resume();
+    primeApplause();
+  }
   document.addEventListener('pointerdown', unlockAudio, { once: true });
 
   function blip(freq, dur, type, gain, when) {
@@ -277,11 +280,61 @@
       blip(f, 0.5, 'sine', 0.17, b + i * 0.085);
     });
   }
+  // Real crowd applause on the final scoreboard — the same recording Trivia
+  // uses. Falls back to the synth if the file can't load or play.
+  const sfxApplause = document.getElementById('sfx-applause');
+  let applauseFileBroken = false;
+  let applausePending = false;
+  if (sfxApplause) {
+    sfxApplause.addEventListener('error', function () { applauseFileBroken = true; });
+  }
   function playApplause() {
+    if (sfxApplause && !applauseFileBroken) {
+      try {
+        sfxApplause.currentTime = 0;
+        const p = sfxApplause.play();
+        // Blocked by the autoplay policy — a reload lands on the scoreboard with
+        // no gesture yet. Wait for one instead of falling back: the synth would
+        // be scheduled on the suspended AudioContext and then blare out the
+        // moment the page is next touched.
+        if (p && p.catch) p.catch(function () { applausePending = true; });
+        return;
+      } catch (_) { applausePending = true; return; }
+    }
+    playApplauseSynth();
+  }
+  function playApplauseSynth() {
     const c = getAudioCtx(); if (!c) return; const b = c.currentTime;
     for (let i = 0; i < 34; i++) noise(0.1, 0.05 + Math.random() * 0.05, 1400 + Math.random() * 2600, b + Math.random() * 1.5);
     [523, 659, 784, 1047].forEach(function (f, i) { blip(f, 0.42, 'triangle', 0.16, b + i * 0.11); });
   }
+  // Prime the media element during a user gesture so the later, state-driven
+  // play() call is permitted by the autoplay policy.
+  function primeApplause() {
+    // Nothing to prime if the recording is already blocked-and-queued or
+    // mid-playback — muting and pausing it here would cut the cheer off.
+    if (!sfxApplause || applausePending || !sfxApplause.paused) return;
+    try {
+      sfxApplause.muted = true;
+      const p = sfxApplause.play();
+      if (p && p.then) {
+        p.then(function () {
+          sfxApplause.pause();
+          sfxApplause.currentTime = 0;
+          sfxApplause.muted = false;
+        }).catch(function () { sfxApplause.muted = false; });
+      } else {
+        sfxApplause.muted = false;
+      }
+    } catch (_) { sfxApplause.muted = false; }
+  }
+  // A reload lands on the scoreboard with no gesture yet, so the applause is
+  // blocked; replay the recording on the next one.
+  document.addEventListener('pointerdown', function () {
+    if (!applausePending) return;
+    applausePending = false;
+    playApplause();
+  });
 
   // ---------------- Confetti ----------------
   function confetti() {

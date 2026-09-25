@@ -24,6 +24,8 @@ const endgame = require('./endgame');
 
 const QUEEN_VALUE = rankValue(QUEEN_OF_SPADES);
 const JACK_VALUE = rankValue(JACK_OF_DIAMONDS);
+// 8♥ and up — too high to duck with, so leading one is handing the trick away.
+const HIGH_HEART_VALUE = 8;
 const SEAT_COUNT = 4;
 
 const DIFFICULTIES = ['easy', 'normal', 'hard'];
@@ -324,7 +326,7 @@ function chooseLead(view, legal, hard, rng) {
   // too high to duck with. No burden, no reason to spend tempo chasing one.
   const burden = (hand.indexOf(QUEEN_OF_SPADES) >= 0 ? 2 : 0)
     + (mem.queenLoose ? mySpades.filter((c) => rankValue(c) > QUEEN_VALUE).length : 0)
-    + bySuit(hand, 'H').filter((c) => rankValue(c) >= 12).length;
+    + bySuit(hand, 'H').filter((c) => rankValue(c) >= HIGH_HEART_VALUE).length;
 
   if (hard) {
     // Nothing on the table is worth more than the −10, and a J♦ that no
@@ -351,6 +353,28 @@ function chooseLead(view, legal, hard, rng) {
     }
   }
 
+  // Leading the Queen or a high heart puts the points on the table ourselves,
+  // and the card is too big to duck with — more often than not we win our own
+  // trick and pocket them. The one read that makes it right: every card left
+  // in the suit beats ours and somebody behind still has to follow, so the
+  // trick is guaranteed to land on them.
+  const dumpsOnSomebodyElse = (card) => {
+    const suit = suitOf(card);
+    return mem.outstanding[suit].length > 0
+      && mem.lowerOut(card) === 0
+      && mem.liveBehind(suit) > 0;
+  };
+  const recklessLead = (card) => {
+    if (card !== QUEEN_OF_SPADES && !(isHeart(card) && rankValue(card) >= HIGH_HEART_VALUE)) return false;
+    return !dumpsOnSomebodyElse(card);
+  };
+  // Shooting the moon already returned above, so anything left here is a hand
+  // that only loses by leading these. A suit nobody behind can follow is no
+  // alternative either — that trick is ours plus three free discards — so when
+  // those are all we have left, hand the whole set back to the scorer.
+  const safeLeads = legal.filter((c) => !recklessLead(c) && mem.liveBehind(suitOf(c)) > 0);
+  const pool = safeLeads.length ? safeLeads : legal;
+
   const score = (card) => {
     const suit = suitOf(card);
     const value = rankValue(card);
@@ -359,8 +383,11 @@ function chooseLead(view, legal, hard, rng) {
     // Leading the A♠/K♠ into a loose Queen is asking for her: whoever holds
     // her plays her under us and we win 13. Only ever a last resort.
     if (suit === 'S' && mem.queenLoose && value > QUEEN_VALUE) s += 90;
-    if (card === QUEEN_OF_SPADES) s += 45;
-    if (isHeart(card)) s += 14;
+    // Forced onto somebody else, the Queen is 13 points gone for certain and a
+    // high heart is a free exit. Any other time they are ours to keep.
+    const forcedOnThem = dumpsOnSomebodyElse(card);
+    if (card === QUEEN_OF_SPADES) s += forcedOnThem ? -70 : 45;
+    if (isHeart(card)) s += forcedOnThem ? 0 : 14;
     if (!hard) return s;
 
     // Early on, shortening a side suit buys the void we need to dump the Queen
@@ -415,7 +442,7 @@ function chooseLead(view, legal, hard, rng) {
     return s;
   };
 
-  const ranked = legal.slice().sort((a, b) => score(a) - score(b));
+  const ranked = pool.slice().sort((a, b) => score(a) - score(b));
   // A little jitter between near-equal leads so two CPUs don't play identically.
   const best = score(ranked[0]);
   const ties = ranked.filter((c) => score(c) <= best + 1);

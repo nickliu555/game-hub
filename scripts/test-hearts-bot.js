@@ -619,6 +619,67 @@ test('once somebody else has points the same hand dumps the Queen as usual', () 
   assert.strictEqual(card, 'QS', 'no moon on: the Queen goes (got ' + card + ')');
 });
 
+// ──────────────── Skill: never lead the points onto our own trick ────────────────
+
+for (const level of ['normal', 'hard']) {
+  test(level + ' never leads the Q♠ with a safe card in hand', () => {
+    const card = decide({
+      hand: ['QS', '3S', '7C', '6C', '5C', '4D'],
+      legal: ['QS', '3S', '7C', '6C', '5C', '4D'],
+      trick: [],
+      taken: [[], ['2H'], [], []], // no moon on
+    }, level);
+    assert.notStrictEqual(card, 'QS', 'leading the Queen is 13 points onto our own trick');
+  });
+
+  test(level + ' never leads a high heart with a safe card in hand', () => {
+    const card = decide({
+      hand: ['AH', 'KH', 'QH', 'JH', '8H', '7C', '6C', '5C', '4D'],
+      legal: ['AH', 'KH', 'QH', 'JH', '8H', '7C', '6C', '5C', '4D'],
+      trick: [],
+      taken: [[], ['2H'], [], []],
+    }, level);
+    assert.ok(!deck.isHeart(card),
+      'a heart nothing ducks under wins its own trick and eats the discards (got ' + card + ')');
+  });
+}
+
+test('hard leads the Q♠ when every spade still out beats her', () => {
+  const card = decide({
+    // Five cards keeps this out of the exact endgame search, which has its own
+    // tests — this is about the lead heuristics.
+    hand: ['QS', '8C', '7C', '6C', '5C'],
+    legal: ['QS', '8C', '7C', '6C', '5C'],
+    trick: [],
+    // Every spade below her is gone, so whoever follows has to take her.
+    seen: ['2S', '3S', '4S', '5S', '6S', '7S', '8S', '9S', '10S', 'JS'],
+    taken: [[], ['2H'], [], []],
+  }, 'hard');
+  assert.strictEqual(card, 'QS', 'the K♠/A♠ are forced to eat her (got ' + card + ')');
+});
+
+test('hard will not lead the Q♠ once nobody is left to follow spades', () => {
+  const card = decide({
+    hand: ['QS', '8C', '7C', '6C', '5C'],
+    legal: ['QS', '8C', '7C', '6C', '5C'],
+    trick: [],
+    seen: ['2S', '3S', '4S', '5S', '6S', '7S', '8S', '9S', '10S', 'JS'],
+    voids: [{}, { S: true }, { S: true }, { S: true }], // she would win her own trick
+    taken: [[], ['2H'], [], []],
+  }, 'hard');
+  assert.notStrictEqual(card, 'QS', 'a table void in spades hands her straight back to us');
+});
+
+test('a CPU shooting the moon still leads its high hearts', () => {
+  const card = decide({
+    hand: ['AH', 'KH', 'AD'],
+    legal: ['AH', 'KH', 'AD'],
+    trick: [],
+    seen: ['QH', 'JH', 'KD', 'QD'], // nothing left beats this hand
+  }, 'hard');
+  assert.ok(deck.isHeart(card), 'the run needs the hearts taken, not ducked (got ' + card + ')');
+});
+
 // ──────────────────── Difficulty actually matters ────────────────────
 
 /**
