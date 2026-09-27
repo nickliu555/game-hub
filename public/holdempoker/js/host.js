@@ -846,7 +846,7 @@
       dealer.className = 'dealer-btn'; dealer.textContent = 'D'; dealer.hidden = true;
 
       seatLayer.appendChild(bet); seatLayer.appendChild(dealer); seatLayer.appendChild(root);
-      seatEls[s.playerId] = { root: root, box: box, cards: cards, name: name, stack: stack, action: action, bet: bet, amt: amt, dealer: dealer, cardKey: '', actionKey: '' };
+      seatEls[s.playerId] = { root: root, box: box, cards: cards, name: name, stack: stack, action: action, bet: bet, amt: amt, dealer: dealer, cardKey: '', actionKey: '', countTimers: [], countRaf: null, stackGoal: null, stackShown: null };
     });
     layoutSeats();
   }
@@ -1163,7 +1163,8 @@
       e.root.classList.toggle('shown', !!seat.cards);
 
       if (e.name.textContent !== seat.name) { e.name.textContent = seat.name; fitSeatName(e.name); }
-      if (seat.busted && seat.place && !e.koPending) e.stack.textContent = 'Out · ' + ordinal(seat.place);
+      if (e.stackShown != null) showStack(e, e.stackShown);
+      else if (seat.busted && seat.place && !e.koPending) e.stack.textContent = 'Out · ' + ordinal(seat.place);
       else if (seat.allIn && seat.stack === 0) e.stack.textContent = 'All-in';
       else e.stack.textContent = fmt(seat.stack);
 
@@ -1315,6 +1316,7 @@
         if (ev.resultType === 'showdown') playShowdown();
         const r = s.result;
         if (ev.busted) setTimeout(playSad, knockoutDelay(r) + 300);
+        if (r && motionOk()) holdStacks(s, r);
         // The pot-by-pot payout plays its own chips and sounds.
         if (r && r.awardFrom) break;
         const potDelay = Math.max(ev.resultType === 'showdown' ? 500 : 0, swept);
@@ -1364,15 +1366,69 @@
   // Bigger pots send a few more chips: 20 → 9, 400 → 11, 4,000 → 13, capped at 14.
   function potChipCount(amount) { return Math.min(14, 7 + 2 * Math.floor(Math.log10(Math.max(1, amount)))); }
 
+  /** Chips from the pot to a winner, whose stack counts up from the first chip landing to the last. */
+  function payWinner(fromEl, w, delay) {
+    const e = seatEls[w.playerId];
+    if (!e) return;
+    const n = potChipCount(w.amount);
+    flyChips(fromEl, e.box, n, { delay: delay, duration: POT_FLY_MS });
+    // flyChips staggers chips 70ms apart; each reaches the plate ~88% of the way through its flight.
+    countStackUp(e, w.amount, delay + POT_FLY_MS * 0.88, (n - 1) * 70 + POT_FLY_MS * 0.12);
+  }
+
+  function showStack(e, v) {
+    e.stackShown = v;
+    e.stack.textContent = v === 0 ? 'All-in' : fmt(v);
+  }
+
+  /** Winners show their stack from before the payout, so it can count up as their chips arrive. */
+  function holdStacks(s, r) {
+    const won = {};
+    r.pots.forEach(function (p) { p.winners.forEach(function (w) { won[w.playerId] = (won[w.playerId] || 0) + w.amount; }); });
+    s.seats.forEach(function (seat) {
+      const e = seatEls[seat.playerId];
+      if (!e || !won[seat.playerId]) return;
+      e.stackGoal = seat.stack - won[seat.playerId];
+      showStack(e, e.stackGoal);
+    });
+  }
+
+  function countStackUp(e, amount, startIn, dur) {
+    if (e.stackGoal == null) return;
+    const from = e.stackGoal;
+    const to = from + amount;
+    e.stackGoal = to;
+    e.countTimers.push(setTimeout(function () {
+      const t0 = performance.now();
+      const step = function (now) {
+        const k = Math.min(1, Math.max(0, (now - t0) / Math.max(1, dur)));
+        showStack(e, Math.round(from + (to - from) * k));
+        e.countRaf = k < 1 ? requestAnimationFrame(step) : null;
+      };
+      e.countRaf = requestAnimationFrame(step);
+    }, startIn));
+  }
+
+  function clearStackCounts() {
+    Object.keys(seatEls).forEach(function (pid) {
+      const e = seatEls[pid];
+      e.countTimers.forEach(clearTimeout);
+      e.countTimers = [];
+      if (e.countRaf) cancelAnimationFrame(e.countRaf);
+      e.countRaf = null;
+      e.stackGoal = null;
+      e.stackShown = null;
+    });
+  }
+
   /** A little stream of chips slides from the pot to each winner, pot by pot. */
   function flyPotToWinners(r, delay) {
     if (!r || !r.pots || !motionOk()) return;
     let t = delay;
     r.pots.forEach(function (pot) {
       pot.winners.forEach(function (w) {
-        const e = seatEls[w.playerId];
-        if (!e) return;
-        flyChips(potLineEl, e.box, potChipCount(w.amount), { delay: t, duration: POT_FLY_MS });
+        if (!seatEls[w.playerId]) return;
+        payWinner(potLineEl, w, t);
         t += 160;
       });
       t += 260;
@@ -1487,6 +1543,7 @@
   function renderTable(s) {
     syncClock(s);
     clearAward();
+    clearStackCounts();
     if (s.phase !== 'DEAL') hideLevelBanner();
     indexSeats(s.seats);
     renderStrip(s);
@@ -1560,14 +1617,10 @@
 
   function payPot(r, i) {
     playPotWin();
-    const pill = sidePotsEl.querySelector('.side-pot[data-pot="' + i + '"]');
-    if (!pill || !motionOk()) return;
+    const pill = sidePotsEl.querySelector('.side-pot[data-pot="' + i + '"]') || sidePotsEl;
+    if (!motionOk()) return;
     const pot = r.pots[i];
-    pot.winners.forEach(function (w, j) {
-      const e = seatEls[w.playerId];
-      if (!e) return;
-      flyChips(pill, e.box, potChipCount(w.amount), { delay: j * 160, duration: POT_FLY_MS });
-    });
+    pot.winners.forEach(function (w, j) { payWinner(pill, w, j * 160); });
   }
 
   /** The winning five of pot `i`, lit on the board and in its winners' hands. */
@@ -1772,6 +1825,7 @@
   // ---------------- Final ----------------
   function renderFinal(s) {
     clearAward();
+    clearStackCounts();
     hideStatsDock();
     finalTrophy.textContent = '🏆';
     finalHeading.innerHTML = '';
@@ -1830,6 +1884,7 @@
 
   socket.on('state:reset', function () {
     clearAward();
+    clearStackCounts();
     if (bannerTimer) { clearTimeout(bannerTimer); bannerTimer = null; }
     hideLevelBanner();
     handLineEl.textContent = '';
