@@ -55,6 +55,18 @@ The classic four-player trick-taking card game — dodge the Queen, chase the Ja
 8. Your hand stays **private on your phone**, and illegal cards can't even be tapped
 9. When anyone reaches the target score the game ends and the **lowest score wins!**
 
+### ♣️ Hold'em Poker
+No-Limit Texas Hold'em, tournament style — the last stack standing takes it all.
+
+1. Seats **2 to 8 players** — fill empty seats with **CPUs** if you like
+2. **Drag the players in the lobby** to set the seating order, then choose how often the blinds go up: every **2, 3, 5 or 7 hands** (default 3)
+3. Everyone starts with **1,500 chips**; the blinds start at **10 / 20** and climb the PokerStars ladder (15/30, 25/50, 50/100…)
+4. Your **two hole cards stay private on your phone**; the shared screen shows the table, every bet and the **flop, turn and river**
+5. On your turn: **fold, check, call, or bet / raise** any amount up to your stack — a raise must **at least double** the current bet — with Min, ½ Pot, Pot and All-in shortcuts
+6. Queue **Check / Fold** or **Call Any** before your turn to keep the game moving
+7. Best five-card hand at showdown wins; an **all-in player can only win what they matched** — the rest goes to a side pot
+8. Lose all your chips and you're out — the **last player standing wins!**
+
 ### � Category Clash
 One random letter, twelve categories, one timer — only answers nobody else thought of score.
 

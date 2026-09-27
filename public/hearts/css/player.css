@@ -41,6 +41,12 @@ body.player .scrollable-region { touch-action: pan-y; overflow-y: auto; }
   padding: 24px 18px calc(18px + env(safe-area-inset-bottom));
   padding-top: calc(24px + env(safe-area-inset-top));
 }
+/* On a laptop or tablet the phone layout stays phone-shaped, centred (as in the other games). */
+.join-wrap, .p-shell {
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+}
 /* Auto margins centre the card in the space left over, so the attribution
    still lands on the very bottom edge. */
 .join-card {

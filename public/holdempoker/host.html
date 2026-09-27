@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Hold'em Poker · Host</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="/shared/iris-preload.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/topbar.css" />
+  <link rel="stylesheet" href="/shared/modal.css" />
+  <link rel="stylesheet" href="/shared/iris.css" />
+  <link rel="stylesheet" href="/holdempoker/css/base.css" />
+  <link rel="stylesheet" href="/holdempoker/css/host.css" />
+  <script src="/shared/topbar.js" defer></script>
+  <script src="/shared/modal.js" defer></script>
+  <script src="/shared/iris.js" defer></script>
+</head>
+<body class="host">
+  <div class="host-shell">
+    <div class="game-topbar">
+      <span class="gtb-brand">♣️ Hold'em Poker</span>
+      <div class="gtb-controls">
+        <a href="/" id="hubBtn" class="gtb-btn" title="Back to hub (resets game)">← Hub</a>
+        <button id="fullscreenBtn" class="gtb-btn" type="button" title="Toggle fullscreen">⛶ Fullscreen</button>
+        <div class="gtb-settings-wrapper">
+          <button class="gtb-btn" type="button" data-gtb-settings-toggle aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️ Settings</button>
+          <div class="gtb-settings-panel" id="settingsPanel" hidden>
+            <button class="gtb-btn" type="button" data-gtb-help-open="helpOverlay" title="How to play">? Help</button>
+            <button id="muteReactionsBtn" class="gtb-btn" type="button" data-gtb-settings-keep-open title="Mute player reactions">🔔 Reactions</button>
+            <div class="gtb-divider"></div>
+            <button id="resetBtn" class="gtb-btn gtb-btn-danger" type="button" title="Reset the whole game">Reset game</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="host-main">
+
+      <!-- Peek at everyone's stats mid-game; hidden in the lobby and on the final
+           screen, which already shows them. -->
+      <div class="standings-dock" id="statsDock" hidden>
+        <button class="standings-btn" id="statsBtn" type="button" title="Player stats"
+                aria-label="Player stats" aria-haspopup="dialog" aria-expanded="false" aria-controls="statsPop">
+          <svg class="sp-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="3.5" y="12" width="4.6" height="8.5" rx="1.3" />
+            <rect x="9.7" y="6.5" width="4.6" height="14" rx="1.3" />
+            <rect x="15.9" y="9.5" width="4.6" height="11" rx="1.3" />
+          </svg>
+        </button>
+        <div class="standings-pop stats-pop" id="statsPop" role="dialog" aria-label="Player stats" hidden>
+          <div class="sp-head">
+            <div class="sp-titles">
+              <span class="sp-title">Player stats</span>
+              <span class="sp-note">Updated live</span>
+            </div>
+            <button class="sp-close" id="statsClose" type="button" aria-label="Close">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M7 7 L17 17 M17 7 L7 17" />
+              </svg>
+            </button>
+          </div>
+          <div class="stats-scroll scroll-region" id="statsRows"></div>
+          <div class="stats-legend">VPIP: put chips in voluntarily before the flop · PFR: raised before the flop · Fold / Check / Call / Bet-Raise: share of all decisions</div>
+        </div>
+      </div>
+
+      <!-- ─────────────── Lobby ─────────────── -->
+      <section class="view active" id="view-lobby">
+        <div class="lobby-grid">
+          <div class="qr-panel">
+            <h2>Scan to join</h2>
+            <p>Or type the URL below on your phone</p>
+            <div class="qr-slot" id="qrSlot"></div>
+            <div class="join-url" id="joinUrl"></div>
+          </div>
+
+          <div class="seats-panel">
+            <div class="seats-head">
+              <h3>Around the table</h3>
+              <div class="count"><span id="playerCount">0</span> / <span id="playerCap">8</span></div>
+            </div>
+            <p class="seats-hint">Drag to change where everyone sits</p>
+            <div class="seat-list" id="seatList"></div>
+
+            <div class="lobby-config">
+              <div class="config-row">
+                <label>Blinds up every</label>
+                <div class="seg" id="levelSeg" data-attr="handsPerLevel">
+                  <button class="seg-btn" type="button" data-value="2">2</button>
+                  <button class="seg-btn on" type="button" data-value="3">3</button>
+                  <button class="seg-btn" type="button" data-value="5">5</button>
+                  <button class="seg-btn" type="button" data-value="7">7</button>
+                </div>
+              </div>
+              <div class="config-row">
+                <label>Starting chips</label>
+                <span class="config-note" id="startNote">1,500 · blinds 10 / 20</span>
+              </div>
+            </div>
+
+            <div class="lobby-actions">
+              <button id="addBotBtn" class="btn-ghost" type="button">🤖 Add CPU</button>
+              <button id="startBtn" class="btn-accent" type="button">Shuffle up &amp; deal</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────── The table ─────────────── -->
+      <section class="view" id="view-table">
+        <div class="table-view">
+          <div class="table-strip">
+            <div class="strip-item strip-blinds" id="tBlindsItem">
+              <span class="strip-label">Blinds · Level <span id="tLevel">1</span></span>
+              <span class="strip-value" id="tBlinds">10 / 20</span>
+            </div>
+            <div class="strip-item"><span class="strip-label">Next level<span class="strip-when" id="tNextWhen"> · in 3 hands</span></span><span class="strip-value" id="tNext">15 / 30</span></div>
+          </div>
+
+          <div class="poker-stage" id="pokerStage">
+            <div class="poker-felt" id="felt">
+              <div class="felt-center">
+                <div class="board" id="board">
+                  <div class="board-slot"></div>
+                  <div class="board-slot"></div>
+                  <div class="board-slot"></div>
+                  <div class="board-slot"></div>
+                  <div class="board-slot"></div>
+                </div>
+                <div class="pot-line" id="potLine"><span class="pot-label">Pot</span> <span id="potTotal">0</span></div>
+                <div class="hand-line" id="handLine"></div>
+                <div class="side-pots" id="sidePots" hidden></div>
+              </div>
+            </div>
+            <div class="seat-layer" id="seatLayer"></div>
+            <div class="level-dim" id="levelDim" hidden></div>
+            <div class="level-banner" id="levelBanner" hidden>
+              <span class="lb-title">Blinds up!</span>
+              <span class="lb-value" id="levelBannerValue"></span>
+            </div>
+            <div class="waiting-note" id="waitingNote" hidden></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────── Final ─────────────── -->
+      <section class="view" id="view-final">
+        <div class="final-view">
+          <div class="final-head">
+            <div class="final-trophy" id="finalTrophy">🏆</div>
+            <h1 class="final-heading" id="finalHeading">Winner</h1>
+            <div class="final-sub" id="finalSub"></div>
+          </div>
+          <div class="final-list scroll-region" id="finalList"></div>
+          <div class="stats-legend final-legend">VPIP: put chips in voluntarily before the flop · PFR: raised before the flop · Fold / Check / Call / Bet-Raise: share of all decisions</div>
+          <div class="final-foot">
+            <button id="playAgainBtn" class="btn-accent" type="button">Back to lobby</button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+
+  <!-- Host-absent / connection overlay -->
+  <div class="host-overlay" id="connOverlay" hidden>
+    <div class="host-overlay-card">
+      <div class="ho-spinner"></div>
+      <h2>Reconnecting…</h2>
+      <p>Hold tight — the table is still here.</p>
+    </div>
+  </div>
+
+  <!-- Help modal -->
+  <div class="gtb-help-overlay" id="helpOverlay">
+    <div class="gtb-help-modal">
+      <button class="gtb-help-modal-close" type="button" data-gtb-help-close aria-label="Close help">&times;</button>
+      <h2>♣️ Hold'em Poker</h2>
+      <p>No-Limit Texas Hold'em, tournament style. Last player with chips wins.</p>
+      <ol>
+        <li><strong>2 to 8</strong> players — add CPUs to fill seats. Everyone starts with <strong>1,500</strong> chips.</li>
+        <li>The blinds start at <strong>10 / 20</strong> and go up every <strong>2, 3, 5 or 7 hands</strong> (host's choice).</li>
+        <li>Each player gets <strong>2 private cards</strong> on their phone. Five shared cards are dealt face up on the table: the flop (3), the turn (1) and the river (1).</li>
+        <li>On your turn: <strong>fold</strong>, <strong>check</strong>, <strong>call</strong>, or <strong>bet / raise</strong> any amount up to your whole stack. A raise must <strong>at least double</strong> the current bet.</li>
+        <li>Make the best five-card hand from your two cards and the five on the table. Best hand at showdown wins the pot.</li>
+        <li>If you're <strong>all-in</strong> for less, you can only win what you matched from each player — the rest goes to a side pot.</li>
+        <li>Lose all your chips and you're out. The <strong>last player standing</strong> wins the tournament!</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- Applause on the final screen (same recording as Trivia and Hearts) -->
+  <audio id="sfx-applause" src="/holdempoker/assets/sounds/applause.mp3" preload="auto"></audio>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/holdempoker/js/host.js"></script>
+</body>
+</html>

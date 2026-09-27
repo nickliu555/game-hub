@@ -9,6 +9,7 @@ const mountTrivia = require('./server/trivia');
 const mountTwentyFour = require('./server/twentyfour');
 const mountHerdMind = require('./server/herdmind');
 const mountHearts = require('./server/hearts');
+const mountHoldemPoker = require('./server/holdempoker');
 const mountCatClash = require('./server/catclash');
 const mountBoggle = require('./server/noggle');
 const mountSoccerHead = require('./server/soccerhead');
@@ -93,6 +94,9 @@ mountTwentyFour(app, httpServer, { getPublicBaseUrl });
 // Mount the "Herd Mind" game (Socket.IO namespace + REST endpoints + page routes).
 mountHerdMind(app, httpServer, { getPublicBaseUrl });
 mountHearts(app, httpServer, { getPublicBaseUrl });
+
+// Mount the Hold'em Poker tournament game (Socket.IO namespace + REST + page routes).
+mountHoldemPoker(app, httpServer, { getPublicBaseUrl });
 
 // Mount the "Category Clash" Scattergories-style game (Socket.IO namespace + REST + page routes).
 mountCatClash(app, httpServer, { getPublicBaseUrl });

@@ -310,9 +310,10 @@ code inspection alone.
 
 - Match the other games for consistency: toggles as segmented **On/Off**-style controls,
   reactions, topbar/settings, attribution footer, colour-variable theming per game.
-- **Attribution footer** ("Developed by Nick Liu …") only shows on the **join and lobby**
-  screens — never during gameplay. Keep it out of the Host match/final views and the player
-  controller/eliminated/final views (hide it whenever the active view isn't the lobby/waiting one).
+- **Attribution footer** ("Developed by Nick Liu …") only shows on the **player join and
+  lobby/waiting** screens — never on the Host screen (not even its lobby) and never during
+  gameplay. Keep it out of the player controller/eliminated/final views too (hide it whenever
+  the active view isn't the lobby/waiting one).
   Gate it on the **game phase**, not just the active view: a "waiting" view is usually reused
   mid-game ("Dealing…", "Waiting for your turn…"), so a view-only check leaks the footer into
   gameplay. On the player page it is a page-level element placed **after** the reaction bar and

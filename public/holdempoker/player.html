@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Hold'em Poker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#12402C" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/holdempoker/css/base.css" />
+  <link rel="stylesheet" href="/holdempoker/css/player.css" />
+</head>
+<body class="player play-page">
+  <div class="p-shell">
+
+    <!-- Identity / status bar -->
+    <header class="p-top">
+      <span class="p-seat" id="pSeat">–</span>
+      <span class="p-name pname" id="pName">…</span>
+      <span class="p-score" id="pScore"></span>
+      <button type="button" class="emote-toggle" id="emoteToggle" aria-label="React" aria-expanded="false" hidden>😀</button>
+    </header>
+
+    <div class="emote-panel" id="emotePanel" hidden>
+      <div class="emote-grid" id="emoteGrid"></div>
+    </div>
+
+    <!-- Waiting / lobby -->
+    <section class="p-view active" id="pv-wait">
+      <div class="wait-card">
+        <div class="wait-suits" aria-hidden="true">
+          <span>♣</span><span class="js-red">♥</span><span>♠</span><span class="js-red">♦</span>
+        </div>
+        <h2 id="waitTitle">You're in!</h2>
+        <p id="waitSub">Waiting for the host to deal…</p>
+      </div>
+    </section>
+
+    <!-- Your hand -->
+    <section class="p-view" id="pv-hand">
+      <div class="p-meta">
+        <span class="meta-chip">Blinds <strong id="mBlinds">10 / 20</strong></span>
+        <span class="meta-chip">Pot <strong id="mPot">0</strong></span>
+      </div>
+      <div class="p-banner" id="handBanner">Waiting…</div>
+      <div class="p-hint" id="handHint"></div>
+      <div class="hole-area">
+        <div class="hole-cards" id="holeCards"></div>
+      </div>
+
+      <div class="p-actions" id="actionArea">
+        <div class="act-row" id="actRow" hidden>
+          <button type="button" class="act-btn act-fold" id="foldBtn">Fold</button>
+          <button type="button" class="act-btn act-call" id="callBtn">Check</button>
+          <button type="button" class="act-btn act-raise" id="raiseBtn">Raise</button>
+        </div>
+
+        <div class="raise-panel" id="raisePanel" hidden>
+          <div class="raise-presets" id="raisePresets">
+            <button type="button" class="preset-btn" data-preset="min">Min</button>
+            <button type="button" class="preset-btn" data-preset="half">½ Pot</button>
+            <button type="button" class="preset-btn" data-preset="pot">Pot</button>
+            <button type="button" class="preset-btn" data-preset="max">All-in</button>
+          </div>
+          <div class="raise-amount">
+            <button type="button" class="step-btn" id="raiseMinus" aria-label="Less">−</button>
+            <span class="raise-value" id="raiseValue">40</span>
+            <button type="button" class="step-btn" id="raisePlus" aria-label="More">+</button>
+          </div>
+          <div class="bet-slider" id="betSlider" role="slider" aria-label="Raise amount">
+            <div class="bs-track"><div class="bs-fill" id="bsFill"></div></div>
+            <div class="bs-thumb" id="bsThumb"></div>
+          </div>
+          <div class="act-row">
+            <button type="button" class="act-btn act-ghost" id="raiseCancel">Back</button>
+            <button type="button" class="act-btn act-raise act-wide" id="raiseConfirm">Raise to 40</button>
+          </div>
+        </div>
+
+        <div class="pre-row" id="preRow" hidden>
+          <button type="button" class="pre-btn" data-pre="checkFold"><span class="pre-box"></span>Check / Fold</button>
+          <button type="button" class="pre-btn" data-pre="callAny"><span class="pre-box"></span>Call Any</button>
+        </div>
+
+        <button type="button" class="btn-accent action-btn" id="showBtn" hidden>Show my cards</button>
+      </div>
+    </section>
+
+    <!-- Out of the tournament -->
+    <section class="p-view" id="pv-out">
+      <div class="wait-card">
+        <div class="result-emoji" id="outEmoji">🫡</div>
+        <h2 id="outTitle">You're out</h2>
+        <p id="outSub">Nice game! Keep an eye on the table.</p>
+      </div>
+    </section>
+
+    <!-- Tournament over -->
+    <section class="p-view" id="pv-result">
+      <div class="wait-card scrollable-region">
+        <div class="result-emoji" id="resultEmoji">🏆</div>
+        <h2 id="resultTitle">Game over</h2>
+        <p id="resultSub"></p>
+        <div class="result-rows" id="resultRows"></div>
+      </div>
+    </section>
+
+    <div class="player-attribution" id="playerAttribution" hidden>Developed by Nick Liu (with help from Claude)</div>
+
+  </div>
+
+  <div class="p-toast" id="pToast" hidden></div>
+
+  <div class="host-absent-overlay" id="pConnOverlay" hidden>
+    <div class="host-absent-card">
+      <div class="icon">♣️</div>
+      <div class="title">Reconnecting…</div>
+      <div class="sub"><span class="pulse-dot"></span>Your seat, your chips and your cards are safe.</div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/holdempoker/js/player.js"></script>
+</body>
+</html>
