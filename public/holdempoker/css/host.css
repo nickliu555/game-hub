@@ -411,7 +411,10 @@ body.host {
   font-weight: 800;
   color: #fff;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  transition: opacity 0.4s ease, scale 0.4s ease;
 }
+.pot-line.emptied { opacity: 0; scale: 0.8; }
 .pot-label {
   font-size: 0.62em;
   letter-spacing: 0.12em;
@@ -428,9 +431,8 @@ body.host {
 }
 .side-pots[hidden] { display: none; }
 .pot-line[hidden] { display: none; }
-/* The winning hand's name. One line is always reserved, so the board never resizes when it appears. */
+/* The winning hand's name, right under the board; fitCenter reserves its line so it never pushes the board. */
 .hand-line {
-  min-height: 1.25em;
   max-width: min(60cqw, 560px);
   font-size: clamp(15px, 1.35vw, 23px);
   font-weight: 800;
@@ -440,6 +442,7 @@ body.host {
   color: #fff;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
 }
+.hand-line:empty { display: none; }
 .hand-line:not(:empty) { animation: badgePop 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
 .hand-line .hl-pot { color: var(--gold); }
 .side-pot {
@@ -472,14 +475,14 @@ body.host {
   text-transform: uppercase;
   color: var(--gold);
 }
-/* The pot being paid lights up, then empties as its chips slide to the winner. */
-.side-pot.paying { animation: potPaying 1.5s ease both; border-color: var(--gold); }
+/* The pot being paid lights up, then fades out as its chips slide to the winner. */
+.side-pot { transition: opacity 0.4s ease; }
+.side-pot.paying { animation: potPaying 0.45s ease both; border-color: var(--gold); }
+.side-pot.emptied { opacity: 0; }
 .side-pot.paid { visibility: hidden; }
 @keyframes potPaying {
-  0%   { box-shadow: 0 0 0 0 rgba(232, 184, 58, 0); scale: 1; opacity: 1; }
-  18%  { box-shadow: 0 0 0 4px rgba(232, 184, 58, 0.45), 0 0 26px rgba(232, 184, 58, 0.7); scale: 1.12; }
-  60%  { box-shadow: 0 0 0 4px rgba(232, 184, 58, 0.45), 0 0 26px rgba(232, 184, 58, 0.7); scale: 1.08; opacity: 1; }
-  100% { box-shadow: none; scale: 0.7; opacity: 0; }
+  from { box-shadow: 0 0 0 0 rgba(232, 184, 58, 0); scale: 1; }
+  to   { box-shadow: 0 0 0 4px rgba(232, 184, 58, 0.45), 0 0 26px rgba(232, 184, 58, 0.7); scale: 1.08; }
 }
 @media (prefers-reduced-motion: reduce) { .side-pot.paying { animation: none; } }
 

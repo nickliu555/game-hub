@@ -846,7 +846,7 @@
       dealer.className = 'dealer-btn'; dealer.textContent = 'D'; dealer.hidden = true;
 
       seatLayer.appendChild(bet); seatLayer.appendChild(dealer); seatLayer.appendChild(root);
-      seatEls[s.playerId] = { root: root, box: box, cards: cards, name: name, stack: stack, action: action, bet: bet, amt: amt, dealer: dealer, cardKey: '', actionKey: '', countTimers: [], countRaf: null, stackGoal: null, stackShown: null };
+      seatEls[s.playerId] = { root: root, box: box, cards: cards, name: name, stack: stack, action: action, bet: bet, amt: amt, dealer: dealer, cardKey: '', actionKey: '', stackGoal: null, stackShown: null };
     });
     layoutSeats();
   }
@@ -958,7 +958,9 @@
     const cssCardW = boardEl.firstElementChild.offsetWidth;
     const gap = 10;
     const sideShown = !sidePotsEl.hidden;
-    const extraH = potLineEl.offsetHeight + gap + handLineEl.offsetHeight + gap + (sideShown ? sidePotsEl.offsetHeight + gap : 0);
+    // The hand name only takes space at hand end, but its line is always reserved so the pot never has to move up into the board.
+    const handH = Math.max(handLineEl.offsetHeight, parseFloat(getComputedStyle(handLineEl).fontSize) * 1.25);
+    const extraH = potLineEl.offsetHeight + gap + handH + gap + (sideShown ? sidePotsEl.offsetHeight + gap : 0);
     const extraW = Math.max(potLineEl.offsetWidth, handLineEl.offsetWidth, sideShown ? sidePotsEl.offsetWidth : 0);
 
     const pad = 10;
@@ -993,10 +995,11 @@
       });
     };
 
+    // Pinned by its top edge, so whatever appears or collapses under the board never moves the board.
     const place = function (cw, y) {
       feltCenter.style.setProperty('--card-w', cw + 'px');
-      feltCenter.style.top = Math.round(y - fy) + 'px';
-      feltCenter.style.transform = 'translate(-50%, -50%)';
+      feltCenter.style.top = Math.round(y - sizeOf(cw).h / 2 - fy) + 'px';
+      feltCenter.style.transform = 'translateX(-50%)';
     };
     const sizeOf = function (cw) { return { w: Math.max(cw * 5.48 + 4, extraW), h: cw * 1.4 + 4 + extraH }; };
     const passes = [obstacles.concat(reserved), obstacles];
@@ -1366,14 +1369,58 @@
   // Bigger pots send a few more chips: 20 → 9, 400 → 11, 4,000 → 13, capped at 14.
   function potChipCount(amount) { return Math.min(14, 7 + 2 * Math.floor(Math.log10(Math.max(1, amount)))); }
 
-  /** Chips from the pot to a winner, whose stack counts up from the first chip landing to the last. */
+  /**
+   * Chips from the pot to a winner, whose stack counts up from the first chip landing to the last.
+   * Returns that landing window, so the pot can count down over the same time.
+   */
   function payWinner(fromEl, w, delay) {
     const e = seatEls[w.playerId];
-    if (!e) return;
+    if (!e) return null;
     const n = potChipCount(w.amount);
     flyChips(fromEl, e.box, n, { delay: delay, duration: POT_FLY_MS });
     // flyChips staggers chips 70ms apart; each reaches the plate ~88% of the way through its flight.
-    countStackUp(e, w.amount, delay + POT_FLY_MS * 0.88, (n - 1) * 70 + POT_FLY_MS * 0.12);
+    const land = { start: delay + POT_FLY_MS * 0.88, end: delay + (n - 1) * 70 + POT_FLY_MS };
+    countStackUp(e, w.amount, land.start, land.end - land.start);
+    return land;
+  }
+
+  /** Pay every winner of one pot; the pot fades out over the same time their chips land. */
+  function payOutPot(potEl, pot, delay) {
+    let first = null;
+    let last = null;
+    pot.winners.forEach(function (w, j) {
+      const land = payWinner(potEl, w, delay + j * 160);
+      if (!land) return;
+      if (!first) first = land;
+      last = land;
+    });
+    if (first) {
+      later(function () {
+        potEl.style.transitionDuration = Math.round(last.end - first.start) + 'ms';
+        potEl.classList.add('emptied');
+      }, first.start);
+    }
+    return delay + pot.winners.length * 160;
+  }
+
+  function later(fn, ms) { tweens.push({ timer: setTimeout(fn, ms), raf: null }); }
+
+  const tweens = [];
+  /** Count a number from `from` to `to` over `dur` ms, starting in `startIn` ms. */
+  function tween(from, to, startIn, dur, apply, done) {
+    const rec = { timer: null, raf: null };
+    rec.timer = setTimeout(function () {
+      const t0 = performance.now();
+      const step = function (now) {
+        const k = Math.min(1, Math.max(0, (now - t0) / Math.max(1, dur)));
+        apply(Math.round(from + (to - from) * k));
+        if (k < 1) { rec.raf = requestAnimationFrame(step); return; }
+        rec.raf = null;
+        if (done) done();
+      };
+      rec.raf = requestAnimationFrame(step);
+    }, startIn);
+    tweens.push(rec);
   }
 
   function showStack(e, v) {
@@ -1396,29 +1443,22 @@
   function countStackUp(e, amount, startIn, dur) {
     if (e.stackGoal == null) return;
     const from = e.stackGoal;
-    const to = from + amount;
-    e.stackGoal = to;
-    e.countTimers.push(setTimeout(function () {
-      const t0 = performance.now();
-      const step = function (now) {
-        const k = Math.min(1, Math.max(0, (now - t0) / Math.max(1, dur)));
-        showStack(e, Math.round(from + (to - from) * k));
-        e.countRaf = k < 1 ? requestAnimationFrame(step) : null;
-      };
-      e.countRaf = requestAnimationFrame(step);
-    }, startIn));
+    e.stackGoal = from + amount;
+    tween(from, from + amount, startIn, dur, function (v) { showStack(e, v); });
   }
 
   function clearStackCounts() {
-    Object.keys(seatEls).forEach(function (pid) {
-      const e = seatEls[pid];
-      e.countTimers.forEach(clearTimeout);
-      e.countTimers = [];
-      if (e.countRaf) cancelAnimationFrame(e.countRaf);
-      e.countRaf = null;
-      e.stackGoal = null;
-      e.stackShown = null;
+    tweens.forEach(function (rec) {
+      clearTimeout(rec.timer);
+      if (rec.raf) cancelAnimationFrame(rec.raf);
     });
+    tweens.length = 0;
+    Object.keys(seatEls).forEach(function (pid) {
+      seatEls[pid].stackGoal = null;
+      seatEls[pid].stackShown = null;
+    });
+    potLineEl.style.transitionDuration = '';
+    potLineEl.classList.remove('emptied');
   }
 
   /** A little stream of chips slides from the pot to each winner, pot by pot. */
@@ -1426,12 +1466,7 @@
     if (!r || !r.pots || !motionOk()) return;
     let t = delay;
     r.pots.forEach(function (pot) {
-      pot.winners.forEach(function (w) {
-        if (!seatEls[w.playerId]) return;
-        payWinner(potLineEl, w, t);
-        t += 160;
-      });
-      t += 260;
+      t = payOutPot(potLineEl, pot, t) + 260;
     });
   }
 
@@ -1617,10 +1652,10 @@
 
   function payPot(r, i) {
     playPotWin();
-    const pill = sidePotsEl.querySelector('.side-pot[data-pot="' + i + '"]') || sidePotsEl;
     if (!motionOk()) return;
-    const pot = r.pots[i];
-    pot.winners.forEach(function (w, j) { payWinner(pill, w, j * 160); });
+    const pill = sidePotsEl.querySelector('.side-pot[data-pot="' + i + '"]');
+    if (pill) payOutPot(pill, r.pots[i], 0);
+    else r.pots[i].winners.forEach(function (w, j) { payWinner(sidePotsEl, w, j * 160); });
   }
 
   /** The winning five of pot `i`, lit on the board and in its winners' hands. */
