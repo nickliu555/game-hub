@@ -271,7 +271,9 @@
     renderHole();
 
     const handEnd = publicPhase === 'HAND_END';
-    const yourTurn = !!me.yourTurn;
+    // A pre-action already answers this turn; the server plays it a beat later, so never offer choices.
+    const autoActing = !!me.yourTurn && !!me.preAction;
+    const yourTurn = !!me.yourTurn && !autoActing;
     document.body.classList.toggle('my-turn', yourTurn);
 
     // A change in what's being decided closes a half-set raise.
@@ -291,7 +293,7 @@
 
     if (handEnd) {
       if (me.won > 0) {
-        handBanner.textContent = 'You won ' + fmt(me.won) + '!';
+        handBanner.textContent = 'You won ' + fmt(me.collected) + '!';
         handBanner.classList.add('won');
       } else {
         handBanner.textContent = 'Hand over';
@@ -300,6 +302,10 @@
       if (mine && mine.handName) handHint.textContent = mine.handName;
       else if (me.folded) handHint.textContent = 'You folded this hand.';
       showBtn.hidden = !me.canShow;
+    } else if (autoActing) {
+      if (me.toCall === 0) handBanner.textContent = 'Checking…';
+      else if (me.preAction === 'callAny') handBanner.textContent = 'Calling ' + fmt(me.callAmount) + '…';
+      else handBanner.textContent = 'Folding…';
     } else if (yourTurn) {
       handBanner.textContent = 'Your turn!';
       handBanner.classList.add('your-turn');

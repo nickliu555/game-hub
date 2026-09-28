@@ -895,6 +895,10 @@
       }
       return false;
     };
+    // The bottom-centre seat sits a little lower: into the stage's bottom margin and the page's bottom
+    // padding (only its empty "Wins" strip reaches there, so nothing is clipped or scrolls).
+    const main = stage.closest('.host-main');
+    const bottomDrop = Math.min(20, margin + (main ? parseFloat(getComputedStyle(main).paddingBottom) || 0 : 0));
     seatOrderIds.forEach(function (pid, i) {
       const e = seatEls[pid];
       const a = (90 + i * 360 / n) * Math.PI / 180;
@@ -908,7 +912,7 @@
         if (intrudes(cx + ux * mid, cy + uy * mid)) lo = mid; else hi = mid;
       }
       const px = Math.max(hw, Math.min(stage.offsetWidth - hw, cx + ux * hi));
-      const py = cy + uy * hi;
+      const py = cy + uy * hi + (i === 0 ? bottomDrop : 0);
       e.root.style.left = Math.round(px) + 'px';
       e.root.style.top = Math.round(py - boxOffset) + 'px';
     });
@@ -1184,9 +1188,9 @@
 
       setSeatCards(e, seat, ctx.highlight && ctx.highlight.ids[seat.playerId] ? ctx.highlight : null);
 
-      // Actions show as a brief flash on the name plate; the only lasting tag is the win.
+      // Actions show as a brief flash on the name plate; the only lasting tag is the win: every chip coming back.
       const won = ctx.wonBy && ctx.wonBy[seat.playerId];
-      const a = won ? { text: 'Wins ' + fmt(won), cls: 'a-win' } : { text: '', cls: '' };
+      const a = won ? { text: 'Wins ' + fmt(won + ((ctx.refundBy && ctx.refundBy[seat.playerId]) || 0)), cls: 'a-win' } : { text: '', cls: '' };
       const akey = a.cls + '|' + a.text;
       if (akey !== e.actionKey) {
         e.actionKey = akey;
@@ -1226,7 +1230,7 @@
   let sidePotsKey = '';
   function renderPot(s, handEnd, payout) {
     let total = s.totalPot;
-    if (handEnd && s.result) total = s.result.pots.reduce(function (a, p) { return a + p.amount; }, 0);
+    if (handEnd && s.result) total = s.result.pots.reduce(function (a, p) { return a + p.amount; }, 0) + refundTotal(s.result);
     potTotalEl.textContent = fmt(total);
     const pots = handEnd && s.result ? s.result.pots : s.pots;
     if (pots && pots.length > 1) {
@@ -1445,14 +1449,40 @@
     e.stack.classList.toggle('is-allin', text === 'All-in');
   }
 
-  /** Winners show their stack from before the payout, so it can count up as their chips arrive. */
+  /** The part of each player's bet nobody matched, handed straight back. */
+  function refundsOf(r) {
+    const out = {};
+    ((r && r.uncalled) || []).forEach(function (u) { out[u.playerId] = (out[u.playerId] || 0) + u.amount; });
+    return out;
+  }
+  function refundTotal(r) {
+    const f = refundsOf(r);
+    return Object.keys(f).reduce(function (a, k) { return a + f[k]; }, 0);
+  }
+
+  /**
+   * What the pot bubble pays each player: its winners plus, when it's the only pot, every unmatched
+   * bet it holds (the bubble shows those too), so each count-up is the whole amount coming back.
+   */
+  function potPayouts(r) {
+    if (r.awardFrom || r.pots.length !== 1) return r.pots;
+    const f = refundsOf(r);
+    const pot = r.pots[0];
+    const winners = pot.winners.map(function (w) { return { playerId: w.playerId, amount: w.amount + (f[w.playerId] || 0) }; });
+    Object.keys(f).forEach(function (pid) {
+      if (!pot.winners.some(function (w) { return w.playerId === pid; })) winners.push({ playerId: pid, amount: f[pid] });
+    });
+    return [{ amount: pot.amount + refundTotal(r), winners: winners }];
+  }
+
+  /** Everyone paid from the pot shows their stack from before the payout, so it can count up as their chips arrive. */
   function holdStacks(s, r) {
-    const won = {};
-    r.pots.forEach(function (p) { p.winners.forEach(function (w) { won[w.playerId] = (won[w.playerId] || 0) + w.amount; }); });
+    const back = {};
+    potPayouts(r).forEach(function (p) { p.winners.forEach(function (w) { back[w.playerId] = (back[w.playerId] || 0) + w.amount; }); });
     s.seats.forEach(function (seat) {
       const e = seatEls[seat.playerId];
-      if (!e || !won[seat.playerId]) return;
-      e.stackGoal = seat.stack - won[seat.playerId];
+      if (!e || !back[seat.playerId]) return;
+      e.stackGoal = seat.stack - back[seat.playerId];
       showStack(e, e.stackGoal);
     });
   }
@@ -1482,7 +1512,7 @@
   function flyPotToWinners(r, delay) {
     if (!r || !r.pots || !motionOk()) return;
     let t = delay;
-    r.pots.forEach(function (pot) {
+    potPayouts(r).forEach(function (pot) {
       t = payOutPot(potLineEl, pot, t) + 260;
     });
   }
@@ -1726,7 +1756,7 @@
     const focus = payout && !payout.done ? (payout.step >= 0 ? order[payout.step] : null) : 0;
     const highlight = potHighlight(r, focus);
 
-    renderSeats(s, { handEnd: true, wonBy: wonBy, highlight: highlight, koDelay: knockoutDelay(r) });
+    renderSeats(s, { handEnd: true, wonBy: wonBy, refundBy: refundsOf(r), highlight: highlight, koDelay: knockoutDelay(r) });
     renderBoard(s.board, highlight);
     renderHandLine(r, payout);
     waitingNote.hidden = true;

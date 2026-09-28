@@ -838,6 +838,82 @@ test('a whole CPU tournament plays to a single winner with every chip accounted 
   assert.deepStrictEqual(fin.standings.map((s) => s.place), [1, 2, 3, 4, 5, 6]);
 });
 
+test('chip audit: every hand of many random tournaments pays out exactly right', () => {
+  const { chooseAction: choose } = require(path.join('..', 'server', 'holdempoker', 'bot'));
+  let hands = 0;
+  let sidePotHands = 0;
+  for (let seed = 1; seed <= 80; seed++) {
+    const g = new Game(seed * 7919);
+    g.manualTimers = true;
+    const seats = 2 + (seed % 7);
+    for (let i = 0; i < seats; i++) g.addBot();
+    g.setHandsPerLevel(2);
+    g.start();
+    const total = START_STACK * seats;
+    let r = seed;
+    const rand = () => { r = (r * 1103515245 + 12345) % 2147483648; return r / 2147483648; };
+    let audited = 0;
+    let steps = 0;
+    while (g.phase !== PHASES.FINAL) {
+      if (++steps > 300000) throw new Error('seed ' + seed + ' never ended');
+      if (g.phase === PHASES.BETTING && g.turnId) {
+        const v = g.botView(g.turnId);
+        let choice = choose(v, g.rng);
+        // Half the time a random legal move instead, to reach odd all-in / side-pot shapes.
+        if (rand() < 0.5) {
+          const x = rand();
+          if (v.canRaise && x < 0.35) choice = { type: 'raise', amount: x < 0.15 ? v.maxRaiseTo : v.minRaiseTo + Math.floor(rand() * (v.maxRaiseTo - v.minRaiseTo + 1)) };
+          else if (v.canCheck) choice = { type: 'check' };
+          else choice = { type: x < 0.6 ? 'call' : 'fold' };
+        }
+        const res = g.act(Object.assign({ playerId: g.turnId }, choice));
+        assert.ok(res.ok, 'illegal move ' + JSON.stringify(choice) + ': ' + JSON.stringify(res));
+        continue;
+      }
+      assert.ok(g.tick(), 'stalled in ' + g.phase);
+      if (g.phase !== PHASES.HAND_END || audited === g.handNumber) continue;
+      audited = g.handNumber;
+      hands++;
+      const res = g.result;
+      const tag = 'seed ' + seed + ' hand ' + g.handNumber + ': ';
+      const inHand = g.seatOrder().filter((p) => p.inHand);
+      assert.strictEqual(stacksTotal(g), total, tag + 'chips conserved');
+      const committed = inHand.reduce((a, p) => a + p.committed, 0);
+      const potSum = res.pots.reduce((a, p) => a + p.amount, 0);
+      assert.strictEqual(potSum, committed, tag + 'the pots hold exactly what was put in (uncalled chips excluded)');
+      if (res.pots.length > 1) sidePotHands++;
+      const won = {};
+      res.pots.forEach((pot, i) => {
+        const paid = pot.winners.reduce((a, w) => a + w.amount, 0);
+        assert.strictEqual(paid, pot.amount, tag + 'pot ' + i + ' is paid out in full');
+        pot.winners.forEach((w) => { won[w.playerId] = (won[w.playerId] || 0) + w.amount; });
+        if (res.type === 'showdown') {
+          const score = (id) => { const p = g.players.get(id); return bestHand(p.hole.concat(g.board)).score; };
+          const best = Math.max.apply(null, pot.eligible.map(score));
+          pot.winners.forEach((w) => {
+            assert.ok(pot.eligible.indexOf(w.playerId) >= 0, tag + 'pot ' + i + ' winner was eligible');
+            assert.strictEqual(score(w.playerId), best, tag + 'pot ' + i + ' went to the best eligible hand');
+          });
+          const shares = pot.winners.map((w) => w.amount);
+          assert.ok(Math.max.apply(null, shares) - Math.min.apply(null, shares) <= 1, tag + 'a split differs by at most the odd chip');
+        }
+      });
+      inHand.forEach((p) => {
+        const w = won[p.id] || 0;
+        assert.strictEqual(p.stack, p.startStack - p.committed + w, tag + p.name + ': stack = start − put in + won');
+        // Nobody wins more from an opponent than they themselves put in.
+        const cap = inHand.reduce((a, q) => a + Math.min(p.committed, q.committed), 0);
+        assert.ok(w <= cap, tag + p.name + ' won ' + w + ' but could win at most ' + cap);
+        if (p.folded) assert.strictEqual(w, 0, tag + 'a folded player wins nothing');
+        const back = res.uncalled.filter((u) => u.playerId === p.id).reduce((a, u) => a + u.amount, 0);
+        assert.strictEqual(g.getPrivate(p.id).collected, w ? w + back : 0, tag + p.name + ': collected = won + returned bet');
+      });
+    }
+  }
+  assert.ok(hands > 200, 'audited ' + hands + ' hands');
+  assert.ok(sidePotHands > 10, 'side pots came up ' + sidePotHands + ' times');
+});
+
 // ─────────────────────────── Report ───────────────────────────
 
 if (failures.length) {
