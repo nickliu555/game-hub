@@ -154,16 +154,21 @@ body.host {
   overflow-y: auto;
   align-content: start;
   padding-right: 2px;
+  /* One height for filled rows and open placeholders, so joining never grows the list. */
+  --seat-row-pad: clamp(9px, 1.5vh, 13px);
+  --seat-row-h: calc(clamp(32px, 4.4vmin, 40px) + 2 * var(--seat-row-pad) + 2px);
 }
 
 .seat-row {
   display: flex;
   align-items: center;
   gap: 13px;
+  box-sizing: border-box;
+  min-height: var(--seat-row-h);
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 14px;
-  padding: clamp(9px, 1.5vh, 13px) 16px;
+  padding: var(--seat-row-pad) 16px;
   min-width: 0;
   flex: 0 0 auto;
   touch-action: none;
@@ -235,9 +240,14 @@ body.host {
 }
 
 .seat-empty {
+  box-sizing: border-box;
+  min-height: var(--seat-row-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 2px dashed rgba(255, 255, 255, 0.2);
   border-radius: 14px;
-  padding: 16px;
+  padding: 0 16px;
   text-align: center;
   color: rgba(255, 255, 255, 0.42);
   font-size: clamp(14px, 1.3vw, 18px);
