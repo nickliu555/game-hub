@@ -1135,6 +1135,7 @@
     });
   }
 
+  const KO_FADE_MS = 2600;   // matches .seat.just-busted's knockout animation
   function renderSeats(s, ctx) {
     // A busted seat stays only for the hand that knocked it out, then the table closes up.
     const outNow = {};
@@ -1155,8 +1156,18 @@
         setTimeout(function () {
           e.koPending = false;
           e.root.classList.add('busted', 'just-busted');
-          if (seat.place) e.stack.textContent = 'Out · ' + ordinal(seat.place);
-          setTimeout(function () { e.root.classList.remove('just-busted'); }, 3000);
+          if (seat.place) setStackText(e, 'Out · ' + ordinal(seat.place));
+          // The skull is its own element, so it can appear once the whole seat has faded.
+          setTimeout(function () {
+            if (!e.root.isConnected) return;
+            const skull = document.createElement('div');
+            skull.className = 'ko-skull';
+            skull.textContent = '💀';
+            skull.style.left = e.root.style.left;
+            skull.style.top = e.root.style.top;
+            seatLayer.appendChild(skull);
+            skull.addEventListener('animationend', function () { skull.remove(); });
+          }, KO_FADE_MS);
         }, ctx.koDelay || 0);
       }
       e.wasBusted = !!seat.busted;
@@ -1167,9 +1178,9 @@
 
       if (e.name.textContent !== seat.name) { e.name.textContent = seat.name; fitSeatName(e.name); }
       if (e.stackShown != null) showStack(e, e.stackShown);
-      else if (seat.busted && seat.place && !e.koPending) e.stack.textContent = 'Out · ' + ordinal(seat.place);
-      else if (seat.allIn && seat.stack === 0) e.stack.textContent = 'All-in';
-      else e.stack.textContent = fmt(seat.stack);
+      else if (seat.busted && seat.place && !e.koPending) setStackText(e, 'Out · ' + ordinal(seat.place));
+      else if (seat.allIn && seat.stack === 0) setStackText(e, 'All-in');
+      else setStackText(e, fmt(seat.stack));
 
       setSeatCards(e, seat, ctx.highlight && ctx.highlight.ids[seat.playerId] ? ctx.highlight : null);
 
@@ -1324,7 +1335,8 @@
         if (r && r.awardFrom) break;
         const potDelay = Math.max(ev.resultType === 'showdown' ? 500 : 0, swept);
         setTimeout(playPotWin, potDelay);
-        flyPotToWinners(r, potDelay);
+        // Measured once the pot has settled, since it only updates after the sweep.
+        later(function () { flyPotToWinners(r, 0); }, potDelay);
         break;
       }
       default: break;
@@ -1425,7 +1437,12 @@
 
   function showStack(e, v) {
     e.stackShown = v;
-    e.stack.textContent = v === 0 ? 'All-in' : fmt(v);
+    setStackText(e, v === 0 ? 'All-in' : fmt(v));
+  }
+
+  function setStackText(e, text) {
+    e.stack.textContent = text;
+    e.stack.classList.toggle('is-allin', text === 'All-in');
   }
 
   /** Winners show their stack from before the payout, so it can count up as their chips arrive. */
@@ -1585,14 +1602,14 @@
     setStats(s.stats);
     renderSeats(s, {});
     renderBoard(s.board, null);
-    renderPot(s, false);
     handLineEl.textContent = '';
-    fitCenter();
     renderWaiting(s);
 
     const wasTable = currentView === 'table';
     show('table', layoutSeats);
-    playEvent(s, playActed(s));
+    const swept = playActed(s);
+    showPots(function () { renderPot(s, false); fitCenter(); }, swept);
+    playEvent(s, swept);
     // A fresh turn is the "look up" moment.
     if (s.turnPlayerId && s.turnPlayerId !== lastTurnId && wasTable && lastHandSeen === s.handNumber) {
       setTimeout(playTurnCue, 260);
@@ -1604,6 +1621,22 @@
   function indexSeats(seats) {
     seatByPlayer = {};
     (seats || []).forEach(function (x) { seatByPlayer[x.playerId] = x.seat; });
+  }
+
+  // The pots only update once the bets sweeping into the middle have landed; later renders during the sweep wait too.
+  let potHold = null;
+  function showPots(apply, holdMs) {
+    if (holdMs > 0) {
+      if (potHold) clearTimeout(potHold.timer);
+      potHold = { apply: apply, timer: setTimeout(function () { const a = potHold.apply; potHold = null; a(); }, holdMs) };
+      return;
+    }
+    if (potHold) { potHold.apply = apply; return; }
+    apply();
+  }
+  function clearPotHold() {
+    if (potHold) clearTimeout(potHold.timer);
+    potHold = null;
   }
 
   // ---------------- Pot-by-pot payout ----------------
@@ -1695,14 +1728,14 @@
 
     renderSeats(s, { handEnd: true, wonBy: wonBy, highlight: highlight, koDelay: knockoutDelay(r) });
     renderBoard(s.board, highlight);
-    renderPot(s, true, payout);
     renderHandLine(r, payout);
-    fitCenter();
     waitingNote.hidden = true;
     if (payout) scheduleAward(s); else clearAward();
 
     show('table', layoutSeats);
-    playEvent(s, playActed(s));
+    const swept = playActed(s);
+    showPots(function () { renderPot(s, true, payout); fitCenter(); }, swept);
+    playEvent(s, swept);
     lastTurnId = null;
     lastHandSeen = s.handNumber;
   }
@@ -1920,6 +1953,7 @@
   socket.on('state:reset', function () {
     clearAward();
     clearStackCounts();
+    clearPotHold();
     if (bannerTimer) { clearTimeout(bannerTimer); bannerTimer = null; }
     hideLevelBanner();
     handLineEl.textContent = '';

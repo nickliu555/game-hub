@@ -619,20 +619,17 @@ body.host {
 .seat.offline { opacity: 0.55; }
 .seat.busted { opacity: 0.38; filter: grayscale(1); scale: 0.92; }
 .seat.busted .seat-box { border-style: dashed; }
-/* Knocked out this hand: once the pot has gone, the seat shudders, flashes red,
-   drains of colour and shrinks back into its "out" look. */
-.seat.busted.just-busted { animation: knockout 2.2s ease both; }
+/* Knocked out this hand: the seat shudders and flashes red, then fades out as one piece (cards and
+   name plate together); only then does a skull rise and fade where it sat. Gone from the table next hand. */
+.seat.busted.just-busted { animation: knockout 2.6s ease both; }
 .seat.busted.just-busted .seat-box { animation: knockoutFlash 2.2s ease both; }
-.seat.busted.just-busted .seat-cards .card { animation: cardsFall 1s ease-in 0.7s both; }
-.seat.busted.just-busted::after {
-  content: '💀';
+.ko-skull {
   position: absolute;
-  left: 50%;
-  top: 30%;
   font-size: clamp(34px, 3vw, 54px);
   line-height: 1;
   pointer-events: none;
-  animation: skullRise 2.2s ease-out 0.2s both;
+  z-index: 3;
+  animation: skullRise 1.6s ease-out both;
 }
 @keyframes knockout {
   0%   { opacity: 1; filter: none; scale: 1; translate: 0 0; }
@@ -640,26 +637,24 @@ body.host {
   12%  { translate: 7px 0; }
   18%  { translate: -5px 0; }
   24%  { translate: 4px 0; }
-  30%  { translate: 0 0; filter: none; opacity: 1; scale: 1; }
-  55%  { filter: grayscale(1) brightness(0.8); opacity: 0.85; scale: 0.97; }
-  100% { filter: grayscale(1); opacity: 0.38; scale: 0.92; }
+  30%  { opacity: 1; filter: none; scale: 1; translate: 0 0; }
+  55%  { opacity: 0.8; filter: grayscale(1) brightness(0.8); scale: 0.97; }
+  100% { opacity: 0; filter: grayscale(1); scale: 0.85; translate: 0 0; }
 }
 @keyframes knockoutFlash {
   0%, 100% { box-shadow: var(--shadow); }
   10%, 30% { box-shadow: 0 0 0 4px rgba(255, 90, 110, 0.85), 0 0 40px rgba(255, 60, 80, 0.8); border-color: #FF5A6E; }
 }
-@keyframes cardsFall {
-  to { opacity: 0; translate: 0 60px; rotate: 25deg; }
-}
 @keyframes skullRise {
-  0%   { opacity: 0; transform: translate(-50%, 10px) scale(0.5); }
-  20%  { opacity: 1; transform: translate(-50%, -10px) scale(1.15); }
-  70%  { opacity: 1; transform: translate(-50%, -30px) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, -60px) scale(0.9); }
+  0%   { opacity: 0; transform: translate(-50%, -40%) scale(0.5); }
+  25%  { opacity: 1; transform: translate(-50%, -60%) scale(1.15); }
+  60%  { opacity: 1; transform: translate(-50%, -70%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -110%) scale(0.9); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .seat.busted.just-busted, .seat.busted.just-busted .seat-box, .seat.busted.just-busted .seat-cards .card { animation: none; }
-  .seat.busted.just-busted::after { display: none; }
+  .seat.busted.just-busted, .seat.busted.just-busted .seat-box { animation: none; }
+  .seat.busted.just-busted { opacity: 0; }
+  .ko-skull { display: none; }
 }
 
 .seat-label {
@@ -704,7 +699,7 @@ body.host {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.seat.allin .seat-stack { color: #FF8AA0; }
+.seat-stack.is-allin { color: #FF8AA0; }
 .seat.busted .seat-stack { color: rgba(255, 255, 255, 0.7); }
 
 /* Sits in the seat's reserved bottom strip, out of flow, so a "Wins" tag appearing doesn't shift the seat. */

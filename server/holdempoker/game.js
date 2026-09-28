@@ -55,7 +55,7 @@ const PREACTION_DELAY_MS = 550;
 const FOLD_WIN_MS = 5000;
 // Longer, so the table can read every revealed hand and the pot split.
 const SHOWDOWN_MS = 10000;
-const BUST_EXTRA_MS = 3000;
+const BUST_EXTRA_MS = 4600;
 // With side pots, the host pays one pot at a time: side pots first, the main pot last.
 const AWARD_LEAD_MS = 1000;
 const POT_AWARD_MS = 3200;
