@@ -1449,10 +1449,14 @@
     e.stack.classList.toggle('is-allin', text === 'All-in');
   }
 
-  /** The part of each player's bet nobody matched, handed straight back. */
+  /**
+   * The unmatched bet a fold-winner gets back with the pot. Only a fold win returns it at hand end;
+   * an all-in's uncovered excess goes back when betting closes, and never passes through the pot.
+   */
   function refundsOf(r) {
     const out = {};
-    ((r && r.uncalled) || []).forEach(function (u) { out[u.playerId] = (out[u.playerId] || 0) + u.amount; });
+    if (!r || r.type !== 'fold') return out;
+    (r.uncalled || []).forEach(function (u) { out[u.playerId] = (out[u.playerId] || 0) + u.amount; });
     return out;
   }
   function refundTotal(r) {
@@ -1460,18 +1464,12 @@
     return Object.keys(f).reduce(function (a, k) { return a + f[k]; }, 0);
   }
 
-  /**
-   * What the pot bubble pays each player: its winners plus, when it's the only pot, every unmatched
-   * bet it holds (the bubble shows those too), so each count-up is the whole amount coming back.
-   */
+  /** What the pot bubble pays each winner: their winnings plus (fold wins) their own unmatched bet, the whole amount coming back. */
   function potPayouts(r) {
     if (r.awardFrom || r.pots.length !== 1) return r.pots;
     const f = refundsOf(r);
     const pot = r.pots[0];
     const winners = pot.winners.map(function (w) { return { playerId: w.playerId, amount: w.amount + (f[w.playerId] || 0) }; });
-    Object.keys(f).forEach(function (pid) {
-      if (!pot.winners.some(function (w) { return w.playerId === pid; })) winners.push({ playerId: pid, amount: f[pid] });
-    });
     return [{ amount: pot.amount + refundTotal(r), winners: winners }];
   }
 
@@ -1863,7 +1861,7 @@
       tr.appendChild(rank); tr.appendChild(who); tr.appendChild(chips);
       STAT_COLS.forEach(function (c) {
         const td = document.createElement('td');
-        td.textContent = statText(r, c);
+        td.textContent = c.key === 'hands' && opts.hands ? opts.hands(r) : statText(r, c);
         tr.appendChild(td);
       });
       body.appendChild(tr);
@@ -1948,6 +1946,7 @@
         return p === 1 ? '🥇' : (p === 2 ? '🥈' : (p === 3 ? '🥉' : ordinal(p)));
       },
       chips: function (r) { return r.playerId === s.winnerId ? fmt(r.stack) + ' chips' : 'Out on hand ' + r.bustHand; },
+      hands: function (r) { return r.playerId === s.winnerId ? s.handsPlayed + '+' : String(r.hands); },
     }));
 
     if (currentView !== 'final') {

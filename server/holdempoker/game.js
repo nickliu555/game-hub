@@ -1157,8 +1157,8 @@ class Game {
       canShow: this.phase === PHASES.HAND_END && this.canShowId === p.id && !p.shown,
       shown: p.shown,
       won,
-      // Everything coming back to a winner: the pots they won plus any unmatched bet returned.
-      collected: won ? won + this.uncalled.filter((u) => u.playerId === p.id).reduce((a, u) => a + u.amount, 0) : 0,
+      // Everything coming back to a winner: the pots they won plus, on a fold win, their own unmatched bet.
+      collected: won ? won + (this.result && this.result.type === 'fold' ? this.uncalled.filter((u) => u.playerId === p.id).reduce((a, u) => a + u.amount, 0) : 0) : 0,
       street: this.street,
     };
   }

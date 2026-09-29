@@ -905,8 +905,8 @@ test('chip audit: every hand of many random tournaments pays out exactly right',
         const cap = inHand.reduce((a, q) => a + Math.min(p.committed, q.committed), 0);
         assert.ok(w <= cap, tag + p.name + ' won ' + w + ' but could win at most ' + cap);
         if (p.folded) assert.strictEqual(w, 0, tag + 'a folded player wins nothing');
-        const back = res.uncalled.filter((u) => u.playerId === p.id).reduce((a, u) => a + u.amount, 0);
-        assert.strictEqual(g.getPrivate(p.id).collected, w ? w + back : 0, tag + p.name + ': collected = won + returned bet');
+        const back = res.type === 'fold' ? res.uncalled.filter((u) => u.playerId === p.id).reduce((a, u) => a + u.amount, 0) : 0;
+        assert.strictEqual(g.getPrivate(p.id).collected, w ? w + back : 0, tag + p.name + ': collected = won + (fold win) own returned bet');
       });
     }
   }
