@@ -1332,6 +1332,112 @@ body.host {
 .sp-total { font-size: 19px; font-weight: 800; color: #fff; white-space: nowrap; }
 .sp-foot { font-size: 12px; color: rgba(255, 255, 255, 0.5); }
 
+/* ═══════════════════════ Last-trick peek ═══════════════════════ */
+/* The standings peek's mirror image: same button and popup, top-left corner. */
+.lasttrick-dock {
+  position: absolute;
+  top: 6px;
+  left: 14px;
+  z-index: 30;
+}
+.lasttrick-dock[hidden] { display: none; }
+.lasttrick-dock .standings-pop {
+  right: auto;
+  left: 0;
+  width: min(460px, 88vw);
+  max-height: calc(100dvh - 140px);
+  overflow-y: auto;
+}
+.standings-btn .lt-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* A miniature of the felt: each card in front of its seat, result in the middle. */
+.lt-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-areas:
+    ".    n    ."
+    "w  badge  e"
+    ".    s    .";
+  gap: 8px 10px;
+  align-items: center;
+  justify-items: center;
+  padding: 12px 10px;
+  border-radius: 14px;
+  border: 3px solid #3E2A1C;
+  background: radial-gradient(ellipse at 50% 50%, var(--felt-light) 0%, var(--felt) 60%, #12402C 100%);
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.4);
+}
+.lt-play[data-seat="N"] { grid-area: n; }
+.lt-play[data-seat="E"] { grid-area: e; }
+.lt-play[data-seat="S"] { grid-area: s; }
+.lt-play[data-seat="W"] { grid-area: w; }
+.lt-play {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+}
+.lt-play .card {
+  width: 100%;
+  max-width: 58px;
+  height: auto;
+  aspect-ratio: 5 / 7;
+  border-radius: 5px;
+}
+/* Same language as the felt: gold ring on the lead, white on the taker, the
+   rest faded. */
+.lt-play.is-lead .card { box-shadow: 0 0 0 3px var(--gold), var(--card-shadow); }
+.lt-play.is-taker .card { box-shadow: 0 0 0 3px #fff, 0 0 16px rgba(255, 255, 255, 0.45); }
+.lt-play:not(.is-taker) .card { opacity: 0.6; }
+.lt-name {
+  width: 100%;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.lt-tag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.lt-badge {
+  grid-area: badge;
+  max-width: 100%;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.62);
+  text-align: center;
+}
+.lt-badge-name {
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.lt-pts { font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, 0.7); margin-top: 2px; }
+.lt-pts.scoring { color: #FF8AA0; }
+.lt-pts.bonus { color: #86E6A4; }
+.lasttrick-dock .pname[data-seat="N"] { color: var(--seat-n); }
+.lasttrick-dock .pname[data-seat="E"] { color: var(--seat-e); }
+.lasttrick-dock .pname[data-seat="S"] { color: var(--seat-s); }
+.lasttrick-dock .pname[data-seat="W"] { color: var(--seat-w); }
+
 /* ═══════════════════════ Overlays ═══════════════════════ */
 
 .host-overlay {

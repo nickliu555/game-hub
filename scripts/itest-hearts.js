@@ -337,6 +337,27 @@ function collectCardStrings(node, out) {
   check(illegalKeptHand === true, 'a rejected play left the hand untouched');
   check(provedNotInHand, 'a card not in hand was rejected during play');
 
+  // ═══════════ Last-trick peek ═══════════
+  section('Last trick');
+
+  const trickResults = {};
+  publicCards.filter((r) => r.ev === 'state:trickEnd').forEach((r) => {
+    trickResults[r.payload.handNumber + ':' + r.payload.result.number] = r.payload.result;
+  });
+  const tables = publicCards.filter((r) => r.ev === 'state:table').map((r) => r.payload);
+  const firstTricks = tables.filter((t) => t.trickNumber === 1);
+  const laterTricks = tables.filter((t) => t.trickNumber > 1);
+  check(firstTricks.length > 0 && firstTricks.every((t) => t.lastTrick === null),
+    'trick 1 of a hand has no last trick to show');
+  check(laterTricks.length > 0 && laterTricks.every((t) => {
+    const lt = t.lastTrick;
+    const truth = trickResults[t.handNumber + ':' + (t.trickNumber - 1)];
+    return lt && truth && lt.number === t.trickNumber - 1 && lt.cards.length === 4
+      && lt.winnerId === truth.winnerId && lt.points === truth.points
+      && JSON.stringify(lt.cards) === JSON.stringify(truth.cards);
+  }), 'every later trick carries exactly the previous trick, as it was resolved');
+  check(deal2.lastTrick === undefined, 'a new deal does not carry the old hand\'s last trick');
+
   // ═══════════ Secrecy ═══════════
   section('Secrecy');
 

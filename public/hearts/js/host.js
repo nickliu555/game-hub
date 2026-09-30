@@ -91,6 +91,13 @@
   const standingsFoot = document.getElementById('standingsFoot');
   const standingsClose = document.getElementById('standingsClose');
 
+  const lastTrickDock = document.getElementById('lastTrickDock');
+  const lastTrickBtn = document.getElementById('lastTrickBtn');
+  const lastTrickPop = document.getElementById('lastTrickPop');
+  const lastTrickNote = document.getElementById('lastTrickNote');
+  const lastTrickCards = document.getElementById('lastTrickCards');
+  const lastTrickClose = document.getElementById('lastTrickClose');
+
   const connOverlay = document.getElementById('connOverlay');
   const fullscreenBtn = document.getElementById('fullscreenBtn');
   const resetBtn = document.getElementById('resetBtn');
@@ -1474,6 +1481,7 @@
   standingsBtn.addEventListener('click', function (e) {
     e.stopPropagation();
     if (standingsPop.hidden) {
+      closeLastTrick();
       standingsPop.hidden = false;
       standingsBtn.setAttribute('aria-expanded', 'true');
     } else closeStandings();
@@ -1485,6 +1493,95 @@
   });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && !standingsPop.hidden) closeStandings();
+  });
+
+  // ---------------- Last-trick peek ----------------
+  let lastTrickKey = '';
+
+  function closeLastTrick() {
+    lastTrickPop.hidden = true;
+    lastTrickBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  /** Offered on the table only, once this hand has a finished trick to show. */
+  function setLastTrick(s) {
+    const t = s && s.lastTrick;
+    if (!t || !t.cards || !t.cards.length) {
+      closeLastTrick(); lastTrickDock.hidden = true; lastTrickKey = ''; return;
+    }
+    lastTrickDock.hidden = false;
+
+    const key = s.handNumber + ':' + t.number;
+    if (key === lastTrickKey) return;
+    lastTrickKey = key;
+
+    const byId = {};
+    (s.seats || []).forEach(function (p) { byId[p.playerId] = p; });
+
+    lastTrickNote.textContent = 'Trick ' + t.number + ' of ' + (s.tricksPerHand || 13);
+    lastTrickCards.innerHTML = '';
+    t.cards.forEach(function (c, i) {
+      const who = byId[c.playerId] || {};
+      const led = i === 0;
+      const took = c.playerId === t.winnerId;
+
+      const cell = document.createElement('div');
+      cell.className = 'lt-play' + (led ? ' is-lead' : '') + (took ? ' is-taker' : '');
+      cell.dataset.seat = who.seat || '';
+      cell.appendChild(cardImg(c.card));
+
+      const name = document.createElement('span');
+      name.className = 'lt-name pname';
+      name.dataset.seat = who.seat || '';
+      name.textContent = who.name || '';
+      cell.appendChild(name);
+
+      if (led) {
+        const tag = document.createElement('span');
+        tag.className = 'lt-tag';
+        tag.textContent = 'Led';
+        cell.appendChild(tag);
+      }
+
+      lastTrickCards.appendChild(cell);
+    });
+
+    const badge = document.createElement('div');
+    badge.className = 'lt-badge';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'lt-badge-name';
+    const winner = document.createElement('span');
+    winner.className = 'pname';
+    winner.dataset.seat = (byId[t.winnerId] || {}).seat || '';
+    winner.textContent = t.winnerName || '';
+    nameEl.appendChild(winner);
+    nameEl.appendChild(document.createTextNode(' took it'));
+    const pts = t.points || 0;
+    const ptsEl = document.createElement('div');
+    ptsEl.className = 'lt-pts' + (pts > 0 ? ' scoring' : (pts < 0 ? ' bonus' : ''));
+    ptsEl.textContent = pts === 0
+      ? 'no points'
+      : (pts > 0 ? '+' + pts : String(pts)) + (Math.abs(pts) === 1 ? ' point' : ' points');
+    badge.appendChild(nameEl);
+    badge.appendChild(ptsEl);
+    lastTrickCards.appendChild(badge);
+  }
+
+  lastTrickBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (lastTrickPop.hidden) {
+      closeStandings();
+      lastTrickPop.hidden = false;
+      lastTrickBtn.setAttribute('aria-expanded', 'true');
+    } else closeLastTrick();
+  });
+  lastTrickClose.addEventListener('click', closeLastTrick);
+  document.addEventListener('click', function (e) {
+    if (lastTrickPop.hidden) return;
+    if (!lastTrickDock.contains(e.target)) closeLastTrick();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !lastTrickPop.hidden) closeLastTrick();
   });
 
   // ---------------- Clock sync ----------------
@@ -1507,14 +1604,14 @@
   socket.on('connect', function () { connOverlay.hidden = true; authenticate(); });
   socket.on('disconnect', function () { connOverlay.hidden = false; });
 
-  socket.on('state:lobby', function (l) { renderLobby(l); if (l.phase === 'LOBBY') show('lobby'); setStandings(null); });
-  socket.on('state:deal', function (s) { syncClock(s); renderDeal(s); setStandings(s); });
-  socket.on('state:pass', function (s) { syncClock(s); renderPass(s); setStandings(s); });
-  socket.on('state:exchange', function (s) { syncClock(s); renderExchange(s); setStandings(s); });
-  socket.on('state:table', function (s) { syncClock(s); renderTable(s); setStandings(s); });
-  socket.on('state:trickEnd', function (s) { syncClock(s); renderTrickEnd(s); setStandings(s); });
-  socket.on('state:handEnd', function (s) { syncClock(s); renderHandEnd(s); setStandings(null); });
-  socket.on('state:final', function (s) { renderFinal(s); setStandings(null); });
+  socket.on('state:lobby', function (l) { renderLobby(l); if (l.phase === 'LOBBY') show('lobby'); setStandings(null); setLastTrick(null); });
+  socket.on('state:deal', function (s) { syncClock(s); renderDeal(s); setStandings(s); setLastTrick(null); });
+  socket.on('state:pass', function (s) { syncClock(s); renderPass(s); setStandings(s); setLastTrick(null); });
+  socket.on('state:exchange', function (s) { syncClock(s); renderExchange(s); setStandings(s); setLastTrick(null); });
+  socket.on('state:table', function (s) { syncClock(s); renderTable(s); setStandings(s); setLastTrick(s); });
+  socket.on('state:trickEnd', function (s) { syncClock(s); renderTrickEnd(s); setStandings(s); setLastTrick(s); });
+  socket.on('state:handEnd', function (s) { syncClock(s); renderHandEnd(s); setStandings(null); setLastTrick(null); });
+  socket.on('state:final', function (s) { renderFinal(s); setStandings(null); setLastTrick(null); });
 
   socket.on('state:reset', function () {
     if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
@@ -1533,6 +1630,7 @@
     seenQueen = false; seenJack = false; heartsWereBroken = false;
     lastHumanTotal = -1;
     setStandings(null);
+    setLastTrick(null);
     show('lobby');
   });
 

@@ -66,6 +66,33 @@
         </div>
       </div>
 
+      <!-- Replay the trick that was just swept away, for anyone who looked away.
+           Only on the table, and only once a trick has been played this hand. -->
+      <div class="lasttrick-dock" id="lastTrickDock" hidden>
+        <button class="standings-btn" id="lastTrickBtn" type="button" title="Show the last trick"
+                aria-label="Show the last trick" aria-haspopup="dialog" aria-expanded="false" aria-controls="lastTrickPop">
+          <svg class="sp-icon lt-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M4.2 12a7.8 7.8 0 1 0 2.3-5.5" />
+            <path d="M4.2 4.4v3.9h3.9" />
+            <path d="M12 8.2v4.1l2.8 1.8" />
+          </svg>
+        </button>
+        <div class="standings-pop" id="lastTrickPop" role="dialog" aria-label="Last trick" hidden>
+          <div class="sp-head">
+            <div class="sp-titles">
+              <span class="sp-title">Last trick</span>
+              <span class="sp-note" id="lastTrickNote"></span>
+            </div>
+            <button class="sp-close" id="lastTrickClose" type="button" aria-label="Close">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M7 7 L17 17 M17 7 L7 17" />
+              </svg>
+            </button>
+          </div>
+          <div class="lt-cards" id="lastTrickCards"></div>
+        </div>
+      </div>
+
       <!-- ─────────────── Lobby ─────────────── -->
       <section class="view active" id="view-lobby">
         <div class="lobby-grid">

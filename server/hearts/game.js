@@ -706,6 +706,7 @@ class Game {
       turnIsBot: !!(current && current.isBot),
       waitingOn,
       heartsBroken: this.heartsBroken,
+      lastTrick: this.lastTrick,
     });
   }
 
