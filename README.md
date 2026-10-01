@@ -195,7 +195,7 @@ Two teams, one puck, pure chaos — a HaxBall-style rink on the Host screen with
 3. Build larger clears, combos, T-spins, and back-to-back bonuses to send garbage. Your clears cancel incoming garbage first.
 4. Attacks go to a random surviving opponent while the host follows live boards and eliminations.
 5. Avoid topping out. With multiple players, the last survivor wins and eliminated players can spectate. A one-player host match continues until that player tops out. Disconnected players continue as AFK and restore their current board when they return.
-6. Choose **Practice solo** from the Puzzle section to play endless falling blocks without a host, opponents, or garbage. Pause, resume, restart, or restore a paused session after refreshing.
+6. Choose **Practice solo** from the Strategy section to play endless falling blocks without a host, opponents, or garbage. Pause, resume, restart, or restore a paused session after refreshing.
 
 ## How It Works
 
