@@ -1521,7 +1521,7 @@ body.host {
   .ex-card + .ex-card { margin-left: -11px; }
 }
 
-/* ---- Reactions ---- */
+/* ---- Emotes ---- */
 .reaction-layer { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 5; }
 .reaction-emoji {
   position: absolute; bottom: -60px; font-size: 56px; line-height: 1;
@@ -1533,4 +1533,53 @@ body.host {
   15%  { transform: translateY(-15vh) rotate(-6deg) scale(1);   opacity: 1; }
   85%  { transform: translateY(-90vh) rotate(6deg)  scale(1);   opacity: 1; }
   100% { transform: translateY(-105vh) rotate(0deg) scale(0.85); opacity: 0; }
+}
+
+/* Speech bubbles coming off a seat's name while a trick is on the felt. */
+.emote-layer { position: absolute; inset: 0; pointer-events: none; z-index: 7; }
+.emote-bubble {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: clamp(48px, 4vw, 66px);
+  height: clamp(48px, 4vw, 66px);
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid rgba(0, 0, 0, 0.16);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  font-size: clamp(28px, 2.4vw, 40px);
+  line-height: 1;
+  user-select: none;
+  transform: translate(0, -50%);
+  transform-origin: left center;
+  animation: bubbleLife 3.5s ease both;
+}
+/* Short tail pointing back at the name (left by default). */
+.emote-bubble::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -9px;
+  margin-top: -8px;
+  border-style: solid;
+  border-width: 8px 12px 8px 0;
+  border-color: transparent #fff transparent transparent;
+}
+.emote-bubble.eb-up { transform: translate(-50%, -100%); transform-origin: bottom center; }
+.emote-bubble.eb-up::before {
+  top: auto;
+  bottom: -11px;
+  left: 50%;
+  margin: 0 0 0 -8px;
+  border-width: 12px 8px 0 8px;
+  border-color: #fff transparent transparent transparent;
+}
+@keyframes bubbleLife {
+  0%   { opacity: 0; scale: 0.6; }
+  4%   { opacity: 1; scale: 1; }
+  91%  { opacity: 1; scale: 1; }
+  100% { opacity: 0; scale: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes bubbleLife { 0%, 91% { opacity: 1; } 100% { opacity: 0; } }
 }

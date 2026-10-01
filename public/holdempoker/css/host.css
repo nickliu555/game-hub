@@ -1132,9 +1132,6 @@ body.host {
   border-width: 8px 0 8px 12px;
   border-color: transparent transparent transparent #fff;
 }
-.seat-row .emote-bubble { width: 44px; height: 44px; font-size: 25px; margin: -8px 0 -8px 6px; }
-.seat-row .seat-name:has(+ .emote-bubble) { flex: 0 1 auto; }
-.seat-row .emote-bubble + * { margin-left: auto; }
 @keyframes bubbleLife {
   0%   { opacity: 0; scale: 0.6; }
   4%   { opacity: 1; scale: 1; }
@@ -1143,4 +1140,18 @@ body.host {
 }
 @media (prefers-reduced-motion: reduce) {
   @keyframes bubbleLife { 0%, 91% { opacity: 1; } 100% { opacity: 0; } }
+}
+
+/* ---- Floating emotes (lobby and final standings) ---- */
+.reaction-layer { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 5; }
+.reaction-emoji {
+  position: absolute; bottom: -60px; font-size: 56px; line-height: 1;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.35)); will-change: transform, opacity;
+  animation: reactionFloat 3.5s ease-out forwards; user-select: none;
+}
+@keyframes reactionFloat {
+  0%   { transform: translateY(0)     rotate(0deg)  scale(0.4); opacity: 0; }
+  15%  { transform: translateY(-15vh) rotate(-6deg) scale(1);   opacity: 1; }
+  85%  { transform: translateY(-90vh) rotate(6deg)  scale(1);   opacity: 1; }
+  100% { transform: translateY(-105vh) rotate(0deg) scale(0.85); opacity: 0; }
 }

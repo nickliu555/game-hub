@@ -103,8 +103,8 @@ function collectCardStrings(node, out) {
   check(fullStatus && fullStatus.full === true, 'status now reports the table as full');
   spare.close();
 
-  const lobbyReact = await emit(socks.Bob, 'player:reaction', { index: 0 });
-  check(lobbyReact && lobbyReact.ok, 'a player may react from the lobby');
+  const lobbyReact = await emit(socks.Bob, 'player:emote', { e: '😀' });
+  check(lobbyReact && lobbyReact.ok && lobbyReact.kind === 'float', 'a lobby emote floats');
 
   // ═══════════ Seating order ═══════════
   section('Seating');
@@ -294,30 +294,36 @@ function collectCardStrings(node, out) {
     'the hand scored ' + expected + ' points in total (got ' + totalDelta + ')');
   check(handEnd.rows.every((r) => r.total === r.delta), 'hand 1 totals equal the hand deltas');
 
-  // ═══════════ Reactions ═══════════
-  section('Reactions');
+  // ═══════════ Emotes ═══════════
+  section('Emotes');
 
-  const gotReaction = once(host, 'host:reaction', 3000);
-  const react1 = await emit(socks.Alice, 'player:reaction', { index: 2 });
-  check(react1 && react1.ok, 'a player may react on the scoreboard');
-  const seenReaction = await gotReaction;
-  check(seenReaction && seenReaction.index === 2, 'the host receives the reaction index');
+  const gotEmote = once(host, 'host:emote', 3000);
+  const emote1 = await emit(socks.Alice, 'player:emote', { e: '🎉' });
+  check(emote1 && emote1.ok && emote1.kind === 'float' && emote1.cooldownMs === 10000,
+    'an emote on the scoreboard floats, with the 10s cooldown');
+  const seenEmote = await gotEmote;
+  check(seenEmote && seenEmote.e === '🎉' && seenEmote.id === players.Alice && seenEmote.kind === 'float',
+    'the host receives who sent which emote, and that it floats');
 
-  const react2 = await emit(socks.Alice, 'player:reaction', { index: 3 });
-  check(react2 && react2.ok === false && react2.reason === 'cooldown' && react2.retryInMs > 0,
-    'a second reaction inside the cooldown is refused with a retry hint');
-  const badIdx = await emit(socks.Bob, 'player:reaction', { index: 9 });
-  check(badIdx && badIdx.reason === 'bad-index', 'an out-of-range reaction index is rejected');
+  const emote2 = await emit(socks.Alice, 'player:emote', { e: '😂' });
+  check(emote2 && emote2.ok === false && emote2.reason === 'cooldown' && emote2.retryInMs > 2500,
+    'a second floating emote inside 10s is refused with a retry hint');
+  const badEmote = await emit(socks.Bob, 'player:emote', { e: '⚽' });
+  check(badEmote && badEmote.reason === 'bad-emote', 'an emoji outside the set is rejected');
+  const stranger = await connect();
+  const unjoined = await emit(stranger, 'player:emote', { e: '😀' });
+  check(unjoined && unjoined.reason === 'not-joined', 'a socket that never joined cannot emote');
+  stranger.close();
 
   const mutedEvt = once(socks.Bob, 'state:reactionsMuted', 3000);
   const muteAck = await emit(host, 'host:setReactionsMuted', { muted: true });
-  check(muteAck && muteAck.ok && muteAck.reactionsMuted === true, 'the host can mute reactions');
+  check(muteAck && muteAck.ok && muteAck.reactionsMuted === true, 'the host can mute emotes');
   const mutedPayload = await mutedEvt;
-  check(mutedPayload && mutedPayload.muted === true, 'players are told reactions are muted');
-  const whileMuted = await emit(socks.Bob, 'player:reaction', { index: 0 });
-  check(whileMuted && whileMuted.reason === 'muted', 'a reaction sent while muted is refused');
+  check(mutedPayload && mutedPayload.muted === true, 'players are told emotes are muted');
+  const whileMuted = await emit(socks.Bob, 'player:emote', { e: '😀' });
+  check(whileMuted && whileMuted.reason === 'muted', 'an emote sent while muted is refused');
   const unmute = await emit(socks.Bob, 'host:setReactionsMuted', { muted: false });
-  check(unmute && unmute.ok === false && unmute.reason === 'not-host', 'a player cannot unmute reactions');
+  check(unmute && unmute.ok === false && unmute.reason === 'not-host', 'a player cannot unmute emotes');
   await emit(host, 'host:setReactionsMuted', { muted: false });
 
   const nextDeal = once(host, 'state:deal', 10000);
@@ -330,8 +336,30 @@ function collectCardStrings(node, out) {
   check(deal2.seats.reduce((a, s) => a + s.total, 0) === totalDelta,
     'running totals carry over into hand 2');
 
-  const midHand = await emit(socks.Bob, 'player:reaction', { index: 1 });
-  check(midHand && midHand.reason === 'phase-closed', 'reactions are closed once a hand is under way');
+  // The swap lasts 7s, so a float sent here is still cooling when the first trick starts.
+  await once(host, 'state:exchange', 30000);
+  const duringSwap = await emit(socks.Bob, 'player:emote', { e: '👍' });
+  check(duringSwap && duringSwap.ok && duringSwap.kind === 'float', 'emotes stay open while the cards are swapped');
+
+  // Mid-trick: a seat bubble on a short cooldown.
+  await once(host, 'state:table', 30000);
+  const bobBubble = await emit(socks.Bob, 'player:emote', { e: '😎' });
+  check(bobBubble && bobBubble.ok && bobBubble.kind === 'bubble',
+    "a float's 10s cooldown does not hold back the first bubble once play starts");
+  const aliceWait = await emit(socks.Alice, 'player:emote', { e: '😎' });
+  let midTrick = aliceWait;
+  if (aliceWait && aliceWait.reason === 'cooldown') {
+    await sleep(aliceWait.retryInMs + 50);
+    midTrick = await emit(socks.Alice, 'player:emote', { e: '😎' });
+  }
+  check(midTrick && midTrick.ok && midTrick.kind === 'bubble' && midTrick.cooldownMs === 2500,
+    'an emote during a trick is a seat bubble, with the 2.5s cooldown');
+  const bubbleAgain = await emit(socks.Alice, 'player:emote', { e: '😭' });
+  check(bubbleAgain && bubbleAgain.reason === 'cooldown' && bubbleAgain.retryInMs <= 2500,
+    'a second bubble inside 2.5s is refused');
+  await sleep(2600);
+  const bubbleLater = await emit(socks.Alice, 'player:emote', { e: '😭' });
+  check(bubbleLater && bubbleLater.ok, 'the next bubble is allowed once 2.5s have passed');
 
   check(provedIllegal, 'an illegal card was rejected during play');
   check(illegalKeptHand === true, 'a rejected play left the hand untouched');

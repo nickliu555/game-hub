@@ -106,14 +106,18 @@
   let currentView = 'lobby';
   let showTimer = null;
   function forceSingle(name) {
+    if (name !== 'table') clearSeatBubbles();
     Object.keys(views).forEach(function (k) {
       views[k].classList.toggle('active', k === name);
       views[k].classList.remove('fading-out');
     });
     currentView = name;
+    // The seats had no size to measure while the table was hidden; fit them now it's up.
+    if (name === 'table') { fitSeatNames(); placeBubbles(); }
   }
   function show(name, done) {
     if (currentView === name) { if (done) done(); return; }
+    if (name !== 'table') clearSeatBubbles();
     // Clear any in-flight transition first, or two views can end up .active.
     if (showTimer) { clearTimeout(showTimer); showTimer = null; forceSingle(currentView); }
     const from = views[currentView];
@@ -375,12 +379,10 @@
     }, { okLabel: 'Reset', danger: true });
   });
 
-  // ---------------- Reactions ----------------
-  const REACTION_EMOJIS = ['😂', '🔥', '🎉', '😱', '😭', '😡'];
+  // ---------------- Emotes ----------------
   const REACTION_MAX = 30;
   const reactionLayer = document.getElementById('reactionLayer');
-  function spawnReaction(index) {
-    const emoji = REACTION_EMOJIS[index];
+  function spawnReaction(emoji) {
     if (!emoji || !reactionLayer) return;
     while (reactionLayer.children.length >= REACTION_MAX) reactionLayer.removeChild(reactionLayer.firstChild);
     const e = document.createElement('div');
@@ -392,7 +394,60 @@
     e.addEventListener('animationend', function () { if (e.parentNode) e.parentNode.removeChild(e); });
     reactionLayer.appendChild(e);
   }
-  socket.on('host:reaction', function (p) { if (p && typeof p.index === 'number') spawnReaction(p.index); });
+
+  const EMOTE_SHOW_MS = 3500;
+  // The bubble's tail juts 9px out of it, so this leaves ~13px of clear space by the seat box.
+  const BUBBLE_GAP = 22;
+  const emoteLayer = document.getElementById('emoteLayer');
+  const seatBubbles = {};   // playerId → { el, timer }
+
+  /** Park the bubble off the seat box, clear of that seat's played card. */
+  function placeBubble(pid) {
+    const rec = seatBubbles[pid];
+    const seat = seatByPlayer[pid];
+    const seatEl = seat && document.getElementById('seat-' + seat);
+    if (!rec) return;
+    if (!seatEl || !seatEl.firstChild) { clearSeatBubble(pid); return; }
+    const origin = emoteLayer.getBoundingClientRect();
+    const box = seatEl.getBoundingClientRect();
+    // West's and East's cards land level with their seats, so those bubbles go above the box.
+    const above = seat === 'W' || seat === 'E';
+    rec.el.classList.toggle('eb-up', above);
+    const x = above ? box.left + box.width / 2 : box.right + BUBBLE_GAP;
+    const y = above ? box.top - BUBBLE_GAP : box.top + box.height / 2;
+    rec.el.style.left = Math.round(x - origin.left) + 'px';
+    rec.el.style.top = Math.round(y - origin.top) + 'px';
+  }
+  function placeBubbles() { Object.keys(seatBubbles).forEach(placeBubble); }
+  function clearSeatBubble(pid) {
+    const rec = seatBubbles[pid];
+    if (!rec) return;
+    clearTimeout(rec.timer);
+    rec.el.remove();
+    delete seatBubbles[pid];
+  }
+  function clearSeatBubbles() { Object.keys(seatBubbles).forEach(clearSeatBubble); }
+
+  function showSeatEmote(pid, e) {
+    clearSeatBubble(pid);
+    const el = document.createElement('div');
+    el.className = 'emote-bubble';
+    el.textContent = e;
+    emoteLayer.appendChild(el);
+    const rec = { el: el, timer: null };
+    seatBubbles[pid] = rec;
+    placeBubble(pid);
+    rec.timer = setTimeout(function () {
+      if (seatBubbles[pid] === rec) clearSeatBubble(pid);
+    }, EMOTE_SHOW_MS);
+  }
+  window.addEventListener('resize', placeBubbles);
+
+  socket.on('host:emote', function (p) {
+    if (!p || typeof p.id !== 'string' || typeof p.e !== 'string') return;
+    if (p.kind === 'bubble' && currentView === 'table' && seatByPlayer[p.id]) showSeatEmote(p.id, p.e);
+    else spawnReaction(p.e);
+  });
 
   let reactionsMuted = false;
   const muteBtn = document.getElementById('muteReactionsBtn');
@@ -1028,9 +1083,10 @@
       if (o.winnerId && s.playerId === o.winnerId) el.classList.add('winner');
     });
     fitSeatNames();
+    placeBubbles();
     // The felt may still be hidden on the first render, where nothing has a
     // width yet to measure against.
-    requestAnimationFrame(fitSeatNames);
+    requestAnimationFrame(function () { fitSeatNames(); placeBubbles(); });
   }
 
   function renderTrickCards(trick, opts) {

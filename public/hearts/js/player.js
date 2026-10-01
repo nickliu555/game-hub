@@ -74,7 +74,7 @@
     if (attribution) attribution.hidden = !(name === 'wait' && publicPhase === 'LOBBY');
     if (name !== 'play') document.body.classList.remove('my-turn');
     currentView = name;
-    updateReactionState();
+    updateEmoteState();
   }
   let currentView = 'wait';
 
@@ -108,8 +108,9 @@
 
   const connOverlay = el('pConnOverlay');
   const toastEl = el('pToast');
-  const reactionBar = el('reactionBar');
-  const reactionCooldown = el('reactionCooldown');
+  const emoteToggle = el('emoteToggle');
+  const emotePanel = el('emotePanel');
+  const emoteGrid = el('emoteGrid');
   const attribution = el('playerAttribution');
 
   const TOAST_FADE_MS = 280;
@@ -708,70 +709,95 @@
 
   socket.on('state:hostPresence', function (p) {
     hostPresent = !!(p && p.present);
-    updateReactionState();
+    updateEmoteState();
   });
   socket.on('state:reactionsMuted', function (p) {
     reactionsMutedByHost = !!(p && p.muted);
-    updateReactionState();
+    updateEmoteState();
   });
 
-  // ---------------- Reactions ----------------
-  // Downtime only: the lobby and the two scoreboards. Never over a live hand,
-  // where the bar would cover cards and the tap would cost someone a trick.
-  const REACTION_COOLDOWN_MS = 10 * 1000;
-  const REACTION_LS_KEY = 'hearts.lastReactionAt';
-  const reactionBtns = Array.prototype.slice.call(reactionBar.querySelectorAll('.reaction-btn'));
-  let reactionUntil = 0;
-  let cooldownRaf = null;
+  // ---------------- Emotes ----------------
+  // Must mirror ALLOWED_EMOTES in server/hearts/index.js.
+  const EMOTES = ['😀', '😂', '😎', '😭', '😡', '👍', '🔥', '💪', '🎉', '😱'];
+  // A trick on the felt shows a seat bubble; every other screen floats it. The
+  // server's ack has the final word.
+  const EMOTE_BUBBLE_COOLDOWN_MS = 2500;
+  const EMOTE_FLOAT_COOLDOWN_MS = 10 * 1000;
+  let emoteUntil = 0;
+  let emoteKind = null;     // the kind the running cooldown belongs to
+  let emoteCoolTimer = null;
 
-  function reactionsOpen() {
-    return publicPhase === 'LOBBY' || publicPhase === 'HAND_END' || publicPhase === 'FINAL';
-  }
-  function updateReactionState() {
-    if (!reactionBar) return;
-    reactionBar.hidden = !(reactionsOpen() && !reactionsMutedByHost && hostPresent);
-  }
-  function startCooldown() {
-    if (cooldownRaf) cancelAnimationFrame(cooldownRaf);
-    (function tick() {
-      const left = reactionUntil - Date.now();
-      if (left <= 0) {
-        reactionBtns.forEach(function (b) { b.disabled = false; });
-        reactionCooldown.hidden = true;
-        cooldownRaf = null;
-        return;
-      }
-      reactionBtns.forEach(function (b) { b.disabled = true; });
-      reactionCooldown.hidden = false;
-      reactionCooldown.textContent = Math.ceil(left / 1000) + 's';
-      cooldownRaf = requestAnimationFrame(tick);
-    }());
+  function onTap(node, fn) {
+    node.addEventListener('pointerdown', function (e) {
+      if (e.button != null && e.button > 0) return;
+      e.preventDefault();
+      fn(e);
+    });
   }
 
-  const storedLast = parseInt(localStorage.getItem(REACTION_LS_KEY) || '0', 10);
-  if (storedLast && Date.now() - storedLast < REACTION_COOLDOWN_MS) {
-    reactionUntil = storedLast + REACTION_COOLDOWN_MS;
-    startCooldown();
+  EMOTES.forEach(function (e) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'emote-btn';
+    b.textContent = e;
+    b.dataset.emote = e;
+    emoteGrid.appendChild(b);
+  });
+
+  function emotesAllowed() {
+    return hostPresent && !reactionsMutedByHost;
+  }
+  function setEmotePanel(open) {
+    emotePanel.hidden = !open;
+    emoteToggle.classList.toggle('open', open);
+    emoteToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  function emoteKindNow() {
+    return publicPhase === 'TRICK' || publicPhase === 'TRICK_END' ? 'bubble' : 'float';
+  }
+  // Mirrors the server: a cooldown only holds within the kind that set it.
+  function emoteCooling() {
+    return Date.now() < emoteUntil && emoteKind === emoteKindNow();
+  }
+  function updateEmoteState() {
+    const ok = emotesAllowed();
+    emoteToggle.hidden = !ok;
+    if (!ok) setEmotePanel(false);
+    emoteToggle.classList.toggle('cooling', emoteCooling());
+  }
+  function coolFor(ms, kind) {
+    emoteUntil = Date.now() + ms;
+    emoteKind = kind;
+    if (emoteCoolTimer) clearTimeout(emoteCoolTimer);
+    emoteCoolTimer = setTimeout(updateEmoteState, ms);
+    updateEmoteState();
   }
 
-  reactionBar.addEventListener('click', function (e) {
-    const btn = e.target.closest('.reaction-btn');
-    if (!btn || btn.disabled) return;
-    const idx = parseInt(btn.dataset.reaction, 10);
-    if (isNaN(idx)) return;
-    const now = Date.now();
-    reactionUntil = now + REACTION_COOLDOWN_MS;
-    localStorage.setItem(REACTION_LS_KEY, String(now));
-    startCooldown();
+  onTap(emoteToggle, function () {
+    if (!emotesAllowed() || emoteCooling()) return;
+    buzz(8);
+    setEmotePanel(emotePanel.hidden);
+  });
+
+  onTap(emoteGrid, function (e) {
+    const b = e.target.closest('.emote-btn');
+    if (!b || !emotesAllowed()) return;
+    setEmotePanel(false);
+    const kind = emoteKindNow();
+    coolFor(kind === 'bubble' ? EMOTE_BUBBLE_COOLDOWN_MS : EMOTE_FLOAT_COOLDOWN_MS, kind);
     buzz(15);
-    socket.emit('player:reaction', { index: idx }, function (res) {
-      if (res && !res.ok && res.reason === 'cooldown' && res.retryInMs) {
-        reactionUntil = Date.now() + res.retryInMs;
-        localStorage.setItem(REACTION_LS_KEY, String(Date.now() + res.retryInMs - REACTION_COOLDOWN_MS));
-        startCooldown();
-      }
+    socket.emit('player:emote', { e: b.dataset.emote }, function (res) {
+      if (res && res.ok && res.cooldownMs) coolFor(res.cooldownMs, res.kind);
+      else if (res && res.reason === 'cooldown' && res.retryInMs) coolFor(res.retryInMs, kind);
     });
   });
 
-  updateReactionState();
+  // A tap anywhere outside the panel closes it.
+  document.addEventListener('pointerdown', function (e) {
+    if (emotePanel.hidden) return;
+    if (e.target.closest('#emotePanel, #emoteToggle')) return;
+    setEmotePanel(false);
+  });
+
+  updateEmoteState();
 })();

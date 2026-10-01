@@ -618,8 +618,8 @@
     publicPhase = 'LOBBY';
     route();
   });
-  socket.on('state:table', function (s) { publicPhase = s.phase; });
-  socket.on('state:handEnd', function (s) { publicPhase = 'HAND_END'; lastHandEnd = s; });
+  socket.on('state:table', function (s) { publicPhase = s.phase; updateEmoteState(); });
+  socket.on('state:handEnd', function (s) { publicPhase = 'HAND_END'; lastHandEnd = s; updateEmoteState(); });
   socket.on('state:final', function (s) {
     publicPhase = 'FINAL';
     renderTop();
@@ -641,8 +641,11 @@
   // ---------------- Emotes ----------------
   // Soccer Head's set minus the ball. Must mirror ALLOWED_EMOTES in server/holdempoker/index.js.
   const EMOTES = ['😀', '😂', '😎', '😭', '😡', '👍', '🔥', '💪', '🎉', '😱'];
-  const EMOTE_COOLDOWN_MS = 2500;
+  // On the felt it's a seat bubble; lobby and final float it. The server's ack has the final word.
+  const EMOTE_BUBBLE_COOLDOWN_MS = 2500;
+  const EMOTE_FLOAT_COOLDOWN_MS = 10 * 1000;
   let emoteUntil = 0;
+  let emoteKind = null;     // the kind the running cooldown belongs to
   let emoteCoolTimer = null;
 
   EMOTES.forEach(function (e) {
@@ -654,10 +657,9 @@
     emoteGrid.appendChild(b);
   });
 
-  // Anyone still in the tournament may emote, live hand or not; busted players can't.
+  // Anyone still in the tournament may emote; busted players can't.
   function emotesAllowed() {
     if (!hostPresent || reactionsMutedByHost) return false;
-    if (publicPhase === 'FINAL') return false;
     return !(me && me.busted);
   }
   function setEmotePanel(open) {
@@ -665,15 +667,29 @@
     emoteToggle.classList.toggle('open', open);
     emoteToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
+  function emoteKindNow() {
+    return publicPhase === 'LOBBY' || publicPhase === 'FINAL' ? 'float' : 'bubble';
+  }
+  // Mirrors the server: a cooldown only holds within the kind that set it.
+  function emoteCooling() {
+    return Date.now() < emoteUntil && emoteKind === emoteKindNow();
+  }
   function updateEmoteState() {
     const ok = emotesAllowed();
     emoteToggle.hidden = !ok;
     if (!ok) setEmotePanel(false);
-    emoteToggle.classList.toggle('cooling', Date.now() < emoteUntil);
+    emoteToggle.classList.toggle('cooling', emoteCooling());
+  }
+  function coolFor(ms, kind) {
+    emoteUntil = Date.now() + ms;
+    emoteKind = kind;
+    if (emoteCoolTimer) clearTimeout(emoteCoolTimer);
+    emoteCoolTimer = setTimeout(updateEmoteState, ms);
+    updateEmoteState();
   }
 
   onTap(emoteToggle, function () {
-    if (!emotesAllowed() || Date.now() < emoteUntil) return;
+    if (!emotesAllowed() || emoteCooling()) return;
     buzz(8);
     setEmotePanel(emotePanel.hidden);
   });
@@ -682,18 +698,12 @@
     const b = e.target.closest('.emote-btn');
     if (!b || !emotesAllowed()) return;
     setEmotePanel(false);
-    emoteUntil = Date.now() + EMOTE_COOLDOWN_MS;
-    if (emoteCoolTimer) clearTimeout(emoteCoolTimer);
-    emoteCoolTimer = setTimeout(updateEmoteState, EMOTE_COOLDOWN_MS);
-    updateEmoteState();
+    const kind = emoteKindNow();
+    coolFor(kind === 'float' ? EMOTE_FLOAT_COOLDOWN_MS : EMOTE_BUBBLE_COOLDOWN_MS, kind);
     buzz(15);
     socket.emit('player:emote', { e: b.dataset.emote }, function (res) {
-      if (res && !res.ok && res.reason === 'cooldown' && res.retryInMs) {
-        emoteUntil = Date.now() + res.retryInMs;
-        if (emoteCoolTimer) clearTimeout(emoteCoolTimer);
-        emoteCoolTimer = setTimeout(updateEmoteState, res.retryInMs);
-        updateEmoteState();
-      }
+      if (res && res.ok && res.cooldownMs) coolFor(res.cooldownMs, res.kind);
+      else if (res && res.reason === 'cooldown' && res.retryInMs) coolFor(res.retryInMs, kind);
     });
   });
 

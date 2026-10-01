@@ -19,8 +19,11 @@ const INACTIVITY_RESET_MS = 60 * 60 * 1000;
 const HOST_GRACE_MS = 15000;
 // Soccer Head's emote set minus the ball. Mirrors EMOTES in public/holdempoker/js/player.js.
 const ALLOWED_EMOTES = new Set(['😀', '😂', '😎', '😭', '😡', '👍', '🔥', '💪', '🎉', '😱']);
-const EMOTE_COOLDOWN_MS = 2500;
 const TABLE_PHASES = new Set([PHASES.DEAL, PHASES.BETTING, PHASES.RUNOUT]);
+// The showdown/payout plays out on the felt too, so it bubbles like live betting.
+const BUBBLE_PHASES = new Set([PHASES.DEAL, PHASES.BETTING, PHASES.RUNOUT, PHASES.HAND_END]);
+const EMOTE_BUBBLE_COOLDOWN_MS = 2500;
+const EMOTE_FLOAT_COOLDOWN_MS = 10 * 1000;
 
 /**
  * Mount Hold'em Poker onto the hub's Express app and HTTP server.
@@ -45,7 +48,7 @@ function mountHoldemPoker(app, httpServer, opts) {
   let botSeq = 0;
 
   let reactionsMuted = false;
-  const lastEmoteAt = new Map();
+  const nextEmoteAt = new Map();
 
   function isHostPresent() {
     if (hostLeftIntentionally) return false;
@@ -262,23 +265,25 @@ function mountHoldemPoker(app, httpServer, opts) {
       broadcastPhase();
     });
 
-    // Speech-bubble emotes: open to anyone still in the tournament, in any phase but FINAL.
+    // Open to anyone still in the tournament: seat bubbles on the felt, floats elsewhere.
     socket.on('player:emote', ({ e } = {}, ack) => {
       if (!playerId) return ack && ack({ ok: false, reason: 'not-joined' });
       if (!isHostPresent()) return ack && ack({ ok: false, reason: 'host-absent' });
       if (typeof e !== 'string' || !ALLOWED_EMOTES.has(e)) return ack && ack({ ok: false, reason: 'bad-emote' });
       const p = game.players.get(playerId);
       if (!p || p.busted) return ack && ack({ ok: false, reason: 'out' });
-      if (game.phase === PHASES.FINAL) return ack && ack({ ok: false, reason: 'phase-closed' });
       if (reactionsMuted) return ack && ack({ ok: false, reason: 'muted' });
       const now = Date.now();
-      const last = lastEmoteAt.get(playerId) || 0;
-      if (now - last < EMOTE_COOLDOWN_MS) {
-        return ack && ack({ ok: false, reason: 'cooldown', retryInMs: EMOTE_COOLDOWN_MS - (now - last) });
+      const kind = BUBBLE_PHASES.has(game.phase) ? 'bubble' : 'float';
+      // A cooldown only holds within the kind that set it, so a float never delays the first bubble.
+      const last = nextEmoteAt.get(playerId);
+      if (last && last.kind === kind && now < last.at) {
+        return ack && ack({ ok: false, reason: 'cooldown', retryInMs: last.at - now });
       }
-      lastEmoteAt.set(playerId, now);
-      ack && ack({ ok: true });
-      ns.to(HOST_ROOM).emit('host:emote', { id: playerId, e });
+      const cooldownMs = kind === 'bubble' ? EMOTE_BUBBLE_COOLDOWN_MS : EMOTE_FLOAT_COOLDOWN_MS;
+      nextEmoteAt.set(playerId, { at: now + cooldownMs, kind });
+      ack && ack({ ok: true, kind, cooldownMs });
+      ns.to(HOST_ROOM).emit('host:emote', { id: playerId, e, kind });
     });
 
     // ---- Host flows ----

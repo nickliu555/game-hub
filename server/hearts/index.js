@@ -19,10 +19,12 @@ const PLAYER_ROOM = 'players';
 const BOT_LEVEL = 'hard';
 const INACTIVITY_RESET_MS = 60 * 60 * 1000;
 const HOST_GRACE_MS = 15000;
-const REACTION_COUNT = 6;
-const REACTION_COOLDOWN_MS = 10 * 1000;
-// Reactions belong to the downtime screens, never to a hand in progress.
-const REACTION_PHASES = new Set([PHASES.LOBBY, PHASES.HAND_END, PHASES.FINAL]);
+// Mirrors EMOTES in public/hearts/js/player.js.
+const ALLOWED_EMOTES = new Set(['😀', '😂', '😎', '😭', '😡', '👍', '🔥', '💪', '🎉', '😱']);
+// A trick on the felt shows emotes as seat bubbles; every other screen floats them.
+const BUBBLE_PHASES = new Set([PHASES.TRICK, PHASES.TRICK_END]);
+const EMOTE_BUBBLE_COOLDOWN_MS = 2500;
+const EMOTE_FLOAT_COOLDOWN_MS = 10 * 1000;
 
 /**
  * Mount the Hearts game onto the hub's Express app and HTTP server.
@@ -48,7 +50,7 @@ function mountHearts(app, httpServer, opts) {
   let botSeq = 0;
 
   let reactionsMuted = false;
-  const lastReactionAt = new Map();
+  const nextEmoteAt = new Map();
 
   function isHostPresent() {
     if (hostLeftIntentionally) return false;
@@ -316,22 +318,22 @@ function mountHearts(app, httpServer, opts) {
       afterPlay(res);
     });
 
-    socket.on('player:reaction', ({ index } = {}, ack) => {
+    socket.on('player:emote', ({ e } = {}, ack) => {
       if (!playerId) return ack && ack({ ok: false, reason: 'not-joined' });
       if (!isHostPresent()) return ack && ack({ ok: false, reason: 'host-absent' });
-      if (typeof index !== 'number' || index < 0 || index >= REACTION_COUNT) {
-        return ack && ack({ ok: false, reason: 'bad-index' });
-      }
-      if (!REACTION_PHASES.has(game.phase)) return ack && ack({ ok: false, reason: 'phase-closed' });
+      if (typeof e !== 'string' || !ALLOWED_EMOTES.has(e)) return ack && ack({ ok: false, reason: 'bad-emote' });
       if (reactionsMuted) return ack && ack({ ok: false, reason: 'muted' });
       const now = Date.now();
-      const last = lastReactionAt.get(playerId) || 0;
-      if (now - last < REACTION_COOLDOWN_MS) {
-        return ack && ack({ ok: false, reason: 'cooldown', retryInMs: REACTION_COOLDOWN_MS - (now - last) });
+      const kind = BUBBLE_PHASES.has(game.phase) ? 'bubble' : 'float';
+      // A cooldown only holds within the kind that set it, so a float never delays the first bubble.
+      const last = nextEmoteAt.get(playerId);
+      if (last && last.kind === kind && now < last.at) {
+        return ack && ack({ ok: false, reason: 'cooldown', retryInMs: last.at - now });
       }
-      lastReactionAt.set(playerId, now);
-      ack && ack({ ok: true });
-      ns.to(HOST_ROOM).emit('host:reaction', { index });
+      const cooldownMs = kind === 'bubble' ? EMOTE_BUBBLE_COOLDOWN_MS : EMOTE_FLOAT_COOLDOWN_MS;
+      nextEmoteAt.set(playerId, { at: now + cooldownMs, kind });
+      ack && ack({ ok: true, kind, cooldownMs });
+      ns.to(HOST_ROOM).emit('host:emote', { id: playerId, e, kind });
     });
 
     // ---- Host flows ----

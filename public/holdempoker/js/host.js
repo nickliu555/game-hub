@@ -424,44 +424,31 @@
     }, { okLabel: 'Reset', danger: true });
   });
 
-  // ---------------- Emote bubbles ----------------
+  // ---------------- Emotes ----------------
+  // Seat bubbles while the felt is up; the lobby and the final standings float them.
+  const REACTION_MAX = 30;
+  const reactionLayer = document.getElementById('reactionLayer');
+  function spawnReaction(emoji) {
+    if (!emoji || !reactionLayer) return;
+    while (reactionLayer.children.length >= REACTION_MAX) reactionLayer.removeChild(reactionLayer.firstChild);
+    const e = document.createElement('div');
+    e.className = 'reaction-emoji';
+    e.textContent = emoji;
+    e.style.left = (5 + Math.random() * 90) + '%';
+    e.style.fontSize = (44 * (0.85 + Math.random() * 0.5)) + 'px';
+    e.style.animationDuration = (3.0 + Math.random() * 1.2) + 's';
+    e.addEventListener('animationend', function () { if (e.parentNode) e.parentNode.removeChild(e); });
+    reactionLayer.appendChild(e);
+  }
+
   const EMOTE_SHOW_MS = 3500;
-  const lobbyEmotes = {};   // playerId → { e, born } so a lobby rebuild keeps the bubble
   const seatBubbles = {};   // playerId → { el, timer }
 
-  function makeBubble(e, born) {
+  function makeBubble(e) {
     const b = document.createElement('div');
     b.className = 'emote-bubble';
     b.textContent = e;
-    // Resume mid-animation when a rebuild re-creates the bubble.
-    if (born) b.style.animationDelay = -(Date.now() - born) + 'ms';
     return b;
-  }
-
-  function lobbyRow(pid) {
-    return Array.prototype.find.call(seatList.querySelectorAll('.seat-row'), function (r) { return r.dataset.pid === pid; });
-  }
-  function attachLobbyBubble(row, pid) {
-    const rec = lobbyEmotes[pid];
-    if (!rec || !row) return;
-    const old = row.querySelector('.emote-bubble');
-    if (old) old.remove();
-    row.querySelector('.seat-name').after(makeBubble(rec.e, rec.born));
-  }
-  function showLobbyEmote(pid, e) {
-    const rec = lobbyEmotes[pid];
-    if (rec && rec.timer) clearTimeout(rec.timer);
-    const next = { e: e, born: Date.now(), timer: null };
-    lobbyEmotes[pid] = next;
-    next.timer = setTimeout(function () {
-      if (lobbyEmotes[pid] !== next) return;
-      delete lobbyEmotes[pid];
-      const row = lobbyRow(pid);
-      const b = row && row.querySelector('.emote-bubble');
-      if (b) b.remove();
-    }, EMOTE_SHOW_MS);
-    const row = lobbyRow(pid);
-    if (row) attachLobbyBubble(row, pid);
   }
 
   /** Park the bubble beside the seat's name, on the side facing the middle of the table. */
@@ -508,8 +495,8 @@
 
   socket.on('host:emote', function (p) {
     if (!p || typeof p.id !== 'string' || typeof p.e !== 'string') return;
-    if (currentView === 'lobby') showLobbyEmote(p.id, p.e);
-    else showSeatEmote(p.id, p.e);
+    if (p.kind === 'bubble' && currentView === 'table' && seatEls[p.id]) showSeatEmote(p.id, p.e);
+    else spawnReaction(p.e);
   });
 
   let reactionsMuted = false;
@@ -599,7 +586,6 @@
       name.className = 'seat-name pname'; name.textContent = p.name;
 
       row.appendChild(grip); row.appendChild(badge); row.appendChild(name);
-      attachLobbyBubble(row, p.id);
 
       if (p.isBot) {
         const tag = document.createElement('span');

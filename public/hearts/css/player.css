@@ -483,31 +483,65 @@ body.player.my-turn .p-top::after { transform: scaleX(1); }
   min-width: 0;
 }
 
-/* ---- Reaction bar ---- */
-.reaction-bar {
-  position: sticky; bottom: calc(8px + env(safe-area-inset-bottom, 0px));
-  margin: auto 14px 30px; padding: 10px 8px 8px;
-  background: rgba(255,255,255,0.94); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-  border-radius: 999px; box-shadow: 0 4px 18px rgba(0,0,0,0.20);
-  display: flex; align-items: center; justify-content: space-around; gap: 4px; z-index: 5;
+/* ---- Emotes: a top-bar button opening the emote grid ---- */
+.emote-toggle {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  margin: -4px -4px -4px 0;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 22px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  transition: transform 0.08s ease, opacity 0.2s ease, background 0.12s ease;
 }
-.reaction-bar[hidden] { display: none; }
-.reaction-btn {
-  appearance: none; -webkit-appearance: none; background: transparent; border: none;
-  font-size: 30px; line-height: 1; padding: 10px 6px; cursor: pointer; border-radius: 999px;
-  transition: transform 0.08s ease, opacity 0.2s ease; -webkit-tap-highlight-color: transparent;
-  flex: 1 1 0; min-width: 0;
-}
-.reaction-btn:not(:disabled):active { transform: scale(1.25); }
-.reaction-btn:disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
-.reaction-cooldown {
-  position: absolute; top: -22px; right: 14px; font-size: 11px; color: white;
-  background: rgba(0,0,0,0.55); padding: 2px 8px; border-radius: 999px; font-variant-numeric: tabular-nums;
-}
-.reaction-cooldown[hidden] { display: none; }
+.emote-toggle[hidden] { display: none; }
+.p-top .emote-toggle:active { transform: scale(0.9); }
+.emote-toggle.open { background: rgba(232, 184, 58, 0.28); border-color: var(--gold); }
+.emote-toggle.cooling { opacity: 0.35; pointer-events: none; }
+body.player.my-turn .emote-toggle { background: rgba(42, 29, 5, 0.18); border-color: rgba(42, 29, 5, 0.35); }
 
-/* Pinned to the very bottom edge (like the other games) so it sits below the
-   reaction bar and never floats mid-screen. */
+.emote-panel {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 58px);
+  right: 10px;
+  z-index: 20;
+  width: min(calc(100vw - 20px), 320px);
+  padding: 12px;
+  background: rgba(8, 14, 11, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 18px;
+  box-shadow: var(--shadow-strong);
+  animation: emoteIn 0.18s ease both;
+}
+.emote-panel[hidden] { display: none; }
+@keyframes emoteIn { from { opacity: 0; transform: translateY(-6px) scale(0.96); } to { opacity: 1; transform: none; } }
+.emote-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+.emote-btn {
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  font-size: 28px;
+  line-height: 1;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.08s ease, background 0.12s ease;
+}
+.emote-panel .emote-btn:active { transform: scale(0.9); background: rgba(232, 184, 58, 0.28); }
+
+/* Pinned to the very bottom edge (like the other games) so it never floats
+   mid-screen. */
 body.player .player-attribution {
   position: fixed;
   left: 0;
@@ -549,11 +583,10 @@ body.player .player-attribution {
   .p-banner { font-size: 17px; }
   .action-btn { font-size: 16px; padding: 15px; }
   .join-card h1 { font-size: 32px; }
-  .reaction-btn { font-size: 26px; padding: 10px 0; }
+  .emote-btn { font-size: 24px; }
 }
 @media (max-height: 640px) {
   .hand-fan { padding-top: 30px; }
   .wait-card h2 { font-size: 23px; }
   .result-emoji { font-size: 44px; }
-  .reaction-bar { padding: 8px 8px 6px; }
 }

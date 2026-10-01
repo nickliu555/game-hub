@@ -165,9 +165,14 @@ function setMode(name, mode) { humans[name].mode = mode; drive(name); }
 
   const lobbyEmote = once(host, 'host:emote', 3000);
   const lobbyReact = await emit(humans.Bob.sock, 'player:emote', { e: '😀' });
-  check(lobbyReact && lobbyReact.ok, 'a player may emote from the lobby');
+  check(lobbyReact && lobbyReact.ok && lobbyReact.kind === 'float' && lobbyReact.cooldownMs === 10000,
+    'a lobby emote floats, with the 10s cooldown');
   const lobbySeen = await lobbyEmote.catch(() => null);
-  check(lobbySeen && lobbySeen.id === 'pid_Bob' && lobbySeen.e === '😀', 'the host learns who emoted and which emoji');
+  check(lobbySeen && lobbySeen.id === 'pid_Bob' && lobbySeen.e === '😀' && lobbySeen.kind === 'float',
+    'the host learns who emoted, which emoji, and that it floats');
+  const lobbyAgain = await emit(humans.Bob.sock, 'player:emote', { e: '😂' });
+  check(lobbyAgain && lobbyAgain.reason === 'cooldown' && lobbyAgain.retryInMs > 2500,
+    'a second floating emote inside 10s is refused');
 
   // ═══════════ Start & deal ═══════════
   section('Deal');
@@ -179,6 +184,9 @@ function setMode(name, mode) { humans[name].mode = mode; drive(name); }
   check(t0.seats.every((s) => s.stack + s.bet === 1500), 'everyone starts with 1,500');
   check(t0.smallBlind === 10 && t0.bigBlind === 20, 'blinds open at 10 / 20');
   check(t0.seats.every((s) => s.cards === null), 'no hole card is public');
+  const bobAtDeal = await emit(humans.Bob.sock, 'player:emote', { e: '👍' });
+  check(bobAtDeal && bobAtDeal.ok && bobAtDeal.kind === 'bubble',
+    "a lobby float's 10s cooldown does not hold back a bubble once the cards are out");
   await sleep(200);
   const holes = ['Alice', 'Bob', 'Carol'].map((n) => humans[n].me && humans[n].me.hole);
   check(holes.every((h) => h && h.length === 2), 'every human privately receives two cards');
@@ -252,9 +260,10 @@ function setMode(name, mode) { humans[name].mode = mode; drive(name); }
   section('Hand end & emotes');
   const midEmote = once(host, 'host:emote', 3000);
   const midReact = await emit(humans.Carol.sock, 'player:emote', { e: '\u{1F631}' });
-  check(midReact && midReact.ok, 'emotes stay open while a hand is live (including the new shocked face)');
+  check(midReact && midReact.ok && midReact.kind === 'bubble' && midReact.cooldownMs === 2500,
+    'a mid-hand emote is a seat bubble with the 2.5s cooldown (including the new shocked face)');
   const midSeen = await midEmote.catch(() => null);
-  check(midSeen && midSeen.id === 'pid_Carol', 'the host receives the mid-hand emote');
+  check(midSeen && midSeen.id === 'pid_Carol' && midSeen.kind === 'bubble', 'the host receives the mid-hand emote as a bubble');
 
   const he = (lastTable && lastTable.phase === 'HAND_END' && lastTable.handNumber === 1) ? lastTable
     : await once(host, 'state:handEnd', 120000);
@@ -276,12 +285,12 @@ function setMode(name, mode) { humans[name].mode = mode; drive(name); }
   } else {
   const gotReaction = once(host, 'host:emote', 3000);
   const react1 = await emit(humans[first].sock, 'player:emote', { e: '🎉' });
-  check(react1 && react1.ok, 'a player may emote between hands');
+  check(react1 && react1.ok && react1.kind === 'bubble', 'the payout plays on the felt, so an emote there is a bubble');
   const seen = await gotReaction.catch(() => null);
   check(seen && seen.e === '🎉' && seen.id === humans[first].pid, 'the host receives the emote');
   const react2 = await emit(humans[first].sock, 'player:emote', { e: '😂' });
-  check(react2 && react2.reason === 'cooldown' && react2.retryInMs > 0,
-    'a second emote inside the cooldown is refused' + (react2 && react2.reason !== 'cooldown' ? ' (got ' + JSON.stringify(react2) + ')' : ''));
+  check(react2 && react2.reason === 'cooldown' && react2.retryInMs > 0 && react2.retryInMs <= 2500,
+    'a second bubble inside 2.5s is refused' + (react2 && react2.reason !== 'cooldown' ? ' (got ' + JSON.stringify(react2) + ')' : ''));
   const badIdx = await emit(humans[second].sock, 'player:emote', { e: '⚽' });
   check(badIdx && badIdx.reason === 'bad-emote', 'an emoji outside the set is rejected');
   const muteAck = await emit(host, 'host:setReactionsMuted', { muted: true });
@@ -354,8 +363,11 @@ function setMode(name, mode) { humans[name].mode = mode; drive(name); }
     check(fin.stats.some((r) => r.handsWon > 0 && r.biggestPot > 0), 'hands won and best pot are recorded');
     const champ = fin.standings[0].playerId === humans.Ann.pid ? humans.Ann : humans.Ben;
     const loser = champ === humans.Ann ? humans.Ben : humans.Ann;
+    const endEmote = once(host, 'host:emote', 3000);
     const endReact = await emit(champ.sock, 'player:emote', { e: '🎉' });
-    check(endReact && endReact.reason === 'phase-closed', 'emotes close once the tournament is over');
+    check(endReact && endReact.ok && endReact.kind === 'float', 'the champion can float an emote on the final standings');
+    const endSeen = await endEmote.catch(() => null);
+    check(endSeen && endSeen.kind === 'float', 'the host floats the final-standings emote');
     const outReact = await emit(loser.sock, 'player:emote', { e: '😭' });
     check(outReact && outReact.reason === 'out', 'a busted player cannot emote');
   }
