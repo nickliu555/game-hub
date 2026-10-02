@@ -176,6 +176,20 @@ universal, so it must degrade silently where unsupported.
 
 ---
 
+## ✅ "F" toggles fullscreen on every Host screen (and the Game Hub)
+
+Pressing **F** on any Host screen toggles fullscreen on/off (the hub page, `public/hub.html`,
+does the same via its own `toggleFullscreen()`). For host pages this lives in
+`public/shared/topbar.js`, so a new host page gets it for free **as long as it loads
+`/shared/topbar.js`** (every host page must) — don't re-implement it per game. It ignores
+the key while typing in an input/textarea/select/contenteditable and when a modifier is held
+(so Cmd/Ctrl+F still opens Find). Keep the `⛶ Fullscreen` topbar button too, and update its
+label from a `fullscreenchange` listener (not from the button's click handler) so the label
+stays correct whether fullscreen was toggled by the button, the F key, or Esc. Don't bind
+**F** to anything else on a host page.
+
+---
+
 ## ✅ Page transitions always wear the DESTINATION's theme
 
 The iris loading cover shows **where you are going, never where you are leaving**. The

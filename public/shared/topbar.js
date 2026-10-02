@@ -93,6 +93,37 @@
   });
 })();
 
+/* "F" toggles fullscreen on every host screen (ignored while typing or with a modifier,
+ * so Cmd/Ctrl+F still opens the browser's find bar).
+ */
+(function () {
+  function isTyping(t) {
+    if (!t || !t.tagName) return false;
+    var tag = t.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable;
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'f' && e.key !== 'F') return;
+    if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
+    if (isTyping(e.target)) return;
+    var root = document.documentElement;
+    var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    e.preventDefault();
+    try {
+      if (fsEl) {
+        var exit = document.exitFullscreen || document.webkitExitFullscreen;
+        var p = exit && exit.call(document);
+        if (p && p.catch) p.catch(function () {});
+      } else {
+        var req = root.requestFullscreen || root.webkitRequestFullscreen;
+        var q = req && req.call(root);
+        if (q && q.catch) q.catch(function () {});
+      }
+    } catch (err) { /* unsupported — ignore */ }
+  });
+})();
+
 /* Hide the mouse pointer on a fullscreen host screen once it has sat still for a
  * while, so it doesn't linger on the TV. Windowed pages keep their cursor.
  */
