@@ -12,6 +12,8 @@
             "approve": true,
             "matchCommandLine": true
         },
-        "diff": true
+        "diff": true,
+        "mkdir": true,
+        "cp": true
     }
 }

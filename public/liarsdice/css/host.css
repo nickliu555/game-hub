@@ -1,0 +1,1082 @@
+/* ─────────────────────────────────────────────────────────────
+   Liar's Dice — Host screen (TV / laptop).
+   Same shell as Hold'em Poker: a fixed, centred, overflow-hidden stage; any
+   list that grows with the roster gets a height cap + internal scroll.
+   ───────────────────────────────────────────────────────────── */
+
+body.host {
+  background:
+    radial-gradient(1200px 700px at 50% 12%, rgba(217, 168, 74, 0.16), transparent 62%),
+    linear-gradient(160deg, var(--bg) 0%, var(--bg-deep) 100%);
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+.host-shell {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.host-main {
+  flex: 1;
+  min-height: 0;          /* so tall content scrolls inside instead of growing */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 24px 24px;
+  position: relative;
+}
+
+/* ─────────────── View stack ─────────────── */
+.view {
+  display: none;
+  width: 100%;
+  max-width: 1500px;
+  animation: viewIn 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.view.active { display: block; }
+.view.fading-out { animation: viewOut 0.3s ease both; }
+@keyframes viewIn  { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes viewOut { from { opacity: 1; } to { opacity: 0; transform: translateY(-10px); } }
+@media (prefers-reduced-motion: reduce) {
+  .view, .view.fading-out { animation: none; }
+}
+
+/* ═══════════════════════ Lobby ═══════════════════════ */
+
+/* `display` MUST stay on the `.active` compound: a bare `#view-lobby` rule is
+   an ID selector and would outrank `.view { display: none }`. */
+#view-lobby {
+  align-self: stretch;
+  height: 100%;
+  min-height: 0;
+}
+#view-lobby.active {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.lobby-grid {
+  flex: 1;
+  min-height: 0;
+  max-height: calc(48vw + 120px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 34px;
+  align-items: stretch;      /* equal-height panels; the QR shrinks to fit */
+}
+
+.qr-panel, .seats-panel {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 22px;
+  padding: clamp(16px, 3vh, 28px) 28px;
+  color: #fff;
+  backdrop-filter: blur(6px);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.qr-panel { align-items: center; text-align: center; justify-content: center; overflow: hidden; }
+.qr-panel h2 { font-size: clamp(30px, 3.2vw, 46px); margin-bottom: 4px; flex: 0 0 auto; }
+.qr-panel p { margin: 0 0 14px; color: rgba(255, 255, 255, 0.65); font-size: clamp(15px, 1.4vw, 21px); flex: 0 0 auto; }
+.qr-slot {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+.qr-slot svg {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  aspect-ratio: 1 / 1;
+  background: #fff;
+  border-radius: 14px;
+  padding: 10px;
+  box-shadow: var(--shadow);
+}
+.join-url {
+  margin-top: 16px;
+  font-size: clamp(16px, 1.5vw, 23px);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 10px 18px;
+  border-radius: 999px;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  flex: 0 0 auto;
+}
+
+.seats-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+.seats-head h3 { font-size: clamp(24px, 4.2vmin, 36px); }
+.seats-head .count {
+  font-size: clamp(14px, 2vmin, 18px);
+  font-weight: 800;
+  color: var(--gold);
+  background: var(--accent);
+  box-shadow: inset 0 0 0 1.5px rgba(217, 168, 74, 0.6);
+  padding: 4px 14px;
+  border-radius: 999px;
+}
+.seats-hint {
+  margin: 5px 0 clamp(8px, 1.3vh, 12px);
+  font-size: clamp(13px, 1.9vmin, 16px);
+  color: rgba(255, 255, 255, 0.5);
+  flex: 0 0 auto;
+}
+
+/* Up to eight rows: the list keeps its row size and scrolls inside the panel. */
+.seat-list {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(6px, 1.2vh, 10px);
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
+  padding-right: 2px;
+  /* One height for filled rows and open placeholders, so joining never grows the list. */
+  --seat-row-pad: clamp(9px, 1.5vh, 13px);
+  --seat-row-h: calc(clamp(32px, 4.4vmin, 40px) + 2 * var(--seat-row-pad) + 2px);
+}
+
+.seat-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  box-sizing: border-box;
+  min-height: var(--seat-row-h);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  padding: var(--seat-row-pad) 16px;
+  min-width: 0;
+  flex: 0 0 auto;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.seat-row.dragging {
+  box-shadow: var(--shadow-strong);
+  border-color: rgba(255, 255, 255, 0.4);
+  background: #5A3A22;
+}
+.seat-row.disconnected { opacity: 0.5; }
+.chip-placeholder {
+  border: 2px dashed rgba(255, 255, 255, 0.28);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.seat-grip {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: clamp(17px, 2.6vmin, 22px);
+  cursor: grab;
+  flex: 0 0 auto;
+  line-height: 1;
+}
+.seat-badge {
+  flex: 0 0 auto;
+  width: clamp(32px, 4.4vmin, 40px);
+  height: clamp(32px, 4.4vmin, 40px);
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: clamp(15px, 2.4vmin, 20px);
+  color: #1C130C;
+  background: var(--seat-c, rgba(255, 255, 255, 0.4));
+}
+
+.seat-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: clamp(17px, 2.7vmin, 24px);
+  font-weight: 700;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+.seat-tag {
+  flex: 0 0 auto;
+  font-size: clamp(11px, 0.9vw, 13px);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(0, 0, 0, 0.25);
+  padding: 4px 9px;
+  border-radius: 6px;
+}
+.seat-kick {
+  flex: 0 0 auto;
+  background: rgba(0, 0, 0, 0.25);
+  color: rgba(255, 255, 255, 0.65);
+  border-radius: 9px;
+  padding: 7px 12px;
+  font-size: clamp(14px, 2.1vmin, 17px);
+  line-height: 1;
+}
+@media (hover: hover) {
+  .seat-kick:hover { background: var(--warn); color: #fff; transform: none; box-shadow: none; }
+}
+
+.seat-empty {
+  box-sizing: border-box;
+  min-height: var(--seat-row-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  padding: 0 16px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.42);
+  font-size: clamp(14px, 1.3vw, 18px);
+  font-weight: 600;
+  flex: 0 0 auto;
+}
+
+.lobby-config {
+  flex: 0 0 auto;
+  margin-top: auto;
+  padding-top: clamp(10px, 2vh, 17px);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(8px, 1.4vh, 12px);
+}
+.config-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+}
+.config-row label {
+  font-size: clamp(14px, 2.2vmin, 18px);
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.78);
+  min-width: 0;
+}
+.config-note {
+  font-size: clamp(14px, 2.1vmin, 17px);
+  font-weight: 800;
+  color: var(--gold);
+  white-space: nowrap;
+}
+
+.lobby-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 12px;
+  margin-top: clamp(8px, 1.7vh, 16px);
+}
+.lobby-actions .btn-accent { flex: 1 1 auto; font-size: clamp(18px, 2.9vmin, 24px); padding: clamp(11px, 1.9vh, 15px) 22px; }
+.lobby-actions .btn-ghost { flex: 0 0 auto; font-size: clamp(15px, 2.2vmin, 19px); }
+
+/* ═══════════════════════ The table ═══════════════════════ */
+
+.table-view {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 100%;
+  min-height: 0;
+}
+
+/* The table view claims the whole stage instead of sizing to its content — and the
+   full width too (no 1500px cap), so a TV isn't mostly border. */
+#view-table {
+  align-self: stretch;
+  min-height: 0;
+  max-width: none;
+}
+
+.table-strip {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+.strip-item {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(217, 168, 74, 0.18);
+  border-radius: 12px;
+  padding: 8px 18px;
+  text-align: center;
+  min-width: 0;
+}
+.strip-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+.strip-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: clamp(20px, 1.8vw, 30px);
+  font-weight: 800;
+  color: #fff;
+  margin-top: 2px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.strip-dice .strip-value { color: var(--gold); }
+
+/* The stage holds the oval table with room around it for the seats, which sit
+   on the rail. Seats are placed from JS. */
+.dice-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+}
+/* A weathered leather table top in a timber frame with a brass rim. */
+.table-top {
+  position: absolute;
+  left: clamp(84px, 8.5vw, 140px);
+  right: clamp(84px, 8.5vw, 140px);
+  top: clamp(64px, 10vh, 100px);
+  bottom: clamp(64px, 10vh, 100px);
+  border-radius: 999px;
+  background:
+    radial-gradient(ellipse at 50% 42%, rgba(255, 220, 160, 0.14), transparent 60%),
+    repeating-linear-gradient(97deg, rgba(0, 0, 0, 0.05) 0 3px, transparent 3px 11px),
+    radial-gradient(ellipse at 50% 50%, var(--felt-light) 0%, var(--felt) 60%, #3A1A10 100%);
+  border: 14px solid var(--wood);
+  box-shadow:
+    inset 0 0 0 3px rgba(0, 0, 0, 0.35),
+    inset 0 0 80px rgba(0, 0, 0, 0.5),
+    0 0 0 3px rgba(217, 168, 74, 0.55),
+    0 0 0 7px rgba(60, 36, 18, 0.9),
+    var(--shadow-strong);
+  container-type: size;
+}
+
+/* ---- The middle of the table ---- */
+.table-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(62cqw, 720px);
+  max-height: 92cqh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(4px, 1.4cqh, 14px);
+  text-align: center;
+  color: #fff;
+  min-width: 0;
+}
+.tc-label {
+  font-size: clamp(14px, min(4.2cqh, 2.4cqw), 26px);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(241, 227, 194, 0.7);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.tc-label .pname { text-transform: none; letter-spacing: 0; color: var(--seat-c, #fff); }
+.tc-bid { display: flex; align-items: center; justify-content: center; min-height: clamp(48px, 18cqh, 150px); }
+.tc-sub {
+  font-size: clamp(15px, min(4.6cqh, 2.4cqw), 28px);
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.82);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.tc-sub .pname { color: var(--seat-c, #fff); font-weight: 800; }
+.tc-question {
+  font-family: var(--font-pirate);
+  font-size: clamp(48px, 18cqh, 150px);
+  line-height: 1;
+  color: rgba(217, 168, 74, 0.55);
+}
+
+/* A bid: big number, ×, and a real die. */
+.bid-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28em;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+.bid-chip .bid-x { opacity: 0.6; font-weight: 700; }
+.bid-chip .die { --die: 1.05em; }
+.bid-chip.big {
+  font-size: clamp(44px, 16cqh, 132px);
+  color: var(--parchment);
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+}
+.bid-chip.big .die { --die: 0.9em; }
+.bid-chip.huge { font-size: clamp(64px, 11vmin, 150px); }
+.bid-chip.huge .die { --die: 0.92em; }
+
+.tc-rolling { display: inline-flex; gap: clamp(10px, 2cqw, 22px); }
+.tc-rolling .die { --die: clamp(40px, 13cqh, 96px); }
+.die.tumble { animation: tumble 0.5s linear infinite; }
+.die.tumble:nth-child(2) { animation-duration: 0.43s; animation-direction: reverse; }
+.die.tumble:nth-child(3) { animation-duration: 0.56s; }
+@keyframes tumble {
+  0%   { transform: translate(0, 0) rotate(0deg); }
+  25%  { transform: translate(4px, -10px) rotate(90deg); }
+  50%  { transform: translate(-3px, 2px) rotate(180deg); }
+  75%  { transform: translate(-5px, -8px) rotate(270deg); }
+  100% { transform: translate(0, 0) rotate(360deg); }
+}
+
+/* ---- Reveal: the running count and the verdict ---- */
+.tc-tally {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 14px;
+  background: rgba(0, 0, 0, 0.42);
+  border: 2px solid rgba(217, 168, 74, 0.5);
+  border-radius: 999px;
+  padding: 4px 26px 6px;
+}
+.tally-num {
+  font-size: clamp(30px, 11cqh, 84px);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+.tally-num.bump { animation: tallyBump 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+@keyframes tallyBump { from { scale: 1.5; color: #fff; } to { scale: 1; } }
+.tally-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: clamp(13px, min(3.6cqh, 1.8cqw), 22px);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+}
+.die.inline-die { --die: 1.3em; }
+
+.tc-verdict {
+  max-width: 100%;
+  border-radius: 20px;
+  padding: clamp(8px, 2cqh, 16px) clamp(14px, 3cqw, 30px);
+  background: rgba(14, 9, 5, 0.9);
+  border: 3px solid var(--gold);
+  box-shadow: 0 0 40px rgba(217, 168, 74, 0.45);
+  animation: verdictIn 0.5s cubic-bezier(0.2, 1.3, 0.35, 1) both;
+}
+.tc-verdict[hidden] { display: none; }
+.tc-verdict.v-wrong { border-color: var(--blood); box-shadow: 0 0 40px rgba(210, 65, 58, 0.5); }
+.v-head {
+  font-size: clamp(26px, min(10cqh, 5cqw), 64px);
+  line-height: 1.05;
+  color: var(--gold);
+  overflow-wrap: anywhere;
+}
+.v-wrong .v-head { color: #FF8A80; }
+.v-body {
+  margin-top: 4px;
+  font-size: clamp(15px, min(4.6cqh, 2.4cqw), 28px);
+  font-weight: 700;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+.v-body .pname { color: var(--seat-c, #fff); font-weight: 800; }
+@keyframes verdictIn {
+  0%   { opacity: 0; scale: 0.6; }
+  60%  { opacity: 1; scale: 1.06; }
+  100% { opacity: 1; scale: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tc-verdict, .tally-num.bump, .die.tumble { animation: none; }
+}
+
+/* ---- Big announcement: what a player just did, fading after a moment ---- */
+.announce-layer { position: absolute; inset: 0; pointer-events: none; z-index: 8; }
+.announce {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: min(88%, 1100px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: clamp(14px, 2.4vh, 26px) clamp(24px, 4vw, 60px);
+  border-radius: 28px;
+  background: #140C06;
+  border: 3px solid rgba(217, 168, 74, 0.75);
+  box-shadow: 0 0 80px rgba(0, 0, 0, 0.6), 0 0 50px rgba(217, 168, 74, 0.3);
+  color: #fff;
+  text-align: center;
+  animation: announceLife 3s ease both;
+}
+.an-name {
+  font-size: clamp(24px, 3.4vw, 50px);
+  font-weight: 800;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.an-name .pname { color: var(--seat-c, #fff); }
+.an-what { color: var(--parchment); line-height: 1; }
+.an-what.pirate { font-size: clamp(64px, 10vw, 150px); }
+.announce.an-bs { border-color: var(--blood); box-shadow: 0 0 90px rgba(210, 65, 58, 0.55); }
+.announce.an-bs .an-what { color: #FF6B5E; }
+.announce.an-spot { border-color: var(--gold); box-shadow: 0 0 90px rgba(217, 168, 74, 0.6); }
+.announce.an-spot .an-what { color: var(--gold); }
+@keyframes announceLife {
+  0%   { opacity: 0; scale: 0.6; }
+  9%   { opacity: 1; scale: 1.06; }
+  15%  { scale: 1; }
+  78%  { opacity: 1; scale: 1; }
+  100% { opacity: 0; scale: 0.94; }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes announceLife { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
+}
+
+.seat-layer { position: absolute; inset: 0; pointer-events: none; }
+
+/* ---- A seat on the rail: name plate with that player's dice ---- */
+.seat {
+  --seat-w: clamp(170px, 16vw, 300px);
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: var(--seat-w);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 2;
+  transition: opacity 0.25s ease;
+  /* Room for the last-action tag, held even when it's absent so it never shifts the seat. */
+  padding-bottom: calc(clamp(20px, 1.9vw, 34px) * 1.25 + 26px);
+}
+.seat-box {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px 10px;
+  border-radius: 16px;
+  background: rgba(18, 10, 5, 0.86);
+  border: 2px solid rgba(217, 168, 74, 0.22);
+  box-shadow: var(--shadow);
+  transition: border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+}
+/* Whose turn it is has to be obvious from across the room: the seat grows,
+   glows and pulses rather than just changing colour. */
+.seat.turn .seat-box {
+  border-color: var(--gold);
+  background: rgba(62, 42, 12, 0.94);
+  transform: scale(1.07);
+  box-shadow: 0 0 0 5px rgba(217, 168, 74, 0.22), 0 0 34px rgba(217, 168, 74, 0.5);
+  animation: turnPulse 1.5s ease-in-out infinite;
+}
+.seat.turn .pname { text-shadow: 0 0 20px rgba(217, 168, 74, 0.55); }
+@keyframes turnPulse {
+  0%, 100% { box-shadow: 0 0 0 5px rgba(217, 168, 74, 0.22), 0 0 30px rgba(217, 168, 74, 0.42); }
+  50%      { box-shadow: 0 0 0 11px rgba(217, 168, 74, 0.3), 0 0 58px rgba(217, 168, 74, 0.8); }
+}
+@media (prefers-reduced-motion: reduce) { .seat.turn .seat-box { animation: none; } }
+.seat.offline { opacity: 0.55; }
+.seat.caller .seat-box { border-color: rgba(217, 168, 74, 0.7); }
+.seat.loser .seat-box { border-color: var(--blood); box-shadow: 0 0 0 4px rgba(210, 65, 58, 0.35), 0 0 40px rgba(210, 65, 58, 0.6); animation: loserFlash 1s ease both; }
+.seat.gainer .seat-box { border-color: #86E6A4; box-shadow: 0 0 0 4px rgba(134, 230, 164, 0.3), 0 0 40px rgba(134, 230, 164, 0.5); }
+@keyframes loserFlash {
+  0%, 40%, 80% { translate: 0 0; }
+  10%, 50% { translate: -6px 0; }
+  20%, 60% { translate: 6px 0; }
+}
+
+.seat-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+}
+.seat-pip {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 800;
+  color: #1C130C;
+  background: var(--seat-c, rgba(255, 255, 255, 0.4));
+}
+/* A player's name always reads as a person, in their own seat colour. Shrunk
+   to fit by fitSeatName; the ellipsis is only the last resort (the full name
+   is in the stats panel). */
+.seat .pname {
+  font-size: clamp(15px, 1.5vw, 25px);
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--seat-c, #fff);
+}
+
+/* One row of up to the game's starting dice (--n, set from JS), sized to fit the plate. */
+.seat-dice {
+  --die: min(48px, calc((var(--seat-w) - 24px - (var(--n, 6) - 1) * 6px) / var(--n, 6)));
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--die);
+}
+.seat-dice .die { --die: inherit; width: var(--die); height: var(--die); }
+.seat.rolling .seat-dice .die { animation: cupShake 0.32s ease-in-out infinite; }
+.seat.rolling .seat-dice .die:nth-child(even) { animation-delay: 0.08s; animation-direction: reverse; }
+@keyframes cupShake {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(-2px, -3px) rotate(-12deg); }
+  75% { transform: translate(2px, -1px) rotate(12deg); }
+}
+.seat-dice .die.flip-in { animation: dieFlip 0.45s cubic-bezier(0.2, 0.8, 0.3, 1.2) both; }
+@keyframes dieFlip {
+  from { opacity: 0; transform: rotateY(90deg) scale(1.3); }
+  to   { opacity: 1; transform: none; }
+}
+.seat-dice .die.match {
+  box-shadow: 0 0 0 3px var(--gold), 0 0 16px rgba(217, 168, 74, 0.85);
+  translate: 0 -3px;
+}
+.seat-dice .die.match.wild { box-shadow: 0 0 0 3px #FF8A80, 0 0 16px rgba(255, 138, 128, 0.8); }
+.seat-dice .die.miss { filter: brightness(0.45) saturate(0.4); }
+.seat-dice .die.lost { animation: dieLost 1.1s ease-in both; }
+@keyframes dieLost {
+  0%   { opacity: 1; transform: none; box-shadow: 0 0 0 3px var(--blood), 0 0 18px rgba(210, 65, 58, 0.9); }
+  35%  { opacity: 1; transform: translateY(-10px) rotate(-20deg) scale(1.2); }
+  100% { opacity: 0; transform: translateY(40px) rotate(160deg) scale(0.4); }
+}
+.seat-dice .die.gained { animation: dieGained 0.7s cubic-bezier(0.2, 1.4, 0.4, 1) both; box-shadow: 0 0 0 3px #86E6A4, 0 0 16px rgba(134, 230, 164, 0.8); }
+@keyframes dieGained {
+  from { opacity: 0; transform: translateY(-30px) scale(0.3) rotate(-180deg); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .seat.rolling .seat-dice .die, .seat-dice .die.flip-in, .seat-dice .die.gained { animation: none; }
+  .seat-dice .die.lost { animation: none; opacity: 0; }
+}
+
+/* The seat's last call, held beside it until the action comes back round. Sits in
+   the seat's reserved bottom strip, out of flow, so it never shifts the seat. */
+.seat-action {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% + 40px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 18px;
+  border-radius: 999px;
+  font-size: clamp(20px, 1.9vw, 34px);
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+  white-space: nowrap;
+  background: rgba(0, 0, 0, 0.72);
+  border: 1.5px solid rgba(241, 227, 194, 0.35);
+  color: var(--parchment);
+  animation: badgePop 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+.seat-action:empty { display: none; }
+.seat-action .bid-chip .die { --die: 1.1em; }
+.seat-action.a-bs { background: var(--blood); border-color: #FF8A80; color: #fff; text-transform: uppercase; letter-spacing: 0.04em; }
+.seat-action.a-spot { background: var(--gold); border-color: #FFE29A; color: #1F1404; text-transform: uppercase; letter-spacing: 0.04em; }
+@keyframes badgePop { from { opacity: 0; scale: 0.85; } to { opacity: 1; scale: 1; } }
+
+/* Knocked out: the seat shudders, flashes red, then fades out; a skull rises where it sat. */
+.seat.busted.just-busted { animation: knockout 2.2s ease both; }
+.ko-skull {
+  position: absolute;
+  font-size: clamp(34px, 3vw, 54px);
+  line-height: 1;
+  pointer-events: none;
+  z-index: 3;
+  animation: skullRise 1.6s ease-out both;
+}
+@keyframes knockout {
+  0%   { opacity: 1; filter: none; scale: 1; translate: 0 0; }
+  6%   { translate: -7px 0; }
+  12%  { translate: 7px 0; }
+  18%  { translate: -5px 0; }
+  24%  { translate: 4px 0; }
+  30%  { opacity: 1; filter: none; scale: 1; translate: 0 0; }
+  55%  { opacity: 0.8; filter: grayscale(1) brightness(0.8); scale: 0.97; }
+  100% { opacity: 0; filter: grayscale(1); scale: 0.85; translate: 0 0; }
+}
+@keyframes skullRise {
+  0%   { opacity: 0; transform: translate(-50%, -40%) scale(0.5); }
+  25%  { opacity: 1; transform: translate(-50%, -60%) scale(1.15); }
+  60%  { opacity: 1; transform: translate(-50%, -70%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -110%) scale(0.9); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .seat.busted.just-busted { animation: none; opacity: 0; }
+  .ko-skull { display: none; }
+}
+
+
+.waiting-note {
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.72);
+  border-radius: 999px;
+  padding: 8px 20px;
+  font-size: 16px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  max-width: 90%;
+  text-align: center;
+  overflow-wrap: anywhere;
+  z-index: 5;
+}
+.waiting-note .pname { color: var(--seat-c, #fff); font-weight: 800; }
+.waiting-note[hidden] { display: none; }
+
+/* ═══════════════════════ Final ═══════════════════════ */
+
+#view-final { align-self: stretch; min-height: 0; }
+
+.final-view {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  color: #fff;
+  text-align: center;
+}
+/* Header and footer stay put; only the list absorbs the overflow. */
+.final-view > *:not(.scroll-region) { flex: 0 0 auto; }
+.scroll-region { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+
+.final-head { padding-bottom: 14px; }
+.final-trophy { font-size: clamp(50px, 7vw, 88px); line-height: 1; }
+.final-heading {
+  font-size: clamp(30px, 4.4vw, 58px);
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+  padding: 0 12px;
+}
+.final-heading .pname { color: var(--seat-c, var(--gold)); }
+.final-sub { font-size: 17px; color: rgba(255, 255, 255, 0.62); margin-top: 6px; }
+
+.final-list {
+  max-height: min(46vh, 420px);
+  overflow: auto;
+  padding: 0 2px;
+  width: min(100%, 1280px);
+  margin: 0 auto;
+}
+.final-legend { margin: 10px auto 0; width: min(100%, 1280px); }
+
+/* ═══════════════════════ Player stats ═══════════════════════ */
+.stats-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 6px;
+  font-size: clamp(14px, 1.05vw, 18px);
+  color: #fff;
+}
+.stats-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #1E120A;
+  padding: 8px 10px 6px;
+  font-size: clamp(11px, 0.8vw, 13px);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  text-align: center;
+  white-space: nowrap;
+}
+.stats-table td {
+  background: rgba(255, 255, 255, 0.07);
+  padding: 9px 10px;
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.stats-table td:first-child { border-radius: 11px 0 0 11px; }
+.stats-table td:last-child { border-radius: 0 11px 11px 0; }
+.stats-table .st-rank { font-weight: 800; color: rgba(255, 255, 255, 0.5); }
+.stats-table .st-player { text-align: left; white-space: normal; min-width: 150px; }
+.st-player-inner { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.st-player .pname { font-weight: 800; color: var(--seat-c, #fff); min-width: 0; overflow-wrap: anywhere; }
+.stats-table .st-dice { color: var(--gold); font-weight: 800; }
+.stats-table tr.is-winner td { background: rgba(217, 168, 74, 0.18); }
+.stats-table tr.is-out td { color: rgba(255, 255, 255, 0.5); }
+.stats-table tr.is-out .st-dice { color: rgba(255, 255, 255, 0.45); }
+.stats-legend { font-size: 12px; line-height: 1.4; color: rgba(255, 255, 255, 0.5); }
+
+/* Mid-game peek: sits on the stage under the topbar (Hearts' standings dock). */
+.standings-dock {
+  position: absolute;
+  top: 6px;
+  right: 14px;
+  z-index: 30;
+}
+.standings-dock[hidden] { display: none; }
+.standings-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 16px rgba(20, 10, 4, 0.35);
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+.standings-btn .sp-icon { display: block; width: 19px; height: 19px; fill: currentColor; }
+.standings-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.36);
+  color: #fff;
+  transform: translateY(-1px);
+}
+.standings-btn:active { transform: translateY(0) scale(0.95); }
+.standings-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.standings-btn[aria-expanded="true"] { background: var(--gold); border-color: var(--gold); color: #1F1404; }
+
+.standings-pop {
+  position: absolute;
+  top: 54px;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(30, 18, 10, 0.97);
+  box-shadow: var(--shadow-strong);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  animation: viewIn 0.18s ease both;
+}
+.standings-pop[hidden] { display: none; }
+.stats-pop { width: min(1080px, calc(100vw - 48px)); }
+.stats-scroll { max-height: min(58vh, 520px); overflow: auto; }
+.stats-pop .stats-table th { background: #1E120A; }
+
+.sp-head { display: flex; align-items: flex-start; gap: 10px; }
+.sp-titles { display: flex; flex-direction: column; min-width: 0; }
+.sp-title { font-size: 17px; font-weight: 800; color: #fff; letter-spacing: 0.2px; }
+.sp-note { font-size: 12px; color: rgba(255, 255, 255, 0.55); }
+.sp-close {
+  margin-left: auto;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.sp-close svg { display: block; width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+.sp-close:hover { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.3); color: #fff; transform: none; box-shadow: none; }
+.sp-close:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.final-foot { padding-top: 18px; }
+.final-foot .btn-accent { font-size: 19px; padding: 15px 38px; }
+
+/* ═══════════════════════ Overlays ═══════════════════════ */
+
+.host-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 10, 4, 0.86);
+  backdrop-filter: blur(5px);
+  display: grid;
+  place-items: center;
+  z-index: 200;
+  padding: 24px;
+}
+.host-overlay[hidden] { display: none; }
+.host-overlay-card {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 22px;
+  padding: 34px 44px;
+  text-align: center;
+  color: #fff;
+  max-width: 460px;
+}
+.host-overlay-card h2 { font-size: 26px; margin-bottom: 8px; }
+.host-overlay-card p { color: rgba(255, 255, 255, 0.65); margin: 0; }
+.ho-spinner {
+  width: 42px;
+  height: 42px;
+  margin: 0 auto 18px;
+  border: 4px solid rgba(255, 255, 255, 0.18);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Confetti on a win */
+.confetti-piece {
+  position: fixed;
+  top: -20px;
+  width: 10px;
+  height: 16px;
+  z-index: 150;
+  pointer-events: none;
+  animation: confettiFall linear forwards;
+}
+@keyframes confettiFall {
+  to { transform: translateY(108vh) rotate(760deg); opacity: 0.15; }
+}
+
+/* ─────────────── Narrower / shorter host windows ─────────────── */
+@media (max-width: 1060px), (max-height: 680px) {
+  .host-main { padding: 16px; overflow-y: auto; align-items: start; }
+  #view-lobby { align-self: flex-start; height: auto; }
+  #view-lobby.active { justify-content: flex-start; }
+  .lobby-grid { flex: none; grid-template-columns: 1fr; max-height: none; gap: 20px; }
+  .qr-panel { order: 2; overflow: visible; }
+  .seats-panel { order: 1; }
+  .qr-slot { max-height: none; }
+  .qr-slot svg { flex: 0 0 auto; width: min(100%, 70vh); max-height: none; }
+  .seat-list { flex: 0 0 auto; overflow-y: visible; }
+  /* The table still needs a height to lay the ring out in. */
+  #view-table { height: max(560px, 100%); }
+}
+@media (max-height: 760px) {
+  .final-list { max-height: min(38vh, 260px); }
+  .strip-item { padding: 5px 14px; }
+  .strip-value { font-size: clamp(17px, 1.5vw, 24px); }
+}
+
+/* ---- Emote speech bubbles, coming off a player's seat box ---- */
+.emote-bubble {
+  position: relative;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: clamp(48px, 4vw, 66px);
+  height: clamp(48px, 4vw, 66px);
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid rgba(0, 0, 0, 0.16);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  font-size: clamp(28px, 2.4vw, 40px);
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+  animation: bubbleLife 3.5s ease both;
+}
+/* Short tail pointing back at the seat (left by default). */
+.emote-bubble::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -9px;
+  margin-top: -8px;
+  border-style: solid;
+  border-width: 8px 12px 8px 0;
+  border-color: transparent #fff transparent transparent;
+}
+.emote-bubble.on-seat {
+  position: absolute;
+  z-index: 7;
+  transform: translate(0, -50%);
+  transform-origin: left center;
+}
+.emote-bubble.on-seat.eb-left { transform: translate(-100%, -50%); transform-origin: right center; }
+.emote-bubble.eb-left::before {
+  left: auto;
+  right: -9px;
+  border-width: 8px 0 8px 12px;
+  border-color: transparent transparent transparent #fff;
+}
+@keyframes bubbleLife {
+  0%   { opacity: 0; scale: 0.6; }
+  4%   { opacity: 1; scale: 1; }
+  91%  { opacity: 1; scale: 1; }
+  100% { opacity: 0; scale: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes bubbleLife { 0%, 91% { opacity: 1; } 100% { opacity: 0; } }
+}
+
+/* ---- Floating emotes (lobby and final standings) ---- */
+.reaction-layer { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 5; }
+.reaction-emoji {
+  position: absolute; bottom: -60px; font-size: 56px; line-height: 1;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.35)); will-change: transform, opacity;
+  animation: reactionFloat 3.5s ease-out forwards; user-select: none;
+}
+@keyframes reactionFloat {
+  0%   { transform: translateY(0)     rotate(0deg)  scale(0.4); opacity: 0; }
+  15%  { transform: translateY(-15vh) rotate(-6deg) scale(1);   opacity: 1; }
+  85%  { transform: translateY(-90vh) rotate(6deg)  scale(1);   opacity: 1; }
+  100% { transform: translateY(-105vh) rotate(0deg) scale(0.85); opacity: 0; }
+}

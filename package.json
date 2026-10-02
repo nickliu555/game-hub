@@ -19,6 +19,8 @@
     "test:holdempoker": "node scripts/test-holdempoker-engine.js",
     "test:holdempoker-bot": "node scripts/test-holdempoker-bot.js",
     "itest:holdempoker": "node scripts/itest-holdempoker.js",
+    "test:liarsdice": "node scripts/test-liarsdice-engine.js",
+    "itest:liarsdice": "node scripts/itest-liarsdice.js",
     "itest:catclash": "node scripts/itest-catclash.js",
     "gen:rankfive": "node scripts/gen-rankfive-words.js",
     "itest:rankfive": "node scripts/itest-rankfive.js",

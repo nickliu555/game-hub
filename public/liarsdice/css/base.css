@@ -1,0 +1,246 @@
+:root {
+  /* Liar's Dice — pirate theme: dark ship's timber, brass fittings, bone dice */
+  --bg: #2B1A10;             /* dark timber (host backdrop base) */
+  --bg-deep: #150C06;        /* deeper hold */
+  --surface: #FFFFFF;
+  --ink: #1C130C;
+  --ink-soft: #4d4036;
+  --muted: #8f8378;
+
+  --accent: #1C130C;         /* tar black */
+  --accent-deep: #0E0905;
+  --accent-bright: #D9A84A;  /* brass highlight */
+  --warn: #C0392B;
+  --good: #3FA35C;
+  --gold: #D9A84A;
+  --brass: #B8872E;
+  --parchment: #F1E3C2;
+  --blood: #D2413A;
+  --sea: #3C8FA0;
+  --felt: #5A2A1B;           /* weathered leather table top */
+  --felt-light: #7A3B26;
+  --wood: #4A2C17;
+
+  --die-face: #F7EEDC;       /* bone */
+  --die-edge: #D9C7A2;
+  --die-pip: #1C130C;
+  --die-one: #C0392B;        /* the wild 1 pip is red, like a real die */
+
+  /* Seat identity colours, seats 1–8 clockwise */
+  --seat-1: #E8B83A;
+  --seat-2: #4FA9D8;
+  --seat-3: #E8734A;
+  --seat-4: #A97BD8;
+  --seat-5: #5FD39A;
+  --seat-6: #F07FB0;
+  --seat-7: #C8E05A;
+  --seat-8: #F2F2F2;
+
+  --radius: 14px;
+  --shadow: 0 8px 30px rgba(10, 5, 2, 0.32);
+  --shadow-strong: 0 14px 44px rgba(10, 5, 2, 0.5);
+
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --font-pirate: 'Pirata One', 'Inter', Georgia, serif;
+
+  /* Shared modal theme (see /shared/modal.css) */
+  --gm-overlay-bg: rgba(20, 10, 4, 0.66);
+  --gm-surface: var(--surface);
+  --gm-text: var(--ink);
+  --gm-border: rgba(0, 0, 0, 0.08);
+  --gm-radius: var(--radius);
+  --gm-btn-secondary-bg: #f2ece0;
+  --gm-btn-secondary-fg: var(--ink-soft);
+  --gm-btn-secondary-border: rgba(0, 0, 0, 0.08);
+  --gm-btn-secondary-hover-border: rgba(0, 0, 0, 0.18);
+  --gm-btn-secondary-hover-fg: var(--ink);
+  --gm-btn-primary-bg: var(--accent);
+  --gm-btn-primary-fg: var(--gold);
+  --gm-btn-primary-border: var(--accent);
+  --gm-btn-primary-hover: var(--accent-deep);
+  --gm-btn-danger-bg: var(--warn);
+  --gm-btn-danger-fg: #fff;
+  --gm-btn-danger-hover: #a12f22;
+  --gm-toast-bg: var(--ink);
+  --gm-toast-fg: #fff;
+
+  /* Topbar theme (see /shared/topbar.css). Set here so the help modal — a
+     sibling of the bar — inherits every variable it uses. */
+  --gtb-bg: rgba(28, 16, 8, 0.86);
+  --gtb-border: rgba(217, 168, 74, 0.22);
+  --gtb-text: #fff;
+  --gtb-panel-bg: #2E1D11;
+  --gtb-btn-bg: rgba(255, 255, 255, 0.1);
+  --gtb-btn-border: rgba(255, 255, 255, 0.26);
+  --gtb-btn-hover-bg: rgba(255, 255, 255, 0.2);
+  --gtb-btn-hover-fg: #fff;
+  --gtb-accent: var(--gold);
+  --gtb-danger: var(--warn);
+
+  /* Iris page-transition backdrop */
+  --iris-bg: #2B1A10;
+}
+
+/* Any element tagged with a seat number picks up that seat's colour. */
+[data-seat="1"] { --seat-c: var(--seat-1); }
+[data-seat="2"] { --seat-c: var(--seat-2); }
+[data-seat="3"] { --seat-c: var(--seat-3); }
+[data-seat="4"] { --seat-c: var(--seat-4); }
+[data-seat="5"] { --seat-c: var(--seat-5); }
+[data-seat="6"] { --seat-c: var(--seat-6); }
+[data-seat="7"] { --seat-c: var(--seat-7); }
+[data-seat="8"] { --seat-c: var(--seat-8); }
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior-y: contain;
+}
+
+h1, h2, h3 { font-family: var(--font-sans); font-weight: 800; letter-spacing: -0.01em; margin: 0; }
+.pirate { font-family: var(--font-pirate); font-weight: 400; letter-spacing: 0.01em; }
+
+/* Attribution shows on the join and lobby screens only — never mid-game. */
+.player-attribution {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+  padding: 14px 12px 18px;
+}
+
+button, .btn-ghost {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: var(--ink);
+  color: white;
+  padding: 14px 22px;
+  border-radius: var(--radius);
+  font-size: 16px;
+  font-weight: 700;
+  text-decoration: none;
+  display: inline-block;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: transform 0.08s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+button:active:not(:disabled) { transform: translateY(0); }
+/* iOS ignores touch-action on disabled controls; make them inert so the tap
+   falls through to the touch-action container behind them. */
+button:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+@media (hover: hover) {
+  button:hover:not(:disabled), .btn-ghost:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+}
+
+.btn-accent { background: var(--accent); color: var(--gold); box-shadow: inset 0 0 0 1.5px rgba(217, 168, 74, 0.7); }
+.btn-ghost  { background: rgba(255, 255, 255, 0.1); color: white; border: 1.5px solid rgba(255,255,255,0.4); }
+
+input[type="text"] {
+  font-family: inherit;
+  font-size: 18px;
+  padding: 14px 16px;
+  border: 1.5px solid #d6cbb4;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.15s ease;
+  width: 100%;
+}
+input[type="text"]:focus { border-color: var(--gold); }
+
+/* ─────────────── Segmented On/Off-style controls ─────────────── */
+.seg {
+  display: inline-flex;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 3px;
+}
+.seg-btn {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.62);
+  border: none;
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.seg-btn.on {
+  background: var(--gold);
+  color: #1F1404;
+  box-shadow: 0 2px 8px rgba(217, 168, 74, 0.45);
+}
+@media (hover: hover) {
+  .seg-btn:hover:not(.on) { background: rgba(255, 255, 255, 0.1); color: #fff; transform: none; box-shadow: none; }
+}
+
+/* ─────────────── Dice ─────────────── */
+/* A die is a 3×3 pip grid sized entirely by --die (so every context scales in
+   one place). `.die.back` is a face-down die; `.die[data-face="1"]` has the red
+   wild pip. */
+.die {
+  --die: 40px;
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--die);
+  height: var(--die);
+  border-radius: calc(var(--die) * 0.2);
+  background: linear-gradient(145deg, #FFFBF1 0%, var(--die-face) 55%, var(--die-edge) 100%);
+  box-shadow:
+    inset 0 calc(var(--die) * -0.06) 0 rgba(120, 90, 50, 0.28),
+    inset 0 calc(var(--die) * 0.04) 0 rgba(255, 255, 255, 0.8),
+    0 calc(var(--die) * 0.06) calc(var(--die) * 0.14) rgba(0, 0, 0, 0.45);
+  display: grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  padding: calc(var(--die) * 0.13);
+  gap: calc(var(--die) * 0.02);
+}
+.die .pip {
+  place-self: center;
+  width: calc(var(--die) * 0.19);
+  height: calc(var(--die) * 0.19);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #4a3a2c, var(--die-pip) 70%);
+  visibility: hidden;
+}
+.die .pip.on { visibility: visible; }
+.die[data-face="1"] .pip.on {
+  width: calc(var(--die) * 0.3);
+  height: calc(var(--die) * 0.3);
+  background: radial-gradient(circle at 35% 35%, #F0675C, var(--die-one) 70%);
+}
+.die.back {
+  background: linear-gradient(145deg, #6B4428 0%, #4A2C17 60%, #33200F 100%);
+  box-shadow:
+    inset 0 0 0 calc(var(--die) * 0.05) rgba(217, 168, 74, 0.5),
+    0 calc(var(--die) * 0.06) calc(var(--die) * 0.14) rgba(0, 0, 0, 0.5);
+}
+.die.back .pip { display: none; }
+.die.back::after {
+  content: '?';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-pirate);
+  font-size: calc(var(--die) * 0.62);
+  line-height: 1;
+  color: rgba(217, 168, 74, 0.85);
+}
+
+/* Long player-supplied names must wrap rather than spill out of their seat. */
+.pname {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+}

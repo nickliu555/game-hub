@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Liar's Dice</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#2B1A10" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Pirata+One&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/liarsdice/css/base.css" />
+  <link rel="stylesheet" href="/liarsdice/css/player.css" />
+</head>
+<body class="player play-page">
+  <div class="p-shell">
+
+    <!-- Identity / status bar -->
+    <header class="p-top">
+      <span class="p-seat" id="pSeat">–</span>
+      <span class="p-name pname" id="pName">…</span>
+      <span class="p-score" id="pScore"></span>
+      <button type="button" class="emote-toggle" id="emoteToggle" aria-label="React" aria-expanded="false" hidden>😀</button>
+    </header>
+
+    <div class="emote-panel" id="emotePanel" hidden>
+      <div class="emote-grid" id="emoteGrid"></div>
+    </div>
+
+    <!-- Waiting / lobby -->
+    <section class="p-view active" id="pv-wait">
+      <div class="wait-card">
+        <div class="wait-dice" id="waitDice" aria-hidden="true"></div>
+        <h2 id="waitTitle">You're in!</h2>
+        <p id="waitSub">Waiting for the host to start…</p>
+      </div>
+    </section>
+
+    <!-- The round -->
+    <section class="p-view" id="pv-round">
+      <div class="p-meta">
+        <span class="meta-chip">Round <strong id="mRound">1</strong></span>
+        <span class="meta-chip">Dice in play <strong id="mDice">0</strong></span>
+      </div>
+      <div class="p-banner" id="roundBanner">Rolling…</div>
+      <div class="p-hint" id="roundHint"></div>
+
+      <div class="bid-strip" id="bidStrip"></div>
+
+      <div class="tray-area" id="trayArea">
+        <div class="dice-tray" id="diceTray" role="button" aria-label="Your dice — tap to hide or show"></div>
+      </div>
+
+      <div class="p-actions" id="actionArea">
+        <div class="bid-builder" id="bidBuilder" hidden>
+          <div class="face-row" id="faceRow"></div>
+          <div class="qty-row">
+            <button type="button" class="step-btn" id="qtyMinus" aria-label="Fewer">−</button>
+            <div class="qty-value" id="qtyValue"></div>
+            <button type="button" class="step-btn" id="qtyPlus" aria-label="More">+</button>
+            <button type="button" class="act-btn act-bid" id="bidBtn">Bid</button>
+          </div>
+          <div class="no-raise" id="noRaise" hidden>No higher bid is possible — call it!</div>
+        </div>
+        <div class="act-row" id="callRow" hidden>
+          <button type="button" class="act-btn act-bs" id="bsBtn">Call BS</button>
+          <button type="button" class="act-btn act-spot" id="spotBtn">Spot On</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Out of the game -->
+    <section class="p-view" id="pv-out">
+      <div class="wait-card">
+        <div class="result-emoji" id="outEmoji">🏴‍☠️</div>
+        <h2 id="outTitle">You're out</h2>
+        <p id="outSub">Nice game! Keep an eye on the table.</p>
+      </div>
+    </section>
+
+    <!-- Game over -->
+    <section class="p-view" id="pv-result">
+      <div class="wait-card scrollable-region">
+        <div class="result-emoji" id="resultEmoji">🏆</div>
+        <h2 id="resultTitle">Game over</h2>
+        <p id="resultSub"></p>
+        <div class="result-rows" id="resultRows"></div>
+      </div>
+    </section>
+
+    <div class="player-attribution" id="playerAttribution" hidden>Developed by Nick Liu (with help from Claude)</div>
+
+  </div>
+
+  <div class="p-toast" id="pToast" hidden></div>
+
+  <div class="host-absent-overlay" id="pConnOverlay" hidden>
+    <div class="host-absent-card">
+      <div class="icon">🎲</div>
+      <div class="title">Reconnecting…</div>
+      <div class="sub"><span class="pulse-dot"></span>Your seat and your dice are safe.</div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/liarsdice/js/player.js"></script>
+</body>
+</html>

@@ -67,6 +67,18 @@ No-Limit Texas Hold'em, tournament style — the last stack standing takes it al
 7. Best five-card hand at showdown wins; an **all-in player can only win what they matched** — the rest goes to a side pot
 8. Lose all your chips and you're out — the **last player standing wins!**
 
+### 🎲 Liar's Dice
+The pirate's bluffing game — bid on everyone's hidden dice, then call BS.
+
+1. Seats **2 to 8 players** — fill empty seats with **CPUs** if you like
+2. **Drag the players in the lobby** to set the seating order, then choose how many dice everyone starts with: **3, 4, 5 or 6** (default 5)
+3. Each round everyone **rolls in secret** — your dice show **only on your phone**, and you can tap them to hide them
+4. Take turns bidding on how many dice of one face are on the **whole table** — **1s are wild** and count as every other face
+5. Each bid must go up: **more dice**, or the **same number of a higher face** — switching to 1s needs only **half** as many (rounded up), and switching back needs **double plus one**
+6. Instead of raising, **call BS**: every cup lifts one by one around the table — fewer than bid and the bidder loses a die, otherwise you do
+7. Or call **Spot On**: get the count **exactly right** and you win a die back (up to your starting count) — otherwise you lose one
+8. Whoever lost a die opens the next round. Lose all your dice and you're out — the **last player with dice wins!**
+
 ### � Category Clash
 One random letter, twelve categories, one timer — only answers nobody else thought of score.
 
