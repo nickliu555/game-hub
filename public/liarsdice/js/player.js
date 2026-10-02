@@ -328,8 +328,9 @@
   window.addEventListener('resize', fitTray);
   if (typeof ResizeObserver === 'function') new ResizeObserver(fitTray).observe(trayArea);
 
-  onTap(diceTray, function () {
+  onTap(diceTray, function (e) {
     if (!me || !diceTray.firstElementChild) return;
+    if (!(e.target && e.target.closest && e.target.closest('.die'))) return;
     covered = !covered;
     buzz(8);
     if (rolling) { diceTray.classList.toggle('covered', covered); return; }

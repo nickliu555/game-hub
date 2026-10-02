@@ -1036,6 +1036,26 @@
     waitingNote.hidden = false;
   }
 
+  // Kept across re-renders so the tumble doesn't restart every time the table updates.
+  let cupEl = null;
+  let cupRound = -1;
+  /** Three dice rattling in the middle of the table, landing on a new face every hop until the roll ends. */
+  function centerCup(s) {
+    if (cupEl && cupRound === s.round) return cupEl;
+    cupRound = s.round;
+    cupEl = document.createElement('span');
+    cupEl.className = 'tc-rolling';
+    for (let i = 0; i < 3; i++) {
+      const d = makeDie(1 + Math.floor(Math.random() * 6), 'tumble');
+      d.style.animationDelay = (-Math.random() * 0.4).toFixed(2) + 's';
+      d.addEventListener('animationiteration', function () {
+        fillDie(d, 1 + Math.floor(Math.random() * 6));
+      });
+      cupEl.appendChild(d);
+    }
+    return cupEl;
+  }
+
   /** The middle of the table: the bid to beat, the roll, or the count during a reveal. */
   function renderCenter(s, rv) {
     tableTop.classList.toggle('is-rolling', s.phase === 'ROLL');
@@ -1046,10 +1066,7 @@
 
     if (s.phase === 'ROLL') {
       tcLabel.textContent = 'Round ' + s.round;
-      const cup = document.createElement('span');
-      cup.className = 'tc-rolling';
-      for (let i = 0; i < 3; i++) cup.appendChild(makeDie(1 + Math.floor(Math.random() * 6), 'tumble'));
-      tcBid.appendChild(cup);
+      tcBid.appendChild(centerCup(s));
       tcSub.appendChild(document.createTextNode('Everyone rolls… '));
       if (s.openerName) {
         tcSub.appendChild(nameSpan(s.openerName, seatByPlayer[s.openerId]));

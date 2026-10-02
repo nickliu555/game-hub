@@ -443,17 +443,14 @@ body.host {
 
 .tc-rolling { display: inline-flex; gap: clamp(10px, 2cqw, 22px); }
 .tc-rolling .die { --die: clamp(40px, 13cqh, 96px); }
-.die.tumble { animation: tumble 0.5s linear infinite; }
-.die.tumble:nth-child(2) { animation-duration: 0.43s; animation-direction: reverse; }
-.die.tumble:nth-child(3) { animation-duration: 0.56s; }
-@keyframes tumble {
-  0%   { transform: translate(0, 0) rotate(0deg); }
-  25%  { transform: translate(4px, -10px) rotate(90deg); }
-  50%  { transform: translate(-3px, 2px) rotate(180deg); }
-  75%  { transform: translate(-5px, -8px) rotate(270deg); }
-  100% { transform: translate(0, 0) rotate(360deg); }
+.die.tumble { animation: hop 0.42s cubic-bezier(0.33, 0, 0.67, 1) infinite; }
+.die.tumble:nth-child(2) { animation-duration: 0.37s; --tilt: 7deg; }
+.die.tumble:nth-child(3) { animation-duration: 0.47s; --tilt: -5deg; }
+/* Rattling dice: they stay square and upright, hopping off the felt and landing on a new face. */
+@keyframes hop {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-28px) rotate(var(--tilt, -6deg)); }
 }
-
 /* ---- Reveal: the running count and the verdict ---- */
 .tc-tally {
   display: inline-flex;

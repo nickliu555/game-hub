@@ -492,10 +492,9 @@ body.player .player-attribution, body.join .player-attribution {
   flex-wrap: wrap;
   justify-content: center;
   gap: 12px;
-  cursor: pointer;
   padding: 4px;
 }
-.dice-tray .die { --die: inherit; width: var(--die); height: var(--die); animation: trayIn 0.3s ease both; }
+.dice-tray .die { --die: inherit; cursor: pointer; width: var(--die); height: var(--die); animation: trayIn 0.3s ease both; }
 .dice-tray .die.match { box-shadow: 0 0 0 4px var(--gold), 0 0 22px rgba(217, 168, 74, 0.8); }
 .dice-tray .die.match[data-face="1"] { box-shadow: 0 0 0 4px #FF8A80, 0 0 22px rgba(255, 138, 128, 0.75); }
 .dice-tray .die.miss { filter: brightness(0.55) saturate(0.5); }
