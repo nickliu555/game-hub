@@ -55,6 +55,18 @@ The classic four-player trick-taking card game — dodge the Queen, chase the Ja
 8. Your hand stays **private on your phone**, and illegal cards can't even be tapped
 9. When anyone reaches the target score the game ends and the **lowest score wins!**
 
+### ♠️ Spades
+The classic partnership trick-taking card game — bid it, make it, don't get bagged.
+
+1. Spades is played **2 v 2** — newcomers join the emptier of **Team Red** and **Team Blue**, and **CPUs** can fill any open seat
+2. **Drag players between teams** in the lobby (dropping onto a full team swaps them), then pick a target score of **200, 300, 400 or 500** (default 500)
+3. Partners sit **across** from each other. Everyone is dealt **13 cards**, face down until you choose to look
+4. Everyone **bids** in turn how many tricks they'll take — or **Nil** for none. Bid **Blind Nil** before looking for double stakes
+5. Follow the suit led if you can. **Spades are always trump**, but can't be **led** until one has been played
+6. Make your team's combined bid for **10 points per trick** plus **1 per extra trick** (a **bag**); miss it and **lose 10 per trick** bid
+7. **Nil is ±100**, **Blind Nil is ±200**, and every **10 bags costs 100** points
+8. Who bids and leads first moves one seat clockwise each hand. **First team to the target score wins** — a team that falls to **−200 loses**
+
 ### ♣️ Hold'em Poker
 No-Limit Texas Hold'em, tournament style — the last stack standing takes it all.
 

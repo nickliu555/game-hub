@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────
-   Hearts — Host screen (TV / laptop).
+   Spades — Host screen (TV / laptop).
    The shell is a fixed, centred, overflow-hidden stage; any list that grows
    with the roster or the hand count gets a height cap + internal scroll so it
    never clips or pushes content off-screen.
@@ -7,7 +7,7 @@
 
 body.host {
   background:
-    radial-gradient(1200px 700px at 50% 12%, rgba(63, 160, 105, 0.35), transparent 62%),
+    radial-gradient(1200px 700px at 50% 12%, rgba(70, 110, 200, 0.35), transparent 62%),
     linear-gradient(160deg, var(--bg) 0%, var(--bg-deep) 100%);
   min-height: 100vh;
   min-height: 100dvh;
@@ -187,7 +187,7 @@ body.host {
   box-shadow: var(--shadow-strong);
   border-color: rgba(255, 255, 255, 0.4);
   /* Opaque while it floats over the list, or the row underneath reads through it. */
-  background: #2C6B4C;
+  background: #2A3F6E;
 }
 .seat-row.disconnected { opacity: 0.5; }
 .chip-placeholder {
@@ -212,7 +212,7 @@ body.host {
   place-items: center;
   font-weight: 800;
   font-size: clamp(15px, 2.4vmin, 20px);
-  color: #10261b;
+  color: #0E1530;
 }
 .seat-badge[data-seat="N"] { background: var(--seat-n); }
 .seat-badge[data-seat="E"] { background: var(--seat-e); }
@@ -295,7 +295,58 @@ body.host {
 .lobby-actions .btn-accent { flex: 1 1 auto; font-size: clamp(18px, 2.9vmin, 24px); padding: clamp(11px, 1.9vh, 15px) 22px; }
 .lobby-actions .btn-ghost { flex: 0 0 auto; font-size: clamp(15px, 2.2vmin, 19px); }
 
-/* ═══════════════ Stage views (deal / pass / exchange) ═══════════════ */
+/* Two team columns side by side; each holds exactly two seats. */
+.team-cols {
+  flex: 0 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(10px, 1.6vw, 18px);
+  overflow-y: auto;
+}
+.team-col {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(6px, 1.1vh, 10px);
+  min-width: 0;
+  padding: clamp(8px, 1.4vh, 12px);
+  border-radius: 16px;
+  border: 2px solid transparent;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.team-col[data-team="red"] { background: rgba(255, 107, 94, 0.1); }
+.team-col[data-team="blue"] { background: rgba(92, 194, 255, 0.1); }
+.team-col.drag-over[data-team="red"] { border-color: var(--team-red); }
+.team-col.drag-over[data-team="blue"] { border-color: var(--team-blue); }
+.team-col-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: clamp(16px, 2.5vmin, 21px);
+  font-weight: 800;
+}
+.team-col[data-team="red"] .team-col-head { color: var(--team-red); }
+.team-col[data-team="blue"] .team-col-head { color: var(--team-blue); }
+.team-dot { width: 12px; height: 12px; border-radius: 50%; background: currentColor; flex: 0 0 auto; }
+.team-col-seats {
+  font-size: clamp(11px, 1.6vmin, 13px);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+.team-col .seat-list { overflow: visible; }
+.team-col .seat-row { padding: clamp(8px, 1.3vh, 11px) 10px; gap: 8px; cursor: grab; }
+/* Half-width columns: keep whole words together and only split a word that
+   can't fit a line on its own. */
+.team-col .seat-name { font-size: clamp(15px, 2.2vmin, 21px); overflow-wrap: break-word; word-break: normal; }
+.team-col .seat-badge { width: clamp(28px, 3.8vmin, 36px); height: clamp(28px, 3.8vmin, 36px); }
+.team-col .seat-tag { padding: 3px 6px; }
+.team-col .seat-kick { padding: 6px 9px; }
+.seat-row[data-team="red"] .seat-name { color: var(--team-red); }
+.seat-row[data-team="blue"] .seat-name { color: var(--team-blue); }
+/* ═══════════════ Stage views (deal) ═══════════════ */
 
 .stage-view { text-align: center; color: #fff; }
 .stage-meta {
@@ -306,7 +357,6 @@ body.host {
   color: rgba(255, 255, 255, 0.5);
 }
 .stage-title { font-size: clamp(38px, 6vw, 68px); margin: 8px 0 4px; }
-.stage-title .pass-dir { color: var(--gold); }
 .stage-sub { font-size: 19px; color: rgba(255, 255, 255, 0.72); margin: 14px 0 0; }
 
 /* Cards riffling out to the four seats */
@@ -332,203 +382,6 @@ body.host {
 }
 @media (prefers-reduced-motion: reduce) {
   .deal-fan .card { animation: none; opacity: 1; }
-}
-
-/* Who passed to whom: the four seats laid out N/E/S/W with packets of card
-   backs flying along the pass direction, tinted with the sender's colour.
-   The same map is held while players are still choosing their three cards. */
-.exchange-map {
-  position: relative;
-  width: min(86vw, 760px);
-  margin: 20px auto 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr) minmax(0, 1fr);
-  grid-template-rows: auto minmax(210px, 32vh) auto;
-  align-items: center;
-  justify-items: center;
-  gap: 8px;
-}
-/* N owns the whole top row, so it drifts away from the ring while E/W sit right
-   on it. Pull it down into that gap without shifting the rows below. */
-.ex-seat-n {
-  grid-area: 1 / 2;
-  --n-drop: min(4.5vh, 46px);
-  margin-top: var(--n-drop);
-  margin-bottom: calc(-1 * var(--n-drop));
-}
-.ex-seat-w { grid-area: 2 / 1; }
-.ex-dir    { grid-area: 2 / 2; }
-.ex-seat-e { grid-area: 2 / 3; }
-.ex-seat-s { grid-area: 3 / 2; }
-
-.ex-seat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-  max-width: 100%;
-}
-.ex-pip {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 13px;
-  font-weight: 800;
-  color: #10261b;
-}
-.ex-pip[data-seat="N"] { background: var(--seat-n); }
-.ex-pip[data-seat="E"] { background: var(--seat-e); }
-.ex-pip[data-seat="S"] { background: var(--seat-s); }
-.ex-pip[data-seat="W"] { background: var(--seat-w); }
-.ex-seat .pname {
-  font-size: clamp(14px, 1.5vw, 21px);
-  font-weight: 800;
-  line-height: 1.15;
-  text-align: center;
-  min-width: 0;
-  max-width: 100%;
-}
-.ex-seat[data-seat="N"] .pname { color: var(--seat-n); }
-.ex-seat[data-seat="E"] .pname { color: var(--seat-e); }
-.ex-seat[data-seat="S"] .pname { color: var(--seat-s); }
-.ex-seat[data-seat="W"] .pname { color: var(--seat-w); }
-
-/* "Choosing… / ✓ Passed" while the table waits for everyone's three cards.
-   Ready is a filled chip, not a colour swap — a tinted caption is unreadable
-   from across the room. */
-.ex-status {
-  font-size: clamp(12px, 1.25vw, 17px);
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  line-height: 1.1;
-  text-align: center;
-  color: rgba(255, 255, 255, 0.55);
-  max-width: 100%;
-  padding: 4px 11px;
-  border-radius: 999px;
-  border: 1.5px solid rgba(255, 255, 255, 0.16);
-  background: rgba(0, 0, 0, 0.24);
-}
-.ex-status:empty { visibility: hidden; }
-.ex-seat.ready .ex-status {
-  color: #0F2A1B;
-  background: #86E6A4;
-  border-color: #86E6A4;
-}
-
-/* The three cards that just landed in front of each player. The slot is held
-   empty through the choosing phase so the map never reflows mid-flight — the
-   packets are measured against these positions. */
-.ex-hand {
-  height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.ex-card {
-  width: 26px;
-  height: 36px;
-  border-radius: 4px;
-  background-image: url('/hearts/assets/cards/back.svg');
-  background-size: cover;
-  box-shadow: 0 3px 9px rgba(0, 0, 0, 0.5), 0 0 0 1.5px rgba(255, 255, 255, 0.35);
-  opacity: 0;
-  animation: exLand 0.36s cubic-bezier(0.2, 1.35, 0.4, 1) forwards;
-}
-.ex-card + .ex-card { margin-left: -13px; }
-.ex-card:nth-child(2) { animation-delay: 0.08s; }
-.ex-card:nth-child(3) { animation-delay: 0.16s; }
-@keyframes exLand {
-  0%   { opacity: 0; transform: translateY(-16px) rotate(0deg) scale(0.55); }
-  60%  { opacity: 1; }
-  100% { opacity: 1; transform: translateY(0) rotate(var(--er, 0deg)) scale(1); }
-}
-.ex-seat.landed .ex-pip { animation: exPipPop 0.6s ease-out; }
-@keyframes exPipPop {
-  0%   { box-shadow: 0 0 0 0 rgba(232, 184, 58, 0.9); }
-  100% { box-shadow: 0 0 0 18px rgba(232, 184, 58, 0); }
-}
-
-/* "Pass" → "Passed" drops in rather than swapping silently, so the title
-   change is visible from across the room. */
-#exVerb { display: inline-block; }
-#exVerb.swap { animation: exVerbSwap 0.45s ease-out; }
-@keyframes exVerbSwap {
-  0%   { opacity: 0; transform: translateY(-0.3em) scale(0.92); filter: blur(5px); }
-  100% { opacity: 1; transform: none; filter: blur(0); }
-}
-.ex-dir.spin { animation: exDirSpin 0.6s ease-out; }
-@keyframes exDirSpin {
-  0%   { transform: rotate(0deg) scale(1); }
-  55%  { transform: rotate(180deg) scale(1.25); }
-  100% { transform: rotate(360deg) scale(1); }
-}
-
-.ex-progress {
-  margin: 16px 0 0;
-  font-size: clamp(15px, 1.7vw, 24px);
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  color: rgba(255, 255, 255, 0.6);
-  overflow-wrap: anywhere;
-}
-.ex-progress.all-in { color: #86E6A4; }
-.ex-progress:empty { display: none; }
-
-.ex-dir {
-  font-size: clamp(36px, 4.4vw, 62px);
-  font-weight: 800;
-  line-height: 1;
-  color: var(--gold);
-  text-shadow: 0 4px 18px rgba(232, 184, 58, 0.45);
-}
-.ex-dir[hidden] { display: none; }
-
-.ex-flights { position: absolute; inset: 0; pointer-events: none; }
-.ex-flight {
-  position: absolute;
-  width: 40px;
-  height: 56px;
-  margin: -28px 0 0 -20px;
-  border-radius: 5px;
-  background-image: url('/hearts/assets/cards/back.svg');
-  background-size: cover;
-  opacity: 0;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45), 0 0 0 2px rgba(255, 255, 255, 0.3);
-  animation: exFly 2.1s cubic-bezier(0.4, 0.1, 0.35, 1) infinite;
-}
-/* transform is keyed once for the travel and then held, so the move is one
-   uninterrupted interpolation — a midpoint keyframe gets its own easing pass and
-   makes the packet visibly stall. The packet lands, fades out where it landed,
-   and the lap ends on an empty beat, so the jump back is never seen. */
-@keyframes exFly {
-  0%   { opacity: 0; transform: translate(0, 0) rotate(0deg); }
-  9%   { opacity: 1; }
-  64%  { opacity: 1; transform: translate(var(--fx, 0), var(--fy, 0)) rotate(var(--frot, 0deg)); }
-  76%  { opacity: 0; transform: translate(var(--fx, 0), var(--fy, 0)) rotate(var(--frot, 0deg)); }
-  100% { opacity: 0; transform: translate(var(--fx, 0), var(--fy, 0)) rotate(var(--frot, 0deg)); }
-}
-/* The hand-off itself: one synchronised run that ends on the receiver's card
-   slot and shrinks into it, instead of the loop's fade in mid-air. */
-.ex-flights.is-delivering .ex-flight {
-  animation: exDeliver 1s cubic-bezier(0.34, 0.05, 0.2, 1) forwards;
-}
-@keyframes exDeliver {
-  0%   { opacity: 0; transform: translate(0, 0) rotate(0deg) scale(1); }
-  8%   { opacity: 1; }
-  84%  { opacity: 1; transform: translate(var(--fx, 0), var(--fy, 0)) rotate(var(--frot, 0deg)) scale(0.7); }
-  100% { opacity: 0; transform: translate(var(--fx, 0), var(--fy, 0)) rotate(0deg) scale(0.6); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ex-flight { animation: none; opacity: 0.85; transform: none; }
-  .ex-flights.is-delivering .ex-flight { animation: none; opacity: 0; }
-  .ex-card { animation: none; opacity: 1; transform: rotate(var(--er, 0deg)); }
-  .ex-seat.landed .ex-pip,
-  #exVerb.swap,
-  .ex-dir.spin { animation: none; }
 }
 
 /* ═══════════════════════ The table ═══════════════════════ */
@@ -581,9 +434,23 @@ body.host {
   margin-top: 2px;
   white-space: nowrap;
 }
-.strip-hearts .strip-value { color: rgba(255, 255, 255, 0.6); }
-.strip-hearts.broken { border-color: rgba(198, 43, 69, 0.7); background: rgba(142, 27, 46, 0.42); }
-.strip-hearts.broken .strip-value { color: #FF8AA0; }
+.strip-spades .strip-value { color: rgba(255, 255, 255, 0.6); }
+.strip-spades.broken { border-color: rgba(138, 108, 240, 0.8); background: rgba(108, 76, 209, 0.42); }
+.strip-spades.broken .strip-value { color: #fff; }
+/* Each team's running score, with this hand's tricks / bid beside it. */
+.strip-team { min-width: 150px; }
+.strip-team[data-team="red"] { border-color: rgba(255, 107, 94, 0.55); background: rgba(255, 107, 94, 0.14); }
+.strip-team[data-team="blue"] { border-color: rgba(92, 194, 255, 0.55); background: rgba(92, 194, 255, 0.14); }
+.strip-team[data-team="red"] .strip-label { color: var(--team-red); }
+.strip-team[data-team="blue"] .strip-label { color: var(--team-blue); }
+.st-bid {
+  margin-left: 10px;
+  font-size: 0.68em;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.65);
+}
+.st-bid:empty { display: none; }
+.st-bid.made { color: #86E6A4; }
 
 /* The felt is a 3×3 grid: seats on the edges, the played cards in the middle. */
 .felt {
@@ -597,7 +464,7 @@ body.host {
   align-items: center;
   justify-items: center;
   background:
-    radial-gradient(ellipse at 50% 50%, var(--felt-light) 0%, var(--felt) 58%, #12402C 100%);
+    radial-gradient(ellipse at 50% 50%, var(--felt-light) 0%, var(--felt) 58%, #142340 100%);
   border: 8px solid #3E2A1C;
   border-radius: 28px;
   box-shadow: inset 0 0 70px rgba(0, 0, 0, 0.42), var(--shadow-strong);
@@ -641,12 +508,6 @@ body.host {
 }
 .seat.winner { border-color: #fff; background: rgba(255, 255, 255, 0.16); }
 .seat.offline { opacity: 0.55; }
-/* A faint tint in the seat's own colour, so every seat box reads even when it
-   isn't their turn. It steps aside for the turn glow and the trick-winner highlight. */
-.seat[data-seat="N"]:not(.turn):not(.winner) { background: rgba(232, 184, 58, 0.08); }
-.seat[data-seat="E"]:not(.turn):not(.winner) { background: rgba(79, 169, 216, 0.08); }
-.seat[data-seat="S"]:not(.turn):not(.winner) { background: rgba(232, 115, 74, 0.08); }
-.seat[data-seat="W"]:not(.turn):not(.winner) { background: rgba(169, 123, 216, 0.08); }
 @media (prefers-reduced-motion: reduce) { .seat.turn { animation: none; } }
 
 .seat-label {
@@ -666,7 +527,7 @@ body.host {
   place-items: center;
   font-size: 14px;
   font-weight: 800;
-  color: #10261b;
+  color: #0E1530;
 }
 .seat-pip[data-seat="N"] { background: var(--seat-n); }
 .seat-pip[data-seat="E"] { background: var(--seat-e); }
@@ -683,6 +544,7 @@ body.host {
   min-width: 0;
   white-space: nowrap;
 }
+.seat .pname.wrap { white-space: normal; overflow-wrap: anywhere; }
 .seat[data-seat="N"] .pname { color: var(--seat-n); }
 .seat[data-seat="E"] .pname { color: var(--seat-e); }
 .seat[data-seat="S"] .pname { color: var(--seat-s); }
@@ -694,8 +556,23 @@ body.host {
   color: rgba(255, 255, 255, 0.62);
   white-space: nowrap;
 }
-.seat-points.scoring { color: #FF8AA0; }
-.seat-points.bonus { color: #86E6A4; }
+.seat-points.bid-in { color: #fff; }
+.seat-points .bid-num { color: var(--gold); }
+.seat-points.made { color: #86E6A4; }
+.seat-points.nil { color: var(--gold); }
+.seat-points.busted { color: #FF9D94; }
+.seat { position: relative; }
+/* The team tint steps aside for the turn glow and the trick-winner highlight. */
+.seat[data-team="red"]:not(.turn):not(.winner) { background: rgba(255, 107, 94, 0.08); }
+.seat[data-team="blue"]:not(.turn):not(.winner) { background: rgba(92, 194, 255, 0.08); }
+/* A bid landing on the table pops its seat. */
+.seat.bid-flash { animation: bidFlash 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+@keyframes bidFlash {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.12); box-shadow: 0 0 0 6px rgba(138, 108, 240, 0.45), 0 0 40px rgba(138, 108, 240, 0.6); }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) { .seat.bid-flash { animation: none; } }
 
 /* Played cards sit in a cross around the middle of the felt. */
 .play-area {
@@ -779,8 +656,9 @@ body.host {
 .trick-badge .tb-name .pname[data-seat="S"] { color: var(--seat-s); }
 .trick-badge .tb-name .pname[data-seat="W"] { color: var(--seat-w); }
 .trick-badge .tb-pts { font-size: clamp(15px, 1.25vw, 20px); font-weight: 700; color: rgba(255, 255, 255, 0.7); margin-top: 2px; }
-.trick-badge .tb-pts.scoring { color: #FF8AA0; }
-.trick-badge .tb-pts.bonus { color: #86E6A4; }
+.trick-badge .tb-pts[data-team="red"] { color: var(--team-red); }
+.trick-badge .tb-pts[data-team="blue"] { color: var(--team-blue); }
+.trick-badge .tb-pts.busted { color: #FF9D94; font-weight: 800; }
 .trick-badge[hidden] { display: none; }
 /* Kept inside the gap between the West and East cards, so a long winner name
    wraps rather than sliding underneath a card, and scaled to the play area so
@@ -814,26 +692,7 @@ body.host {
 
 /* ─────────────── Set-pieces ─────────────── */
 
-/* Q♠: the whole felt lurches and flashes red. */
-.felt.queen-hit { animation: queenShake 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
-@keyframes queenShake {
-  10%, 90% { transform: translate3d(-3px, 0, 0); }
-  20%, 80% { transform: translate3d(6px, 0, 0); }
-  30%, 50%, 70% { transform: translate3d(-10px, 0, 0); }
-  40%, 60% { transform: translate3d(10px, 0, 0); }
-}
-.felt.queen-hit::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 20px;
-  pointer-events: none;
-  background: radial-gradient(ellipse at 50% 50%, transparent 38%, rgba(160, 15, 35, 0.72) 100%);
-  animation: vignette 0.9s ease-out both;
-}
-@keyframes vignette { from { opacity: 0; } 30% { opacity: 1; } to { opacity: 0; } }
-
-/* Hearts broken: shards of glass fly apart across the table. */
+/* Spades broken: shards of glass fly apart across the table (as in Hearts). */
 .shatter-layer {
   position: absolute;
   inset: 0;
@@ -858,52 +717,14 @@ body.host {
   12%  { opacity: 1; }
   100% { opacity: 0; transform: translate(calc(-50% + var(--sx)), calc(-50% + var(--sy))) scale(1) rotate(var(--srot)); }
 }
-/* J♦: the felt blooms gold and diamonds of light lift off the table. */
-.felt.jack-hit::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 20px;
-  pointer-events: none;
-  z-index: 24;
-  background: radial-gradient(ellipse at 50% 46%, rgba(255, 219, 130, 0.58) 0%, rgba(255, 188, 66, 0.24) 40%, transparent 72%);
-  animation: jackBloom 1.2s ease-out both;
-}
-@keyframes jackBloom {
-  0%   { opacity: 0; transform: scale(0.82); }
-  22%  { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.07); }
-}
-.spark {
-  position: absolute;
-  left: 50%;
-  top: 46%;
-  width: var(--ss);
-  height: var(--ss);
-  margin: calc(var(--ss) / -2) 0 0 calc(var(--ss) / -2);
-  background: linear-gradient(160deg, #FFF6D0, #FFC53D 55%, #E2930A);
-  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-  filter: drop-shadow(0 0 7px rgba(255, 199, 77, 0.95));
-  animation: sparkRise 1.15s cubic-bezier(0.2, 0.7, 0.3, 1) both;
-}
-@keyframes sparkRise {
-  0%   { opacity: 0; transform: translate(0, 0) scale(0.25) rotate(0deg); }
-  14%  { opacity: 1; }
-  72%  { opacity: 1; }
-  100% { opacity: 0; transform: translate(var(--sx), var(--sy)) scale(1) rotate(var(--srot)); }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .felt.queen-hit, .shard { animation: none; }
+  .shard { animation: none; }
   .shard { display: none; }
-  .felt.jack-hit::before, .spark { animation: none; }
-  .spark { display: none; }
 }
 
 /* ═══════════════════════ Hand scoreboard ═══════════════════════ */
 
 #view-handend, #view-final { align-self: stretch; min-height: 0; }
-#view-handend { position: relative; }
 
 .handend-view, .final-view {
   display: flex;
@@ -921,116 +742,10 @@ body.host {
 .scroll-region { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
 
 .handend-head { padding-bottom: 12px; }
-.moon-banner {
-  position: relative;
-  margin: 12px auto 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  background: linear-gradient(135deg, #2b1a4a, #4b2c7a);
-  border: 2px solid rgba(232, 184, 58, 0.6);
-  border-radius: 999px;
-  padding: 9px 24px;
-  font-size: 20px;
-  font-weight: 800;
-  color: var(--gold);
-  max-width: 92%;
-  overflow-wrap: anywhere;
-}
-.moon-banner[hidden] { display: none; }
-.moon-text { min-width: 0; }
-
-/* Shooting the moon is the rarest thing that can happen in a hand, so the
-   scoreboard announces it: the banner lands, the moon lifts into place,
-   stars scatter, and light sweeps the shooter's row. */
-.moon-banner.shot { animation: moonBannerIn 0.66s cubic-bezier(0.2, 1.25, 0.35, 1) both; }
-@keyframes moonBannerIn {
-  0%   { opacity: 0; transform: translateY(16px) scale(0.7); }
-  55%  { opacity: 1; transform: translateY(0) scale(1.07); }
-  100% { opacity: 1; transform: none; }
-}
-.moon-banner.shot::after {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  border-radius: 999px;
-  border: 2px solid rgba(232, 184, 58, 0.85);
-  pointer-events: none;
-  animation: moonRing 0.95s ease-out 0.16s both;
-}
-@keyframes moonRing {
-  0%   { opacity: 0.9; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.45); }
-}
-.moon-orb {
-  display: inline-block;
-  flex: 0 0 auto;
-  filter: drop-shadow(0 0 10px rgba(255, 214, 102, 0.85));
-}
-.moon-banner.shot .moon-orb {
-  animation: moonRise 0.8s cubic-bezier(0.2, 0.9, 0.3, 1) both,
-             moonBob 3.4s ease-in-out 0.8s 2;
-}
-@keyframes moonRise {
-  0%   { opacity: 0; transform: translateY(38px) scale(0.3) rotate(-140deg); }
-  55%  { opacity: 1; }
-  100% { opacity: 1; transform: none; }
-}
-@keyframes moonBob {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50%      { transform: translateY(-5px) rotate(-7deg); }
-}
-
-/* Stars are placed from JS at the banner's centre, so the burst follows the
-   banner however wide the name makes it. */
-.moon-sky {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-  z-index: 3;
-}
-.moon-star {
-  position: absolute;
-  width: var(--ms);
-  height: var(--ms);
-  margin: calc(var(--ms) / -2) 0 0 calc(var(--ms) / -2);
-  background: linear-gradient(160deg, #FFF8DC, #FFD76A 55%, #E0A500);
-  clip-path: polygon(50% 0%, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0% 50%, 39% 39%);
-  filter: drop-shadow(0 0 8px rgba(255, 214, 102, 0.9));
-  animation: moonStarFly 1.35s cubic-bezier(0.2, 0.7, 0.3, 1) both;
-}
-@keyframes moonStarFly {
-  0%   { opacity: 0; transform: translate(0, 0) scale(0.2) rotate(0deg); }
-  16%  { opacity: 1; }
-  70%  { opacity: 1; }
-  100% { opacity: 0; transform: translate(var(--mx), var(--my)) scale(1) rotate(var(--mr)); }
-}
-
-/* …and the sky comes down with it: moons and stars fall the height of the
-   view, drifting and tumbling, for as long as the scoreboard is up. */
-.moon-drop {
-  position: absolute;
-  top: 0;
-  font-size: var(--md);
-  line-height: 1;
-  filter: drop-shadow(0 0 10px rgba(255, 214, 102, 0.7));
-  animation: moonRain 3.2s linear both;
-}
-@keyframes moonRain {
-  0%   { opacity: 0; transform: translate(0, -60px) rotate(0deg); }
-  10%  { opacity: 1; }
-  88%  { opacity: 1; }
-  100% { opacity: 0; transform: translate(var(--mx), var(--mf)) rotate(var(--mr)); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .moon-drop { display: none; }
-}
-
-/* Every row shares one column template so the hearts / Q♠ / J♦ / score
+/* Every row shares one column template so the bid / took / nil / bags / score
    columns line up down the board instead of drifting with each row's content. */
 .score-table {
-  --sc-cols: minmax(0, 1fr) 84px 60px 60px 78px 92px;
+  --sc-cols: minmax(0, 1fr) 64px 72px 96px 96px 86px 100px;
   --sc-gap: 14px;
   display: flex;
   flex-direction: column;
@@ -1070,44 +785,25 @@ body.host {
   text-align: left;
   min-width: 0;
 }
-.score-row.moon {
-  position: relative;
-  overflow: hidden;
-  border-color: rgba(232, 184, 58, 0.6);
-  background: rgba(232, 184, 58, 0.12);
-}
-.score-row.moon.shot::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(105deg, transparent 32%, rgba(255, 233, 168, 0.5) 50%, transparent 68%);
-  animation: moonSheen 1.1s ease-out 0.34s both;
-}
-@keyframes moonSheen {
-  0%   { transform: translateX(-120%); }
-  100% { transform: translateX(120%); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .moon-banner.shot,
-  .moon-banner.shot::after,
-  .moon-banner.shot .moon-orb,
-  .score-row.moon.shot::after { animation: none; }
-  .moon-banner.shot::after,
-  .score-row.moon.shot::after { display: none; }
-  .moon-star { display: none; }
-}
-.sr-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.score-row[data-team="red"] { border-color: rgba(255, 107, 94, 0.45); }
+.score-row[data-team="blue"] { border-color: rgba(92, 194, 255, 0.45); }
+.sr-who { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; min-width: 0; }
+.sr-team { font-size: clamp(18px, 1.8vw, 26px); font-weight: 800; }
+.sr-team[data-team="red"], .team-word[data-team="red"] { color: var(--team-red); }
+.sr-team[data-team="blue"], .team-word[data-team="blue"] { color: var(--team-blue); }
+.sr-player { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-width: 0; max-width: 100%; }
+.sr-player .seat-pip { width: 22px; height: 22px; font-size: 11px; border-radius: 6px; }
+.sr-pdetail { font-size: clamp(13px, 1.1vw, 16px); font-weight: 600; color: rgba(255, 255, 255, 0.6); white-space: nowrap; }
 .sr-name {
-  font-size: clamp(17px, 1.7vw, 24px);
+  font-size: clamp(15px, 1.4vw, 20px);
   font-weight: 800;
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.score-row[data-seat="N"] .sr-name { color: var(--seat-n); }
-.score-row[data-seat="E"] .sr-name { color: var(--seat-e); }
-.score-row[data-seat="S"] .sr-name { color: var(--seat-s); }
-.score-row[data-seat="W"] .sr-name { color: var(--seat-w); }
+.sr-name[data-seat="N"] { color: var(--seat-n); }
+.sr-name[data-seat="E"] { color: var(--seat-e); }
+.sr-name[data-seat="S"] { color: var(--seat-s); }
+.sr-name[data-seat="W"] { color: var(--seat-w); }
 
 /* One cell per point card, always rendered so the column never collapses. */
 .sr-cell {
@@ -1117,10 +813,10 @@ body.host {
   white-space: nowrap;
   color: rgba(255, 255, 255, 0.22);
 }
-.sr-cell.has { color: rgba(255, 255, 255, 0.85); }
-.sr-cell.hearts.has { color: #FF8AA0; }
-.sr-cell.queen.has { color: #FF6B85; }
-.sr-cell.jack.has { color: var(--gold); }
+.sr-cell { color: rgba(255, 255, 255, 0.85); white-space: pre-line; }
+.sr-cell.good { color: #86E6A4; }
+.sr-cell.bad { color: #FF9D94; }
+.sr-bagtotal { display: block; font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, 0.45); margin-top: 2px; }
 
 .sr-delta {
   font-size: clamp(16px, 1.55vw, 22px);
@@ -1128,8 +824,8 @@ body.host {
   text-align: center;
   white-space: nowrap;
 }
-.sr-delta.plus { color: #FF8AA0; }
-.sr-delta.minus { color: #86E6A4; }
+.sr-delta.plus { color: #86E6A4; }
+.sr-delta.minus { color: #FF9D94; }
 .sr-delta.zero { color: rgba(255, 255, 255, 0.55); }
 /* The running total decides the game, so it gets its own chip and outsizes the
    per-hand columns instead of trailing quietly at the end of the row. */
@@ -1172,7 +868,7 @@ body.host {
 }
 .final-row {
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
   background: rgba(255, 255, 255, 0.08);
@@ -1199,10 +895,12 @@ body.host {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.final-row[data-seat="N"] .fr-name { color: var(--seat-n); }
-.final-row[data-seat="E"] .fr-name { color: var(--seat-e); }
-.final-row[data-seat="S"] .fr-name { color: var(--seat-s); }
-.final-row[data-seat="W"] .fr-name { color: var(--seat-w); }
+.fr-who { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.fr-team { font-size: clamp(14px, 1.2vw, 17px); font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.fr-team[data-team="red"] { color: var(--team-red); }
+.fr-team[data-team="blue"] { color: var(--team-blue); }
+.fr-name .pname[data-seat="N"], .fr-name .pname[data-seat="S"] { color: var(--team-red); }
+.fr-name .pname[data-seat="E"], .fr-name .pname[data-seat="W"] { color: var(--team-blue); }
 .fr-total { font-size: clamp(20px, 2.1vw, 30px); font-weight: 800; white-space: nowrap; }
 
 .final-foot { padding-top: 18px; }
@@ -1232,7 +930,7 @@ body.host {
   background: rgba(255, 255, 255, 0.1);
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
-  box-shadow: 0 4px 16px rgba(6, 26, 16, 0.35);
+  box-shadow: 0 4px 16px rgba(4, 10, 26, 0.35);
   color: rgba(255, 255, 255, 0.8);
   cursor: pointer;
   transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
@@ -1268,7 +966,7 @@ body.host {
   padding: 16px;
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(10, 42, 28, 0.96);
+  background: rgba(10, 20, 40, 0.96);
   box-shadow: var(--shadow-strong);
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
@@ -1316,7 +1014,7 @@ body.host {
 }
 .sp-row {
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
@@ -1324,17 +1022,19 @@ body.host {
   background: rgba(255, 255, 255, 0.07);
   min-width: 0;
 }
-.sp-rank { font-size: 13px; font-weight: 800; color: rgba(255, 255, 255, 0.45); min-width: 22px; }
+.sp-dot { width: 12px; height: 12px; border-radius: 50%; }
+.sp-dot[data-team="red"] { background: var(--team-red); }
+.sp-dot[data-team="blue"] { background: var(--team-blue); }
 .sp-name {
-  font-size: 16px;
-  font-weight: 700;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  overflow-wrap: anywhere;
 }
-.sp-row[data-seat="N"] .sp-name { color: var(--seat-n); }
-.sp-row[data-seat="E"] .sp-name { color: var(--seat-e); }
-.sp-row[data-seat="S"] .sp-name { color: var(--seat-s); }
-.sp-row[data-seat="W"] .sp-name { color: var(--seat-w); }
+.sp-team { font-size: 15px; font-weight: 800; }
+.sp-team[data-team="red"] { color: var(--team-red); }
+.sp-team[data-team="blue"] { color: var(--team-blue); }
+.sp-names { font-size: 13px; font-weight: 600; color: rgba(255, 255, 255, 0.75); overflow-wrap: anywhere; }
+.sp-bags { font-size: 12px; color: rgba(255, 255, 255, 0.5); }
 .sp-total { font-size: 19px; font-weight: 800; color: #fff; white-space: nowrap; }
 .sp-foot { font-size: 12px; color: rgba(255, 255, 255, 0.5); }
 
@@ -1376,7 +1076,7 @@ body.host {
   padding: 12px 10px;
   border-radius: 14px;
   border: 3px solid #3E2A1C;
-  background: radial-gradient(ellipse at 50% 50%, var(--felt-light) 0%, var(--felt) 60%, #12402C 100%);
+  background: radial-gradient(ellipse at 50% 50%, var(--felt-light) 0%, var(--felt) 60%, #142340 100%);
   box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.4);
 }
 .lt-play[data-seat="N"] { grid-area: n; }
@@ -1437,8 +1137,9 @@ body.host {
   overflow-wrap: anywhere;
 }
 .lt-pts { font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, 0.7); margin-top: 2px; }
-.lt-pts.scoring { color: #FF8AA0; }
-.lt-pts.bonus { color: #86E6A4; }
+.lt-pts[data-team="red"] { color: var(--team-red); }
+.lt-pts[data-team="blue"] { color: var(--team-blue); }
+.lt-pts.busted { color: #FF9D94; }
 .lasttrick-dock .pname[data-seat="N"] { color: var(--seat-n); }
 .lasttrick-dock .pname[data-seat="E"] { color: var(--seat-e); }
 .lasttrick-dock .pname[data-seat="S"] { color: var(--seat-s); }
@@ -1449,7 +1150,7 @@ body.host {
 .host-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(6, 26, 16, 0.86);
+  background: rgba(4, 10, 26, 0.86);
   backdrop-filter: blur(5px);
   display: grid;
   place-items: center;
@@ -1515,16 +1216,11 @@ body.host {
 @media (max-height: 760px) {
   .score-rows { max-height: min(40vh, 280px); }
   .final-list { max-height: min(38vh, 260px); }
-  .score-table { --sc-cols: minmax(0, 1fr) 70px 52px 52px 66px 78px; --sc-gap: 10px; }
+  .score-table { --sc-cols: minmax(0, 1fr) 54px 62px 84px 84px 72px 84px; --sc-gap: 10px; }
   .score-row { padding: 10px 14px; }
   .score-head { padding: 0 17px 6px; }
   .stage-title { font-size: clamp(30px, 4.6vw, 48px); }
   .deal-fan { height: 150px; }
-  .exchange-map { grid-template-rows: auto minmax(160px, 27vh) auto; }
-  .ex-dir { font-size: clamp(30px, 3.6vw, 48px); }
-  .ex-hand { height: 30px; }
-  .ex-card { width: 22px; height: 30px; }
-  .ex-card + .ex-card { margin-left: -11px; }
 }
 
 /* ---- Emotes ---- */

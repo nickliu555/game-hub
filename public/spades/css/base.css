@@ -1,0 +1,210 @@
+:root {
+  /* Spades — violet accent on a midnight-blue card table */
+  --bg: #142340;             /* table blue (host backdrop base) */
+  --bg-deep: #0A1428;        /* darker blue for gradients */
+  --surface: #FFFFFF;
+  --ink: #161A2E;
+  --ink-soft: #4F5675;
+  --muted: #8A90AB;
+
+  --accent: #6C4CD1;         /* violet */
+  --accent-deep: #4A2FA8;
+  --accent-bright: #8A6CF0;
+  --warn: #C0392B;
+  --good: #3FA35C;           /* made contracts / positive hands */
+  --gold: #E8B83A;           /* trophy, turn ring */
+  --felt: #1C3560;
+  --felt-light: #26467A;
+
+  /* Suit colours, used on cards and labels */
+  --suit-red: #D2364C;
+  --suit-black: #161A2E;
+
+  /* Team identity colours */
+  --team-red: #FF6B5E;
+  --team-red-deep: #C93B30;
+  --team-blue: #5CC2FF;
+  --team-blue-deep: #2A86C4;
+
+  /* Seat colours follow the team: Red sits N/S, Blue sits E/W */
+  --seat-n: var(--team-red);
+  --seat-e: var(--team-blue);
+  --seat-s: var(--team-red);
+  --seat-w: var(--team-blue);
+
+  --radius: 14px;
+  --shadow: 0 8px 30px rgba(4, 10, 26, 0.28);
+  --shadow-strong: 0 14px 44px rgba(4, 10, 26, 0.42);
+  --card-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+
+  /* Shared modal theme (see /shared/modal.css) */
+  --gm-overlay-bg: rgba(6, 12, 30, 0.62);
+  --gm-surface: var(--surface);
+  --gm-text: var(--ink);
+  --gm-border: rgba(0, 0, 0, 0.08);
+  --gm-radius: var(--radius);
+  --gm-btn-secondary-bg: #eceef6;
+  --gm-btn-secondary-fg: var(--ink-soft);
+  --gm-btn-secondary-border: rgba(0, 0, 0, 0.08);
+  --gm-btn-secondary-hover-border: rgba(0, 0, 0, 0.18);
+  --gm-btn-secondary-hover-fg: var(--ink);
+  --gm-btn-primary-bg: var(--accent);
+  --gm-btn-primary-fg: #fff;
+  --gm-btn-primary-border: var(--accent);
+  --gm-btn-primary-hover: var(--accent-deep);
+  --gm-btn-danger-bg: var(--warn);
+  --gm-btn-danger-fg: #fff;
+  --gm-btn-danger-hover: #a12f22;
+  --gm-toast-bg: var(--ink);
+  --gm-toast-fg: #fff;
+
+  /* Topbar theme (see /shared/topbar.css). The shared defaults are declared on
+     .game-topbar, so the help modal — a sibling of the bar — inherits nothing;
+     every variable it uses has to be set here. */
+  --gtb-bg: rgba(10, 20, 40, 0.85);
+  --gtb-border: rgba(255, 255, 255, 0.16);
+  --gtb-text: #fff;
+  --gtb-panel-bg: #16233F;
+  --gtb-btn-bg: rgba(255, 255, 255, 0.12);
+  --gtb-btn-border: rgba(255, 255, 255, 0.28);
+  --gtb-btn-hover-bg: rgba(255, 255, 255, 0.22);
+  --gtb-btn-hover-fg: #fff;
+  --gtb-accent: var(--accent-bright);
+  --gtb-danger: var(--warn);
+
+  /* Iris page-transition backdrop */
+  --iris-bg: #142340;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior-y: contain;
+}
+
+h1, h2, h3 { font-family: var(--font-sans); font-weight: 800; letter-spacing: -0.01em; margin: 0; }
+
+/* Attribution shows on the join and lobby screens only — never mid-game. */
+.player-attribution,
+.lobby-attribution {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+  padding: 14px 12px 18px;
+}
+
+button, .btn-ghost {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: var(--ink);
+  color: white;
+  padding: 14px 22px;
+  border-radius: var(--radius);
+  font-size: 16px;
+  font-weight: 700;
+  text-decoration: none;
+  display: inline-block;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: transform 0.08s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+button:active:not(:disabled) { transform: translateY(0); }
+/* iOS ignores touch-action on disabled controls; make them inert so the tap
+   falls through to the touch-action container behind them. */
+button:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+@media (hover: hover) {
+  button:hover:not(:disabled), .btn-ghost:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+}
+
+.btn-primary { background: var(--good); }
+.btn-accent  { background: var(--accent); color: #fff; }
+.btn-ghost   { background: rgba(255, 255, 255, 0.1); color: white; border: 1.5px solid rgba(255,255,255,0.4); }
+.btn-ghost.btn-muted { background: var(--warn); color: white; border-color: var(--warn); }
+
+input[type="text"] {
+  font-family: inherit;
+  font-size: 18px;
+  padding: 14px 16px;
+  border: 1.5px solid #d3d6e6;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.15s ease;
+  width: 100%;
+}
+input[type="text"]:focus { border-color: var(--accent); }
+
+.brand {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: 28px;
+  color: white;
+  letter-spacing: -0.01em;
+}
+
+/* ─────────────── Segmented On/Off-style controls ─────────────── */
+.seg {
+  display: inline-flex;
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 3px;
+}
+.seg-btn {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.62);
+  border: none;
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.seg-btn.on {
+  background: var(--accent-bright);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(108, 76, 209, 0.5);
+}
+@media (hover: hover) {
+  .seg-btn:hover:not(.on) { background: rgba(255, 255, 255, 0.1); color: #fff; transform: none; box-shadow: none; }
+}
+
+/* ─────────────── Playing cards ─────────────── */
+/* A card is an <img> of the face, or a .card-back for a face-down card.
+   Sizing is driven entirely by --card-w so every context scales in one place. */
+.card {
+  width: var(--card-w, 92px);
+  height: calc(var(--card-w, 92px) * 1.4);
+  border-radius: calc(var(--card-w, 92px) * 0.07);
+  background: #fff;
+  box-shadow: var(--card-shadow);
+  display: block;
+  object-fit: contain;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.card-back {
+  background-image: url('/spades/assets/back.svg?v=2');
+  background-size: cover;
+  background-position: center;
+}
+
+/* Long player-supplied names must wrap rather than spill out of their seat. */
+.pname {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+}

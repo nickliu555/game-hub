@@ -2,19 +2,19 @@
   'use strict';
 
   // ============================================================
-  // Hearts — phone controller.
+  // Spades — phone controller.
   //
   // The phone holds the one thing the host screen must never see: this
   // player's hand. It arrives only via `you:hand` (unicast) or the
-  // `player:reconnect` ack, and the server re-sends it after every state
-  // change so the `legal` list can never go stale.
+  // `player:reconnect` ack, and only once the player has chosen to look at it
+  // — until then the server withholds the cards so Blind Nil is a real bet.
   //
-  // The phone also refuses to offer an illegal card — but that is a courtesy,
-  // not the rule. The server validates every play independently.
+  // The phone also refuses to offer an illegal card or bid — but that is a
+  // courtesy, not the rule. The server validates everything independently.
   // ============================================================
 
-  const PID = localStorage.getItem('hearts.playerId');
-  if (!PID) { window.location.replace('/hearts/join'); return; }
+  const PID = localStorage.getItem('spades.playerId');
+  if (!PID) { window.location.replace('/spades/join'); return; }
 
   // ---------------- Kill all zoom / scroll / selection behaviour ----------------
   // iOS Safari ignores maximum-scale/user-scalable, and a stray long-press or
@@ -48,6 +48,7 @@
   }());
 
   // ---------------- Card assets ----------------
+  // The card art is shared with Hearts.
   function cardSrc(code) {
     const rank = code.slice(0, code.length - 1);
     const ext = (rank === 'J' || rank === 'Q' || rank === 'K') ? '.webp' : '.svg';
@@ -57,13 +58,13 @@
   const SUIT_WORD = { C: 'Clubs', D: 'Diamonds', H: 'Hearts', S: 'Spades' };
   function cardLabel(code) { return code.slice(0, code.length - 1) + ' of ' + SUIT_WORD[code.slice(-1)]; }
   function cardShort(code) { return code.slice(0, code.length - 1) + SUIT_SYMBOL[code.slice(-1)]; }
+  const TEAM_LABEL = { red: 'Red', blue: 'Blue' };
 
   // ---------------- DOM ----------------
   const el = function (id) { return document.getElementById(id); };
   const views = {
     wait: el('pv-wait'),
-    pass: el('pv-pass'),
-    passed: el('pv-passed'),
+    bid: el('pv-bid'),
     play: el('pv-play'),
     result: el('pv-result'),
   };
@@ -72,7 +73,7 @@
     // The attribution footer belongs to the lobby only — the waiting view is
     // reused for "Dealing…" once the game is under way.
     if (attribution) attribution.hidden = !(name === 'wait' && publicPhase === 'LOBBY');
-    if (name !== 'play') document.body.classList.remove('my-turn');
+    if (name !== 'play' && name !== 'bid') document.body.classList.remove('my-turn');
     currentView = name;
     updateEmoteState();
   }
@@ -83,19 +84,21 @@
   const pScore = el('pScore');
   const waitTitle = el('waitTitle');
   const waitSub = el('waitSub');
+  const waitCard = views.wait.querySelector('.wait-card');
 
-  const passDirText = el('passDirText');
-  const passHint = el('passHint');
-  const passFan = el('passFan');
-  const passBtn = el('passBtn');
-  const swapIcon = el('swapIcon');
-  const swapTitle = el('swapTitle');
-  const swapSub = el('swapSub');
-  const swapFan = el('swapFan');
+  const bidBoard = el('bidBoard');
+  const bidBanner = el('bidBanner');
+  const bidFan = el('bidFan');
+  const bidFacedown = el('bidFacedown');
+  const facedownNote = el('facedownNote');
+  const bidGrid = el('bidGrid');
+  const blindBtn = el('blindBtn');
+  const revealBtn = el('revealBtn');
+  const bidBtn = el('bidBtn');
 
   const mTrick = el('mTrick');
-  const mHearts = el('mHearts');
-  const mPoints = el('mPoints');
+  const mSpades = el('mSpades');
+  const mTeam = el('mTeam');
   const playBanner = el('playBanner');
   const playFan = el('playFan');
   const playBtn = el('playBtn');
@@ -111,6 +114,16 @@
   const emotePanel = el('emotePanel');
   const emoteGrid = el('emoteGrid');
   const attribution = el('playerAttribution');
+
+  // The team tag + partner line live on the waiting card, under the subtitle.
+  const teamTag = document.createElement('div');
+  teamTag.className = 'team-tag';
+  teamTag.hidden = true;
+  const partnerLine = document.createElement('p');
+  partnerLine.className = 'partner-line';
+  partnerLine.hidden = true;
+  waitCard.appendChild(teamTag);
+  waitCard.appendChild(partnerLine);
 
   const TOAST_FADE_MS = 280;
   let toastTimer = null;
@@ -140,14 +153,32 @@
     if (navigator.vibrate) { try { navigator.vibrate(ms); } catch (_) {} }
   }
 
+
   // ---------------- State ----------------
-  let myName = localStorage.getItem('hearts.playerName') || '';
+  let myName = localStorage.getItem('spades.playerName') || '';
   let mySeat = null;
+  let myTeam = null;
+  let partnerName = null;
+  let partnerSeat = null;
   let hand = null;         // latest `you:hand` payload
-  let picks = [];          // cards selected to pass
-  let armed = null;        // card lifted, awaiting the confirm tap
+  let armed = null;        // card lifted, awaiting the Play button
+  let bidPick = null;      // bid selected in the grid, awaiting the Bid button
+  let blindArmed = false;  // first tap on Blind Nil — the second commits
+  // An unconfirmed first tap quietly reverts after a few seconds.
+  const ARM_TIMEOUT_MS = 4000;
+  let blindArmTimer = null;
+  function clearBlindArm() {
+    if (blindArmTimer) { clearTimeout(blindArmTimer); blindArmTimer = null; }
+    blindArmed = false;
+  }
+  // …and so does a tap anywhere other than the armed button.
+  document.addEventListener('pointerdown', function (e) {
+    if (!blindArmed || (e.target.closest && e.target.closest('#blindBtn'))) return;
+    clearBlindArm();
+    if (hand && publicPhase === 'BID') renderBid();
+  }, true);
+  let busy = false;        // a reveal / bid is in flight
   let publicPhase = 'LOBBY';
-  let lastHandEnd = null;
   let hostPresent = true;
   let reactionsMutedByHost = false;
 
@@ -157,11 +188,20 @@
   function renderTop() {
     if (mySeat) { pSeat.textContent = mySeat; pSeat.dataset.seat = mySeat; }
     pName.textContent = myName;
-    if (hand && typeof hand.total === 'number' && publicPhase !== 'LOBBY') {
-      pScore.textContent = hand.total + ' pts';
+    if (hand && typeof hand.teamScore === 'number' && publicPhase !== 'LOBBY') {
+      pScore.textContent = 'Team: ' + hand.teamScore;
     } else {
       pScore.textContent = '';
     }
+  }
+
+  function nameSpan(name, seat, team) {
+    const s = document.createElement('span');
+    s.className = 'pname turn-name';
+    if (seat) s.dataset.seat = seat;
+    if (team) s.dataset.team = team;
+    s.textContent = name;
+    return s;
   }
 
   /**
@@ -310,7 +350,7 @@
   window.addEventListener('resize', function () {
     if (fitTimer) clearTimeout(fitTimer);
     fitTimer = setTimeout(function () {
-      [passFan, playFan].forEach(function (c) {
+      [bidFan, playFan].forEach(function (c) {
         const n = c.querySelectorAll('.hand-card').length;
         if (n) fitFan(c, n);
       });
@@ -327,123 +367,211 @@
         if (n) fitFan(c, n);
       });
     });
-    [passFan, playFan].forEach(function (c) {
+    [bidFan, playFan].forEach(function (c) {
       if (c.parentElement) fanObserver.observe(c.parentElement);
     });
   }
 
-  // ---- Passing ----
-  function renderPass() {
-    const to = hand.passTo;
-    passDirText.textContent = '3 cards';
-    if (to) {
-      passDirText.appendChild(document.createTextNode(' to '));
-      const who = document.createElement('span');
-      who.className = 'pname turn-name';
-      who.dataset.seat = to.seat;
-      who.textContent = to.name;
-      passDirText.appendChild(who);
-    }
-    passHint.textContent = picks.length === 3
-      ? 'Ready to pass — tap a card to swap it out'
-      : 'Tap ' + (3 - picks.length) + ' more card' + (3 - picks.length === 1 ? '' : 's');
-
-    renderFan(passFan, hand.hand, function (code) {
-      const i = picks.indexOf(code);
-      return i >= 0 ? { state: 'picked', pick: String(i + 1), label: 'selected to pass' } : {};
-    }, togglePick);
-
-    passBtn.disabled = picks.length !== 3;
-    passBtn.classList.toggle('ready', picks.length === 3);
-    passBtn.textContent = picks.length === 3
-      ? 'Pass ' + picks.map(cardShort).join(' · ')
-      : 'Choose ' + (3 - picks.length) + ' more';
-    show('pass');
+  // ---- Bidding ----
+  function bidText(s) {
+    if (s.bid === null || s.bid === undefined) return null;
+    if (s.nil) return s.blind ? 'Blind Nil' : 'Nil';
+    return String(s.bid);
   }
 
-  function togglePick(code) {
-    const i = picks.indexOf(code);
-    if (i >= 0) picks.splice(i, 1);
-    else {
-      if (picks.length >= 3) { toast('Tap a selected card to swap it out.'); buzz(30); return; }
-      picks.push(code);
-    }
-    buzz(12);
-    renderPass();
+  function renderBidBoard(seats, turnPlayerId) {
+    bidBoard.innerHTML = '';
+    (seats || []).forEach(function (s) {
+      const cell = document.createElement('div');
+      cell.className = 'bb-cell' + (s.playerId === turnPlayerId ? ' is-turn' : '') + (s.playerId === PID ? ' is-me' : '');
+      const pip = document.createElement('span');
+      pip.className = 'bb-pip'; pip.dataset.team = s.team; pip.textContent = s.seat;
+      const name = document.createElement('span');
+      name.className = 'bb-name pname'; name.dataset.team = s.team;
+      name.textContent = s.playerId === PID ? 'You' : s.name;
+      const bid = document.createElement('span');
+      const text = bidText(s);
+      bid.className = 'bb-bid' + (text === null ? ' pending' : '') + (s.nil ? ' nil' : '');
+      bid.textContent = text === null ? (s.playerId === turnPlayerId ? '…' : '—') : text;
+      cell.appendChild(pip); cell.appendChild(name); cell.appendChild(bid);
+      bidBoard.appendChild(cell);
+    });
   }
 
-  passBtn.addEventListener('click', function () {
-    if (picks.length !== 3) return;
-    passBtn.disabled = true;
-    socket.emit('player:pass', { cards: picks.slice() }, function (res) {
-      if (!res || !res.ok) {
-        passBtn.disabled = false;
-        toast(passError(res && res.reason));
-        return;
-      }
-      picks = [];
-      buzz(40);
+  function buildBidGrid() {
+    if (bidGrid.childElementCount) return;
+    for (let n = 0; n <= 13; n++) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'bid-opt' + (n === 0 ? ' nil' : '');
+      b.dataset.bid = String(n);
+      b.textContent = n === 0 ? 'Nil' : String(n);
+      b.setAttribute('aria-label', n === 0 ? 'Bid Nil' : 'Bid ' + n);
+      bidGrid.appendChild(b);
+    }
+  }
+  buildBidGrid();
+
+  function renderBid() {
+    const seats = hand.seats || [];
+    const turn = seats.find(function (s) { return s.seat === hand.bidTurnSeat; });
+    renderBidBoard(seats, turn ? turn.playerId : null);
+
+    const yourTurn = !!hand.yourBidTurn;
+    document.body.classList.toggle('my-turn', yourTurn);
+    bidBanner.textContent = '';
+    bidBanner.classList.toggle('your-turn', yourTurn);
+    if (yourTurn) {
+      bidBanner.textContent = hand.revealed ? 'Your bid!' : 'Your bid — cards face down';
+    } else if (hand.bid !== null && hand.bid !== undefined) {
+      bidBanner.appendChild(document.createTextNode('You bid '));
+      const strong = document.createElement('strong');
+      strong.textContent = hand.nil ? (hand.blind ? 'Blind Nil' : 'Nil') : String(hand.bid);
+      bidBanner.appendChild(strong);
+    } else if (hand.bidTurnName) {
+      bidBanner.appendChild(document.createTextNode('Waiting for '));
+      bidBanner.appendChild(nameSpan(hand.bidTurnName, hand.bidTurnSeat, turn && turn.team));
+      bidBanner.appendChild(document.createTextNode(' to bid…'));
+    } else {
+      bidBanner.textContent = 'Bidding…';
+    }
+
+    if (hand.revealed) {
+      bidFacedown.hidden = true;
+      bidFan.hidden = false;
+      renderFan(bidFan, hand.hand, null, function () {});
+    } else {
+      bidFan.hidden = true;
+      bidFan.innerHTML = '';
+      bidFacedown.hidden = false;
+      facedownNote.textContent = hand.canBlindNil
+        ? 'Bid Blind Nil now for ±200 — or look at your cards and bid normally.'
+        : 'Keep them face down to keep a Blind Nil bid open on your turn.';
+    }
+
+    const canBid = yourTurn && hand.revealed;
+    if (!canBid) bidPick = null;
+    if (!hand.canBlindNil) clearBlindArm();
+
+    revealBtn.hidden = hand.revealed;
+    revealBtn.disabled = busy;
+    blindBtn.hidden = !hand.canBlindNil;
+    blindBtn.disabled = busy;
+    blindBtn.classList.toggle('armed', blindArmed);
+    blindBtn.textContent = blindArmed ? 'Tap again to bid Blind Nil' : 'Bid Blind Nil (±200)';
+
+    bidGrid.hidden = !canBid;
+    Array.prototype.forEach.call(bidGrid.children, function (b) {
+      b.classList.toggle('on', bidPick !== null && Number(b.dataset.bid) === bidPick);
+    });
+    bidBtn.hidden = !canBid;
+    bidBtn.disabled = busy || bidPick === null;
+    bidBtn.classList.toggle('ready', bidPick !== null);
+    bidBtn.textContent = bidPick === null ? 'Pick a bid' : (bidPick === 0 ? 'Bid Nil' : 'Bid ' + bidPick);
+    show('bid');
+  }
+
+  function onTapEl(node, fn) {
+    node.addEventListener('pointerdown', function (e) {
+      if (e.button != null && e.button > 0) return;
+      e.preventDefault();
+      fn(e);
+    });
+  }
+
+  onTapEl(bidGrid, function (e) {
+    const b = e.target.closest('.bid-opt');
+    if (!b || !hand || !hand.yourBidTurn || !hand.revealed || busy) return;
+    const n = Number(b.dataset.bid);
+    bidPick = bidPick === n ? null : n;
+    buzz(10);
+    renderBid();
+  });
+
+  onTapEl(revealBtn, function () {
+    if (busy || !hand || hand.revealed) return;
+    busy = true;
+    clearBlindArm();
+    revealBtn.disabled = true;
+    socket.emit('player:reveal', {}, function (res) {
+      busy = false;
+      if (!res || !res.ok) { toast('Could not turn your cards over.'); renderBid(); return; }
+      buzz(15);
+      // The server follows up with `you:hand`, now carrying the cards.
     });
   });
-  function passError(reason) {
-    return {
-      'need-three': 'Pick exactly 3 cards.',
-      'duplicate-card': 'Pick 3 different cards.',
-      'not-in-hand': 'That card is not in your hand — reloading.',
-      'already-passed': "You've already passed.",
-      'not-passing': 'Too late — the cards are already on their way.',
-    }[reason] || 'Could not pass. Try again.';
-  }
 
-  /** Shared screen for "cards away" and "cards received". */
-  function renderSwap(icon, title, sub, cards, from) {
-    swapIcon.textContent = icon;
-    swapTitle.textContent = title;
-    swapSub.textContent = '';
-    if (from) {
-      swapSub.appendChild(document.createTextNode('Three cards from '));
-      const who = document.createElement('span');
-      who.className = 'pname swap-from';
-      who.dataset.seat = from.seat;
-      who.textContent = from.name;
-      swapSub.appendChild(who);
-    } else {
-      swapSub.textContent = sub;
+  onTapEl(blindBtn, function () {
+    if (busy || !hand || !hand.canBlindNil) return;
+    if (!blindArmed) {
+      blindArmed = true;
+      blindArmTimer = setTimeout(function () {
+        blindArmTimer = null;
+        blindArmed = false;
+        if (hand && publicPhase === 'BID') renderBid();
+      }, ARM_TIMEOUT_MS);
+      buzz(20);
+      renderBid();
+      return;
     }
-    swapFan.innerHTML = '';
-    (cards || []).forEach(function (code) {
-      const img = document.createElement('img');
-      img.src = cardSrc(code);
-      img.alt = cardLabel(code);
-      img.draggable = false;
-      swapFan.appendChild(img);
+    clearBlindArm();
+    busy = true;
+    blindBtn.disabled = true;
+    socket.emit('player:bid', { blind: true }, function (res) {
+      busy = false;
+      blindArmed = false;
+      if (!res || !res.ok) { toast(bidError(res && res.reason)); buzz(60); renderBid(); return; }
+      buzz([30, 40, 60]);
     });
-    show('passed');
+  });
+
+  onTapEl(bidBtn, function () {
+    if (busy || bidPick === null || !hand || !hand.yourBidTurn) return;
+    const bid = bidPick;
+    busy = true;
+    bidBtn.disabled = true;
+    bidBtn.textContent = 'Bidding…';
+    socket.emit('player:bid', { bid: bid }, function (res) {
+      busy = false;
+      if (!res || !res.ok) { toast(bidError(res && res.reason)); buzz(60); if (hand) renderBid(); return; }
+      bidPick = null;
+      buzz(30);
+    });
+  });
+
+  function bidError(reason) {
+    return {
+      'not-your-turn': "It's not your turn to bid.",
+      'not-bidding': 'Bidding is already over.',
+      'already-bid': "You've already bid.",
+      'already-looked': "You've seen your cards — Blind Nil is off the table.",
+      'not-looked': 'Look at your cards before bidding.',
+      'bad-bid': 'Pick a bid from Nil to 13.',
+    }[reason] || 'Could not place that bid.';
   }
 
   // ---- Playing ----
   function renderPlay() {
     mTrick.textContent = hand.trickNumber;
-    mHearts.textContent = hand.heartsBroken ? '♥ broken' : '♥ not broken';
-    mHearts.classList.toggle('broken', !!hand.heartsBroken);
-    mPoints.textContent = (hand.handPoints > 0 ? '+' + hand.handPoints : String(hand.handPoints)) + ' this hand';
-    mPoints.classList.toggle('scoring', hand.handPoints > 0);
-    mPoints.classList.toggle('bonus', hand.handPoints < 0);
+    mSpades.textContent = hand.spadesBroken ? '♠ broken' : '♠ not broken';
+    mSpades.classList.toggle('broken', !!hand.spadesBroken);
+
+    mTeam.textContent = 'Team ' + hand.teamTricks + '/' + hand.teamBid;
+    mTeam.classList.remove('made', 'over');
+    if (hand.teamTricks > hand.teamBid) mTeam.classList.add('over');
+    else if (hand.teamTricks === hand.teamBid) mTeam.classList.add('made');
 
     const yourTurn = !!hand.yourTurn;
-    // The phone is face-down on the table between turns, so the whole screen
-    // edge lights up rather than only the banner changing.
+    // The phone is face-down on the table between turns, so the whole top bar
+    // lights up rather than only the banner changing.
     document.body.classList.toggle('my-turn', yourTurn);
     playBanner.textContent = '';
     if (yourTurn) {
       playBanner.textContent = 'Your turn!';
     } else if (hand.turnName) {
-      const who = document.createElement('span');
-      who.className = 'pname turn-name';
-      if (hand.turnSeat) who.dataset.seat = hand.turnSeat;
-      who.textContent = hand.turnName;
+      const turn = (hand.seats || []).find(function (s) { return s.seat === hand.turnSeat; });
       playBanner.appendChild(document.createTextNode('Waiting for '));
-      playBanner.appendChild(who);
+      playBanner.appendChild(nameSpan(hand.turnName, hand.turnSeat, turn && turn.team));
       playBanner.appendChild(document.createTextNode('…'));
     } else {
       playBanner.textContent = 'Waiting for the table…';
@@ -488,7 +616,8 @@
     renderPlay();
   }
 
-  playBtn.addEventListener('click', commitPlay);
+  // pointerdown, not click: the double-tap-zoom guard can swallow a quick second tap's click.
+  onTapEl(playBtn, commitPlay);
 
   function commitPlay() {
     if (!armed || !hand || !hand.yourTurn) return;
@@ -516,69 +645,43 @@
   }
 
   // ---- Hand / game result ----
-  function renderHandEnd(s) {
-    lastHandEnd = s;
-    const rows = (s.rows || []).slice().sort(function (a, b) { return a.total - b.total; });
-    const me = rows.find(function (r) { return r.playerId === PID; });
+  function signed(n) { return n > 0 ? '+' + n : (n < 0 ? '−' + (-n) : '0'); }
 
-    if (s.moonShooterId === PID) {
-      resultEmoji.textContent = '🌙';
-      resultTitle.textContent = 'You shot the moon!';
-      resultSub.textContent = 'Everyone else takes 26.';
-    } else if (s.moonShooterId) {
-      resultEmoji.textContent = '💥';
-      resultTitle.textContent = s.moonShooterName + ' shot the moon';
-      resultSub.textContent = 'That is 26 points for you.';
-    } else if (me && me.delta <= 0) {
-      resultEmoji.textContent = '😎';
-      // Low score wins, so a negative delta is good — but "gained" would contradict
-      // the −3 printed in this player's own row below.
-      resultTitle.textContent = me.delta < 0 ? '−' + (-me.delta) + ' points' : 'Clean hand!';
-      resultSub.textContent = 'Hand ' + s.handNumber + ' complete.';
-    } else {
-      resultEmoji.textContent = me && me.delta >= 13 ? '😬' : '♥️';
-      resultTitle.textContent = me ? '+' + me.delta + ' points' : 'Hand over';
-      resultSub.textContent = 'Hand ' + s.handNumber + ' complete.';
+  function teamDetail(r) {
+    const parts = [];
+    if (r.contract > 0 || !r.players.every(function (p) { return p.nil; })) {
+      parts.push('Bid ' + r.contract + ' · took ' + r.won + (r.made ? '' : ' (set)'));
     }
-
-    resultRows.innerHTML = '';
-    resultRows.classList.remove('no-delta');
-    rows.forEach(function (r) { resultRows.appendChild(resultRow(r.seat, r.name, r.total, r.delta, r.playerId === PID)); });
-    show('result');
-  }
-
-  function renderFinal(s) {
-    const won = (s.winnerIds || []).indexOf(PID) >= 0;
-    resultEmoji.textContent = won ? '🏆' : '🫡';
-    if (won) {
-      resultTitle.textContent = (s.winnerIds.length > 1) ? 'You share the win!' : 'You win!';
-      resultSub.textContent = 'Lowest score takes it.';
-    } else {
-      const names = s.winnerNames || [];
-      resultTitle.textContent = names.length ? names.join(' & ') + ' won' : 'Game over';
-      resultSub.textContent = 'Better luck next hand.';
-    }
-    resultRows.innerHTML = '';
-    resultRows.classList.add('no-delta');
-    (s.standings || []).forEach(function (r) {
-      resultRows.appendChild(resultRow(r.seat, r.name, r.total, null, r.playerId === PID));
+    r.players.forEach(function (p) {
+      if (p.nil) parts.push(p.name + ' ' + (p.blind ? 'Blind Nil' : 'Nil') + (p.nilMade ? ' ✓' : ' ✗'));
     });
-    show('result');
-    if (won) buzz([40, 60, 40, 60, 120]);
+    if (r.bagsThisHand) parts.push(r.bagsThisHand + (r.bagsThisHand === 1 ? ' bag' : ' bags'));
+    if (r.bagPenalty) parts.push('bag penalty ' + signed(r.bagPenalty));
+    return parts.join(' · ');
   }
 
-  function resultRow(seat, name, total, delta, isMe) {
+  function teamRow(team, names, detail, total, delta, mine) {
     const row = document.createElement('div');
-    row.className = 'result-row' + (isMe ? ' is-me' : '');
+    row.className = 'result-row' + (mine ? ' is-me' : '');
     const s = document.createElement('span');
-    s.className = 'rr-seat'; s.dataset.seat = seat; s.textContent = seat;
+    s.className = 'rr-seat'; s.dataset.team = team; s.textContent = team === 'red' ? 'R' : 'B';
     const n = document.createElement('span');
-    n.className = 'rr-name pname'; n.textContent = name;
+    n.className = 'rr-name';
+    const t = document.createElement('span');
+    t.className = 'rr-team'; t.dataset.team = team; t.textContent = 'Team ' + TEAM_LABEL[team];
+    const who = document.createElement('span');
+    who.className = 'pname'; who.dataset.team = team; who.textContent = names.join(' & ');
+    n.appendChild(t); n.appendChild(who);
+    if (detail) {
+      const d = document.createElement('span');
+      d.className = 'rr-detail'; d.textContent = detail;
+      n.appendChild(d);
+    }
     row.appendChild(s); row.appendChild(n);
     if (delta !== null && delta !== undefined) {
       const d = document.createElement('span');
       d.className = 'rr-delta ' + (delta > 0 ? 'plus' : (delta < 0 ? 'minus' : ''));
-      d.textContent = delta > 0 ? '+' + delta : String(delta);
+      d.textContent = signed(delta);
       row.appendChild(d);
     }
     const sc = document.createElement('span');
@@ -588,10 +691,85 @@
     return row;
   }
 
+  function renderHandEnd(s) {
+    const results = s.results || {};
+    const mine = results[myTeam];
+    const me = mine && mine.players.find(function (p) { return p.playerId === PID; });
+
+    if (s.gameOver) {
+      const won = s.winnerTeam === myTeam;
+      resultEmoji.textContent = won ? '🏆' : '😔';
+      resultTitle.textContent = won ? 'Your team wins!' : 'Team ' + TEAM_LABEL[s.winnerTeam] + ' wins';
+      resultSub.textContent = 'Final hand complete.';
+    } else if (me && me.nil) {
+      resultEmoji.textContent = me.nilMade ? '🎯' : '💥';
+      resultTitle.textContent = (me.blind ? 'Blind Nil' : 'Nil') + (me.nilMade ? ' made! ' : ' busted ') + signed(me.nilPoints);
+      resultSub.textContent = 'Hand ' + s.handNumber + ' complete.';
+    } else if (mine) {
+      resultEmoji.textContent = mine.made ? '✅' : '❌';
+      resultTitle.textContent = mine.made ? 'Contract made!' : 'Your team was set';
+      resultSub.textContent = 'Hand ' + s.handNumber + ' · ' + signed(mine.delta) + ' for your team.';
+    } else {
+      resultEmoji.textContent = '♠️';
+      resultTitle.textContent = 'Hand over';
+      resultSub.textContent = '';
+    }
+
+    resultRows.innerHTML = '';
+    resultRows.classList.remove('no-delta');
+    ['red', 'blue'].sort(function (a, b) { return a === myTeam ? -1 : (b === myTeam ? 1 : 0); }).forEach(function (t) {
+      const r = results[t];
+      if (!r) return;
+      resultRows.appendChild(teamRow(t, r.players.map(function (p) { return p.name; }), teamDetail(r), r.total, r.delta, t === myTeam));
+    });
+    show('result');
+    if (s.gameOver && s.winnerTeam === myTeam) buzz([40, 60, 40, 60, 120]);
+  }
+
+  function renderFinal(s) {
+    const won = s.winnerTeam === myTeam;
+    resultEmoji.textContent = won ? '🏆' : '🫡';
+    if (won) {
+      resultTitle.textContent = 'Your team wins!';
+      resultSub.textContent = s.reason === 'floor' ? 'The other team sank to ' + s.losingScore + '.' : 'First to ' + s.targetScore + '.';
+    } else if (s.winnerLabel) {
+      resultTitle.textContent = 'Team ' + s.winnerLabel + ' wins';
+      resultSub.textContent = 'Better luck next game.';
+    } else {
+      resultTitle.textContent = 'Game over';
+      resultSub.textContent = '';
+    }
+    resultRows.innerHTML = '';
+    resultRows.classList.add('no-delta');
+    (s.standings || []).forEach(function (r) {
+      resultRows.appendChild(teamRow(r.team, r.players.map(function (p) { return p.name; }),
+        r.bags ? r.bags + (r.bags === 1 ? ' bag' : ' bags') : '', r.score, null, r.team === myTeam));
+    });
+    show('result');
+    if (won) buzz([40, 60, 40, 60, 120]);
+  }
+
   // ---- Waiting screen ----
   function renderWait(title, sub) {
     waitTitle.textContent = title;
     waitSub.textContent = sub;
+    teamTag.hidden = !myTeam;
+    if (myTeam) {
+      teamTag.dataset.team = myTeam;
+      teamTag.textContent = (myTeam === 'red' ? '🔴' : '🔵') + ' Team ' + TEAM_LABEL[myTeam];
+    }
+    partnerLine.textContent = '';
+    partnerLine.hidden = !myTeam;
+    if (myTeam) {
+      if (partnerName) {
+        partnerLine.appendChild(document.createTextNode('Your partner is '));
+        const who = nameSpan(partnerName, partnerSeat, myTeam);
+        who.classList.remove('turn-name');
+        partnerLine.appendChild(who);
+      } else {
+        partnerLine.textContent = 'Waiting for a partner to join…';
+      }
+    }
     show('wait');
   }
 
@@ -601,38 +779,36 @@
     if (publicPhase === 'LOBBY') { renderWait("You're in!", 'Waiting for the host to deal…'); return; }
     if (publicPhase === 'FINAL') return;             // renderFinal owns the view
     if (publicPhase === 'HAND_END') return;          // renderHandEnd owns the view
-    if (!hand) { renderWait('Dealing…', 'Your cards are on the way.'); return; }
-
-    if (publicPhase === 'DEAL') { renderWait('Dealing…', 'Your cards are on the way.'); return; }
-    if (publicPhase === 'PASS') {
-      if (hand.passed) {
-        renderSwap('✓', 'Cards away', 'Waiting for everyone else to pass…', hand.myPass);
-      } else {
-        renderPass();
-      }
-      return;
-    }
-    if (publicPhase === 'EXCHANGE') {
-      const from = hand.receivedFrom;
-      // You receive from the opposite way round to the way you passed.
-      const dirWord = {
-        left: 'the seat counter-clockwise from you',
-        right: 'the seat clockwise from you',
-        across: 'the player across from you',
-      }[hand.passDirection] || 'another player';
-      renderSwap('🎁', 'You received', from ? null : 'Three cards from ' + dirWord + '.', hand.received, from);
-      return;
-    }
+    if (!hand || publicPhase === 'DEAL') { renderWait('Dealing…', 'Your cards are coming — face down.'); return; }
+    if (publicPhase === 'BID') { renderBid(); return; }
     renderPlay();     // TRICK and TRICK_END both show the hand
   }
 
+  /** Team, seat and partner from a lobby snapshot (the host can move us). */
+  function adoptLobby(l) {
+    const me = l && l.players && l.players.filter(function (p) { return p.id === PID; })[0];
+    if (!me) return;
+    if (me.seat) mySeat = me.seat;
+    if (me.team) myTeam = me.team;
+    const mate = l.players.filter(function (p) { return p.team === me.team && p.id !== PID; })[0];
+    partnerName = mate ? mate.name : null;
+    partnerSeat = mate ? mate.seat : null;
+  }
+
+  /** The same facts from a private hand snapshot, mid-game. */
+  function adoptHand(h) {
+    if (h.team) myTeam = h.team;
+    if (h.seat) mySeat = h.seat;
+    if (h.partner) { partnerName = h.partner.name; partnerSeat = h.partner.seat; }
+  }
+
   // ---------------- Socket ----------------
-  const socket = io('/hearts', { transports: ['polling', 'websocket'] });
+  const socket = io('/spades', { transports: ['polling', 'websocket'] });
 
   function goRejoin() {
-    localStorage.removeItem('hearts.playerId');
-    if (myName) localStorage.setItem('hearts.rejoinName', myName);
-    window.location.replace('/hearts/join');
+    localStorage.removeItem('spades.playerId');
+    if (myName) localStorage.setItem('spades.rejoinName', myName);
+    window.location.replace('/spades/join');
   }
 
   socket.on('connect', function () {
@@ -641,11 +817,14 @@
       connOverlay.hidden = true;
       myName = res.player.name;
       mySeat = res.player.seat;
+      myTeam = res.player.team || myTeam;
       hostPresent = res.hostPresent !== false;
       reactionsMutedByHost = !!res.reactionsMuted;
-      localStorage.setItem('hearts.playerName', myName);
+      localStorage.setItem('spades.playerName', myName);
       publicPhase = res.phase;
-      if (res.myHand) { hand = res.myHand; picks = []; armed = null; }
+      busy = false;
+      if (res.lobby) adoptLobby(res.lobby);
+      if (res.myHand) { hand = res.myHand; adoptHand(hand); armed = null; bidPick = null; clearBlindArm(); }
       // A reconnect mid-scoreboard should land on the scoreboard.
       if (res.handEnd) { renderTop(); renderHandEnd(res.handEnd); return; }
       if (res.final) { renderTop(); renderFinal(res.final); return; }
@@ -660,9 +839,9 @@
     if (!h) return;
     const prev = hand;
     hand = h;
+    adoptHand(h);
     // A fresh deal clears anything we had staged.
-    if (!prev || prev.handNumber !== h.handNumber) { picks = []; armed = null; }
-    if (!h.passed && prev && prev.passed) picks = [];
+    if (!prev || prev.handNumber !== h.handNumber) { armed = null; bidPick = null; clearBlindArm(); }
     publicPhase = h.phase;
     route();
   });
@@ -673,20 +852,16 @@
   }
   socket.on('state:lobby', function (l) {
     hand = null;
-    // The host can drag players into new seats in the lobby, so take the seat
-    // from the snapshot rather than trusting the one the join ack gave us.
-    const me = l && l.players && l.players.filter(function (p) { return p.id === PID; })[0];
-    if (me && me.seat) mySeat = me.seat;
+    adoptLobby(l);
     setPhase('LOBBY');
   });
   socket.on('state:deal', function () { setPhase('DEAL'); });
-  socket.on('state:pass', function () { setPhase('PASS'); });
-  socket.on('state:exchange', function () { setPhase('EXCHANGE'); });
+  socket.on('state:bid', function () { setPhase('BID'); });
   socket.on('state:table', function () { setPhase('TRICK'); });
   socket.on('state:trickEnd', function () { setPhase('TRICK_END'); });
   socket.on('state:handEnd', function (s) {
     publicPhase = 'HAND_END';
-    armed = null; picks = [];
+    armed = null; bidPick = null; clearBlindArm();
     renderTop();
     renderHandEnd(s);
   });
@@ -696,8 +871,8 @@
     renderFinal(s);
   });
 
-  socket.on('state:heartsBroken', function () {
-    if (currentView === 'play') { toast('Hearts have been broken! 💔'); buzz([20, 40, 20]); }
+  socket.on('state:spadesBroken', function () {
+    if (currentView === 'play') { toast('Spades have been broken! ♠'); buzz([20, 40, 20]); }
   });
 
   socket.on('state:reset', function () { goRejoin(); });
@@ -713,9 +888,9 @@
   });
 
   // ---------------- Emotes ----------------
-  // Must mirror ALLOWED_EMOTES in server/hearts/index.js.
+  // Must mirror ALLOWED_EMOTES in server/spades/index.js.
   const EMOTES = ['😀', '😂', '😎', '😭', '😡', '👍', '🔥', '💪', '🎉', '😱'];
-  // A trick on the felt shows a seat bubble; every other screen floats it. The
+  // The felt (bidding or a trick) shows a seat bubble; every other screen floats it. The
   // server's ack has the final word.
   const EMOTE_BUBBLE_COOLDOWN_MS = 2500;
   const EMOTE_FLOAT_COOLDOWN_MS = 10 * 1000;
@@ -749,7 +924,7 @@
     emoteToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
   function emoteKindNow() {
-    return publicPhase === 'TRICK' || publicPhase === 'TRICK_END' ? 'bubble' : 'float';
+    return publicPhase === 'BID' || publicPhase === 'TRICK' || publicPhase === 'TRICK_END' ? 'bubble' : 'float';
   }
   // Mirrors the server: a cooldown only holds within the kind that set it.
   function emoteCooling() {

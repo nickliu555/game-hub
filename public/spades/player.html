@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Hearts</title>
+  <title>Spades</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#12402C" />
+  <meta name="theme-color" content="#142340" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/hearts/css/base.css" />
-  <link rel="stylesheet" href="/hearts/css/player.css" />
+  <link rel="stylesheet" href="/spades/css/base.css" />
+  <link rel="stylesheet" href="/spades/css/player.css" />
 </head>
 <body class="player play-page">
   <div class="p-shell">
@@ -30,34 +30,33 @@
     <section class="p-view active" id="pv-wait">
       <div class="wait-card">
         <div class="wait-suits" aria-hidden="true">
-          <span class="js-red">♥</span><span>♠</span><span class="js-red">♦</span><span>♣</span>
+          <span>♠</span><span class="js-red">♥</span><span>♣</span><span class="js-red">♦</span>
         </div>
         <h2 id="waitTitle">You're in!</h2>
         <p id="waitSub">Waiting for the host to deal…</p>
       </div>
     </section>
 
-    <!-- Passing -->
-    <section class="p-view" id="pv-pass">
-      <div class="p-banner" id="passBanner">
-        Pass <strong id="passDirText">3 cards</strong>
+    <!-- Bidding -->
+    <section class="p-view" id="pv-bid">
+      <div class="bid-board" id="bidBoard"></div>
+      <div class="p-banner" id="bidBanner">Bidding…</div>
+      <div class="hand-area" id="bidHandArea">
+        <div class="hand-fan" id="bidFan"></div>
+        <div class="facedown" id="bidFacedown" hidden>
+          <div class="facedown-stack" aria-hidden="true">
+            <span class="card card-back"></span><span class="card card-back"></span><span class="card card-back"></span>
+          </div>
+          <p class="facedown-note" id="facedownNote">Your 13 cards are face down.</p>
+        </div>
       </div>
-      <div class="p-hint" id="passHint">Tap 3 cards to send away</div>
-      <div class="hand-area">
-        <div class="hand-fan" id="passFan"></div>
-      </div>
-      <div class="p-actions">
-        <button type="button" class="btn-accent action-btn" id="passBtn" disabled>Choose 3 cards</button>
-      </div>
-    </section>
-
-    <!-- Cards away (waiting on the table) / cards received -->
-    <section class="p-view" id="pv-passed">
-      <div class="wait-card">
-        <div class="wait-check" id="swapIcon">✓</div>
-        <h2 id="swapTitle">Cards away</h2>
-        <p id="swapSub">Waiting for everyone else to pass…</p>
-        <div class="mini-fan" id="swapFan"></div>
+      <div class="p-actions bid-actions">
+        <div class="bid-grid" id="bidGrid" hidden></div>
+        <div class="bid-buttons">
+          <button type="button" class="btn-ghost action-btn" id="blindBtn" hidden>Bid Blind Nil</button>
+          <button type="button" class="btn-accent action-btn" id="revealBtn" hidden>Look at my cards</button>
+          <button type="button" class="btn-accent action-btn" id="bidBtn" hidden disabled>Pick a bid</button>
+        </div>
       </div>
     </section>
 
@@ -65,8 +64,8 @@
     <section class="p-view" id="pv-play">
       <div class="p-meta">
         <span class="meta-chip">Trick <strong id="mTrick">1</strong>/13</span>
-        <span class="meta-chip" id="mHearts">♥ not broken</span>
-        <span class="meta-chip" id="mPoints">0 this hand</span>
+        <span class="meta-chip" id="mSpades">♠ not broken</span>
+        <span class="meta-chip" id="mTeam">Team 0/0</span>
       </div>
       <div class="p-banner" id="playBanner">Waiting…</div>
       <div class="hand-area">
@@ -80,7 +79,7 @@
     <!-- Hand over / game over -->
     <section class="p-view" id="pv-result">
       <div class="wait-card scrollable-region">
-        <div class="result-emoji" id="resultEmoji">♥️</div>
+        <div class="result-emoji" id="resultEmoji">♠️</div>
         <h2 id="resultTitle">Hand over</h2>
         <p id="resultSub"></p>
         <div class="result-rows" id="resultRows"></div>
@@ -95,13 +94,13 @@
 
   <div class="host-absent-overlay" id="pConnOverlay" hidden>
     <div class="host-absent-card">
-      <div class="icon">♥️</div>
+      <div class="icon">♠️</div>
       <div class="title">Reconnecting…</div>
       <div class="sub"><span class="pulse-dot"></span>Your seat and your hand are safe.</div>
     </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/hearts/js/player.js"></script>
+  <script src="/spades/js/player.js"></script>
 </body>
 </html>

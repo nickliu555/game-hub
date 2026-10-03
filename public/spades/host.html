@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Spades · Host</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="/shared/iris-preload.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/topbar.css" />
+  <link rel="stylesheet" href="/shared/modal.css" />
+  <link rel="stylesheet" href="/shared/iris.css" />
+  <link rel="stylesheet" href="/spades/css/base.css" />
+  <link rel="stylesheet" href="/spades/css/host.css" />
+  <script src="/shared/topbar.js" defer></script>
+  <script src="/shared/modal.js" defer></script>
+  <script src="/shared/iris.js" defer></script>
+</head>
+<body class="host">
+  <div class="host-shell">
+    <div class="game-topbar">
+      <span class="gtb-brand">♠️ Spades</span>
+      <div class="gtb-controls">
+        <a href="/" id="hubBtn" class="gtb-btn" title="Back to hub (resets game)">← Hub</a>
+        <button id="fullscreenBtn" class="gtb-btn" type="button" title="Toggle fullscreen">⛶ Fullscreen</button>
+        <div class="gtb-settings-wrapper">
+          <button class="gtb-btn" type="button" data-gtb-settings-toggle aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️ Settings</button>
+          <div class="gtb-settings-panel" id="settingsPanel" hidden>
+            <button class="gtb-btn" type="button" data-gtb-help-open="helpOverlay" title="How to play">? Help</button>
+            <button id="muteReactionsBtn" class="gtb-btn" type="button" data-gtb-settings-keep-open title="Mute player reactions">🔔 Reactions</button>
+            <div class="gtb-divider"></div>
+            <button id="resetBtn" class="gtb-btn gtb-btn-danger" type="button" title="Reset the whole game">Reset game</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="host-main">
+
+      <!-- Peek at the running totals mid-hand; hidden in the lobby and on the
+           scoreboards, which already show them. -->
+      <div class="standings-dock" id="standingsDock" hidden>
+        <button class="standings-btn" id="standingsBtn" type="button" title="Show scores"
+                aria-label="Show scores" aria-haspopup="dialog" aria-expanded="false" aria-controls="standingsPop">
+          <svg class="sp-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="3.5" y="12" width="4.6" height="8.5" rx="1.3" />
+            <rect x="9.7" y="6.5" width="4.6" height="14" rx="1.3" />
+            <rect x="15.9" y="9.5" width="4.6" height="11" rx="1.3" />
+          </svg>
+        </button>
+        <div class="standings-pop" id="standingsPop" role="dialog" aria-label="Scores" hidden>
+          <div class="sp-head">
+            <div class="sp-titles">
+              <span class="sp-title">Scores</span>
+              <span class="sp-note">Not counting this hand</span>
+            </div>
+            <button class="sp-close" id="standingsClose" type="button" aria-label="Close">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M7 7 L17 17 M17 7 L7 17" />
+              </svg>
+            </button>
+          </div>
+          <div class="sp-rows scroll-region" id="standingsRows"></div>
+          <div class="sp-foot" id="standingsFoot"></div>
+        </div>
+      </div>
+
+      <!-- Replay the trick that was just swept away, for anyone who looked away.
+           Only on the table, and only once a trick has been played this hand. -->
+      <div class="lasttrick-dock" id="lastTrickDock" hidden>
+        <button class="standings-btn" id="lastTrickBtn" type="button" title="Show the last trick"
+                aria-label="Show the last trick" aria-haspopup="dialog" aria-expanded="false" aria-controls="lastTrickPop">
+          <svg class="sp-icon lt-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M4.2 12a7.8 7.8 0 1 0 2.3-5.5" />
+            <path d="M4.2 4.4v3.9h3.9" />
+            <path d="M12 8.2v4.1l2.8 1.8" />
+          </svg>
+        </button>
+        <div class="standings-pop" id="lastTrickPop" role="dialog" aria-label="Last trick" hidden>
+          <div class="sp-head">
+            <div class="sp-titles">
+              <span class="sp-title">Last trick</span>
+              <span class="sp-note" id="lastTrickNote"></span>
+            </div>
+            <button class="sp-close" id="lastTrickClose" type="button" aria-label="Close">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M7 7 L17 17 M17 7 L7 17" />
+              </svg>
+            </button>
+          </div>
+          <div class="lt-cards" id="lastTrickCards"></div>
+        </div>
+      </div>
+
+      <!-- ─────────────── Lobby ─────────────── -->
+      <section class="view active" id="view-lobby">
+        <div class="lobby-grid">
+          <div class="qr-panel">
+            <h2>Scan to join</h2>
+            <p>Or type the URL below on your phone</p>
+            <div class="qr-slot" id="qrSlot"></div>
+            <div class="join-url" id="joinUrl"></div>
+          </div>
+
+          <div class="seats-panel">
+            <div class="seats-head">
+              <h3>Teams</h3>
+              <div class="count"><span id="playerCount">0</span> / <span id="playerCap">4</span></div>
+            </div>
+            <p class="seats-hint" id="seatsHint">Drag players between teams · partners sit across from each other</p>
+            <div class="team-cols">
+              <div class="team-col" id="colRed" data-team="red">
+                <div class="team-col-head"><span class="team-dot"></span>Team Red <span class="team-col-seats">North · South</span></div>
+                <div class="seat-list" id="slotsRed"></div>
+              </div>
+              <div class="team-col" id="colBlue" data-team="blue">
+                <div class="team-col-head"><span class="team-dot"></span>Team Blue <span class="team-col-seats">East · West</span></div>
+                <div class="seat-list" id="slotsBlue"></div>
+              </div>
+            </div>
+
+            <div class="lobby-config">
+              <div class="config-row">
+                <label>Play to</label>
+                <div class="seg" id="targetSeg" data-attr="targetScore">
+                  <button class="seg-btn" type="button" data-value="200">200</button>
+                  <button class="seg-btn" type="button" data-value="300">300</button>
+                  <button class="seg-btn" type="button" data-value="400">400</button>
+                  <button class="seg-btn on" type="button" data-value="500">500</button>
+                </div>
+              </div>
+              <div class="config-row">
+                <label>Auto-advance hands</label>
+                <div class="seg" id="autoSeg" data-attr="autoAdvance">
+                  <button class="seg-btn on" type="button" data-value="on">On</button>
+                  <button class="seg-btn" type="button" data-value="off">Off</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="lobby-actions">
+              <button id="addBotBtn" class="btn-ghost" type="button">🤖 Add CPU</button>
+              <button id="startBtn" class="btn-accent" type="button">Deal the cards</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────── Dealing ─────────────── -->
+      <section class="view" id="view-deal">
+        <div class="stage-view">
+          <div class="stage-meta">Hand <span id="dealHand">1</span></div>
+          <h1 class="stage-title">Dealing…</h1>
+          <div class="deal-fan" id="dealFan" aria-hidden="true"></div>
+          <p class="stage-sub" id="dealSub">Check your phone for your hand</p>
+        </div>
+      </section>
+
+      <!-- ─────────────── The table ─────────────── -->
+      <section class="view" id="view-table">
+        <div class="table-view">
+          <div class="table-strip">
+            <div class="strip-item strip-team" id="tRed" data-team="red">
+              <span class="strip-label">Team Red</span>
+              <span class="strip-value"><span class="st-score">0</span><span class="st-bid"></span></span>
+            </div>
+            <div class="strip-item"><span class="strip-label" id="tPhaseLabel">Trick</span><span class="strip-value" id="tPhaseValue"><span id="tTrick">1</span> / 13</span></div>
+            <div class="strip-item strip-spades" id="tSpadesItem">
+              <span class="strip-label">Spades</span><span class="strip-value" id="tSpades">Not broken</span>
+            </div>
+            <div class="strip-item strip-team" id="tBlue" data-team="blue">
+              <span class="strip-label">Team Blue</span>
+              <span class="strip-value"><span class="st-score">0</span><span class="st-bid"></span></span>
+            </div>
+          </div>
+
+          <div class="felt" id="felt">
+            <div class="seat seat-n" id="seat-N"></div>
+            <div class="seat seat-e" id="seat-E"></div>
+            <div class="seat seat-s" id="seat-S"></div>
+            <div class="seat seat-w" id="seat-W"></div>
+
+            <div class="play-area">
+              <div class="played played-n" id="played-N"></div>
+              <div class="played played-e" id="played-E"></div>
+              <div class="played played-s" id="played-S"></div>
+              <div class="played played-w" id="played-W"></div>
+              <div class="trick-badge" id="trickBadge" hidden></div>
+            </div>
+
+            <div class="waiting-note" id="waitingNote" hidden></div>
+            <div class="emote-layer" id="emoteLayer" aria-hidden="true"></div>
+          </div>
+        </div>
+        <div class="shatter-layer" id="shatterLayer" aria-hidden="true"></div>
+      </section>
+
+      <!-- ─────────────── Hand scoreboard ─────────────── -->
+      <section class="view" id="view-handend">
+        <div class="handend-view">
+          <div class="handend-head">
+            <div class="stage-meta">Hand <span id="heHand">1</span> complete · playing to <span id="heTarget">500</span></div>
+            <h1 class="stage-title" id="heTitle">Scores</h1>
+          </div>
+          <div class="score-table">
+            <div class="score-head" aria-hidden="true">
+              <span class="sh-name">Team</span>
+              <span>Bid</span>
+              <span>Took</span>
+              <span>Nil</span>
+              <span>Bags</span>
+              <span>Hand</span>
+              <span class="sh-total">Total</span>
+            </div>
+            <div class="score-rows scroll-region" id="scoreRows"></div>
+          </div>
+          <div class="handend-foot">
+            <button id="nextHandBtn" class="btn-accent" type="button">Next hand</button>
+            <div class="auto-note" id="autoNote" hidden></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────── Final ─────────────── -->
+      <section class="view" id="view-final">
+        <div class="final-view">
+          <div class="final-head">
+            <div class="final-trophy" id="finalTrophy">🏆</div>
+            <h1 class="final-heading" id="finalHeading">Winner</h1>
+            <div class="final-sub" id="finalSub"></div>
+          </div>
+          <div class="final-list scroll-region" id="finalList"></div>
+          <div class="final-foot">
+            <button id="playAgainBtn" class="btn-accent" type="button">Back to lobby</button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- Floating emotes from players (off the felt) -->
+  <div class="reaction-layer" id="reactionLayer" aria-hidden="true"></div>
+
+  <!-- Host-absent / connection overlay -->
+  <div class="host-overlay" id="connOverlay" hidden>
+    <div class="host-overlay-card">
+      <div class="ho-spinner"></div>
+      <h2>Reconnecting…</h2>
+      <p>Hold tight — the table is still here.</p>
+    </div>
+  </div>
+
+  <!-- Help modal -->
+  <div class="gtb-help-overlay" id="helpOverlay">
+    <div class="gtb-help-modal">
+      <button class="gtb-help-modal-close" type="button" data-gtb-help-close aria-label="Close help">&times;</button>
+      <h2>♠️ Spades</h2>
+      <p>The classic partnership trick-taking game. Two teams of two — partners sit across from each other.</p>
+      <ol>
+        <li>It must be exactly <strong>2 v 2</strong> to start — drag players between <strong>Team Red</strong> and <strong>Team Blue</strong>, or add CPUs to fill open seats.</li>
+        <li>Everyone is dealt <strong>13 cards</strong>, face down on their phone until they choose to look.</li>
+        <li>Each player <strong>bids</strong> in turn how many tricks they'll take, or <strong>Nil</strong> for none. Bid <strong>Blind Nil</strong> before looking for double stakes.</li>
+        <li>Follow the led suit if you can; otherwise play anything. <strong>Spades are always trump</strong>.</li>
+        <li>You can't <em>lead</em> a spade until spades are broken — unless spades are all you hold.</li>
+        <li>Make your team's combined bid: <strong>+10 per trick bid</strong> and <strong>+1 per extra trick</strong> (a <strong>bag</strong>). Miss it and lose <strong>10 per trick bid</strong>.</li>
+        <li><strong>Nil</strong> is <strong>±100</strong> and <strong>Blind Nil</strong> is <strong>±200</strong>, scored on its own. Tricks a nil bidder takes don't help the bid — they're bags.</li>
+        <li>Every <strong>10 bags</strong> costs <strong>100 points</strong>.</li>
+        <li>First team to the target score wins — a team that falls to <strong>−200</strong> loses.</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- Applause on the final scoreboard (same recording as Trivia) -->
+  <audio id="sfx-applause" src="/hearts/assets/sounds/applause.mp3" preload="auto"></audio>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/spades/js/host.js"></script>
+</body>
+</html>

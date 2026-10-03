@@ -156,6 +156,14 @@
   var localAnswers = [];
   var iAmDone = false;
   var doneArmed = false;
+  // An unconfirmed first tap on "I'm done" quietly reverts after a few seconds.
+  var ARM_TIMEOUT_MS = 4000;
+  var doneArmTimer = null;
+  // A tap anywhere other than the armed button cancels the arm too.
+  document.addEventListener('pointerdown', function (e) {
+    if (!doneArmed || (e.target.closest && e.target.closest('#doneBtn'))) return;
+    disarmDone();
+  }, true);
 
   function flushSave(idx) {
     if (pendingSaves[idx]) { clearTimeout(pendingSaves[idx]); delete pendingSaves[idx]; }
@@ -177,6 +185,7 @@
     setReactionsAllowed(false);
     setAttribution(false);
     iAmDone = !!myDone;
+    if (doneArmTimer) { clearTimeout(doneArmTimer); doneArmTimer = null; }
     doneArmed = false;
     localAnswers = [];
     var cats = (r && r.categories) || [];
@@ -294,6 +303,7 @@
   }
 
   function disarmDone() {
+    if (doneArmTimer) { clearTimeout(doneArmTimer); doneArmTimer = null; }
     if (!doneArmed) return;
     doneArmed = false;
     updateDoneBtn();
@@ -316,7 +326,14 @@
       return;
     }
     // Two-tap confirm (player pages have no modal helper available).
-    if (!doneArmed) { doneArmed = true; updateDoneBtn(); tryVibrate(20); return; }
+    if (!doneArmed) {
+      doneArmed = true;
+      doneArmTimer = setTimeout(function () { doneArmTimer = null; disarmDone(); }, ARM_TIMEOUT_MS);
+      updateDoneBtn();
+      tryVibrate(20);
+      return;
+    }
+    if (doneArmTimer) { clearTimeout(doneArmTimer); doneArmTimer = null; }
     doneArmed = false;
     iAmDone = true;
     flushAllSaves();

@@ -16,6 +16,8 @@
     "test:hearts": "node scripts/test-hearts-engine.js",
     "test:hearts-bot": "node scripts/test-hearts-bot.js",
     "itest:hearts": "node scripts/itest-hearts.js",
+    "test:spades": "node scripts/test-spades-engine.js",
+    "itest:spades": "node scripts/itest-spades.js",
     "test:holdempoker": "node scripts/test-holdempoker-engine.js",
     "test:holdempoker-bot": "node scripts/test-holdempoker-bot.js",
     "itest:holdempoker": "node scripts/itest-holdempoker.js",

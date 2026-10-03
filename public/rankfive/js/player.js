@@ -346,6 +346,16 @@
   }
 
   // Ranker's turn to secretly rank.
+  // The one "Tap again" that is currently armed: { btn, revert }. A tap
+  // anywhere other than that button cancels it (its timer does too).
+  var pendingArm = null;
+  document.addEventListener('pointerdown', function (e) {
+    if (!pendingArm || pendingArm.btn.contains(e.target)) return;
+    var arm = pendingArm;
+    pendingArm = null;
+    arm.revert();
+  }, true);
+
   function showRankerRankUI(data) {
     myRole = 'ranker-active';
     lastRankItems = data;
@@ -365,11 +375,10 @@
       '</div>';
     var rankBtn = document.getElementById('rankSubmit');
     var rankArmed = false;
+    var rankArmTimer = null;
     // Two-tap guard against an accidental submit: tap to arm ("Tap again to lock
-    // it in"), tap again to lock in. No timeout, so deliberating over the order
-    // never costs an extra press. Reordering does NOT cancel the arm — the submit
-    // always sends the LIVE order — so brushing a card (the whole card is
-    // draggable) never forces a third tap.
+    // it in"), tap again to lock in. An unconfirmed arm reverts after a few
+    // seconds, or as soon as the player taps anywhere else.
     rankSortable = makeSortable(document.getElementById('rkList'), {
       map: map, order: order, editable: true,
     });
@@ -378,8 +387,21 @@
         rankArmed = true;
         rankBtn.textContent = 'Tap again to lock it in';
         rankBtn.classList.add('btn-accent');
+        var revert = function () {
+          if (rankArmTimer) { clearTimeout(rankArmTimer); rankArmTimer = null; }
+          if (pendingArm && pendingArm.btn === rankBtn) pendingArm = null;
+          if (!rankArmed || rankBtn.disabled) return;
+          rankArmed = false;
+          rankBtn.textContent = 'Lock in my ranking';
+          rankBtn.classList.remove('btn-accent');
+        };
+        if (rankArmTimer) clearTimeout(rankArmTimer);
+        rankArmTimer = setTimeout(revert, 4000);
+        pendingArm = { btn: rankBtn, revert: revert };
         return;
       }
+      if (rankArmTimer) { clearTimeout(rankArmTimer); rankArmTimer = null; }
+      pendingArm = null;
       rankBtn.disabled = true;
       socket.emit('player:rank', { order: rankSortable.getOrder() }, function (res) {
         if (!res || !res.ok) {
@@ -432,21 +454,30 @@
       onChange: function (order) { socket.emit('player:consensus', { order: order }); },
     });
     var submitArmed = false;
+    var submitArmTimer = null;
     document.getElementById('submitBtn').addEventListener('click', function () {
       var btn = this;
       // Two-tap guard against an accidental submit (no modal on the player page).
+      // Reverts after a few seconds, or as soon as the player taps anywhere else.
       if (!submitArmed) {
         submitArmed = true;
         btn.textContent = 'Tap again to lock it in';
         btn.classList.add('btn-accent');
-        setTimeout(function () {
-          if (!submitArmed) return;
+        var revert = function () {
+          if (submitArmTimer) { clearTimeout(submitArmTimer); submitArmTimer = null; }
+          if (pendingArm && pendingArm.btn === btn) pendingArm = null;
+          if (!submitArmed || btn.disabled) return;
           submitArmed = false;
           btn.textContent = 'Submit the group\'s answer';
           btn.classList.remove('btn-accent');
-        }, 3000);
+        };
+        if (submitArmTimer) clearTimeout(submitArmTimer);
+        submitArmTimer = setTimeout(revert, 3000);
+        pendingArm = { btn: btn, revert: revert };
         return;
       }
+      if (submitArmTimer) { clearTimeout(submitArmTimer); submitArmTimer = null; }
+      pendingArm = null;
       btn.disabled = true;
       socket.emit('player:submit', { order: discussSortable.getOrder() }, function (res) {
         if (!res || !res.ok) {

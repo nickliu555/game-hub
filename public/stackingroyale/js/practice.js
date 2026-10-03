@@ -9,6 +9,7 @@
   let board = null;
   let phase = 'ready';
   let armed = null;
+  let armTimer = null;   // an unconfirmed first tap reverts after a few seconds
   let previous = 0;
   let accumulator = 0;
   let lastSave = 0;
@@ -16,7 +17,7 @@
   const step = 1000 / 60;
   const getMode = ui.controls(function () { if (input) input.clear(); disarm(); });
   function enabled() { return board && phase === 'playing' && !document.hidden && !ui.overlayOpen(); }
-  function disarm() { armed = null; el('confirmStrip').hidden = true; }
+  function disarm() { if (armTimer) { clearTimeout(armTimer); armTimer = null; } armed = null; el('confirmStrip').hidden = true; }
   function save() {
     if (!board) return;
     const view = board.view();
@@ -63,6 +64,8 @@
     if (!board || phase === 'final') { if (action === 'back') ui.goBack(); else start(); return; }
     if (armed === action) { disarm(); if (action === 'back') { ui.storage.remove('practice.session'); ui.goBack(); } else start(); return; }
     pause(); armed = action;
+    if (armTimer) clearTimeout(armTimer);
+    armTimer = setTimeout(disarm, 4000);
     el('confirmText').textContent = action === 'back' ? 'Tap Back again to abandon this session.' : 'Tap Restart again to start a new session.';
     el('confirmStrip').hidden = false;
   }
@@ -70,6 +73,11 @@
   ui.activate(el('restartBtn'), function () { confirm('restart'); });
   ui.activate(el('backBtn'), function () { confirm('back'); });
   ui.activate(el('cancelConfirm'), disarm);
+  // An armed Back/Restart also cancels on a tap anywhere else.
+  document.addEventListener('pointerdown', function (e) {
+    if (!armed || (e.target.closest && e.target.closest('#backBtn, #restartBtn, #confirmStrip'))) return;
+    disarm();
+  }, true);
   ui.activate(el('againBtn'), start);
   ui.activate(el('resumeBtn'), function () {
     if (phase === 'ready') { start(); return; }

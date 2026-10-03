@@ -1,12 +1,12 @@
 /* ─────────────────────────────────────────────────────────────
-   Hearts — phone screens (join + controller).
+   Spades — phone screens (join + controller).
    Mobile-first: safe-area aware, no horizontal overflow, comfortable tap
    targets, and never zoomable or selectable.
    ───────────────────────────────────────────────────────────── */
 
 body.player {
   background:
-    radial-gradient(900px 520px at 50% 0%, rgba(63, 160, 105, 0.32), transparent 62%),
+    radial-gradient(900px 520px at 50% 0%, rgba(70, 110, 200, 0.32), transparent 62%),
     linear-gradient(170deg, var(--bg) 0%, var(--bg-deep) 100%);
   background-attachment: fixed;
   color: #fff;
@@ -93,7 +93,7 @@ body.player .scrollable-region { touch-action: pan-y; overflow-y: auto; }
 .host-absent-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(6, 26, 16, 0.93);
+  background: rgba(4, 10, 26, 0.93);
   backdrop-filter: blur(6px);
   display: grid;
   place-items: center;
@@ -133,8 +133,11 @@ body.player .scrollable-region { touch-action: pan-y; overflow-y: auto; }
 /* ═══════════════════════ Controller ═══════════════════════ */
 
 .p-shell {
-  min-height: 100vh;
-  min-height: 100dvh;
+  /* Pinned to the viewport (not min-height) so the hand area gives way to the
+     bid grid and buttons instead of pushing them off the bottom of the phone. */
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   padding-top: env(safe-area-inset-top);
@@ -190,7 +193,7 @@ body.player.my-turn .p-top::after { transform: scaleX(1); }
   place-items: center;
   font-size: 14px;
   font-weight: 800;
-  color: #10261b;
+  color: #0E1530;
   background: rgba(255, 255, 255, 0.4);
 }
 .p-seat[data-seat="N"] { background: var(--seat-n); }
@@ -237,23 +240,26 @@ body.player.my-turn .p-top::after { transform: scaleX(1); }
 }
 .wait-card h2 { font-size: 27px; }
 .wait-card p { color: rgba(255, 255, 255, 0.62); font-size: 15px; margin: 6px 0 0; max-width: 320px; }
-.swap-from { font-weight: 800; }
-.swap-from[data-seat="N"] { color: var(--seat-n); }
-.swap-from[data-seat="E"] { color: var(--seat-e); }
-.swap-from[data-seat="S"] { color: var(--seat-s); }
-.swap-from[data-seat="W"] { color: var(--seat-w); }
-.wait-check {
-  width: 62px; height: 62px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 32px;
+/* The team you're on, shown on the waiting screen. */
+.team-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 14px;
+  padding: 7px 15px;
+  border-radius: 999px;
+  font-size: 15px;
   font-weight: 800;
-  background: rgba(63, 163, 92, 0.25);
-  border: 2px solid var(--good);
-  color: #86E6A4;
-  margin-bottom: 12px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
+.team-tag[hidden] { display: none; }
+.team-tag[data-team="red"] { background: rgba(255, 107, 94, 0.18); border: 1.5px solid var(--team-red); color: var(--team-red); }
+.team-tag[data-team="blue"] { background: rgba(92, 194, 255, 0.16); border: 1.5px solid var(--team-blue); color: var(--team-blue); }
+.wait-card .partner-line { font-size: 14px; }
+.partner-line .pname { font-weight: 800; }
+.pname[data-team="red"] { color: var(--team-red); }
+.pname[data-team="blue"] { color: var(--team-blue); }
 .result-emoji { font-size: 56px; line-height: 1; }
 
 .p-banner {
@@ -272,15 +278,6 @@ body.player.my-turn .p-top::after { transform: scaleX(1); }
 .p-banner .turn-name[data-seat="E"] { color: var(--seat-e); }
 .p-banner .turn-name[data-seat="S"] { color: var(--seat-s); }
 .p-banner .turn-name[data-seat="W"] { color: var(--seat-w); }
-.p-hint {
-  flex: 0 0 auto;
-  text-align: center;
-  font-size: 13.5px;
-  color: rgba(255, 255, 255, 0.55);
-  padding: 4px 18px 0;
-  min-height: 18px;
-  overflow-wrap: anywhere;
-}
 
 .p-meta {
   flex: 0 0 auto;
@@ -300,9 +297,9 @@ body.player.my-turn .p-top::after { transform: scaleX(1); }
   white-space: nowrap;
 }
 .meta-chip strong { color: #fff; }
-.meta-chip.broken { color: #FF8AA0; background: rgba(142, 27, 46, 0.45); }
-.meta-chip.scoring { color: #FF8AA0; }
-.meta-chip.bonus { color: #86E6A4; }
+.meta-chip.broken { color: #fff; background: rgba(108, 76, 209, 0.6); }
+.meta-chip.made { color: #86E6A4; }
+.meta-chip.over { color: #FFC48A; }
 
 /* ---- The hand ---- */
 /* 13 cards have to fit a 320px phone, so the fan overlaps. Cards overlap
@@ -329,6 +326,7 @@ body.player.my-turn .p-top::after { transform: scaleX(1); }
   padding: 36px 8px 6px;        /* headroom for a lifted card and its badge */
   max-width: 100%;
 }
+.hand-fan[hidden] { display: none; }
 .fan-row {
   display: flex;
   align-items: flex-end;
@@ -361,22 +359,6 @@ body.player.my-turn .p-top::after { transform: scaleX(1); }
    in front of the whole fan buries the corner index of the card to its right. */
 .hand-card.armed { transform: translateY(-26px); }
 .hand-card.armed img { box-shadow: 0 0 0 3px var(--gold), 0 8px 20px rgba(0, 0, 0, 0.5); }
-.hand-card.picked { transform: translateY(-24px); }
-.hand-card.picked img { box-shadow: 0 0 0 3px var(--accent-bright), 0 8px 20px rgba(0, 0, 0, 0.5); }
-.hand-card.picked::after {
-  content: attr(data-pick);
-  position: absolute;
-  top: -9px; right: -7px;
-  width: 24px; height: 24px;
-  border-radius: 50%;
-  background: var(--accent-bright);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 800;
-  display: grid;
-  place-items: center;
-  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.45);
-}
 
 /* Inert cards are dimmed but stay fully opaque — a translucent card lets the
    one it overlaps show through, and the two faces become unreadable. */
@@ -387,22 +369,6 @@ body.player.my-turn .p-top::after { transform: scaleX(1); }
   filter: saturate(0.35) brightness(0.78);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
-
-.mini-fan {
-  display: flex;
-  justify-content: center;
-  margin-top: 20px;
-  /* Three overlapped cards span 2.56× the card width, which still fits a 320px phone. */
-  --card-w: clamp(84px, 30vw, 140px);
-}
-.mini-fan img {
-  width: var(--card-w);
-  height: calc(var(--card-w) * 1.4);
-  border-radius: 7px;
-  box-shadow: var(--card-shadow);
-  margin-right: calc(var(--card-w) * -0.22);
-}
-.mini-fan img:last-child { margin-right: 0; }
 
 .p-actions {
   flex: 0 0 auto;
@@ -416,6 +382,111 @@ body.player.my-turn .p-top::after { transform: scaleX(1); }
   overflow-wrap: anywhere;
 }
 .action-btn.ready { background: var(--good); }
+
+/* ---- Bidding ---- */
+/* Everyone's bid so far, as a 2×2 grid in seat order — the partner's bid is
+   what the bid is built around, so the whole table is always on screen. */
+.bid-board {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px;
+  padding: 10px 12px 0;
+}
+.bb-cell {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1.5px solid transparent;
+  border-radius: 11px;
+  padding: 6px 9px;
+}
+.bb-cell.is-turn { border-color: var(--gold); background: rgba(232, 184, 58, 0.16); }
+.bb-cell.is-me { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35); }
+.bb-pip {
+  flex: 0 0 auto;
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: #0E1530;
+}
+.bb-pip[data-team="red"] { background: var(--team-red); }
+.bb-pip[data-team="blue"] { background: var(--team-blue); }
+.bb-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  /* One line in a quarter-width cell; the full name is on the host screen. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bb-name[data-team="red"] { color: var(--team-red); }
+.bb-name[data-team="blue"] { color: var(--team-blue); }
+.bb-bid {
+  flex: 0 0 auto;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+}
+.bb-bid.pending { color: rgba(255, 255, 255, 0.4); font-weight: 600; }
+.bb-bid.nil { color: var(--gold); }
+
+.facedown {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.facedown[hidden] { display: none; }
+.facedown-stack {
+  position: relative;
+  --card-w: clamp(78px, 24vw, 112px);
+  width: calc(var(--card-w) * 1.5);
+  height: calc(var(--card-w) * 1.4);
+}
+.facedown-stack .card {
+  position: absolute;
+  top: 0;
+  left: calc(var(--card-w) * 0.25);
+}
+.facedown-stack .card:nth-child(1) { transform: rotate(-9deg) translateX(-18%); }
+.facedown-stack .card:nth-child(3) { transform: rotate(9deg) translateX(18%); }
+.facedown-note { margin: 0; font-size: 14px; color: rgba(255, 255, 255, 0.62); max-width: 300px; padding: 0 12px; }
+
+.bid-actions { display: flex; flex-direction: column; gap: 10px; }
+.bid-buttons { display: flex; flex-direction: column; gap: 8px; }
+.bid-buttons .action-btn[hidden] { display: none; }
+/* Nil + 1…13: two rows of seven, sized for a thumb on a 320px phone. */
+.bid-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+.bid-grid[hidden] { display: none; }
+.bid-opt {
+  min-width: 0;
+  min-height: 44px;
+  padding: 0;
+  font-size: 17px;
+  font-weight: 800;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+.bid-opt.nil { font-size: 14px; color: var(--gold); }
+.bid-opt.on { background: var(--accent); border-color: var(--accent-bright); box-shadow: 0 0 0 3px rgba(138, 108, 240, 0.4); color: #fff; }
+#blindBtn { border-color: var(--gold); color: var(--gold); }
+#blindBtn.armed { background: var(--gold); color: #2A1D05; }
 
 /* ---- Hand / game result ---- */
 .result-rows {
@@ -453,12 +524,19 @@ body.player.my-turn .p-top::after { transform: scaleX(1); }
   place-items: center;
   font-size: 11px;
   font-weight: 800;
-  color: #10261b;
+  color: #0E1530;
 }
 .rr-seat[data-seat="N"] { background: var(--seat-n); }
 .rr-seat[data-seat="E"] { background: var(--seat-e); }
 .rr-seat[data-seat="S"] { background: var(--seat-s); }
 .rr-seat[data-seat="W"] { background: var(--seat-w); }
+.rr-seat[data-team="red"] { background: var(--team-red); }
+.rr-seat[data-team="blue"] { background: var(--team-blue); }
+.rr-name .pname { font-weight: 800; }
+.rr-name .rr-team { display: block; font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.rr-name .rr-team[data-team="red"] { color: var(--team-red); }
+.rr-name .rr-team[data-team="blue"] { color: var(--team-blue); }
+.rr-name .rr-detail { display: block; font-size: 12.5px; font-weight: 600; color: rgba(255, 255, 255, 0.6); margin-top: 2px; }
 .rr-name { font-size: 15px; font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
 .rr-delta {
   font-size: 13px;
@@ -467,8 +545,8 @@ body.player.my-turn .p-top::after { transform: scaleX(1); }
   white-space: nowrap;
   color: rgba(255, 255, 255, 0.55);
 }
-.rr-delta.plus { color: #FF8AA0; }
-.rr-delta.minus { color: #86E6A4; }
+.rr-delta.plus { color: #86E6A4; }
+.rr-delta.minus { color: #FF9D94; }
 /* The running total decides the game, so it gets the host scoreboard's chip. */
 .rr-score {
   font-size: 15px;
@@ -586,6 +664,9 @@ body.player .player-attribution {
 }
 @media (max-height: 640px) {
   .hand-fan { padding-top: 30px; }
+  .bid-opt { min-height: 38px; font-size: 15px; }
+  .bid-board { gap: 4px; padding-top: 6px; }
+  .bb-cell { padding: 4px 8px; }
   .wait-card h2 { font-size: 23px; }
   .result-emoji { font-size: 44px; }
 }

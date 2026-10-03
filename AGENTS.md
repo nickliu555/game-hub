@@ -288,8 +288,17 @@ source page passes the destination's theme into `Iris.transitionTo`, which stash
   can't eat a real input. Copy the block verbatim from `public/bombbrawl/js/player.js` or
   `public/nockey/js/player.js`.
 - **Two-tap confirm** for destructive/final actions (arm → "Tap again to…" → confirm).
-  Don't rely on a timed auto-revert to reset the arm if the user might deliberate — cancel
-  the arm on a meaningful change instead, or the button feels like it "needs 3 taps".
+  **Every "Tap again" arm MUST expire:** if the second tap doesn't come within a few seconds
+  (default **4 s**, keep it in the 3–5 s range), the control quietly reverts to its original
+  label/state. Keep the timer in a variable, clear it on confirm, on any explicit disarm and
+  on re-render/phase change, so a stale timer can never revert a newer arm. Also cancel the
+  arm early on a meaningful change (new phase, the option disappearing).
+  **A tap anywhere else also cancels the arm:** while armed, a document-level `pointerdown`
+  listener in the **capture** phase disarms on any tap outside the armed control (the armed
+  button itself — and a sibling choice that re-arms itself — are excluded), so a stray tap
+  never leaves a button half-committed. Bind both taps to `pointerdown` (see above) so a
+  quick second tap isn't swallowed by the double-tap guard. Reference: `arm()`/`disarm()` and
+  the outside-tap listener in `public/liarsdice/js/player.js`.
 - `showConfirm`/`showAlert`/`showToast` (shared modal) are **host-only** — player pages
   don't load `modal.js`, so guard with two-tap UX instead.
 
