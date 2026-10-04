@@ -440,6 +440,31 @@ const games = [
         hostPath: '/nockey/host',
         playPath: '/nockey/play',
     },
+    {
+        id: 'nong',
+        name: 'Nong',
+        tagline: 'Classic paddle duels for 2, 3 or 4',
+        emoji: '🏓',
+        color: '#5A1E8C',
+        category: 'Arcade',
+        playerCount: '2–4 (+CPU)',
+        duration: '3–8 min',
+        description: 'The arcade classic on the shared screen, steered from your phone. Two players duel in a classic Pong court, three defend the sides of a triangle, and four guard a diamond. With 2 players it is first to the target score; with 3 or 4 everyone starts with lives, and a ball past your paddle costs one until only the last paddle is left.',
+        rules: [
+            'The host opens the game on a shared screen (TV, laptop, etc.)',
+            'Players scan the QR code on their phones and enter a name (2–4 players; add CPU paddles to fill in)',
+            'The host can drag players up or down to change which side they defend',
+            'The arena fits the players: a classic court for 2, a triangle for 3, a diamond for 4',
+            'The host sets the points to win (2 players) or the lives (3–4 players), then hits Play',
+            'Drag your thumb along the slider on your phone — your paddle follows it along your side',
+            'Where the ball hits your paddle sets the return angle, and every return speeds it up',
+            '2 players: let the ball past you and your opponent scores — first to the target wins',
+            '3–4 players: let the ball past you and you lose a life — at zero your side becomes a wall',
+            'The last paddle standing wins!'
+        ],
+        hostPath: '/nong/host',
+        playPath: '/nong/play',
+    },
 ];
 
 module.exports = games;

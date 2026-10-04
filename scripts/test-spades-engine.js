@@ -253,6 +253,55 @@ test('game ends at the target; exact tie plays on; −200 loses', () => {
   assert.strictEqual(g._decideWinner().team, 'blue');
 });
 
+// ─────────────────── CPU covering a nil partner ───────────────────
+
+/** A minimal bot view: me at seat 0 (Red), partner at seat 2. */
+function coverView({ hand, trick, played, partnerVoids, oppNil }) {
+  const seat = (team, extra) => Object.assign({ bid: 3, nil: false, blind: false, tricks: 0, team, voids: {} }, extra);
+  return {
+    seatIndex: 0,
+    hand,
+    legal: trick && trick.length
+      ? deck.legalPlays({ hand, trick, spadesBroken: false })
+      : deck.legalPlays({ hand, trick: [], spadesBroken: false }),
+    trick: trick || [],
+    trickLeadSeat: trick && trick.length ? 4 - trick.length : 0,
+    spadesBroken: false,
+    trickNumber: 2,
+    played: played || [],
+    seats: [
+      seat('red', { bid: 4 }),
+      seat('blue', oppNil ? { bid: 0, nil: true } : {}),
+      seat('red', { bid: 0, nil: true, voids: partnerVoids || {} }),
+      seat('blue'),
+    ],
+    score: { mine: 0, theirs: 0, bags: 0 },
+    targetScore: 500,
+  };
+}
+
+test('covering a nil partner never leads low — even when an opponent is also nil', () => {
+  const card = bot.choosePlay(coverView({ hand: ['2H', 'KH', '3D', 'QD'], oppNil: true }), 'hard', Math.random);
+  assert.strictEqual(card, 'KH', 'expected the cover with the fewest higher cards out, got ' + card);
+});
+
+test('covering a nil partner leads a sure winner when it has one', () => {
+  const card = bot.choosePlay(coverView({ hand: ['2H', 'AD', '3D'] }), 'hard', Math.random);
+  assert.strictEqual(card, 'AD');
+});
+
+test('covering a nil partner may lead low only into a suit partner is void in', () => {
+  const card = bot.choosePlay(coverView({ hand: ['2C', 'KH', '3D'], partnerVoids: { C: true } }), 'hard', Math.random);
+  assert.strictEqual(card, '2C');
+});
+
+test('covering partner who is still to play: overtake with the highest card', () => {
+  // Seat 3 led 9H; partner (seat 2) plays after us.
+  const v = coverView({ hand: ['3H', 'JH', 'AH'], trick: ['9H'] });
+  v.trickLeadSeat = 3;
+  assert.strictEqual(bot.choosePlay(v, 'hard', Math.random), 'AH');
+});
+
 // ─────────────────── Self-play ───────────────────
 
 /** Drive a full game with CPUs in every seat, synchronously. */

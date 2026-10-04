@@ -45,8 +45,8 @@ const REVEAL_INTRO_MS = 3100;
 const REVEAL_STEP_MS = 1300;
 // After the last seat is shown, a beat before the verdict lands.
 const VERDICT_GAP_MS = 900;
-// The verdict stays up 7s after the die is lost or won (which lands 1.3s after the verdict).
-const VERDICT_HOLD_MS = 8300;
+// The verdict stays up 10s after the die is lost or won (which lands 1.3s after the verdict).
+const VERDICT_HOLD_MS = 11300;
 // A knockout plays after the verdict, so the round waits for it.
 const KO_EXTRA_MS = 3200;
 

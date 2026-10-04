@@ -211,6 +211,20 @@ Two teams, one puck, pure chaos — a HaxBall-style rink on the Host screen with
 10. Level at the buzzer? **Sudden death** — the clock stops, both teams line up for a fresh centre face-off, and the **next goal wins**
 11. The host can **Pause** at any time, and players can fire off **reactions** that pop above their skater
 
+### 🏓 Nong
+The arcade paddle classic on the Host screen — a head-to-head court for 2, a triangle for 3, a diamond for 4.
+
+1. Players scan the QR code to join (**2–4 players**); the host can **Add CPU** paddles to fill in, and **drag players** up or down to change which side they defend
+2. The arena fits the roster: a **classic court** for 2 players, a **triangle** for 3 and a **diamond** for 4 — each player defends one side
+3. The host sets the **points to win** (2 players) or the **lives** (3–4 players), then hits **Play**
+4. Each phone is a **slider** that runs the same way as your paddle on the screen (up/down or left/right) — drag your thumb and your paddle follows
+5. Where the ball meets your paddle sets the **return angle**, and every return makes the ball **faster**
+6. **2 players:** let the ball past you and your opponent scores — **first to the target wins**
+7. **3–4 players:** let the ball past you and you **lose a life** — at zero you're out and your side turns into a **solid wall**
+8. The **last paddle standing wins!**
+
+The host can **Pause** at any time.
+
 ### 🧱 Stacking Royale
 **A falling-block Puzzle battle for 1–30 players, with classic endless solo practice.**
 

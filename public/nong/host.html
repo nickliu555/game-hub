@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Nong · Host</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="/shared/iris-preload.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/topbar.css" />
+  <link rel="stylesheet" href="/shared/modal.css" />
+  <link rel="stylesheet" href="/shared/iris.css" />
+  <link rel="stylesheet" href="/nong/css/base.css" />
+  <link rel="stylesheet" href="/nong/css/host.css" />
+  <script src="/shared/topbar.js" defer></script>
+  <script src="/shared/modal.js" defer></script>
+  <script src="/shared/iris.js" defer></script>
+</head>
+<body class="host">
+  <div class="host-container">
+    <div class="game-topbar">
+      <span class="gtb-brand"><span class="brand-bg">🏓</span> Nong</span>
+      <div class="gtb-controls">
+        <a href="/" id="hubBtn" class="gtb-btn" title="Back to hub (resets game)">← Hub</a>
+        <button id="fullscreenBtn" class="gtb-btn" type="button" title="Toggle fullscreen">⛶ Fullscreen</button>
+        <div class="gtb-settings-wrapper">
+          <button class="gtb-btn" type="button" data-gtb-settings-toggle aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️ Settings</button>
+          <div class="gtb-settings-panel" id="settingsPanel" hidden>
+            <button class="gtb-btn" type="button" data-gtb-help-open="helpOverlay" title="How to play">? Help</button>
+            <div class="gtb-divider"></div>
+            <button id="resetBtn" class="gtb-btn gtb-btn-danger" type="button" title="Reset the whole game">Reset game</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ LOBBY ============ -->
+    <section class="view active lobby" id="view-lobby">
+      <div class="lobby-grid">
+        <div class="lobby-left">
+          <div class="qr-card">
+            <div class="qr-title">Scan to join</div>
+            <div class="qr-sub">Or type the URL below on your phone</div>
+            <div id="qrSlot"><svg viewBox="0 0 1 1"></svg></div>
+            <div class="qr-url" id="joinUrl"></div>
+          </div>
+        </div>
+
+        <div class="lobby-right">
+          <div class="lobby-header">
+            <div class="brand"><span class="brand-bg">🏓</span> Nong</div>
+            <div class="player-count"><span id="playerCount">0</span> / <span id="playerCap">4</span></div>
+          </div>
+
+          <div class="config-block">
+            <div class="config-row">
+              <label id="targetLabel">Points to win</label>
+              <div class="seg" id="targetSeg" role="group" aria-labelledby="targetLabel"></div>
+            </div>
+            <div class="config-row arena-row">
+              <label>Arena</label>
+              <div class="arena-preview" id="arenaPreview" aria-hidden="true"></div>
+              <div class="arena-note" id="arenaNote">Classic court</div>
+            </div>
+          </div>
+
+          <div class="seat-list" id="seatList"></div>
+
+          <div class="lobby-foot">
+            <button id="addBotBtn" class="btn-ghost-bot" type="button">🤖 Add CPU</button>
+            <div class="config-hint" id="configHint"></div>
+            <button id="startBtn" class="btn-start" disabled>Play</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ MATCH ============ -->
+    <section class="view match" id="view-match">
+      <div class="match-top">
+        <div class="mt-side" aria-hidden="true"></div>
+        <div class="scoreboard" id="scoreboard"></div>
+        <div class="mt-side mt-right">
+          <button type="button" id="pauseBtn" class="pause-btn" hidden title="Pause the match">⏸ Pause</button>
+        </div>
+      </div>
+      <div class="pitch-wrap">
+        <canvas id="pitch"></canvas>
+        <div class="match-overlay" id="countOverlay" hidden>
+          <div class="co-note" id="coNote" hidden></div>
+          <div class="co-num" id="coNum">3</div>
+        </div>
+        <div class="point-banner" id="pointBanner" hidden>
+          <div class="pb-text" id="pbText">POINT!</div>
+          <div class="pb-sub" id="pbSub"></div>
+        </div>
+        <div class="pause-overlay" id="pauseOverlay" hidden>
+          <div class="po-icon">⏸</div>
+          <div class="po-title">Paused</div>
+          <div class="po-sub">The match is paused. Press Resume to continue.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FINAL ============ -->
+    <section class="view final" id="view-final">
+      <div class="final-inner">
+        <div class="trophy" id="finalTrophy">🏆</div>
+        <h1 class="final-heading" id="finalHeading">Winner!</h1>
+        <div class="final-sub" id="finalSub"></div>
+        <ol class="standings" id="standings"></ol>
+        <button id="playAgainBtn" class="btn-start">Back to lobby</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- Another host screen took over the simulation -->
+  <div class="superseded-overlay" id="supersededOverlay" hidden>
+    <div class="so-card">
+      <div class="so-icon">🏓</div>
+      <div class="so-title">Another host screen took over</div>
+      <div class="so-sub">Nong can only run on one screen at a time. Close this tab, or reload it to take control back.</div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/nong/js/engine.js"></script>
+  <script src="/nong/js/render.js"></script>
+  <script src="/nong/js/host.js"></script>
+
+  <!-- Help modal -->
+  <div class="gtb-help-overlay" id="helpOverlay">
+    <div class="gtb-help-modal">
+      <button class="gtb-help-modal-close" type="button" data-gtb-help-close aria-label="Close help">&times;</button>
+      <h2><span class="brand-bg">🏓</span> Nong</h2>
+      <p>The arcade classic on <strong>this screen</strong>, with every player steering a paddle from their phone.</p>
+      <ol>
+        <li>Players scan the QR code to join from their phone (2–4 players)</li>
+        <li><strong>Drag a player</strong> up or down to change which side they defend</li>
+        <li>Short on players? Hit <strong>🤖 Add CPU</strong> to fill a paddle</li>
+        <li>The arena fits the players: a <strong>classic court</strong> for 2, a <strong>triangle</strong> for 3, a <strong>diamond</strong> for 4</li>
+        <li>Pick the <strong>points to win</strong> (2 players) or the <strong>lives</strong> (3–4 players), then hit <strong>Play</strong></li>
+        <li>On their phones: drag along the <strong>slider</strong> — your paddle follows your thumb along your side</li>
+        <li>Where the ball hits your paddle sets the angle, and every return makes it faster</li>
+        <li><strong>2 players:</strong> miss and your opponent scores — first to the target wins</li>
+        <li><strong>3–4 players:</strong> miss and you lose a life — at zero your side turns into a wall</li>
+        <li>The last paddle standing wins!</li>
+      </ol>
+    </div>
+  </div>
+</body>
+</html>

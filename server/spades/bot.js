@@ -129,6 +129,32 @@ function topOutstanding(suit, hand, played) {
   return null;
 }
 
+/** How many unplayed cards (not in `hand`) outrank `card` in its suit. */
+function higherOutstanding(card, hand, played) {
+  const gone = new Set(played.concat(hand));
+  const suit = suitOf(card);
+  let n = 0;
+  for (let r = rankValue(card) + 1; r <= 14; r++) {
+    const rank = r <= 10 ? String(r) : { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' }[r];
+    if (!gone.has(rank + suit)) n++;
+  }
+  return n;
+}
+
+/** The lead least likely to be overtaken: fewest higher cards out, then the highest rank. */
+function safestCover(cards, hand, played) {
+  let best = null;
+  let bestOut = Infinity;
+  for (const c of cards) {
+    const out = higherOutstanding(c, hand, played);
+    if (out < bestOut
+      || (out === bestOut && (rankValue(c) > rankValue(best) || (isSpade(best) && !isSpade(c))))) {
+      best = c; bestOut = out;
+    }
+  }
+  return best;
+}
+
 /** Is `card` the best card left in its suit? */
 function isBoss(card, hand, played) {
   const top = topOutstanding(suitOf(card), hand, played);
@@ -183,8 +209,10 @@ function choosePlay(view, _level, _rng) {
   // Partner nil: overtake whatever is winning if partner is, or still might be.
   if (covering) {
     const partnerPlayed = trick.some((_, i) => seatAt(i) === partnerIdx);
+    // A partner who has shown out of the led suit can just discard, so no cover is needed.
+    const partnerVoid = !!(partner.voids && partner.voids[suitOf(trick[0])]);
     if (partnerWinning && winners.length) return lowest(winners);
-    if (!partnerPlayed && winners.length) return highest(winners);
+    if (!partnerPlayed && !partnerVoid && winners.length) return highest(winners);
   }
 
   // Opponent nil is currently winning: duck under it so it sticks.
@@ -232,17 +260,26 @@ function chooseLead(view, { need, covering, oppNilSeats }) {
   const hand = view.hand;
   const played = view.played;
 
+  // Covering a nil partner comes before everything else — a busted nil costs
+  // the team 100 (or 200) — so never lead low into a suit partner may have to
+  // win. Only exception: a suit partner has shown out of, where they can
+  // safely discard, so the cheapest card there is free.
+  if (covering) {
+    const partnerVoids = view.seats[(view.seatIndex + 2) % 4].voids || {};
+    const safe = legal.filter((c) => partnerVoids[suitOf(c)]);
+    if (safe.length) return cheapestDiscard(safe);
+    // A card nobody can beat is the surest cover…
+    const bosses = legal.filter((c) => isBoss(c, hand, played));
+    if (bosses.length) return highest(bosses);
+    // …otherwise the card with the fewest higher cards still out, so partner
+    // has the best chance of ducking under it.
+    return safestCover(legal, hand, played);
+  }
+
   // Busting a nil: lead low and make them follow.
   if (oppNilSeats.length) {
     const nonSpades = legal.filter((c) => !isSpade(c));
     return lowest(nonSpades.length ? nonSpades : legal);
-  }
-
-  // Covering a nil partner: lead winners so partner can drop low cards under them.
-  if (covering) {
-    const bosses = legal.filter((c) => isBoss(c, hand, played));
-    if (bosses.length) return highest(bosses);
-    return highest(legal);
   }
 
   if (need > 0) {

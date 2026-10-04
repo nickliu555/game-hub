@@ -1,0 +1,223 @@
+/* === Nong controller: a fixed, non-scrolling, non-zooming slider pad. === */
+html { height: 100%; overflow: hidden; }
+body.player {
+  margin: 0;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(160deg, var(--bg) 0%, var(--bg-deep) 100%);
+  color: #fff;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  --seat: var(--accent);
+}
+body.player * {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+body.player input, body.player textarea { touch-action: auto; -webkit-user-select: text; user-select: text; }
+body.player button:disabled { pointer-events: none; }
+
+.pview {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: calc(16px + env(safe-area-inset-top)) 18px calc(16px + env(safe-area-inset-bottom));
+  text-align: center;
+  min-width: 0;
+}
+/* Leave room for the attribution under the lobby. */
+#view-lobby { padding-bottom: calc(40px + env(safe-area-inset-bottom)); }
+
+/* ---------------- Lobby / waiting ---------------- */
+.lobby-brand { font-size: 22px; font-weight: 900; display: flex; align-items: center; gap: 8px; }
+.lobby-card {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: inset 0 5px 0 var(--seat);
+  border-radius: 20px;
+  padding: 26px 22px;
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.lc-you { font-size: 15px; color: rgba(255,255,255,0.7); font-weight: 700; }
+.lc-name { font-size: 30px; font-weight: 900; overflow-wrap: anywhere; color: var(--seat); }
+.lc-seat { font-size: 16px; font-weight: 800; color: rgba(255,255,255,0.85); overflow-wrap: anywhere; }
+.lc-seat:empty { display: none; }
+.lc-wait { margin-top: 8px; font-size: 14px; color: rgba(255,255,255,0.72); display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+/* ---------------- Controller ---------------- */
+#view-controller { justify-content: flex-start; gap: 12px; padding-left: 12px; padding-right: 12px; }
+.hud {
+  flex: 0 0 auto;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0,0,0,0.3);
+  border-left: 6px solid var(--seat);
+  border-radius: 14px;
+  padding: 8px 14px;
+  min-width: 0;
+}
+.hud-left { flex: 1 1 auto; min-width: 0; text-align: left; }
+.hud-name {
+  font-weight: 900;
+  font-size: 16px;
+  color: var(--seat);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hud-side { font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.65); }
+.hud-status {
+  flex: 0 0 auto;
+  font-size: 20px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hud-status .heart { color: var(--seat); }
+.hud-status .heart.lost { color: rgba(255,255,255,0.2); }
+.hud-status .opp { color: var(--opp, #fff); }
+.hud-status .sep { color: rgba(255,255,255,0.45); margin: 0 5px; }
+
+.controls {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+}
+.track {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 22px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+.track-rail {
+  position: relative;
+  border-radius: 18px;
+  background: rgba(0,0,0,0.35);
+  border: 2px dashed rgba(255,255,255,0.16);
+  pointer-events: none;
+}
+.track-knob {
+  position: absolute;
+  border-radius: 12px;
+  background: var(--seat);
+  box-shadow: 0 0 22px var(--seat), 0 6px 14px rgba(0,0,0,0.4);
+  pointer-events: none;
+}
+.track.held .track-rail { border-color: rgba(255,255,255,0.32); }
+
+/* Horizontal slider: the paddle runs left ↔ right on the TV. */
+body.axis-h .track-rail { width: 100%; height: min(84px, 30%); }
+body.axis-h .track-knob { top: 8px; bottom: 8px; width: 28%; left: calc(var(--u, 0.5) * 72%); }
+/* Vertical slider: the paddle runs up ↕ down on the TV. */
+body.axis-v .track-rail { height: 100%; width: min(130px, 46%); }
+body.axis-v .track-knob { left: 8px; right: 8px; height: 26%; top: calc(var(--u, 0.5) * 74%); }
+
+.track-hint {
+  position: absolute;
+  left: 0; right: 0; bottom: 8px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.5);
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.track-hint.faded { opacity: 0; }
+
+.ctrl-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 22px;
+  background: rgba(10,6,24,0.55);
+  padding: 20px;
+  pointer-events: none;
+}
+.ctrl-overlay[hidden] { display: none; }
+.co-note {
+  font-size: 24px;
+  font-weight: 900;
+  color: var(--accent);
+  text-align: center;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+.co-note[hidden] { display: none; }
+.co-count { font-size: 74px; font-weight: 900; }
+.co-count:empty { display: none; }
+
+/* ---------------- Out / final / kicked ---------------- */
+.final-emoji { font-size: 76px; }
+.final-title { font-size: 28px; font-weight: 900; overflow-wrap: anywhere; max-width: 100%; }
+.final-sub { font-size: 18px; font-weight: 700; color: rgba(255,255,255,0.82); overflow-wrap: anywhere; max-width: 100%; }
+.final-wait { margin-top: 10px; font-size: 14px; color: rgba(255,255,255,0.68); display: flex; align-items: center; gap: 8px; }
+#view-kicked .btn-primary {
+  margin-top: 16px;
+  padding: 14px 28px;
+  border-radius: 14px;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+/* ---------------- Pause / reconnect covers ---------------- */
+.pause-cover {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(10,6,24,0.92);
+  text-align: center;
+  padding: 26px;
+}
+.pause-cover[hidden] { display: none; }
+#reconnectOverlay { z-index: 45; }
+.pc-icon { font-size: 66px; }
+.pc-title { font-size: 30px; font-weight: 900; }
+.pc-sub { font-size: 15px; color: rgba(255,255,255,0.78); }
+
+@media (max-height: 520px) {
+  .co-count { font-size: 52px; }
+  .final-emoji { font-size: 56px; }
+}
