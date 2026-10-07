@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const socket = io('/nong', { transports: ['polling', 'websocket'] });
+  const socket = io('/nong', { transports: ['websocket', 'polling'], tryAllTransports: true });
 
   // ---------------- Tunables ----------------
   const FIXED_DT = 1 / 60;
@@ -17,7 +17,7 @@
   const POS_LABELS = {
     2: ['Left side', 'Right side'],
     3: ['Bottom side', 'Right side', 'Left side'],
-    4: ['Top-left', 'Top-right', 'Bottom-right', 'Bottom-left'],
+    4: ['Bottom side', 'Right side', 'Top side', 'Left side'],
   };
   const SEAT_COLORS = ['#FF4D8D', '#38E1FF', '#FFD23F', '#7CFF6B'];
 
@@ -314,7 +314,7 @@
 
     const n = l.total;
     renderArenaPreview(n, players);
-    if (n >= 4) arenaNote.textContent = 'Diamond — 4 sides, ' + l.lives + (l.lives === 1 ? ' life' : ' lives') + ' each';
+    if (n >= 4) arenaNote.textContent = 'Square — 4 sides, ' + l.lives + (l.lives === 1 ? ' life' : ' lives') + ' each';
     else if (n === 3) arenaNote.textContent = 'Triangle — 3 sides, ' + l.lives + (l.lives === 1 ? ' life' : ' lives') + ' each';
     else arenaNote.textContent = 'Classic court — first to ' + l.pointsToWin;
 
@@ -366,7 +366,6 @@
     startBtn.disabled = !l.canStart;
     if (addBotBtn) addBotBtn.disabled = l.total >= l.capacity;
     if (l.canStart) configHint.textContent = '';
-    else if (l.total >= 2 && humanTotal === 0) configHint.textContent = 'At least one human player is needed.';
     else if (l.total === 0) configHint.textContent = 'Waiting for players…';
     else configHint.textContent = '';
   }
@@ -706,8 +705,16 @@
     updatePauseBtn();
   }
 
-  function showBanner(text, color, subNodes) {
+  function showBanner(text, color, subNodes, withHeart) {
     pbText.textContent = text;
+    // The retro font has no heart glyph and a very wide space, so the heart is
+    // its own element hugging the text instead of a character after a space.
+    if (withHeart) {
+      const h = document.createElement('span');
+      h.className = 'pb-heart';
+      h.textContent = '♥';
+      pbText.appendChild(h);
+    }
     pbText.style.color = color || 'var(--accent)';
     pbSub.innerHTML = '';
     (subNodes || []).forEach(function (n) {
@@ -750,7 +757,7 @@
         showBanner('OUT!', conceded.color, [nameSpan(conceded), ' is out of the game']);
       } else {
         const left = scores[conceded.id];
-        showBanner('−1 ♥', conceded.color, [nameSpan(conceded), ' has ' + left + (left === 1 ? ' life' : ' lives') + ' left']);
+        showBanner('−1', conceded.color, [nameSpan(conceded), ' has ' + left + (left === 1 ? ' life' : ' lives') + ' left'], true);
       }
     }
     updateScoreboard();

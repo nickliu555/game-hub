@@ -91,9 +91,7 @@ async function main() {
   check('players cannot reorder', !(await call(a.s, 'host:reorder', { playerId: 'pa', beforeId: null })).ok);
   check('order unchanged by rejected moves', order() === 'pa,pb,pc');
 
-  // CPU-only matches aren't allowed.
-  // (covered by canStart: humans >= 1; verified via lobby flag with humans present)
-  check('humans present → canStart', last().canStart === true);
+  check('3 paddles → canStart', last().canStart === true);
 
   // ---- Reactions are not part of Nong ----
   const hostEmotes = [];
@@ -113,6 +111,7 @@ async function main() {
     meta.roster.every((r) => meta.scores[r.id] === 5));
   check('roster carries seat colours + slider axes', meta && meta.roster.length === 3 &&
     meta.roster[0].axis === 'h' && meta.roster[1].axis === 'v' && meta.roster[2].axis === 'v' &&
+    meta.roster.map((r) => r.angle).join() === '0,60,120' &&
     meta.roster.every((r) => /^#[0-9A-F]{6}$/i.test(r.color)));
 
   const late = await joinAs('plate', 'Late');
@@ -201,6 +200,19 @@ async function main() {
   await call(host, 'host:reset');
   await wait(60);
   check('lobby reset restores default targets', last().pointsToWin === 5 && last().lives === 3);
+
+  // ---- CPU-only games are allowed ----
+  await call(host, 'host:addBot');
+  await wait(60);
+  check('a single CPU cannot start', last().canStart === false);
+  await call(host, 'host:addBot');
+  await call(host, 'host:addBot');
+  await wait(60);
+  check('CPUs alone can start', last().canStart === true && last().players.every((p) => p.isBot));
+  const st3 = await call(host, 'host:start');
+  check('CPU-only match starts in lives mode', st3 && st3.ok && st3.match.mode === 'lives' && st3.match.roster.length === 3);
+  await call(host, 'host:reset');
+  await wait(60);
 
   [a, b, x].forEach((p) => p.s.close());
   c2.close();

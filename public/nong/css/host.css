@@ -327,6 +327,11 @@ body.host {
   overflow-wrap: anywhere;
   animation: gbPop 0.5s cubic-bezier(.2,1.5,.4,1);
 }
+.pb-heart {
+  font-family: var(--font-sans);
+  margin-left: 0.18em;
+  vertical-align: 0.04em;
+}
 .pb-sub {
   position: relative;
   font-size: 26px;

@@ -35,9 +35,10 @@
         minY = Math.min(minY, v[1]); maxY = Math.max(maxY, v[1]);
       });
       // Room outside the arena for the name tags.
-      var padX = world.n === 2 ? 24 : TAG_W + 40;
-      var padTop = world.n === 2 ? 72 : 30;
-      var padBottom = world.n === 3 ? 84 : (world.n === 2 ? 24 : 30);
+      var u = world.ui || 1;
+      var padX = world.n === 2 ? 24 : (TAG_W + 40) * u;
+      var padTop = world.n === 2 ? 72 : (world.n === 4 ? 84 : 30) * u;
+      var padBottom = (world.n === 2 ? 24 : 84) * u;
       return { minX: minX - padX, maxX: maxX + padX, minY: minY - padTop, maxY: maxY + padBottom };
     }());
     self.resize();
@@ -106,7 +107,7 @@
     // Centre line (2P) / centre spot.
     ctx.save();
     ctx.strokeStyle = 'rgba(233,230,255,0.22)';
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 4 * (w.ui || 1);
     if (w.n === 2) {
       ctx.setLineDash([16, 16]);
       ctx.beginPath();
@@ -115,7 +116,7 @@
       ctx.stroke();
     } else {
       ctx.beginPath();
-      ctx.arc(0, 0, 40, 0, Math.PI * 2);
+      ctx.arc(0, 0, 40 * (w.ui || 1), 0, Math.PI * 2);
       ctx.stroke();
     }
     ctx.restore();
@@ -135,20 +136,21 @@
 
     // Sides: walls, corner stretches, goal mouths.
     var self = this;
+    var U = w.ui || 1;
     w.sides.forEach(function (side) {
       var p = side.owner === null ? null : w.paddles[side.owner];
       var live = !!(p && p.alive);
       ctx.save();
       ctx.lineCap = 'round';
       if (!p) {
-        line(ctx, side, 0, side.len, WALL, 8, 10);
+        line(ctx, side, 0, side.len, WALL, 8 * U, 10 * U);
       } else if (!live) {
-        line(ctx, side, 0, side.len, DEAD, 12, 0);
+        line(ctx, side, 0, side.len, DEAD, 12 * U, 0);
       } else {
-        if (side.g0 > 0) line(ctx, side, 0, side.g0, WALL, 8, 10);
-        if (side.g1 < side.len) line(ctx, side, side.g1, side.len, WALL, 8, 10);
-        ctx.setLineDash([10, 12]);
-        goalLine(ctx, side, w.goalLine, hexA(p.color, 0.55), 3, 0);
+        if (side.g0 > 0) line(ctx, side, 0, side.g0, WALL, 8 * U, 10 * U);
+        if (side.g1 < side.len) line(ctx, side, side.g1, side.len, WALL, 8 * U, 10 * U);
+        ctx.setLineDash([10 * U, 12 * U]);
+        goalLine(ctx, side, w.goalLine, hexA(p.color, 0.55), 3 * U, 0);
       }
       ctx.restore();
     });
@@ -164,7 +166,7 @@
       var k = 1 - fl.t / fl.dur;
       ctx.save();
       ctx.lineCap = 'round';
-      goalLine(ctx, sd, w.goalLine, hexA(fl.color, k), 10 + 18 * k, 30 * k);
+      goalLine(ctx, sd, w.goalLine, hexA(fl.color, k), (10 + 18 * k) * (w.ui || 1), 30 * k * (w.ui || 1));
       ctx.restore();
     }
 
@@ -181,7 +183,7 @@
       ctx.shadowBlur = 22;
       ctx.fillStyle = p.color;
       ctx.globalAlpha = p.connected || p.isBot ? 1 : 0.55;
-      roundRect(ctx, -w.paddleLen / 2, -window.Nong.PADDLE_THICK / 2, w.paddleLen, window.Nong.PADDLE_THICK, 4);
+      roundRect(ctx, -w.paddleLen / 2, -w.paddleThick / 2, w.paddleLen, w.paddleThick, 4 * (w.ui || 1));
       ctx.fill();
       ctx.restore();
     });
@@ -196,7 +198,7 @@
     } else {
       this.trail.length = 0;
     }
-    var R = window.Nong.BALL_R;
+    var R = w.ballR;
     for (var ti = 0; ti < this.trail.length; ti++) {
       var tp = this.trail[ti];
       var a = (ti + 1) / (this.trail.length + 1);
@@ -235,6 +237,7 @@
     var w = this.world;
     var side = w.sides[p.side];
     var mx, my, maxW, align = 'center';
+    var u = w.ui || 1;
     if (w.n === 2) {
       // Classic court: names sit above each half, like an arcade marquee.
       mx = p.seat === 0 ? -200 : 200;
@@ -242,18 +245,18 @@
       maxW = 360;
     } else {
       // Clear of the recessed goal line behind the paddle.
-      mx = (side.ax + side.bx) / 2 - side.nx * (w.goalLine + 26);
-      my = (side.ay + side.by) / 2 - side.ny * (w.goalLine + 26);
-      maxW = TAG_W;
+      mx = (side.ax + side.bx) / 2 - side.nx * (w.goalLine + 26 * u);
+      my = (side.ay + side.by) / 2 - side.ny * (w.goalLine + 26 * u);
+      maxW = TAG_W * u;
       // Anchor the text away from the arena so it never overlaps the floor.
       if (-side.nx > 0.3) align = 'left';
       else if (-side.nx < -0.3) align = 'right';
-      else my -= side.ny * 6;
+      else my -= side.ny * 6 * u;
     }
     ctx.save();
     ctx.textAlign = align;
     ctx.textBaseline = 'middle';
-    ctx.font = '800 24px Inter, system-ui, sans-serif';
+    ctx.font = '800 ' + (24 * u) + 'px Inter, system-ui, sans-serif';
     var name = (p.isBot ? '🤖 ' : '') + p.name;
     var label = ellipsize(ctx, name, maxW);
     ctx.globalAlpha = p.alive ? (p.connected || p.isBot ? 1 : 0.6) : 0.45;
@@ -266,11 +269,11 @@
       var lives = this.scores[p.id] || 0;
       sub = new Array(lives + 1).join('♥ ').trim();
     } else if (!p.connected && !p.isBot) sub = 'reconnecting…';
-    ctx.fillText(label, mx, sub ? my - 13 : my);
+    ctx.fillText(label, mx, sub ? my - 13 * u : my);
     if (sub) {
-      ctx.font = '800 20px Inter, system-ui, sans-serif';
+      ctx.font = '800 ' + (20 * u) + 'px Inter, system-ui, sans-serif';
       ctx.fillStyle = p.alive ? (sub === 'reconnecting…' ? '#bdb7d9' : p.color) : DEAD;
-      ctx.fillText(ellipsize(ctx, sub, maxW), mx, my + 14);
+      ctx.fillText(ellipsize(ctx, sub, maxW), mx, my + 14 * u);
     }
     ctx.restore();
   };

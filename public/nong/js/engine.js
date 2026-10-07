@@ -10,9 +10,10 @@
   //                 top and bottom are walls.
   //   3P triangle:  pointing up — seat 0 the base, seat 1 the right slant,
   //                 seat 2 the left slant.
-  //   4P diamond:   seat 0 top-left, seat 1 top-right, seat 2 bottom-right,
-  //                 seat 3 bottom-left.
-  // Mirrors axisFor() in server/nong/game.js (which way each paddle runs).
+  //   4P square:    seat 0 the bottom, seat 1 the right, seat 2 the top,
+  //                 seat 3 the left — every paddle runs straight across or
+  //                 straight up/down, exactly like its phone slider.
+  // Mirrors axisFor()/angleFor() in server/nong/game.js (which way each paddle runs).
   //
   // On the polygon arenas each side keeps a short solid stretch at both
   // corners, so the paddle can always cover its whole goal mouth. There the
@@ -30,29 +31,38 @@
   var SPEED_UP = 1.055;
   var MAX_SPEED = 15;
   var MAX_BOUNCE = 55 * Math.PI / 180;
-  var PADDLE_SPEED = 13;
+  // A human paddle chases the phone slider by closing this share of the gap
+  // every tick (capped per tick), so it lands under the thumb within a few
+  // frames yet still glides smoothly over network jitter.
+  var PADDLE_FOLLOW = 0.6;
+  var PADDLE_MAX_STEP = 70;
+  var PADDLE_MIN_STEP = 6;
   var SERVE_SPREAD = 24 * Math.PI / 180;
   var IDLE_TICKS = 15 * 60;
   // How far past the goal line the ball must travel before the point counts
   // on the 2P court (its dotted goal line is the side itself).
   var GOAL_DEPTH = BALL_R * 2;
-  // On the polygon arenas the dotted goal line sits this far behind the wall
-  // line, just behind the flush paddle, forming a shallow pocket. A point
-  // counts once the ball has fully crossed it.
-  var POCKET = PADDLE_THICK + 8;
-
-  // Paddle centre offset (inward) that puts its face exactly on the wall line.
-  var FLUSH = -PADDLE_THICK / 2;
 
   var BOT_REACTION_TICKS = 7;
-  var BOT_SPEED = PADDLE_SPEED * 0.7;
+  var BOT_SPEED = 9.1;
   // Aim error as a share of half the paddle: tight on a slow ball, and wide
   // enough at full speed that a long rally ends in a miss.
   var BOT_ERROR_BASE = 0.5;
   var BOT_ERROR_SPEED = 1.3;
 
+  // The 3P/4P arenas are scaled up against the ball's speed: neighbouring sides
+  // meet at a corner, so on a 2P-sized field a ball hit by the player next to
+  // you arrives with almost no time to react. Paddles grow a bit more than the
+  // field, so each covers a generous share of its goal.
+  var POLY_SCALE = 1.7;
+  var POLY_PADDLE_SCALE = 2;
+  // The ball and paddle thickness grow too, so they still read clearly on a TV
+  // once the larger field is fitted to the screen.
+  var POLY_BALL_SCALE = 1.4;
+
   function layoutFor(n) {
-    var verts, owners, paddleLen, inset, gap, goalLine, goalDepth;
+    var verts, owners, paddleLen, inset, gap, goalLine, goalDepth, ui = 1;
+    var ballR = BALL_R, thick = PADDLE_THICK;
     if (n === 2) {
       var W = 800, H = 480;
       verts = [[-W / 2, -H / 2], [W / 2, -H / 2], [W / 2, H / 2], [-W / 2, H / 2]];
@@ -60,17 +70,26 @@
       paddleLen = 92; inset = 22; gap = 0;
       goalLine = 0; goalDepth = GOAL_DEPTH;
     } else if (n === 3) {
-      var R3 = 340, s60 = Math.sin(Math.PI / 3);
+      var R3 = 340 * POLY_SCALE, s60 = Math.sin(Math.PI / 3);
       verts = [[0, -R3], [R3 * s60, R3 / 2], [-R3 * s60, R3 / 2]];
       owners = [1, 0, 2];
-      paddleLen = 92; inset = FLUSH; gap = 64;
-      goalLine = POCKET; goalDepth = POCKET + BALL_R;
+      paddleLen = Math.round(92 * POLY_PADDLE_SCALE); gap = 64 * POLY_SCALE; ui = POLY_SCALE;
     } else {
-      var R4 = 310;
-      verts = [[0, -R4], [R4, 0], [0, R4], [-R4, 0]];
-      owners = [1, 2, 3, 0];
-      paddleLen = 84; inset = FLUSH; gap = 52;
-      goalLine = POCKET; goalDepth = POCKET + BALL_R;
+      // Same side length as the old diamond, so neighbours sit just as far apart.
+      var H4 = 310 * POLY_SCALE / Math.SQRT2;
+      verts = [[-H4, -H4], [H4, -H4], [H4, H4], [-H4, H4]];
+      owners = [2, 1, 0, 3];
+      paddleLen = Math.round(84 * POLY_PADDLE_SCALE); gap = 52 * POLY_SCALE; ui = POLY_SCALE;
+    }
+    if (n !== 2) {
+      ballR = BALL_R * POLY_BALL_SCALE;
+      thick = PADDLE_THICK * POLY_SCALE;
+      // The paddle's face sits exactly on the wall line, and the dotted goal
+      // line sits just behind the paddle, forming a shallow pocket. A point
+      // counts once the ball has fully crossed it.
+      inset = -thick / 2;
+      goalLine = thick + 8 * ui;
+      goalDepth = goalLine + ballR;
     }
     var sides = verts.map(function (a, i) {
       var b = verts[(i + 1) % verts.length];
@@ -89,7 +108,9 @@
         g1: owner === null ? len : len - gap,
       };
     });
-    return { n: n, verts: verts, sides: sides, paddleLen: paddleLen, inset: inset, goalLine: goalLine, goalDepth: goalDepth };
+    // `ui`: how much larger than the 2P court the arena is, so the renderer can
+    // keep labels and lines the same size on screen.
+    return { n: n, verts: verts, sides: sides, paddleLen: paddleLen, inset: inset, goalLine: goalLine, goalDepth: goalDepth, ui: ui, ballR: ballR, paddleThick: thick };
   }
 
   function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
@@ -114,6 +135,9 @@
     this.inset = L.inset;
     this.goalLine = L.goalLine;
     this.goalDepth = L.goalDepth;
+    this.ui = L.ui;
+    this.ballR = L.ballR;
+    this.paddleThick = L.paddleThick;
     this.rand = (opts && opts.rand) || Math.random;
     this.frozen = true;
     this.tick = 0;
@@ -236,14 +260,14 @@
         continue;
       }
       var dist = (b.x - side.ax) * side.nx + (b.y - side.ay) * side.ny;
-      var front = this.inset + PADDLE_THICK / 2 + BALL_R;
+      var front = this.inset + this.paddleThick / 2 + this.ballR;
       var time = Math.max(0, (dist - front) / -vn);
       var t = (b.x - side.ax) * side.tx + (b.y - side.ay) * side.ty;
       var vt = b.vx * side.tx + b.vy * side.ty;
       var pred = t + vt * time;
       // The 2P court has walls at both ends of each paddle's side — fold the
       // bounces in. The polygon corners are too messy to predict, so clamp.
-      pred = this.n === 2 ? fold(pred, BALL_R, side.len - BALL_R) : clamp(pred, 0, side.len);
+      pred = this.n === 2 ? fold(pred, this.ballR, side.len - this.ballR) : clamp(pred, 0, side.len);
       if (p.botAim !== this.lastHitSeat + ':' + Math.round(vn * 10)) {
         p.botAim = this.lastHitSeat + ':' + Math.round(vn * 10);
         p.botErr = (this.rand() * 2 - 1) * half * (BOT_ERROR_BASE + BOT_ERROR_SPEED * b.speed / MAX_SPEED);
@@ -261,8 +285,11 @@
       p.prevS = p.s;
       if (!p.alive) continue;
       var tgt = clamp(p.target, p.sMin, p.sMax);
-      var max = p.isBot ? BOT_SPEED : PADDLE_SPEED;
-      var d = clamp(tgt - p.s, -max, max);
+      var gap = tgt - p.s;
+      var d;
+      if (p.isBot) d = clamp(gap, -BOT_SPEED, BOT_SPEED);
+      else if (Math.abs(gap) <= PADDLE_MIN_STEP * this.ui) d = gap;
+      else d = (gap < 0 ? -1 : 1) * Math.min(PADDLE_MAX_STEP * this.ui, Math.max(PADDLE_MIN_STEP * this.ui, Math.abs(gap) * PADDLE_FOLLOW));
       p.s += d;
     }
     var b = this.ball;
@@ -273,8 +300,9 @@
     if (this.sinceHit > IDLE_TICKS) return { idle: true };
 
     var sub = Math.max(1, Math.ceil(b.speed / 4));
-    var front = this.inset + PADDLE_THICK / 2 + BALL_R;
-    var reach = this.paddleLen / 2 + BALL_R * 0.8;
+    var R = this.ballR;
+    var front = this.inset + this.paddleThick / 2 + R;
+    var reach = this.paddleLen / 2 + R * 0.8;
     for (var k = 0; k < sub; k++) {
       var ox = b.x, oy = b.y;
       b.x += b.vx / sub;
@@ -310,7 +338,7 @@
           }
         }
 
-        if (dist >= BALL_R) {
+        if (dist >= R) {
           if (b.mouth === i) b.mouth = -1;
           continue;
         }
@@ -331,8 +359,8 @@
           b.vy -= 2 * vn * side.ny;
           this.events.push({ t: 'wall' });
         }
-        b.x += (BALL_R - dist) * side.nx;
-        b.y += (BALL_R - dist) * side.ny;
+        b.x += (R - dist) * side.nx;
+        b.y += (R - dist) * side.ny;
       }
     }
     return null;

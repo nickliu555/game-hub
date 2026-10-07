@@ -41,13 +41,21 @@ const SEAT_COLORS = [
 
 // Which way each seat's paddle runs on the host screen, so the phone can show a
 // matching slider. Must mirror the arena layouts in public/nong/js/engine.js:
-//   2P rectangle: seat 0 left, seat 1 right              → both vertical
-//   3P triangle:  seat 0 base, seat 1 right, seat 2 left → base horizontal
-//   4P diamond:   all four sides are diagonal            → horizontal
+//   2P rectangle: seat 0 left, seat 1 right                   → both vertical
+//   3P triangle:  seat 0 base, seat 1 right, seat 2 left      → base horizontal,
+//                 slants run at 60° (the phone tilts its slider to match)
+//   4P square:    seat 0 bottom, 1 right, 2 top, 3 left       → horizontal / vertical
+// `axis` is the dominant direction ('h': slider value grows left→right, 'v':
+// top→bottom). `angle` is the on-screen direction (degrees clockwise from +x,
+// screen y down) in which the paddle moves as the slider value grows.
 function axisFor(count, seat) {
   if (count === 2) return 'v';
   if (count === 3) return seat === 0 ? 'h' : 'v';
-  return 'h';
+  return seat % 2 === 0 ? 'h' : 'v';
+}
+function angleFor(count, seat) {
+  if (count === 3) return [0, 60, 120][seat];
+  return axisFor(count, seat) === 'h' ? 0 : 90;
 }
 
 function modeFor(count) { return count >= 3 ? 'lives' : 'points'; }
@@ -182,17 +190,10 @@ class Game {
     return { ok: true };
   }
 
-  humanCount() {
-    let n = 0;
-    for (const p of this.players.values()) if (!p.isBot) n++;
-    return n;
-  }
-
   canStart() {
     return this.phase === PHASES.LOBBY &&
       this.players.size >= MIN_PLAYERS &&
-      this.players.size <= CAPACITY &&
-      this.humanCount() >= 1;
+      this.players.size <= CAPACITY;
   }
 
   // ---------------- Match lifecycle (meta only) ----------------
@@ -207,6 +208,7 @@ class Game {
       color: SEAT_COLORS[seat].hex,
       colorName: SEAT_COLORS[seat].name,
       axis: axisFor(n, seat),
+      angle: angleFor(n, seat),
       isBot: !!p.isBot,
       connected: p.connected,
     }));
@@ -362,5 +364,6 @@ module.exports = {
   DEFAULT_LIVES,
   SEAT_COLORS,
   axisFor,
+  angleFor,
   modeFor,
 };

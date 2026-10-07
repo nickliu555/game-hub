@@ -1,7 +1,7 @@
 'use strict';
 // Headless physics checks for the Nong engine (public/nong/js/engine.js).
 const Nong = require('../public/nong/js/engine.js');
-const { axisFor } = require('../server/nong/game.js');
+const { axisFor, angleFor } = require('../server/nong/game.js');
 
 let failures = 0;
 function check(name, cond) { console.log((cond ? '  ✓ ' : '  ✗ FAIL ') + name); if (!cond) failures++; }
@@ -29,6 +29,14 @@ for (const n of [2, 3, 4]) {
     return Math.abs(s.ty) > Math.abs(s.tx) + 1e-6 ? 'v' : 'h';
   });
   check(n + 'P: server axisFor matches the arena', derived.every((a, s) => a === axisFor(n, s)));
+  // The phone draws its slider at `angle`: it must be the direction the paddle
+  // really moves on screen as the slider value grows.
+  const angles = w.paddles.map((p) => {
+    const s = w.sides[p.side];
+    const dx = p.forward ? s.tx : -s.tx, dy = p.forward ? s.ty : -s.ty;
+    return Math.round(((Math.atan2(dy, dx) * 180 / Math.PI) + 360) % 360);
+  });
+  check(n + 'P: server angleFor matches the arena (' + angles.join(',') + ')', angles.every((a, s) => a === angleFor(n, s)));
 }
 
 // ---- Input mapping follows the screen ----
@@ -45,11 +53,15 @@ for (const n of [2, 3, 4]) {
   const w = new Nong.World({ roster: roster(4) });
   for (const p of w.paddles) w.setInput(p.id, 0);
   for (let i = 0; i < 120; i++) w.step();
-  const left = w.paddles.map((p) => w.paddleCenter(p).x);
+  const lo = w.paddles.map((p) => w.paddleCenter(p));
   for (const p of w.paddles) w.setInput(p.id, 1);
   for (let i = 0; i < 120; i++) w.step();
-  const right = w.paddles.map((p) => w.paddleCenter(p).x);
-  check('4P: slider left moves every diamond paddle left on screen', left.every((x, i) => x < right[i]));
+  const hi = w.paddles.map((p) => w.paddleCenter(p));
+  // Square: bottom/top run purely left→right, right/left purely top→bottom.
+  check('4P: top + bottom paddles run straight left→right',
+    [0, 2].every((i) => lo[i].x < hi[i].x && Math.abs(lo[i].y - hi[i].y) < 1e-6));
+  check('4P: left + right paddles run straight top→bottom',
+    [1, 3].every((i) => lo[i].y < hi[i].y && Math.abs(lo[i].x - hi[i].x) < 1e-6));
 }
 {
   const w = new Nong.World({ roster: roster(3) });
@@ -61,6 +73,28 @@ for (const n of [2, 3, 4]) {
   const b = w.paddles.map((p) => w.paddleCenter(p));
   check('3P: base slider runs left→right', a[0].x < b[0].x);
   check('3P: slant sliders run top→bottom', a[1].y < b[1].y && a[2].y < b[2].y);
+}
+
+// ---- Human paddles land under the thumb fast; CPUs keep their speed ----
+for (const n of [2, 3, 4]) {
+  const w = new Nong.World({ roster: roster(n) });
+  const p = w.paddles[0];
+  w.setInput('p0', 0); for (let i = 0; i < 120; i++) w.step();
+  w.setInput('p0', 1);
+  let t = 0;
+  while (Math.abs(p.s - p.target) > 0.5 && t < 200) { w.step(); t++; }
+  check(n + 'P: a full slider swipe lands within 150 ms (' + Math.round(t * 1000 / 60) + ' ms)', t * 1000 / 60 <= 150);
+  let maxJump = 0, last = p.s;
+  w.setInput('p0', 0);
+  for (let i = 0; i < 30; i++) { w.step(); maxJump = Math.max(maxJump, Math.abs(p.s - last)); last = p.s; }
+  check(n + 'P: the paddle still glides (max ' + Math.round(maxJump) + ' units/tick)', maxJump <= 70 * w.ui + 1e-9);
+}
+{
+  const w = new Nong.World({ roster: roster(2, true) });
+  const p = w.paddles[0];
+  p.target = p.sMax;
+  const s0 = p.s; w.step();
+  check('CPU paddles keep their capped speed', Math.abs(p.s - s0) <= 9.1 + 1e-9);
 }
 
 // ---- Paddle returns the ball, a miss concedes ----
@@ -191,7 +225,7 @@ for (const n of [3, 4]) {
       if (evs.some((e) => e.t === 'wall')) {
         // A bounce off another side means a fresh approach; stop following.
         const d = (w.ball.x - side.ax) * side.nx + (w.ball.y - side.ay) * side.ny;
-        if (d > Nong.BALL_R + 1) break;
+        if (d > w.ballR + 1) break;
         cornerHits++;
       }
       if (r && r.seat === 0) { sneaks++; break; }
@@ -215,7 +249,7 @@ for (const n of [2, 3, 4]) {
     const r = w.step();
     for (const e of w.events) if (e.t === 'hit') { hits++; rally++; }
     w.events.length = 0;
-    if (!inside(w, w.ball.x, w.ball.y, w.goalDepth + Nong.BALL_R) && !r) escaped = true;
+    if (!inside(w, w.ball.x, w.ball.y, w.goalDepth + w.ballR) && !r) escaped = true;
     if (r && r.seat !== undefined) { goals++; maxRally = Math.max(maxRally, rally); rally = 0; w.serve(r.seat); }
     else if (r && r.idle) { idles++; w.serve(null); }
   }

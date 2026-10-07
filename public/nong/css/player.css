@@ -141,6 +141,10 @@ body.player button:disabled { pointer-events: none; }
 /* Horizontal slider: the paddle runs left ↔ right on the TV. */
 body.axis-h .track-rail { width: 100%; height: min(84px, 30%); }
 body.axis-h .track-knob { top: 8px; bottom: 8px; width: 28%; left: calc(var(--u, 0.5) * 72%); }
+/* Tilted slider: a slanted triangle side. The rail is sized + rotated in JS to
+   the paddle's on-screen angle; along it, it behaves like the horizontal one. */
+body.axis-tilt .track-rail { position: absolute; left: 50%; top: 50%; }
+body.axis-tilt .track-knob { top: 8px; bottom: 8px; width: 28%; left: calc(var(--u, 0.5) * 72%); }
 /* Vertical slider: the paddle runs up ↕ down on the TV. */
 body.axis-v .track-rail { height: 100%; width: min(130px, 46%); }
 body.axis-v .track-knob { left: 8px; right: 8px; height: 26%; top: calc(var(--u, 0.5) * 74%); }

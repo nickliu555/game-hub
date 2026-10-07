@@ -5,11 +5,11 @@
   const playerName = localStorage.getItem('nong.playerName') || 'Player';
   if (!playerId) { window.location.replace('/nong/join'); return; }
 
-  const SEND_MIN_MS = 30;          // don't flood the relay
+  const SEND_MIN_MS = 16;          // one frame — fast enough to feel direct, light on the relay
   const POS_LABELS = {
     2: ['Left side', 'Right side'],
     3: ['Bottom side', 'Right side', 'Left side'],
-    4: ['Top-left side', 'Top-right side', 'Bottom-right side', 'Bottom-left side'],
+    4: ['Bottom side', 'Right side', 'Top side', 'Left side'],
   };
 
   // ---------------- Kill all zoom / scroll / selection behaviour ----------------
@@ -38,7 +38,9 @@
     window.addEventListener('scroll', function () { window.scrollTo(0, 0); }, { passive: true });
   })();
 
-  const socket = io('/nong', { transports: ['polling', 'websocket'] });
+  // WebSocket straight away (no long-polling warm-up adding lag to the first
+  // inputs), falling back to polling on networks that block it.
+  const socket = io('/nong', { transports: ['websocket', 'polling'], tryAllTransports: true });
 
   // ---------------- Element refs ----------------
   const body = document.body;
@@ -78,6 +80,8 @@
   let hostPresent = true;
   let armed = false;
   let roster = [];
+  let railAngle = 0;     // on-screen direction the paddle moves as the slider grows
+  let tilted = false;    // a slanted triangle side: the rail is drawn at railAngle
   let mode = 'points';
   let target = 5;
   let scores = {};
@@ -121,6 +125,7 @@
     });
     armed = name === 'controller';
     if (!armed) endDrag();
+    else layoutRail();
     updateChrome();
   }
 
@@ -184,6 +189,15 @@
   setU(0.5);
 
   function uFromPoint(x, y) {
+    if (tilted) {
+      // Project the thumb onto the tilted rail's direction through its centre.
+      const t = track.getBoundingClientRect();
+      const len = parseFloat(trackRail.style.width) || 1;
+      const a = railAngle * Math.PI / 180;
+      const proj = (x - (t.left + t.width / 2)) * Math.cos(a) + (y - (t.top + t.height / 2)) * Math.sin(a);
+      const kl = len * 0.28;
+      return (proj + (len - kl) / 2) / Math.max(1, len - kl);
+    }
     const r = trackRail.getBoundingClientRect();
     if (body.classList.contains('axis-v')) {
       const kh = r.height * 0.26;
@@ -216,6 +230,32 @@
   ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (t) {
     track.addEventListener(t, function (e) { if (dragId === e.pointerId) endDrag(); });
   });
+
+  // A tilted rail is the longest bar at `railAngle` that fits inside the pad.
+  const RAIL_THICK = 84;
+  const TRACK_PAD = 18;
+  function layoutRail() {
+    if (!trackRail) return;
+    if (!tilted) {
+      trackRail.style.width = '';
+      trackRail.style.height = '';
+      trackRail.style.transform = '';
+      return;
+    }
+    const r = track.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const W = r.width - TRACK_PAD * 2;
+    const H = r.height - TRACK_PAD * 2;
+    const a = railAngle * Math.PI / 180;
+    const c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a));
+    const thick = Math.min(RAIL_THICK, W * 0.3);
+    const len = Math.max(thick * 2, Math.min((W - thick * s) / c, (H - thick * c) / s));
+    trackRail.style.width = len + 'px';
+    trackRail.style.height = thick + 'px';
+    trackRail.style.transform = 'translate(-50%, -50%) rotate(' + railAngle + 'deg)';
+  }
+  window.addEventListener('resize', layoutRail);
+  window.addEventListener('orientationchange', function () { setTimeout(layoutRail, 250); });
 
   // ---------------- Match state ----------------
   function renderStatus() {
@@ -272,8 +312,12 @@
     const mine = me();
     if (mine) {
       setSeatColor(mine.color);
-      body.classList.toggle('axis-v', mine.axis === 'v');
-      body.classList.toggle('axis-h', mine.axis !== 'v');
+      railAngle = typeof mine.angle === 'number' ? mine.angle : (mine.axis === 'v' ? 90 : 0);
+      tilted = railAngle % 90 !== 0;
+      body.classList.toggle('axis-v', !tilted && mine.axis === 'v');
+      body.classList.toggle('axis-h', !tilted && mine.axis !== 'v');
+      body.classList.toggle('axis-tilt', tilted);
+      layoutRail();
       const labels = POS_LABELS[Math.max(2, Math.min(4, roster.length))] || [];
       if (hudSide) hudSide.textContent = mine.colorName + ' · ' + (labels[mine.seat] || '');
     }
