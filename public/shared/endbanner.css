@@ -50,8 +50,11 @@
 .eb.eb-spot .eb-ring { left: var(--eb-x); top: var(--eb-y); }
 /* Winner's crown + confetti. */
 .eb .eb-crown {
+  /* --eb-rot turns the crown to match the winner's heading; --eb-lift moves it
+     along its own "up" (default: sitting just above the spot, upright). */
+  --eb-rot: 0deg; --eb-lift: -100%;
   position: absolute; z-index: 3; display: none; font-size: 44px; line-height: 1;
-  transform: translate(-50%, -150%); pointer-events: none;
+  transform: translate(-50%, -50%) rotate(var(--eb-rot)) translateY(var(--eb-lift)); pointer-events: none;
   filter: drop-shadow(0 4px 6px rgba(0,0,0,0.6));
   animation: eb-crown 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.4) 0.3s both;
 }
@@ -80,8 +83,8 @@
 @keyframes eb-shine { from { left: -40%; } to { left: 120%; } }
 @keyframes eb-ring { 0% { transform: scale(0.3); opacity: 0.9; } 100% { transform: scale(4.2); opacity: 0; } }
 @keyframes eb-crown {
-  0% { transform: translate(-50%, -60%) scale(0.2); opacity: 0; }
-  100% { transform: translate(-50%, -150%) scale(1); opacity: 1; }
+  0% { transform: translate(-50%, -50%) rotate(var(--eb-rot)) translateY(calc(var(--eb-lift) - 90%)) scale(0.2); opacity: 0; }
+  100% { transform: translate(-50%, -50%) rotate(var(--eb-rot)) translateY(var(--eb-lift)) scale(1); opacity: 1; }
 }
 @keyframes eb-confetti {
   0% { transform: translate(0, 0) rotate(0); opacity: 1; }

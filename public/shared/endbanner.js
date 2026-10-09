@@ -1,4 +1,4 @@
-/* Round-end banner for the arcade host screens (Snake Party, Maze Chomp).
+/* Round-end banner for the arcade host screens (Snek, Chomp-Man).
  *
  * Turns a plain `.reason-overlay > .reason-text` into a short sequence:
  * the banner slams in on a ribbon (with a shine sweep and a shockwave ring),
@@ -11,7 +11,9 @@
  * Respects prefers-reduced-motion (no slam / shake / confetti).
  *
  *   EndBanner.show({ overlay, board, clock, text, kind, color, spot, sound })
- *     spot: { x, y } in px relative to the overlay (win only)
+ *     spot: { x, y, rot?, lift?, size? } in px relative to the overlay (win only);
+ *       rot (deg) turns the crown to the winner's heading, lift (CSS length)
+ *       moves it along its own "up", size (px) is its font size.
  *   EndBanner.reset(overlay, board, clock)
  */
 (function (global) {
@@ -92,6 +94,9 @@
       overlay.classList.add('eb-spot');
       e.crown.style.left = o.spot.x + 'px';
       e.crown.style.top = o.spot.y + 'px';
+      e.crown.style.setProperty('--eb-rot', (o.spot.rot || 0) + 'deg');
+      if (o.spot.lift != null) e.crown.style.setProperty('--eb-lift', o.spot.lift); else e.crown.style.removeProperty('--eb-lift');
+      e.crown.style.fontSize = o.spot.size ? o.spot.size + 'px' : '';
     }
     overlay.hidden = false;
     [e.vignette, e.ribbon, e.text, e.ring, e.crown].forEach(restart);

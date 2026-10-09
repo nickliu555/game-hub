@@ -365,15 +365,15 @@ const games = [
         playPath: '/rankfive/play',
     },
     {
-        id: 'mazechomp',
-        name: 'Maze Chomp',
+        id: 'chompman',
+        name: 'Chomp-Man',
         tagline: 'Chomp, power up, and eat your rivals',
         emoji: '👻',
         color: '#12123a',
         category: 'Arcade',
         playerCount: '1–4 (+CPU)',
         duration: '5–12 min',
-        description: 'A multiplayer Maze Chomp showdown played on the shared screen. Each player steers a chomper from their phone, racing to gobble pellets and cherries for points while dodging four ghosts. Grab a power pellet to turn big and fast — frighten the ghosts and eat smaller players. Die and you\'re out for the round; the highest score among the survivors takes the round. First to the target number of round wins takes the game.',
+        description: 'A multiplayer Chomp-Man showdown played on the shared screen. Each player steers a chomper from their phone, racing to gobble pellets and cherries for points while dodging four ghosts. Grab a power pellet to turn big and fast — frighten the ghosts and eat smaller players. Die and you\'re out for the round; the highest score among the survivors takes the round. First to the target number of round wins takes the game.',
         rules: [
             'The host opens the game on a shared screen (TV, laptop, etc.)',
             'Players scan the QR code on their phones and enter a name (1–4 players; add CPU chompers to fill in)',
@@ -387,8 +387,8 @@ const games = [
             'When the round ends, the highest score among the players still alive wins the round',
             'First to the target number of round wins takes the whole game!'
         ],
-        hostPath: '/mazechomp/host',
-        playPath: '/mazechomp/play',
+        hostPath: '/chompman/host',
+        playPath: '/chompman/play',
     },
     {
         id: 'bombbrawl',
@@ -467,15 +467,15 @@ const games = [
         playPath: '/nong/play',
     },
     {
-        id: 'snakeparty',
-        name: 'Snake Party',
+        id: 'snek',
+        name: 'Snek',
         tagline: 'Eat, grow, and box in your rivals',
         emoji: '🐍',
         color: '#14532D',
         category: 'Arcade',
         playerCount: '1–4 (+CPU)',
         duration: '3–10 min',
-        description: 'The classic arcade snake, now for a crowd. Each player steers a snake from their phone on the shared screen, gobbling apples to grow longer while dodging the deadly map edges, walls, their own tail, and every other snake. Crash and you leave a golden special apple worth +5 length on your tail for anyone to grab. The longest snake wins the round — crashing freezes your length — and first to the target number of round wins takes the game. Play alone for classic solo Snake and chase the longest snake of the session.',
+        description: 'The classic arcade snake, now for a crowd. Each player steers a snake from their phone on the shared screen, gobbling apples to grow longer while dodging the deadly map edges, walls, their own tail, and every other snake. Now and then a rare golden apple worth +3 length appears — race for it. The longest snake wins the round — crashing freezes your length — and first to the target number of round wins takes the game. Play alone for classic solo Snake and chase the longest snake of the session.',
         rules: [
             'The host opens the game on a shared screen (TV, laptop, etc.)',
             'Players scan the QR code on their phones and enter a name (1–4 players; add CPU snakes to fill in)',
@@ -483,15 +483,16 @@ const games = [
             'With 2–4 snakes, the host sets the round length, how many round wins take the game and Power-ups On/Off, then hits Start',
             'Your phone is the controller — joystick, swipe, or tap zones steer your snake up/down/left/right',
             'Eat apples to grow',
-            'Hit the edge of the map, a wall, yourself, or another snake and you\'re out for the round — you leave a special apple worth +5 length on your tail',
+            'Hit the edge of the map, a wall, yourself, or another snake and you\'re out for the round',
+            'Every so often a rare golden apple worth +3 length appears on the map',
             'Head-on collisions take out both snakes, and snakes speed up as the round goes on',
             'With Power-ups on: 🧲 Magnet pulls nearby apples (and golden apples) to you for 6 seconds; 👻 Phantom gives 1.2× speed and lets you pass through walls and snakes for 6 seconds — but the edges still kill',
             'The longest snake wins the round, not the last one standing: a crashed snake keeps its length but stops growing, and a living snake wins ties',
             'The round ends when time runs out, when everyone has crashed, or once a lone survivor is longer than every crashed snake',
             'First to the target number of round wins takes the game!'
         ],
-        hostPath: '/snakeparty/host',
-        playPath: '/snakeparty/play',
+        hostPath: '/snek/host',
+        playPath: '/snek/play',
     },
 ];
 

@@ -166,7 +166,7 @@ A co-op guessing game — one player secretly ranks a list, and the group has to
 
 By default, **Custom Words** mode is on: before the first round everyone secretly submits five words of their own to build the pool (each used once). Turn it off to play from the built-in phrase bank instead.
 
-### 👻 Maze Chomp
+### 👻 Chomp-Man
 A multiplayer maze showdown played out on the Host screen — 1–4 players each steer their own chomper from their phone.
 
 1. Players scan the QR code to join (1–4 players); the host can **Add CPU** chompers to fill in
@@ -226,7 +226,7 @@ The arcade paddle classic on the Host screen — a head-to-head court for 2, a t
 
 The host can **Pause** at any time.
 
-### 🐍 Snake Party
+### 🐍 Snek
 The classic arcade snake for 1–4 players on the Host screen — eat, grow, and box in your rivals.
 
 1. Players scan the QR code to join (**1–4 players**); the host can **Add CPU** snakes to fill in
@@ -234,7 +234,8 @@ The classic arcade snake for 1–4 players on the Host screen — eat, grow, and
 3. With **2–4 snakes**, the host sets the **round length**, how many **round wins** take the game and **Power-ups On/Off**, then hits **Start**
 4. Each phone is a controller — **joystick, swipe or tap zones** steer your snake up / down / left / right
 5. **Eat apples to grow** — several are on the map at once
-6. Hit the **edge of the map**, a **wall**, **yourself** or **another snake** and you're out for the round — the edges do **not** wrap — and you leave a golden **special apple** worth **+5 length** on your tail for anyone to grab
+6. Hit the **edge of the map**, a **wall**, **yourself** or **another snake** and you're out for the round — the edges do **not** wrap
+   - Every so often a rare **golden apple** worth **+3 length** appears somewhere on the map (multiplayer)
 7. **Head-on** collisions take out **both** snakes, and everyone **speeds up** as the round goes on
    - **Power-ups** (multiplayer, when On) appear one at a time — grab one by eating it:
      - 🧲 **Magnet** (6 s): apples and golden apples within 3 cells drift toward your head

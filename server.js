@@ -17,12 +17,12 @@ const mountBoggle = require('./server/noggle');
 const mountSoccerHead = require('./server/soccerhead');
 const mountShootBall = require('./server/shootball');
 const mountRankFive = require('./server/rankfive');
-const mountMazeChomp = require('./server/mazechomp');
+const mountChompMan = require('./server/chompman');
 const mountBombBrawl = require('./server/bombbrawl');
 const mountCamo = require('./server/camo');
 const mountNockey = require('./server/nockey');
 const mountNong = require('./server/nong');
-const mountSnakeParty = require('./server/snakeparty');
+const mountSnek = require('./server/snek');
 const mountStackingRoyale = require('./server/stackingroyale');
 const app = express();
 
@@ -123,8 +123,8 @@ mountShootBall(app, httpServer, { getPublicBaseUrl });
 // Mount the Rank Five co-op guessing game (Socket.IO namespace + REST + page routes).
 mountRankFive(app, httpServer, { getPublicBaseUrl });
 
-// Mount the Maze Chomp arcade game (Socket.IO namespace + REST + page routes).
-mountMazeChomp(app, httpServer, { getPublicBaseUrl });
+// Mount the Chomp-Man arcade game (Socket.IO namespace + REST + page routes).
+mountChompMan(app, httpServer, { getPublicBaseUrl });
 
 // Mount the Bomb Brawl bomber battle (Socket.IO namespace + REST + page routes).
 mountBombBrawl(app, httpServer, { getPublicBaseUrl });
@@ -138,8 +138,8 @@ mountNockey(app, httpServer, { getPublicBaseUrl });
 // Mount the Nong 2–4 player paddle game (Socket.IO namespace + REST + page routes).
 mountNong(app, httpServer, { getPublicBaseUrl });
 
-// Mount the Snake Party 1–4 player snake game (Socket.IO namespace + REST + page routes).
-mountSnakeParty(app, httpServer, { getPublicBaseUrl });
+// Mount the Snek 1–4 player snake game (Socket.IO namespace + REST + page routes).
+mountSnek(app, httpServer, { getPublicBaseUrl });
 mountStackingRoyale(app, httpServer, { getPublicBaseUrl });
 
 httpServer.listen(PORT, '0.0.0.0', () => {
