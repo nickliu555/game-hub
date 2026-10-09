@@ -1,12 +1,24 @@
 (function () {
   'use strict';
   let zoomLocked = false;
+  // iOS ignores user-scalable=no, and decides a touch is a pinch on its first
+  // move, so every touchmove is swallowed unless it is a single finger inside a
+  // region that can actually scroll.
+  function scroller(target) {
+    for (let node = target && target.nodeType === 1 ? target : target && target.parentElement; node && node !== document.body && node !== document.documentElement; node = node.parentElement) {
+      if (node.tagName === 'SELECT') return node;
+      const style = getComputedStyle(node);
+      if (/(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight + 1) return node;
+      if (/(auto|scroll)/.test(style.overflowX) && node.scrollWidth > node.clientWidth + 1) return node;
+    }
+    return null;
+  }
   function lockZoom() {
     if (zoomLocked) return;
     zoomLocked = true;
-    const stop = function (event) { event.preventDefault(); };
-    const editable = function (target) { return target && target.closest && target.closest('input,textarea,[contenteditable="true"]'); };
-    const stopSelection = function (event) { if (!editable(event.target)) event.preventDefault(); };
+    const stop = function (event) { if (event.cancelable) event.preventDefault(); };
+    const editable = function (target) { return target && target.closest && target.closest('input,textarea,select,[contenteditable="true"]'); };
+    const stopSelection = function (event) { if (!editable(event.target)) stop(event); };
     const capture = { capture: true, passive: false };
     document.addEventListener('selectstart', stopSelection, capture);
     document.addEventListener('contextmenu', stopSelection, capture);
@@ -16,22 +28,44 @@
     document.addEventListener('gesturechange', stop, capture);
     document.addEventListener('gestureend', stop, capture);
     document.addEventListener('touchstart', function (event) {
-      if (event.touches && event.touches.length > 1) event.preventDefault();
+      if (event.touches && event.touches.length > 1) stop(event);
     }, capture);
     document.addEventListener('touchmove', function (event) {
-      if (event.touches && event.touches.length > 1) event.preventDefault();
+      if (event.touches && event.touches.length > 1) return stop(event);
+      if (event.scale !== undefined && event.scale !== 1) return stop(event);
+      if (scroller(event.target)) return;
+      stop(event);
     }, capture);
     let lastTouchEnd = 0;
     document.addEventListener('touchend', function (event) {
       const now = Date.now();
-      if (now - lastTouchEnd <= 350) event.preventDefault();
+      if (now - lastTouchEnd <= 350) stop(event);
       lastTouchEnd = now;
     }, capture);
-    document.addEventListener('wheel', function (event) { if (event.ctrlKey) event.preventDefault(); }, capture);
+    document.addEventListener('wheel', function (event) { if (event.ctrlKey || event.metaKey) stop(event); }, capture);
+    document.addEventListener('keydown', function (event) {
+      if ((event.ctrlKey || event.metaKey) && ['+', '=', '-', '_', '0'].includes(event.key)) stop(event);
+    }, capture);
     document.addEventListener('selectionchange', function () {
       const selection = window.getSelection();
       if (selection && !selection.isCollapsed && !editable(document.activeElement)) selection.removeAllRanges();
     });
+    window.addEventListener('scroll', function () {
+      if (!editable(document.activeElement) && (window.scrollX || window.scrollY)) window.scrollTo(0, 0);
+    }, { passive: true });
+    // Last resort: if a zoom slips through anyway, re-apply the viewport meta,
+    // which makes iOS/Android snap back to scale 1.
+    const meta = document.querySelector('meta[name="viewport"]');
+    if (meta && window.visualViewport) {
+      const content = meta.getAttribute('content');
+      let resetting = false;
+      window.visualViewport.addEventListener('resize', function () {
+        if (resetting || window.visualViewport.scale <= 1.01) return;
+        resetting = true;
+        meta.setAttribute('content', content + ', width=device-width');
+        requestAnimationFrame(function () { meta.setAttribute('content', content); resetting = false; });
+      });
+    }
   }
   function bind(options) {
     const held = new Map();

@@ -123,6 +123,9 @@ body.host {
   flex-direction: column;
   gap: 10px;
 }
+/* Player tiles and open-spot placeholders share one height, so a join swaps a
+   placeholder for a tile without the list jumping. */
+.player-chip, .slot-empty { box-sizing: border-box; min-height: 54px; }
 .player-chip {
   display: flex;
   align-items: center;
@@ -155,6 +158,8 @@ body.host {
 }
 .player-chip .chip-kick:hover { background: var(--warn); }
 .slot-empty {
+  display: flex;
+  align-items: center;
   border: 2px dashed rgba(255,255,255,0.16);
   border-radius: 12px;
   padding: 12px 14px;
@@ -306,7 +311,10 @@ body.host {
 #view-final { flex: 1; min-height: 0; align-items: center; justify-content: center; }
 .final-inner {
   text-align: center;
+  /* Centre the column vertically: the solo result is short and would otherwise
+     sit at the top. `safe` keeps a tall multiplayer page from clipping. */
   display: flex; flex-direction: column; align-items: center;
+  justify-content: center; justify-content: safe center;
   gap: 10px;
   padding: 18px 20px;
   height: 100%; min-height: 0; max-height: 100%;
@@ -370,4 +378,42 @@ body.host {
   .lobby-grid { grid-template-columns: 1fr; grid-template-rows: none; }
   .qr-card #qrSlot { width: min(100%, 70vh); }
   .config-row > label { width: auto; }
+}
+
+/* Resume countdown: the pause overlay turns into a big 3-2-1. */
+.pause-overlay.resuming .po-icon { display: none; }
+.pause-overlay.resuming .po-title { font-size: 120px; line-height: 1; animation: resumepop 0.4s ease; }
+@keyframes resumepop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
+
+/* ---------------- Solo ---------------- */
+.config-block[hidden] { display: none; }
+.solo-result { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 0 0 auto; }
+.solo-result[hidden] { display: none; }
+.solo-score { font-size: 72px; font-weight: 900; line-height: 1; color: #fff; font-variant-numeric: tabular-nums; }
+.solo-unit { font-size: 28px; color: rgba(255,255,255,0.75); }
+.solo-level { font-size: 22px; font-weight: 800; color: #FFE100; }
+.solo-best { font-size: 18px; font-weight: 700; color: rgba(255,255,255,0.75); max-width: 92vw; overflow-wrap: anywhere; text-align: center; }
+.solo-best .new-best {
+  display: inline-block; background: var(--accent); color: #14142b; border-radius: 999px;
+  padding: 3px 12px; font-weight: 900; margin-right: 8px; animation: pop 0.5s ease;
+}
+.best-num { color: #3DDC84; font-weight: 900; }
+.final-scroll[hidden] { display: none; }
+.final-actions { flex: 0 0 auto; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; padding-top: 6px; }
+
+/* "Level N" pop when a solo player clears the maze. */
+.level-pop {
+  position: absolute; left: 50%; top: 38%; z-index: 4; pointer-events: none;
+  transform: translate(-50%, -50%);
+  font-size: clamp(40px, 6vw, 76px); font-weight: 900; color: #FFE100; white-space: nowrap;
+  text-shadow: 0 0 22px rgba(255,225,0,0.7), 0 4px 0 rgba(0,0,0,0.6);
+  animation: levelpop 1.8s ease both;
+}
+.level-pop[hidden] { display: none; }
+@keyframes levelpop {
+  0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+  18% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+  30% { transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; }
+  100% { transform: translate(-50%, -70%) scale(1); opacity: 0; }
 }

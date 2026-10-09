@@ -1,12 +1,24 @@
 html, body, body * {
-  touch-action: pan-x pan-y;
+  touch-action: none;
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
 }
+/* Only genuine scroll regions may pan; neither value permits pinch-zoom. */
+body .scroll-list, body .scroll-list *,
+body .final-card, body .final-card *,
+body .board-overlay, body .board-overlay *,
+body .host-absent-overlay, body .host-absent-overlay *,
+body .gtb-help-modal, body .gtb-help-modal *,
+body .session-heading .pname, body .session-heading .pname *,
+body .board-rail .board-label, body .board-rail .board-label *,
+body .p-header .name, body .p-header .name * {
+  touch-action: pan-x pan-y;
+}
 body input, body textarea, body [contenteditable="true"] {
   -webkit-user-select: text;
   user-select: text;
 }
+body input, body textarea, body select { font-size: max(16px, 1em); }
 body button:disabled { pointer-events: none; }

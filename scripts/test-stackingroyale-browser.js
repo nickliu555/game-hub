@@ -219,6 +219,32 @@ async function centeredFooter(page, selector, from, final = false) {
   assert.equal(alignment.textAlign, 'center');
 }
 
+// The match end holds every screen on the frozen boards, then all flip to
+// the results on the same server tick.
+async function gameOverHold(host, phones, game, name) {
+  const started = Date.now();
+  assert.equal(game.phase, 'GAME_OVER');
+  await check(host.locator('#view-match')).toBeVisible();
+  await check(host.locator('#view-final')).toBeHidden();
+  await check(host.locator('#matchOverlay')).toBeVisible();
+  await check(host.locator('#matchOverlayTitle')).toHaveText('Game over');
+  for (const { page, title } of phones) {
+    await check(page.locator('#playSurface')).toBeVisible();
+    await check(page.locator('#results')).toBeHidden();
+    await check(page.locator('#boardOverlay')).toBeVisible();
+    await check(page.locator('#overlayTitle')).toHaveText(title);
+    await check(page.locator('#dropBtn')).toBeDisabled();
+  }
+  if (name) {
+    await shot(host, `${name}-host`);
+    for (const { page } of phones) await shot(page, `${name}-player-${page.viewportSize().width}`);
+  }
+  assert.ok(Date.now() - started < 4000, 'Frozen checks must finish inside the hold');
+  assert.equal(game.phase, 'GAME_OVER', 'Results must not appear before the hold ends');
+  await check(host.locator('#view-final'), { timeout: 10000 }).toBeVisible();
+  for (const { page } of phones) await check(page.locator('#results'), { timeout: 6000 }).toBeVisible();
+}
+
 async function mobileAppProtections(page, label) {
   const failures = await page.evaluate(() => {
     const problems = [];
@@ -246,8 +272,23 @@ async function mobileAppProtections(page, label) {
     for (const type of ['touchstart', 'touchmove']) for (const count of [2, 1]) {
       const event = new Event(type, { bubbles: true, cancelable: true });
       Object.defineProperty(event, 'touches', { value: Array.from({ length: count }, () => ({})) });
-      if (target.dispatchEvent(event) !== (count === 1)) problems.push(`${type} with ${count} touches: dispatchEvent must return ${count === 1}`);
+      const allowed = type === 'touchstart' && count === 1;
+      if (target.dispatchEvent(event) !== allowed) problems.push(`${type} with ${count} touches: dispatchEvent must return ${allowed}`);
     }
+    const region = document.createElement('div');
+    region.className = 'scroll-list';
+    region.style.cssText = 'position:fixed;top:0;left:0;width:50px;height:50px;max-height:50px;overflow-y:auto';
+    const tall = document.createElement('div');
+    tall.style.height = '500px';
+    region.append(tall);
+    document.body.append(region);
+    for (const count of [1, 2]) {
+      const event = new Event('touchmove', { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'touches', { value: Array.from({ length: count }, () => ({})) });
+      if (tall.dispatchEvent(event) !== (count === 1)) problems.push(`scroll-region touchmove with ${count} touches: dispatchEvent must return ${count === 1}`);
+    }
+    if (getComputedStyle(tall).touchAction !== 'pan-x pan-y') problems.push(`scroll-region child touchAction: ${getComputedStyle(tall).touchAction}`);
+    region.remove();
     for (const ctrlKey of [true, false]) {
       const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, ctrlKey, deltaY: 100 });
       if (target.dispatchEvent(event) !== !ctrlKey) problems.push(`wheel ctrlKey=${ctrlKey}: incorrect cancellation`);
@@ -1550,6 +1591,7 @@ async function singlePlayer(browser, name, server, issues) {
       await phone.locator('#dropBtn').click();
       await check.poll(() => player.seq).toBeGreaterThan(sequence);
     }
+    await gameOverHold(host, [{ page: phone, title: 'Game over' }], server.game);
     await check(host.locator('#view-final')).toBeVisible();
     await check(phone.locator('#results')).toBeVisible();
     await playerMatchShell(phone, server.game, player.id, 'FINAL');
@@ -1876,7 +1918,9 @@ async function multiplayer(browser, name, server, issues, count) {
       }
       await check.poll(() => loser.alive).toBe(false);
       assert.equal(loser.board.over, true, 'Topout must originate in the real engine');
-      if (loser.id === ids[1]) {
+      if (loser.id === ids[1] && game.phase !== 'PLAYING') {
+        await gameOverHold(host, [{ page: phones[0], title: 'You win!' }, { page: phones[1], title: 'Game over' }], game, `${label}-game-over`);
+      } else if (loser.id === ids[1]) {
         await check(phones[1].locator('#results')).toBeVisible();
         await playerMatchShell(phones[1], game, loser.id);
         await centeredFooter(phones[1], '#playerFooter', 'play', true);
@@ -1904,7 +1948,8 @@ async function multiplayer(browser, name, server, issues, count) {
         }
       }
     }
-    await check.poll(() => game.phase).toBe('FINAL');
+    if (game.phase === 'GAME_OVER') await gameOverHold(host, [{ page: phones[0], title: 'You win!' }], game, `${label}-game-over`);
+    await check.poll(() => game.phase, { timeout: 10000 }).toBe('FINAL');
     assert.deepEqual(game.winnerIds, [ids[0]]);
     const finalState = game.state();
     assert.equal(game.players.get(ids[0]).survivalMs, finalState.elapsedMs, 'Winner survival must equal active match time');
@@ -2002,10 +2047,10 @@ async function mobileLockEarly(browser, name, server, issues, role) {
     assert.equal(await page.evaluate(() => typeof window.SRUI), 'undefined', 'Deferred common.js must still be held');
     if (role !== 'join') assert.equal(await page.evaluate(() => typeof window.StackingRoyale), 'undefined', 'Deferred engine must still be held');
     const registrations = await page.evaluate(() => window.lockRegistrations);
-    assert.deepEqual(registrations.map(entry => entry.type).sort(), ['selectstart', 'contextmenu', 'dragstart', 'dblclick', 'gesturestart', 'gesturechange', 'gestureend', 'touchstart', 'touchmove', 'touchend', 'wheel', 'selectionchange'].sort());
+    assert.deepEqual(registrations.map(entry => entry.type).sort(), ['selectstart', 'contextmenu', 'dragstart', 'dblclick', 'gesturestart', 'gesturechange', 'gestureend', 'touchstart', 'touchmove', 'touchend', 'wheel', 'keydown', 'selectionchange'].sort());
     for (const entry of registrations) {
       assert.ok(entry.bodyAbsent && entry.readyState === 'loading', `${entry.type}: lock must install synchronously before body`);
-      assert.equal(new URL(entry.src).search, '?v=2');
+      assert.equal(new URL(entry.src).search, '?v=3');
       if (entry.type !== 'selectionchange') assert.ok(entry.capture && entry.passive === false, `${entry.type}: capture/nonpassive required`);
     }
     const early = await page.evaluate(() => {
@@ -2014,7 +2059,7 @@ async function mobileLockEarly(browser, name, server, issues, role) {
       const failures = [];
       function verify() {
         const cases = ['selectstart', 'contextmenu', 'dragstart', 'dblclick', 'gesturestart', 'gesturechange', 'gestureend'].map(type => ({ type, cancel: true }));
-        for (const type of ['touchstart', 'touchmove']) for (const count of [1, 2, 3]) cases.push({ type, count, cancel: count > 1 });
+        for (const type of ['touchstart', 'touchmove']) for (const count of [1, 2, 3]) cases.push({ type, count, cancel: type === 'touchmove' || count > 1 });
         for (const ctrlKey of [false, true]) cases.push({ type: 'wheel', ctrlKey, cancel: ctrlKey });
         for (const sample of cases) {
           const event = new Event(sample.type, { cancelable: true, bubbles: true });
@@ -2042,9 +2087,9 @@ async function mobileLockEarly(browser, name, server, issues, role) {
       return { failures, added };
     });
     assert.deepEqual(early, { failures: [], added: 0 }, 'Early lock must cancel exactly once, even after repeated lockZoom calls');
-    await check(page.locator('script[src="/stackingroyale/js/controls.js?v=2"]')).toHaveCount(1);
+    await check(page.locator('script[src="/stackingroyale/js/controls.js?v=3"]')).toHaveCount(1);
     assert.equal(await page.locator('script[src*="/controls.js"]').evaluate(script => script.defer || script.async), false);
-    await check(page.locator('link[href="/stackingroyale/css/touch.css?v=2"]')).toHaveCount(1);
+    await check(page.locator('link[href="/stackingroyale/css/touch.css?v=3"]')).toHaveCount(1);
     await release();
     await page.waitForLoadState('load');
     if (role === 'join') await check(page.locator('#joinBtn')).toBeEnabled();
@@ -2095,7 +2140,7 @@ async function mobileLockEarly(browser, name, server, issues, role) {
       assert.ok(await input.evaluate(element => element.selectionEnd > element.selectionStart), 'Native input doubleclick must select editable text');
     }
     assert.equal(await page.evaluate(() => visualViewport.scale), 1);
-    observations.push(`${label}: synchronous pre-body ?v=2 lock, held deferred assets, capture cancellation, idempotence, selection and editing PASS; iOS gesture events are synthetic, not real Safari.`);
+    observations.push(`${label}: synchronous pre-body ?v=3 lock, held deferred assets, capture cancellation, idempotence, selection and editing PASS; iOS gesture events are synthetic, not real Safari.`);
   } catch (error) {
     if (release) await release().catch(() => {});
     await shot(page, `${label}-FAIL`).catch(() => {});

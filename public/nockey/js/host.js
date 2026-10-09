@@ -25,6 +25,10 @@
     final: document.getElementById('view-final'),
   };
   function show(name) {
+    if (name !== 'final') {
+      if (window.clearConfetti) window.clearConfetti();
+      if (window.stopApplause) window.stopApplause();
+    }
     Object.keys(views).forEach(function (k) { views[k].classList.toggle('active', k === name); });
   }
 
@@ -842,14 +846,16 @@
   }
 
   // ---------------- Pause ----------------
+  let resumeTimer = null;   // running resume 3-2-1, if any
   function updatePauseBtn() {
     if (!pauseBtn) return;
     pauseBtn.hidden = matchState !== 'play' && matchState !== 'count' && matchState !== 'goal';
-    pauseBtn.textContent = paused ? '▶ Resume' : '⏸ Pause';
+    pauseBtn.textContent = (paused && !resumeTimer) ? '▶ Resume' : '⏸ Pause';
     pauseBtn.classList.toggle('is-paused', paused);
   }
   function pauseMatch() {
     if (paused || matchState === 'idle' || matchState === 'timeup' || matchState === 'over') return;
+    clearResumeCount();
     paused = true;
     if (pauseOverlay) pauseOverlay.hidden = false;
     updatePauseBtn();
@@ -862,8 +868,51 @@
     updatePauseBtn();
     socket.emit('host:resume', { live: matchState === 'play' });
   }
+  // ---- Resume countdown ----
+  // Resuming into live play runs a 3-2-1 first. The game stays paused the whole
+  // time (clock, movement and timers frozen), so the countdown never counts as
+  // play time. Pressing Pause again cancels it; resuming anywhere else (pre-round
+  // countdown, between points/rounds) is instant.
+  const poTitle = pauseOverlay && pauseOverlay.querySelector('.po-title');
+  const poSub = pauseOverlay && pauseOverlay.querySelector('.po-sub');
+  const poTitleText = poTitle ? poTitle.textContent : '';
+  const poSubText = poSub ? poSub.textContent : '';
+  function showResumeCount(n) {
+    if (!pauseOverlay) return;
+    pauseOverlay.classList.add('resuming');
+    if (poTitle) { poTitle.textContent = n; poTitle.style.animation = 'none'; void poTitle.offsetWidth; poTitle.style.animation = ''; }
+    if (poSub) poSub.textContent = 'Get ready…';
+  }
+  function clearResumeCount() {
+    if (resumeTimer) { clearInterval(resumeTimer); resumeTimer = null; }
+    if (pauseOverlay) pauseOverlay.classList.remove('resuming');
+    if (poTitle) poTitle.textContent = poTitleText;
+    if (poSub) poSub.textContent = poSubText;
+  }
+  function requestResume() {
+    if (!paused || resumeTimer) return;
+    if (!(matchState === 'play')) { resumeMatch(); return; }
+    let n = COUNTDOWN_FROM;
+    const tick = function () { showResumeCount(n); socket.emit('host:resumeCount', { n: n }); playCountBlip(n); };
+    tick();
+    resumeTimer = setInterval(function () {
+      if (!paused) { clearResumeCount(); return; }
+      n--;
+      if (n >= 1) { tick(); return; }
+      clearResumeCount();
+      resumeMatch();
+    }, COUNTDOWN_STEP_MS);
+    updatePauseBtn();
+  }
+  function cancelResume() {
+    clearResumeCount();
+    socket.emit('host:resumeCount', { n: 0 });
+    updatePauseBtn();
+  }
   pauseBtn && pauseBtn.addEventListener('click', function () {
-    if (paused) resumeMatch(); else pauseMatch();
+    if (!paused) pauseMatch();
+    else if (resumeTimer) cancelResume();
+    else requestResume();
   });
 
   // ---------------- Loop ----------------

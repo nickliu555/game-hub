@@ -180,3 +180,39 @@
     }
   });
 })();
+
+/* Clear every confetti piece on the page at once. Games call this when they
+   leave their results screen, so a quick "Play again" doesn't carry falling
+   confetti into the next game. Covers each game's confetti class names. */
+(function () {
+  var SEL = '.confetti, .confetti-piece, .confetti-bit';
+  window.clearConfetti = function () {
+    var bits = document.querySelectorAll(SEL);
+    for (var i = 0; i < bits.length; i++) if (bits[i].parentNode) bits[i].parentNode.removeChild(bits[i]);
+  };
+})();
+
+/* Stop any applause still playing. Games call this together with
+   clearConfetti() when they leave their results screen. Covers the recorded
+   applause (<audio id="…applause…"> elements and Audio objects registered with
+   trackApplause) and synth claps whose output gain was registered. */
+(function () {
+  var tracked = [];
+  window.trackApplause = function (x) {
+    if (x && tracked.indexOf(x) < 0) tracked.push(x);
+    return x;
+  };
+  function silence(x) {
+    try {
+      if (typeof x.pause === 'function') { x.pause(); x.currentTime = 0; return true; }
+      if (x.gain) { x.gain.cancelScheduledValues(0); x.gain.value = 0; x.disconnect(); }
+    } catch (_) {}
+    return false;
+  }
+  window.stopApplause = function () {
+    var els = document.querySelectorAll('audio[id*="applause"]');
+    for (var i = 0; i < els.length; i++) silence(els[i]);
+    // Media elements stay registered (they're reused); synth gains are done.
+    tracked = tracked.filter(function (x) { return silence(x); });
+  };
+})();

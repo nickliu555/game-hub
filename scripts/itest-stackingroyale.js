@@ -8,7 +8,7 @@ const { Server } = require('socket.io');
 const { io: connect } = require('socket.io-client');
 const { Field } = require('tetris-fumen');
 const mountStackingRoyale = require('../server/stackingroyale');
-const { STEP_MS } = require('../server/stackingroyale/game');
+const { STEP_MS, GAME_OVER_MS } = require('../server/stackingroyale/game');
 
 function request(socket, event, payload = {}) {
   return new Promise((resolve, reject) => {
@@ -184,9 +184,17 @@ async function cpuLifecycle({ game, client, initialHost, outsider }) {
     assert.deepEqual(recovery.board, snapshot(human.board));
     assert.ok(recovery.state.players.every(entry => !entry.view));
     human.board = Board.from({ ...new Board(42).snapshot(), active: null, over: true });
-    const final = eventOnce(host, 'state:match', state => state.phase === 'FINAL');
+    const gameOver = eventOnce(host, 'state:match', state => state.phase === 'GAME_OVER');
+    const final = eventOnce(host, 'state:match', state => state.phase === 'FINAL', GAME_OVER_MS + 4000);
     assert.equal((await request(host, 'host:resume')).ok, true);
+    const frozenState = await gameOver;
+    const frozenAt = performance.now();
+    assert.deepEqual(frozenState.winnerIds, [botId], 'Winners are decided when the match freezes');
+    assert.deepEqual(frozenState.finalistIds.slice().sort(), [botId, humanId].sort());
+    assert.equal((await request(host, 'host:pause')).reason, 'not-playing', 'The game-over hold cannot be paused');
     const finalState = await final;
+    const held = performance.now() - frozenAt;
+    assert.ok(held >= GAME_OVER_MS - 250 && held <= GAME_OVER_MS + 1000, `Game-over hold lasted ${Math.round(held)}ms`);
     assert.deepEqual(finalState.winnerIds, [botId]);
     assert.equal(finalState.players.length, 2);
     assert.equal(finalState.players.find(entry => entry.id === botId).isBot, true);
@@ -345,7 +353,8 @@ async function run() {
         for (let drop = 0; drop < 10 && game.phase === 'PLAYING'; drop++) {
           assert.equal((await request(socket, 'player:action', { matchId: soloMatchId, seq: player(0).seq + 1, action: 'drop' })).ok, true);
         }
-        assert.equal(game.phase, 'FINAL', 'A one-player game ends on normal top-out');
+        assert.equal(game.phase, 'GAME_OVER', 'A one-player game ends on normal top-out');
+        assert.deepEqual(game.state().finalistIds, ['player-0']);
         assert.equal(player(0).alive, false);
         assert.deepEqual(game.winnerIds, []);
         const reset = await request(host, 'host:reset');
@@ -841,6 +850,14 @@ async function run() {
     assert.equal(loser.survivalMs, finalDuration, 'The input that causes topout must count its tick');
     assert.equal(player(1).survivalMs, finalDuration, 'The winner survives the full match');
     for (let index = 0; index < 60; index++) game.step();
+    assert.equal(game.phase, 'GAME_OVER', 'Both screens hold the frozen boards before the results');
+    const frozenRecovery = await request(players[0], 'player:reconnect', { playerId: 'player-0' });
+    assert.equal(frozenRecovery.state.phase, 'GAME_OVER');
+    assert.deepEqual(frozenRecovery.state.finalistIds.slice().sort(), ['player-0', 'player-1']);
+    assert.deepEqual(frozenRecovery.board, snapshot(loser.board));
+    assert.equal((await request(players[1], 'player:action', { matchId, seq: player(1).seq + 1, action: 'left' })).reason, 'not-playing');
+    for (let index = 0; index < Math.ceil(GAME_OVER_MS / STEP_MS) && game.phase === 'GAME_OVER'; index++) game.step();
+    assert.equal(game.phase, 'FINAL');
     assert.equal(game.elapsedMs, finalDuration);
     assert.equal(loser.survivalMs, finalDuration);
     assert.equal(player(1).survivalMs, finalDuration);
@@ -866,7 +883,7 @@ async function run() {
     await disconnectedState;
     const naturalEvents = [];
     for (let index = 0; index < 100000 && game.phase === 'PLAYING'; index++) naturalEvents.push(...game.step());
-    assert.equal(game.phase, 'FINAL', 'AFK gravity must eventually cause a natural topout');
+    assert.equal(game.phase, 'GAME_OVER', 'AFK gravity must eventually cause a natural topout');
     assert.equal(game.players.size, 2);
     assert.equal(naturalEvents.filter(event => event.type === 'elimination').length, 2);
     assert.deepEqual(game.winnerIds, []);

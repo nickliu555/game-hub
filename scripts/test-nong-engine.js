@@ -236,6 +236,62 @@ for (const n of [3, 4]) {
   check(n + 'P: no ball sneaks behind a parked paddle (' + sneaks + ')', sneaks === 0);
 }
 
+// ---- Paddles are solid: the ball never passes through one ----
+// Shots aimed round either end of a paddle (off the corner walls, past the
+// end), half of them while the player keeps sliding the paddle about. The
+// ball may bounce off the paddle's ends, but must never sink into its body.
+function paddlePenetration(w) {
+  const b = w.ball;
+  let worst = 0;
+  for (const p of w.paddles) {
+    if (!p.alive) continue;
+    const s = w.sides[p.side];
+    const bt = (b.x - s.ax) * s.tx + (b.y - s.ay) * s.ty;
+    const bd = (b.x - s.ax) * s.nx + (b.y - s.ay) * s.ny;
+    const qt = Math.max(p.s - w.paddleLen / 2, Math.min(p.s + w.paddleLen / 2, bt));
+    worst = Math.max(worst, w.ballR + w.paddleThick / 2 - Math.hypot(bt - qt, bd - w.inset));
+  }
+  return worst;
+}
+for (const n of [2, 3, 4]) {
+  let seed = 4242 + n;
+  const rand = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  let shots = 0, ghosts = 0, deepest = 0;
+  for (let shot = 0; shot < 2500; shot++) {
+    const w = new Nong.World({ roster: roster(n), rand });
+    const p = w.paddles[0];
+    const side = w.sides[p.side];
+    for (const q of w.paddles) w.setInput(q.id, rand());
+    for (let i = 0; i < 60; i++) w.step();
+    w.frozen = false;
+    w.serve(0);
+    const end = rand() < 0.5 ? -1 : 1;
+    const t = p.s + end * (w.paddleLen / 2 + (rand() * 2 - 1) * 60);
+    const tx = side.ax + side.tx * t, ty = side.ay + side.ty * t;
+    const depth = 60 + rand() * 200, along = (rand() * 2 - 1) * 300;
+    w.ball.x = tx + side.nx * depth + side.tx * along;
+    w.ball.y = ty + side.ny * depth + side.ty * along;
+    const dx = tx - w.ball.x, dy = ty - w.ball.y, len = Math.hypot(dx, dy);
+    const sp = Nong.START_SPEED + rand() * (Nong.MAX_SPEED - Nong.START_SPEED);
+    w.ball.speed = sp; w.ball.vx = dx / len * sp; w.ball.vy = dy / len * sp;
+    if (!inside(w, w.ball.x, w.ball.y, -w.ballR)) continue;
+    shots++;
+    const wiggle = rand() < 0.5;
+    let worst = 0;
+    for (let i = 0; i < 240; i++) {
+      if (wiggle && i % 6 === 0) w.setInput('p0', rand());
+      const r = w.step();
+      w.events.length = 0;
+      worst = Math.max(worst, paddlePenetration(w));
+      if (r) break;
+    }
+    deepest = Math.max(deepest, worst);
+    if (worst > w.ballR) ghosts++;
+  }
+  check(n + 'P: shots round the paddle ends were tested (' + shots + ')', shots > 1500);
+  check(n + 'P: the ball never passes through a paddle (' + ghosts + ', deepest overlap ' + deepest.toFixed(1) + ')', ghosts === 0);
+}
+
 // ---- Long CPU-vs-CPU soak: the ball never escapes, goals keep coming ----
 for (const n of [2, 3, 4]) {
   let seed = 12345 + n;

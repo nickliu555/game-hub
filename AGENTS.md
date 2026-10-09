@@ -309,6 +309,9 @@ source page passes the destination's theme into `Iris.transitionTo`, which stash
   `.thing[hidden] { display: none }` when toggling via `el.hidden`.
 - Host lobby: size panels from the grid (equal-height, QR shrinks to fit), never a fixed
   `vh`/`px` height on one panel.
+- Host lobby: an "Open spot" placeholder and the player tile that replaces it must be the
+  **same height** (shared `min-height`, `box-sizing: border-box`), so a join/kick swaps one
+  for the other without the list jumping.
 - Static CSS is cached — when verifying a CSS change in the browser, cache-bust the
   stylesheet (`link.href = ...+'?v='+Date.now()`) or it may not reload.
 

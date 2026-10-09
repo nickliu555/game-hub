@@ -167,9 +167,10 @@ A co-op guessing game — one player secretly ranks a list, and the group has to
 By default, **Custom Words** mode is on: before the first round everyone secretly submits five words of their own to build the pool (each used once). Turn it off to play from the built-in phrase bank instead.
 
 ### 👻 Maze Chomp
-A multiplayer maze showdown played out on the Host screen — 2–4 players each steer their own chomper from their phone.
+A multiplayer maze showdown played out on the Host screen — 1–4 players each steer their own chomper from their phone.
 
-1. Players scan the QR code to join (2–4 players); the host can **Add CPU** chompers to fill in
+1. Players scan the QR code to join (1–4 players); the host can **Add CPU** chompers to fill in
+   - **A single chomper** (one player, or a lone CPU) plays **solo**: one life and no timer. Clear the maze to reach the next level — it refills and the ghosts get faster each time (they match your speed by level 4). Score as much as you can to beat the **session best**
 2. The host sets the **round length** and how many **round wins** take the game, then hits **Start**
 3. Each phone is a **D-pad** — up / down / left / right steer your chomper; the maze edges **wrap** to the other side
 4. **Gobble pellets** (and the occasional **cherry**) for points while dodging the four ghosts
@@ -224,6 +225,25 @@ The arcade paddle classic on the Host screen — a head-to-head court for 2, a t
 8. The **last paddle standing wins!**
 
 The host can **Pause** at any time.
+
+### 🐍 Snake Party
+The classic arcade snake for 1–4 players on the Host screen — eat, grow, and box in your rivals.
+
+1. Players scan the QR code to join (**1–4 players**); the host can **Add CPU** snakes to fill in
+2. **A single snake** (one player, or a lone CPU) plays classic **solo Snake** — one apple at a time, one life, and you speed up with every apple. The clock starts on your first move. Grow the longest snake to beat the **session best**!
+3. With **2–4 snakes**, the host sets the **round length**, how many **round wins** take the game and **Power-ups On/Off**, then hits **Start**
+4. Each phone is a controller — **joystick, swipe or tap zones** steer your snake up / down / left / right
+5. **Eat apples to grow** — several are on the map at once
+6. Hit the **edge of the map**, a **wall**, **yourself** or **another snake** and you're out for the round — the edges do **not** wrap — and you leave a golden **special apple** worth **+5 length** on your tail for anyone to grab
+7. **Head-on** collisions take out **both** snakes, and everyone **speeds up** as the round goes on
+   - **Power-ups** (multiplayer, when On) appear one at a time — grab one by eating it:
+     - 🧲 **Magnet** (6 s): apples and golden apples within 3 cells drift toward your head
+     - 👻 **Phantom** (6 s): 1.2× speed and you pass through walls and every snake (they pass through you too) — but the **edges still kill**. If it runs out while you're inside something, you stay ghosted until your head is in an open cell (up to 2 s more)
+8. **The longest snake wins the round** — not the last one standing. A crashed snake keeps the length it crashed at, so it can still win, but it stops growing. On equal length a snake that's still alive wins; a dead heat between crashed snakes is a **draw**
+   - The round ends when time runs out, when everyone has crashed, or as soon as a lone survivor is already longer than every crashed snake
+9. **First to the target number of round wins takes the game!**
+
+The host can **Pause** at any time. Each round rotates to a different obstacle map.
 
 ### 🧱 Stacking Royale
 **A falling-block Puzzle battle for 1–30 players, with classic endless solo practice.**

@@ -8,6 +8,7 @@
   const MAX_STEPS = 20;
   const COUNTDOWN_FROM = 3;
   const COUNTDOWN_STEP_MS = 800;
+  const FINAL_BEEP_FROM = 5;        // beep on each of the last five seconds (as in Nockey)
   const CLOCK_EMIT_MS = 250;
   const ROUNDOVER_MS = 7000;
   const ROUND_END_HOLD_MS = 2000;   // freeze the board this long before the scoreboard
@@ -21,6 +22,10 @@
     final: document.getElementById('view-final'),
   };
   function show(name) {
+    if (name !== 'final') {
+      if (window.clearConfetti) window.clearConfetti();
+      if (window.stopApplause) window.stopApplause();
+    }
     Object.keys(views).forEach(function (k) { views[k].classList.toggle('active', k === name); });
   }
 
@@ -56,6 +61,15 @@
   const finalList = document.getElementById('finalList');
   const finalAwards_el = document.getElementById('finalAwards');
   const finalAwardsSection = document.getElementById('finalAwardsSection');
+  const finalScroll = document.getElementById('finalScroll');
+  const soloResult = document.getElementById('soloResult');
+  const soloScoreEl = document.getElementById('soloScore');
+  const soloLevelEl = document.getElementById('soloLevel');
+  const soloBestEl = document.getElementById('soloBest');
+  const playAgainBtn = document.getElementById('playAgainBtn');
+  const backToLobbyBtn = document.getElementById('backToLobbyBtn');
+  const configBlock = document.getElementById('configBlock');
+  const levelPop = document.getElementById('levelPop');
 
   const fullscreenBtn = document.getElementById('fullscreenBtn');
   const resetBtn = document.getElementById('resetBtn');
@@ -126,6 +140,24 @@
   function getAudioCtx() { if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) {} } return audioCtx; }
   function unlockAudio() { const c = getAudioCtx(); if (c && c.state === 'suspended') c.resume(); }
   document.addEventListener('pointerdown', unlockAudio, { once: true });
+  // Round-end banner impact: a low thump under a short noise hit.
+  function playSlam(kind) {
+    const c = getAudioCtx(); if (!c) return; const t = c.currentTime;
+    const o = c.createOscillator(); const g = c.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(kind === 'down' ? 120 : 150, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.3);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.45, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + 0.37);
+    try {
+      const len = Math.floor(c.sampleRate * 0.18);
+      const buf = c.createBuffer(1, len, c.sampleRate); const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+      const src = c.createBufferSource(); src.buffer = buf;
+      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
+      const ng = c.createGain(); ng.gain.value = 0.35;
+      src.connect(lp); lp.connect(ng); ng.connect(c.destination); src.start(t); src.stop(t + 0.19);
+    } catch (_) {}
+    if (kind === 'win') [784, 1047, 1319].forEach(function (f, i) { blip(f, 0.18, 'triangle', 0.1, t + 0.08 + i * 0.06); });
+  }
   function blip(freq, dur, type, gain, when) {
     const c = getAudioCtx(); if (!c) return;
     const t = when || c.currentTime;
@@ -165,6 +197,11 @@
     const c = getAudioCtx(); if (!c) return; const b = c.currentTime;
     [523, 659, 784, 1047, 1319, 1568].forEach(function (f, i) { blip(f, 0.3, 'sawtooth', 0.15, b + i * 0.1); });
   }
+  // Runs-out-of-time ticks. One flat pitch, set above the rising start count
+  // so the two countdowns never sound alike from across the room.
+  function playSad() { const c = getAudioCtx(); if (!c) return; const b = c.currentTime;[392, 370, 349, 294].forEach(function (f, i) { blip(f, i === 3 ? 0.7 : 0.3, 'triangle', 0.18, b + i * 0.26); }); }
+  function playLevelUp() { const c = getAudioCtx(); if (!c) return; const b = c.currentTime;[523, 659, 784, 1047, 1319].forEach(function (f, i) { blip(f, 0.16, 'square', 0.12, b + i * 0.07); }); }
+  function playFinalTick() { blip(860, 0.12, 'square', 0.16); }
   function beep(n) { blip(440 + (COUNTDOWN_FROM - n) * 120, 0.1, 'square', 0.14); }
 
   // ---------------- Lobby ----------------
@@ -214,9 +251,12 @@
     for (let i = l.players.length; i < l.capacity; i++) {
       const e = document.createElement('div'); e.className = 'slot-empty'; e.textContent = 'Open spot'; slotList.appendChild(e);
     }
+    const solo = l.total > 0 && l.mode === 'solo';
+    if (configBlock) configBlock.hidden = solo;
     startBtn.disabled = !l.canStart;
+    startBtn.textContent = solo ? 'Start solo!' : 'Start!';
     if (addBotBtn) addBotBtn.disabled = l.total >= l.capacity;
-    configHint.textContent = l.canStart ? '' : ('Need at least ' + l.minPlayers + ' players (add a CPU to fill in).');
+    configHint.textContent = l.canStart ? '' : 'Waiting for a player to join…';
   }
 
   // ---- Smooth pointer-drag to reorder the lobby (order = seat/colour/corner) --
@@ -334,10 +374,19 @@
   startBtn.addEventListener('click', function () {
     unlockAudio();
     socket.emit('host:start', {}, function (res) {
-      if (!res || !res.ok) { toast('Need at least 2 players to start.'); return; }
-      startMatch(res.roster, { roundLengthSec: res.roundLengthSec, roundsToWin: res.roundsToWin }, null);
+      if (!res || !res.ok) { toast('Need at least 1 player to start.'); return; }
+      startMatch(res.roster, res, null);
     });
   });
+
+  playAgainBtn && playAgainBtn.addEventListener('click', function () {
+    unlockAudio();
+    socket.emit('host:rematch', {}, function (res) {
+      if (!res || !res.ok) { toast('Could not start a new game.'); return; }
+      startMatch(res.roster, res, null);
+    });
+  });
+  backToLobbyBtn && backToLobbyBtn.addEventListener('click', function () { socket.emit('host:reset', {}); });
 
   // ---------------- Match state ----------------
   let world = null, renderer = null, rafId = null, lastFrame = 0, acc = 0;
@@ -346,6 +395,20 @@
   let roundLengthSec = 60, roundsToWin = 3;
   let round = 1, mazeIndex = 0, mazeOrder = [];
   let clockMs = 0, lastClockEmit = 0;
+  // Solo: a single chomper, one life, no timer. Each cleared maze is a new
+  // level and the ghosts speed up, matching the chomper's speed by level 4.
+  let mode = 'multi';
+  let soloBest = null;
+  let level = 1;
+  let soloSec = 0;
+  const SOLO_CAP_LEVEL = 4;
+  function ghostMulFor(lv) {
+    const MC = window.MazeChomp;
+    const cap = (MC && MC.CHOMPER_SPEED && MC.GHOST_SPEED) ? MC.CHOMPER_SPEED / MC.GHOST_SPEED : 1.05;
+    const k = Math.min(1, (Math.max(1, lv) - 1) / (SOLO_CAP_LEVEL - 1));
+    return 1 + (cap - 1) * k;
+  }
+  let lastTickSec = -1;  // last whole second announced, so a beep fires once
   let gamePoints = {}; // id -> rounds won
   let roundEndAt = null; // performance.now() when the round was decided (start of the freeze)
   let countdownTimer = null, roundOverTimer = null;
@@ -400,14 +463,16 @@
       }
     });
   }
+  let resumeTimer = null;   // running resume 3-2-1, if any
   function updatePauseBtn() {
     if (!pauseBtn) return;
     const ongoing = matchState === 'countdown' || matchState === 'play' || matchState === 'roundover';
     pauseBtn.hidden = !ongoing;
-    pauseBtn.textContent = paused ? '▶ Resume' : '⏸ Pause';
+    pauseBtn.textContent = (paused && !resumeTimer) ? '▶ Resume' : '⏸ Pause';
   }
   function pauseMatch() {
     if (paused) return;
+    clearResumeCount();
     const ongoing = matchState === 'countdown' || matchState === 'play' || matchState === 'roundover';
     if (!ongoing) return;
     paused = true;
@@ -428,7 +493,52 @@
     updatePauseBtn();
     socket.emit('host:resume', { live: matchState === 'play' });
   }
-  pauseBtn && pauseBtn.addEventListener('click', function () { if (paused) resumeMatch(); else pauseMatch(); });
+  // ---- Resume countdown ----
+  // Resuming into live play runs a 3-2-1 first. The game stays paused the whole
+  // time (clock, movement and timers frozen), so the countdown never counts as
+  // play time. Pressing Pause again cancels it; resuming anywhere else (pre-round
+  // countdown, between points/rounds) is instant.
+  const poTitle = pauseOverlay && pauseOverlay.querySelector('.po-title');
+  const poSub = pauseOverlay && pauseOverlay.querySelector('.po-sub');
+  const poTitleText = poTitle ? poTitle.textContent : '';
+  const poSubText = poSub ? poSub.textContent : '';
+  function showResumeCount(n) {
+    if (!pauseOverlay) return;
+    pauseOverlay.classList.add('resuming');
+    if (poTitle) { poTitle.textContent = n; poTitle.style.animation = 'none'; void poTitle.offsetWidth; poTitle.style.animation = ''; }
+    if (poSub) poSub.textContent = 'Get ready…';
+  }
+  function clearResumeCount() {
+    if (resumeTimer) { clearInterval(resumeTimer); resumeTimer = null; }
+    if (pauseOverlay) pauseOverlay.classList.remove('resuming');
+    if (poTitle) poTitle.textContent = poTitleText;
+    if (poSub) poSub.textContent = poSubText;
+  }
+  function requestResume() {
+    if (!paused || resumeTimer) return;
+    if (!(matchState === 'play')) { resumeMatch(); return; }
+    let n = COUNTDOWN_FROM;
+    const tick = function () { showResumeCount(n); socket.emit('host:resumeCount', { n: n }); beep(n); };
+    tick();
+    resumeTimer = setInterval(function () {
+      if (!paused) { clearResumeCount(); return; }
+      n--;
+      if (n >= 1) { tick(); return; }
+      clearResumeCount();
+      resumeMatch();
+    }, COUNTDOWN_STEP_MS);
+    updatePauseBtn();
+  }
+  function cancelResume() {
+    clearResumeCount();
+    socket.emit('host:resumeCount', { n: 0 });
+    updatePauseBtn();
+  }
+  pauseBtn && pauseBtn.addEventListener('click', function () {
+    if (!paused) pauseMatch();
+    else if (resumeTimer) cancelResume();
+    else requestResume();
+  });
 
   function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0;[a[i], a[j]] = [a[j], a[i]]; } return a; }
 
@@ -436,6 +546,8 @@
     roster = rost || [];
     roundLengthSec = (cfg && cfg.roundLengthSec) || 60;
     roundsToWin = (cfg && cfg.roundsToWin) || 3;
+    mode = (cfg && cfg.mode) === 'solo' ? 'solo' : 'multi';
+    soloBest = (cfg && cfg.soloBest) || null;
     gamePoints = {};
     roster.forEach(function (r) { gamePoints[r.id] = 0; });
     // Fresh award stats for the match.
@@ -459,12 +571,16 @@
     world.setRoster(roster);
     world.reset(mazeIndex);
     world.frozen = true;
+    level = 1; soloSec = 0;
+    world.ghostSpeedMul = 1;
+    if (levelPop) levelPop.hidden = true;
     renderer = new window.MazeChompRender.Renderer(canvas, world);
     prevPowered = {};
     roster.forEach(function (rr) { prevPowered[rr.id] = false; });
     clockMs = roundLengthSec * 1000;
+    lastTickSec = -1;
     roundEndAt = null;
-    if (reasonOverlay) reasonOverlay.hidden = true;
+    hideReason();
     inputQueue.length = 0;
     paused = false; pClearAll();
     if (pauseOverlay) pauseOverlay.hidden = true;
@@ -488,7 +604,7 @@
       countOverlay.hidden = false;
       coNum.textContent = v;
       coNum.style.animation = 'none'; void coNum.offsetWidth; coNum.style.animation = '';
-      if (coNote) coNote.textContent = 'Round ' + round;
+      if (coNote) coNote.textContent = mode === 'solo' ? 'Get ready!' : 'Round ' + round;
       socket.emit('host:countdown', { n: v });
       beep(v);
     }
@@ -542,9 +658,20 @@
       for (const p of world.players) {
         if (p.powered !== prevPowered[p.id]) { prevPowered[p.id] = p.powered; socket.emit('host:powered', { id: p.id, on: p.powered }); }
       }
+      if (mode === 'solo') {
+        soloLoop(now, dt, agg);
+        if (renderer) renderer.render(dt);
+        return;
+      }
       // Clock.
       clockMs -= dt * 1000;
       if (clockMs < 0) clockMs = 0;
+      // Final-seconds ticks, but only while the round is still undecided.
+      const secLeft = Math.ceil(clockMs / 1000);
+      if (secLeft !== lastTickSec) {
+        if (roundEndAt === null && lastTickSec >= 0 && secLeft >= 1 && secLeft <= FINAL_BEEP_FROM) playFinalTick();
+        lastTickSec = secLeft;
+      }
       updateScoreStrip();
       if (now - lastClockEmit >= CLOCK_EMIT_MS) {
         lastClockEmit = now;
@@ -585,6 +712,81 @@
     if (renderer) renderer.render(dt);
   }
 
+  // Solo: no clock and no rounds — clear the maze to level up, play until you die.
+  function soloLoop(now, dt, agg) {
+    if (roundEndAt === null) soloSec += dt;
+    if (agg.boardCleared && roundEndAt === null) levelUp();
+    updateScoreStrip();
+    if (now - lastClockEmit >= CLOCK_EMIT_MS) {
+      lastClockEmit = now;
+      socket.emit('host:clock', { ms: Math.round(soloSec * 1000), scores: world.scores() });
+    }
+    if (world.aliveCount() === 0 && roundEndAt === null) {
+      roundEndAt = now;
+      world.settleFreeze = true;
+      showEndReason('over');
+    }
+    if (roundEndAt !== null && (now - roundEndAt) >= ROUND_END_HOLD_MS && !world.anyDying()) finishSolo();
+  }
+
+  function levelUp() {
+    level++;
+    world.ghostSpeedMul = ghostMulFor(level);
+    socket.emit('host:level', { level: level });
+    playLevelUp();
+    if (levelPop) {
+      levelPop.textContent = 'Level ' + level + '!';
+      levelPop.hidden = false;
+      levelPop.style.animation = 'none'; void levelPop.offsetWidth; levelPop.style.animation = '';
+      clearTimeout(levelUp._t);
+      levelUp._t = setTimeout(function () { levelPop.hidden = true; }, 1900);
+    }
+  }
+
+  function finishSolo() {
+    if (matchState !== 'play') return;
+    matchState = 'ended';
+    paused = false;
+    pClearAll();
+    if (pauseOverlay) pauseOverlay.hidden = true;
+    updatePauseBtn();
+    hideReason();
+    stopLoop();
+    const p = world && world.players[0];
+    const score = p ? (p.score || 0) : 0;
+    let shown = false;
+    const fallback = setTimeout(function () {
+      if (shown) return; shown = true;
+      renderSoloFinal({ score: score, level: level, newBest: false }, soloBest);
+      playSad();
+    }, 1500);
+    socket.emit('host:matchEnd', { soloScore: score, soloLevel: level }, function (res) {
+      if (shown) return; shown = true;
+      clearTimeout(fallback);
+      const solo = (res && res.solo) || { score: score, level: level, newBest: false };
+      soloBest = (res && res.soloBest) || soloBest;
+      renderSoloFinal(solo, soloBest);
+      if (solo.newBest) { playGameWin(); launchConfetti(); } else playSad();
+    });
+  }
+
+  function renderSoloFinal(solo, best) {
+    solo = solo || { score: 0, level: 1, newBest: false };
+    if (finalScroll) finalScroll.hidden = true;
+    if (soloResult) soloResult.hidden = false;
+    finalTrophy.textContent = solo.newBest ? '🏆' : '👻';
+    finalHeading.textContent = solo.newBest ? 'New session best!' : 'Game over!';
+    soloScoreEl.textContent = solo.score;
+    soloLevelEl.textContent = 'Reached level ' + (solo.level || 1);
+    soloBestEl.textContent = '';
+    if (solo.newBest) { const b = document.createElement('span'); b.className = 'new-best'; b.textContent = 'NEW BEST'; soloBestEl.appendChild(b); }
+    if (best) {
+      soloBestEl.appendChild(document.createTextNode('Session best: '));
+      const n = document.createElement('span'); n.className = 'best-num'; n.textContent = best.score; soloBestEl.appendChild(n);
+    }
+    show('final');
+  }
+
   function handleEvents(agg) {
     if (agg.pellets > 0) playChomp();
     if (agg.fruitEaten) playFruit();
@@ -613,22 +815,41 @@
     }
   }
 
-  // Brief banner shown during the round-end freeze, naming how the round ended.
+  // Banner shown during the round-end freeze, naming how the round ended.
   function showEndReason(kind) {
     if (!reasonOverlay || !reasonText) return;
-    const label = kind === 'down' ? "Everyone's down!"
+    const text = kind === 'over' ? 'Game over!'
+      : kind === 'down' ? "Everyone's down!"
       : kind === 'clinch' ? 'Last one leading!'
       : "Time's up!";
-    reasonText.textContent = label;
-    reasonOverlay.hidden = false;
-    reasonText.style.animation = 'none'; void reasonText.offsetWidth; reasonText.style.animation = '';
+    const bk = kind === 'over' ? 'over' : kind === 'down' ? 'down' : kind === 'clinch' ? 'win' : 'time';
+    let spot = null, color = null;
+    if (bk === 'win' && world && renderer) {
+      const p = world.players.find(function (q) { return q.alive; });
+      if (p) {
+        const m = renderer._metrics();
+        spot = { x: m.ox + p.x * m.ts + m.ts / 2, y: m.oy + p.y * m.ts + m.ts / 2 };
+        color = colorOf(p.id);
+      }
+    }
+    if (window.EndBanner) {
+      window.EndBanner.show({ overlay: reasonOverlay, board: canvas, clock: sbClock, text: text, kind: bk, color: color, spot: spot, sound: playSlam });
+    } else {
+      reasonText.textContent = text;
+      reasonOverlay.hidden = false;
+    }
+  }
+
+  function hideReason() {
+    if (reasonOverlay) reasonOverlay.hidden = true;
+    if (window.EndBanner) window.EndBanner.reset(reasonOverlay, canvas, sbClock);
   }
 
   function endRound() {
     if (matchState !== 'play') return;
     matchState = 'roundover';
     updatePauseBtn();
-    if (reasonOverlay) reasonOverlay.hidden = true;
+    hideReason();
     if (world) world.frozen = true;
     const scores = world.scores();
     // Accumulate award stats for this round (total points + rounds survived).
@@ -740,8 +961,13 @@
     });
   }
   function updateScoreStrip() {
-    if (sbRound) sbRound.textContent = 'Round ' + round;
-    if (sbClock) { sbClock.textContent = fmtClock(clockMs); sbClock.classList.toggle('urgent', clockMs <= 10000); }
+    if (mode === 'solo') {
+      if (sbRound) sbRound.textContent = 'Solo · Level ' + level;
+      if (sbClock) { sbClock.textContent = fmtDur(Math.floor(soloSec)); sbClock.classList.remove('urgent'); }
+    } else {
+      if (sbRound) sbRound.textContent = 'Round ' + round;
+      if (sbClock) { sbClock.textContent = fmtClock(clockMs); sbClock.classList.toggle('urgent', clockMs <= 10000); }
+    }
     const scores = world ? world.scores() : {};
     const cards = scoreStrip.children;
     // Leader = the player(s) with the strictly-highest round score, but only once
@@ -756,6 +982,7 @@
       card.classList.toggle('leader', maxScore > 0 && (scores[pid] || 0) === maxScore);
       // Game-point pips.
       const pipsEl = card.querySelector('.sc-pips');
+      if (mode === 'solo') { pipsEl.innerHTML = ''; card.classList.remove('leader'); continue; }
       const want = roundsToWin, have = gamePoints[pid] || 0;
       if (pipsEl.children.length !== want) {
         pipsEl.innerHTML = '';
@@ -783,6 +1010,8 @@
   }
 
   function renderFinal(champs) {
+    if (soloResult) soloResult.hidden = true;
+    if (finalScroll) finalScroll.hidden = false;
     const names = champs.map(function (id) { const r = roster.find(function (x) { return x.id === id; }); return r ? r.name : '?'; });
     finalTrophy.textContent = '🏆';
     finalHeading.textContent = names.length > 1 ? (names.join(' & ') + ' win!') : ((names[0] || 'Someone') + ' wins!');
@@ -953,7 +1182,7 @@
       else if (res.phase === 'PLAYING' && res.match) {
         // Host refreshed mid-match: restart the CURRENT round fresh, preserving
         // game points + round number (positions/pellet progress can't restore).
-        startMatch(res.match.roster, { roundLengthSec: res.match.roundLengthSec, roundsToWin: res.match.roundsToWin }, {
+        startMatch(res.match.roster, res.match, {
           gamePoints: res.match.gamePoints, round: res.match.round,
         });
       } else if (res.phase === 'FINAL' && res.match) {
@@ -961,7 +1190,10 @@
         gamePoints = res.match.gamePoints || {};
         roundsToWin = res.match.roundsToWin;
         finalAwards = res.match.awards || null;
-        renderFinal(res.match.winnerIds || []);
+        mode = res.match.mode === 'solo' ? 'solo' : 'multi';
+        matchState = 'ended';
+        if (mode === 'solo') renderSoloFinal(res.match.solo, res.match.soloBest);
+        else renderFinal(res.match.winnerIds || []);
       }
       if (window.Iris && typeof window.Iris.ready === 'function') window.Iris.ready();
     });
@@ -977,6 +1209,9 @@
     paused = false;
     matchState = 'idle'; world = null; renderer = null; lastHumanTotal = -1;
     stats = {}; fastestDeath = null; finalAwards = null;
+    mode = 'multi'; level = 1; soloSec = 0;
+    if (levelPop) levelPop.hidden = true;
+    hideReason();
     if (roundOverlay) roundOverlay.hidden = true; if (countOverlay) countOverlay.hidden = true;
     if (pauseOverlay) pauseOverlay.hidden = true;
     updatePauseBtn();

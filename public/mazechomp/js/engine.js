@@ -400,7 +400,8 @@
 
     // ---- Ghost movement ----
     _moveGhost(g, dt) {
-      let speed = GHOST_SPEED;
+      // ghostSpeedMul: solo raises it each level (normal chase speed only).
+      let speed = GHOST_SPEED * (this.ghostSpeedMul || 1);
       if (g.state === 'eyes') speed = GHOST_EYES_SPEED;
       else if (g.state === 'frightened') speed = GHOST_FRIGHT_SPEED;
       else if (g.state === 'pen') {
@@ -722,6 +723,7 @@
     POWER_SEC, POWER_FLASH_SEC, FRIGHT_SEC, DEATH_ANIM_SEC,
     PELLET_PTS, POWER_PTS, FRUIT_PTS, GHOST_BASE_PTS, EAT_PLAYER_PTS,
     GHOST_NAMES, GHOST_COLORS,
+    CHOMPER_SPEED, GHOST_SPEED,
   };
   global.MazeChomp = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

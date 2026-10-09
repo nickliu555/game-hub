@@ -325,7 +325,9 @@ async function scenario(engine, browserType) {
     for (const player of game.players.values()) if (player.id !== firstBot.id) player.board = Board.from({ ...new Board(42).snapshot(), active: null, over: true });
     const beforeFinalAudio = await audioCount(host);
     await host.locator('#pauseBtn').click();
-    await check(host.locator('#view-final')).toBeVisible();
+    await check.poll(() => game.phase).toBe('GAME_OVER');
+    await check(host.locator('#matchOverlayTitle')).toHaveText('Game over');
+    await check(host.locator('#view-final'), { timeout: 10000 }).toBeVisible();
     await check(phone.locator('#results')).toBeVisible();
     assert.equal(game.phase, 'FINAL');
     assert.deepEqual(game.winnerIds, [firstBot.id]);

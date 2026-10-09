@@ -29,6 +29,10 @@
   var showTimer = null;
   var pendingView = null;
   function show(name) {
+    if (name !== 'final') {
+      if (window.clearConfetti) window.clearConfetti();
+      if (window.stopApplause) window.stopApplause();
+    }
     var incoming = views[name];
     if (!incoming) return;
     // Kill any pending zoom-out so its timer can't fire over a later phase; the

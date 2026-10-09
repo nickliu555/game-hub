@@ -376,7 +376,8 @@ const games = [
         description: 'A multiplayer Maze Chomp showdown played on the shared screen. Each player steers a chomper from their phone, racing to gobble pellets and cherries for points while dodging four ghosts. Grab a power pellet to turn big and fast — frighten the ghosts and eat smaller players. Die and you\'re out for the round; the highest score among the survivors takes the round. First to the target number of round wins takes the game.',
         rules: [
             'The host opens the game on a shared screen (TV, laptop, etc.)',
-            'Players scan the QR code on their phones and enter a name (2–4 players; add CPU chompers to fill in)',
+            'Players scan the QR code on their phones and enter a name (1–4 players; add CPU chompers to fill in)',
+            'A single chomper plays solo: one life, no timer — clear the maze to level up as the ghosts get faster, and beat the session best',
             'The host sets the round length and how many round wins take the game, then hits Start',
             'Your phone is a D-pad — up/down/left/right steer your chomper on the big screen',
             'Gobble pellets (and the occasional cherry) for points; edges wrap to the opposite side',
@@ -464,6 +465,33 @@ const games = [
         ],
         hostPath: '/nong/host',
         playPath: '/nong/play',
+    },
+    {
+        id: 'snakeparty',
+        name: 'Snake Party',
+        tagline: 'Eat, grow, and box in your rivals',
+        emoji: '🐍',
+        color: '#14532D',
+        category: 'Arcade',
+        playerCount: '1–4 (+CPU)',
+        duration: '3–10 min',
+        description: 'The classic arcade snake, now for a crowd. Each player steers a snake from their phone on the shared screen, gobbling apples to grow longer while dodging the deadly map edges, walls, their own tail, and every other snake. Crash and you leave a golden special apple worth +5 length on your tail for anyone to grab. The longest snake wins the round — crashing freezes your length — and first to the target number of round wins takes the game. Play alone for classic solo Snake and chase the longest snake of the session.',
+        rules: [
+            'The host opens the game on a shared screen (TV, laptop, etc.)',
+            'Players scan the QR code on their phones and enter a name (1–4 players; add CPU snakes to fill in)',
+            'A single snake (one player, or a lone CPU) plays classic solo Snake — one apple at a time, one life, grow the longest snake to beat the session best',
+            'With 2–4 snakes, the host sets the round length, how many round wins take the game and Power-ups On/Off, then hits Start',
+            'Your phone is the controller — joystick, swipe, or tap zones steer your snake up/down/left/right',
+            'Eat apples to grow',
+            'Hit the edge of the map, a wall, yourself, or another snake and you\'re out for the round — you leave a special apple worth +5 length on your tail',
+            'Head-on collisions take out both snakes, and snakes speed up as the round goes on',
+            'With Power-ups on: 🧲 Magnet pulls nearby apples (and golden apples) to you for 6 seconds; 👻 Phantom gives 1.2× speed and lets you pass through walls and snakes for 6 seconds — but the edges still kill',
+            'The longest snake wins the round, not the last one standing: a crashed snake keeps its length but stops growing, and a living snake wins ties',
+            'The round ends when time runs out, when everyone has crashed, or once a lone survivor is longer than every crashed snake',
+            'First to the target number of round wins takes the game!'
+        ],
+        hostPath: '/snakeparty/host',
+        playPath: '/snakeparty/play',
     },
 ];
 

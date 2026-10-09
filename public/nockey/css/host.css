@@ -148,6 +148,9 @@ body.host {
 }
 .vs-badge { align-self: center; font-weight: 900; font-size: 20px; color: rgba(255,255,255,0.55); }
 
+/* Player tiles and open-spot placeholders share one height, so a join swaps a
+   placeholder for a tile without the list jumping. */
+.player-chip, .slot-empty { box-sizing: border-box; min-height: 50px; }
 .player-chip {
   background: rgba(255,255,255,0.96);
   color: var(--ink);
@@ -189,9 +192,12 @@ body.host {
 .player-chip.is-bot { background: rgba(255,255,255,0.82); }
 .player-chip.is-bot .chip-name::before { content: '🤖 '; }
 .slot-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 2px dashed rgba(255,255,255,0.2);
   border-radius: 12px;
-  padding: 14px;
+  padding: 0 14px;
   text-align: center;
   color: rgba(255,255,255,0.5);
   font-size: 14px;
@@ -490,3 +496,8 @@ body.host {
   0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
   100% { transform: translateY(105vh) rotate(720deg); opacity: 0.9; }
 }
+
+/* Resume countdown: the pause overlay turns into a big 3-2-1. */
+.pause-overlay.resuming .po-icon { display: none; }
+.pause-overlay.resuming .po-title { font-size: 120px; line-height: 1; animation: resumepop 0.4s ease; }
+@keyframes resumepop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }

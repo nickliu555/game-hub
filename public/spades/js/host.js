@@ -112,6 +112,10 @@
     if (name === 'table') { fitSeatNames(); placeBubbles(); }
   }
   function show(name, done) {
+    if (name !== 'final') {
+      if (window.clearConfetti) window.clearConfetti();
+      if (window.stopApplause) window.stopApplause();
+    }
     if (currentView === name) { if (done) done(); return; }
     if (name !== 'table') clearSeatBubbles();
     // Clear any in-flight transition first, or two views can end up .active.
@@ -330,7 +334,7 @@
   document.addEventListener('pointerdown', function () {
     if (!applausePending) return;
     applausePending = false;
-    playApplause();
+    if (currentView === 'final') playApplause();
   });
 
   // ---------------- Confetti ----------------

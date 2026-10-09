@@ -81,6 +81,7 @@
   let controlsEnabled = false;
   let eliminated = false;
   let roundsToWin = 3;
+  let mode = 'multi';        // 'solo' when this is the only chomper
   let myGamePoints = 0;
   let kicked = false;
 
@@ -124,7 +125,7 @@
 
   function applyPhase(res) {
     currentPhase = res.phase;
-    if (res.match) { roundsToWin = res.match.roundsToWin || roundsToWin; myGamePoints = (res.match.gamePoints || {})[playerId] || 0; }
+    if (res.match) { roundsToWin = res.match.roundsToWin || roundsToWin; myGamePoints = (res.match.gamePoints || {})[playerId] || 0; mode = res.match.mode === 'solo' ? 'solo' : 'multi'; }
     if (res.phase === 'LOBBY') { showView('lobby'); }
     else if (res.phase === 'PLAYING') {
       showView('controller');
@@ -156,7 +157,7 @@
   // ---------------- Match events ----------------
   socket.on('m:start', function (d) {
     currentPhase = 'PLAYING';
-    if (d) { roundsToWin = d.roundsToWin || roundsToWin; }
+    if (d) { roundsToWin = d.roundsToWin || roundsToWin; mode = d.mode === 'solo' ? 'solo' : 'multi'; }
     myGamePoints = 0; eliminated = false;
     updateHud(0);
     hideFlash();
@@ -173,7 +174,7 @@
     hideFlash();
     showView('controller');
     setControls(false);
-    showOverlay('', 'Round ' + (d && d.round ? d.round : '') + '…');
+    showOverlay('', mode === 'solo' ? 'Get ready…' : 'Round ' + (d && d.round ? d.round : '') + '…');
   });
   socket.on('m:countdown', function (d) {
     if (eliminated) return;
@@ -216,6 +217,10 @@
       showFlash(won ? 'Round won!' : 'Round over', !!won, true);
     }
   });
+  socket.on('m:level', function (d) {
+    if (eliminated || !d) return;
+    showFlash('Level ' + d.level + '!', true, false);
+  });
   socket.on('m:pause', function () {
     setControls(false);
     if (pauseCover) pauseCover.hidden = false;
@@ -235,6 +240,7 @@
   function updateHud(score) {
     if (typeof score === 'number' && hudScore) hudScore.textContent = score;
     if (!hudPips) return;
+    if (mode === 'solo') { hudPips.innerHTML = ''; return; }
     if (hudPips.children.length !== roundsToWin) {
       hudPips.innerHTML = '';
       for (let k = 0; k < roundsToWin; k++) { const d = document.createElement('span'); d.className = 'pip'; hudPips.appendChild(d); }
@@ -268,11 +274,19 @@
     // Reset to the default "out" message (m:roundOver may later flip it to a win).
     if (elimIcon) elimIcon.textContent = '💀';
     if (elimTitle) { elimTitle.textContent = "You're out!"; elimTitle.style.color = ''; }
-    if (elimSub) elimSub.textContent = "Sit tight — you're back in next round.";
+    if (elimSub) elimSub.textContent = mode === 'solo' ? 'Look up at the host screen for your score.' : "Sit tight — you're back in next round.";
     showView('eliminated');
   }
 
   function renderFinal(d) {
+    if ((d && d.mode) === 'solo' || (!d.mode && mode === 'solo')) {
+      const so = d.solo || { score: 0, level: 1, newBest: false };
+      finalEmoji.textContent = so.newBest ? '🏆' : '👻';
+      finalTitle.textContent = so.newBest ? 'New session best!' : 'Game over';
+      finalSub.textContent = so.score + ' pts · reached level ' + (so.level || 1);
+      showView('final');
+      return;
+    }
     const champs = (d && d.winnerIds) || [];
     const iWon = champs.indexOf(playerId) >= 0;
     if (iWon) { finalEmoji.textContent = '🏆'; finalTitle.textContent = 'You win!'; }
@@ -570,4 +584,27 @@
     localStorage.removeItem('mazechomp.playerId');
     window.location.replace('/mazechomp/join');
   });
+  // Resume countdown from the host: the pause cover shows the 3-2-1.
+  (function () {
+    const cover = document.getElementById('pauseCover');
+    if (!cover) return;
+    const title = cover.querySelector('.pc-title, .pc-note');
+    const sub = cover.querySelector('.pc-sub');
+    const titleText = title ? title.textContent : '';
+    const subText = sub ? sub.textContent : '';
+    function reset() {
+      cover.classList.remove('resuming');
+      if (title) title.textContent = titleText;
+      if (sub) sub.textContent = subText;
+    }
+    socket.on('m:resumeCount', function (d) {
+      const n = d && Number(d.n);
+      if (!(n > 0)) { reset(); return; }
+      cover.classList.add('resuming');
+      if (title) { title.textContent = n; title.style.animation = 'none'; void title.offsetWidth; title.style.animation = ''; }
+      if (sub) sub.textContent = 'Get ready…';
+    });
+    socket.on('m:resume', reset);
+    socket.on('m:pause', reset);
+  })();
 })();

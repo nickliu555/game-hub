@@ -143,6 +143,9 @@ body.host {
   flex-direction: column;
   gap: 10px;
 }
+/* Player tiles and open-spot placeholders share one height, so a join swaps a
+   placeholder for a tile without the list jumping. */
+.player-chip, .slot-empty { box-sizing: border-box; min-height: 52px; }
 .player-chip {
   display: flex;
   align-items: center;
@@ -187,9 +190,11 @@ body.host {
 }
 .player-chip .chip-kick:hover { background: var(--warn); }
 .slot-empty {
+  display: flex;
+  align-items: center;
   border: 2px dashed rgba(255, 255, 255, 0.16);
   border-radius: 12px;
-  padding: 12px 14px;
+  padding: 0 14px;
   color: rgba(255, 255, 255, 0.4);
   font-weight: 700;
   font-size: 15px;
@@ -412,3 +417,8 @@ body.host {
   .qr-card #qrSlot { width: min(100%, 70vh); }
   .config-row > label { width: auto; }
 }
+
+/* Resume countdown: the pause overlay turns into a big 3-2-1. */
+.pause-overlay.resuming .po-icon { display: none; }
+.pause-overlay.resuming .po-title { font-size: 120px; line-height: 1; animation: resumepop 0.4s ease; }
+@keyframes resumepop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }

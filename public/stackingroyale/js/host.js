@@ -150,9 +150,13 @@
       el('pauseBtn').title = state.paused ? 'Resume match' : 'Pause match'; el('pauseBtn').setAttribute('aria-label', el('pauseBtn').title);
       const pauseIcon = state.paused ? 'play' : 'pause';
       if (el('pauseBtn').dataset.icon !== pauseIcon) { el('pauseBtn').dataset.icon = pauseIcon; el('pauseBtn').innerHTML = ui.icon(pauseIcon); ui.icons(); }
-      el('matchOverlay').hidden = !state.paused && state.phase !== 'COUNTDOWN';
+      const over = state.phase === 'GAME_OVER';
+      el('matchOverlay').hidden = over || (!state.paused && state.phase !== 'COUNTDOWN');
       el('matchOverlayLabel').textContent = state.paused ? 'Match on hold' : 'Get ready';
       el('matchOverlayTitle').textContent = state.paused ? 'Paused' : String(state.countdown || 'Go');
+      el('matchHeading').classList.toggle('is-gameover', over);
+      el('matchEyebrow').textContent = over ? 'Results in a moment...' : 'Battle live';
+      if (over) el('aliveCount').textContent = 'Game over';
       featured();
     }
   }
@@ -163,7 +167,8 @@
     if (!old || next.matchId !== old.matchId) { selected = []; boardSignature = ''; rosterSignature = ''; el('battleFeed').replaceChildren(); }
     if (old && next.phase !== old.phase) {
       if (next.phase === 'COUNTDOWN' || next.phase === 'PLAYING') ui.sound('start');
-      else if (next.phase === 'FINAL') ui.sound((next.winnerIds || []).length ? 'win' : 'lose');
+      else if (next.phase === 'GAME_OVER') ui.sound((next.winnerIds || []).length ? 'win' : 'lose');
+      else if (next.phase === 'FINAL') ui.sound('reveal');
     } else if (old && next.phase === 'COUNTDOWN' && next.countdown !== old.countdown) ui.sound('tick');
     state = next; render();
   }

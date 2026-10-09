@@ -1,5 +1,5 @@
 body.player { background: linear-gradient(170deg, var(--bg), var(--bg-deep)); }
-html, body.player, body.player * { touch-action: pan-x pan-y; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+html, body.player, body.player * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 .player-shell { max-width: 560px; height: 100vh; height: 100dvh; min-height: 520px; margin: auto; display: flex; flex-direction: column; padding: env(safe-area-inset-top) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
 .player-shell > main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 #playSurface { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -38,6 +38,11 @@ html, body.player, body.player * { touch-action: pan-x pan-y; -webkit-user-selec
 .incoming { padding: 7px; color: #94312b; background: #f9d9d2; border-radius: 3px; font-weight: 700; }
 .board-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 12px; background: #172422e8; color: white; text-align: center; overflow: auto; }
 .board-overlay strong { font-size: 26px; }
+.controller { position: relative; }
+.gameover-banner { position: absolute; inset: 12px 0 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: var(--radius); background: #172422f2; color: white; text-align: center; }
+.gameover-banner[hidden] { display: none; }
+.gameover-banner strong { font-size: 24px; color: var(--accent); }
+.gameover-banner span { font-size: 13px; color: #d2e3db; }
 .board-overlay span { font-size: 13px; color: #d2e3db; }
 .controller { padding-top: 12px; display: grid; gap: 6px; }
 .mode-seg { justify-self: center; }

@@ -355,6 +355,12 @@ function mountNockey(app, httpServer, opts) {
       game.setPaused(true);
       ns.to(PLAYER_ROOM).emit('m:pause', {});
     });
+    // Resume 3-2-1 (the game stays paused until it ends); n = 0 cancels it.
+    socket.on('host:resumeCount', ({ n } = {}) => {
+      if (!isActiveHost()) return;
+      const v = Math.max(0, Math.min(9, Number(n) | 0));
+      ns.to(PLAYER_ROOM).emit('m:resumeCount', { n: v });
+    });
     socket.on('host:resume', ({ live } = {}) => {
       if (!isActiveHost()) return;
       touchActivity();

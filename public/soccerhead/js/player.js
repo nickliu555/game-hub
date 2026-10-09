@@ -587,4 +587,27 @@
       window.location.replace('/soccerhead/join');
     });
   }
+  // Resume countdown from the host: the pause cover shows the 3-2-1.
+  (function () {
+    const cover = document.getElementById('pauseCover');
+    if (!cover) return;
+    const title = cover.querySelector('.pc-title, .pc-note');
+    const sub = cover.querySelector('.pc-sub');
+    const titleText = title ? title.textContent : '';
+    const subText = sub ? sub.textContent : '';
+    function reset() {
+      cover.classList.remove('resuming');
+      if (title) title.textContent = titleText;
+      if (sub) sub.textContent = subText;
+    }
+    socket.on('m:resumeCount', function (d) {
+      const n = d && Number(d.n);
+      if (!(n > 0)) { reset(); return; }
+      cover.classList.add('resuming');
+      if (title) { title.textContent = n; title.style.animation = 'none'; void title.offsetWidth; title.style.animation = ''; }
+      if (sub) sub.textContent = 'Get ready…';
+    });
+    socket.on('m:resume', reset);
+    socket.on('m:pause', reset);
+  })();
 })();

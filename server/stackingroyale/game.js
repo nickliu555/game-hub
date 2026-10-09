@@ -3,7 +3,9 @@
 const { randomBytes, randomUUID, randomInt } = require('crypto');
 const { BOT_SETTINGS, planMoves } = require('./bot');
 
-const PHASES = Object.freeze({ LOBBY: 'LOBBY', COUNTDOWN: 'COUNTDOWN', PLAYING: 'PLAYING', FINAL: 'FINAL' });
+const PHASES = Object.freeze({ LOBBY: 'LOBBY', COUNTDOWN: 'COUNTDOWN', PLAYING: 'PLAYING', GAME_OVER: 'GAME_OVER', FINAL: 'FINAL' });
+// Both screens hold the frozen end-of-match boards this long before the results.
+const GAME_OVER_MS = 5000;
 const MIN_PLAYERS = 1;
 const MAX_PLAYERS = 30;
 const STEP_MS = 1000 / 60;
@@ -38,6 +40,8 @@ class Game {
     this.countdownMs = 0;
     this.elapsedMs = 0;
     this.winnerIds = [];
+    this.finalistIds = [];
+    this.gameOverMs = 0;
     this.botDifficulty = 'medium';
     this.botCursor = 0;
   }
@@ -137,6 +141,8 @@ class Game {
     this.elapsedMs = 0;
     this.paused = false;
     this.winnerIds = [];
+    this.finalistIds = [];
+    this.gameOverMs = 0;
     for (const { player, board } of boards) Object.assign(player, this.freshPlayerState(), { board });
     this.refreshTargets();
     return { ok: true };
@@ -224,6 +230,14 @@ class Game {
       }
       return events;
     }
+    if (this.phase === PHASES.GAME_OVER) {
+      this.gameOverMs = Math.max(0, this.gameOverMs - STEP_MS);
+      if (this.gameOverMs < 0.000001) {
+        this.gameOverMs = 0;
+        this.phase = PHASES.FINAL;
+      }
+      return events;
+    }
     if (this.phase !== PHASES.PLAYING) return events;
     this.elapsedMs += STEP_MS;
     const attacks = [];
@@ -280,8 +294,10 @@ class Game {
       });
     }
     if (remaining.length === 0 || (this.players.size > 1 && remaining.length === 1)) {
-      this.phase = PHASES.FINAL;
+      this.phase = PHASES.GAME_OVER;
+      this.gameOverMs = GAME_OVER_MS;
       this.winnerIds = remaining.map(player => player.id);
+      this.finalistIds = [...eliminated, ...remaining].map(player => player.id);
       for (const player of remaining) player.placement = 1;
       for (const player of this.players.values()) this.cancelInputs(player, 'match-ended');
     }
@@ -299,9 +315,9 @@ class Game {
         targetIds: [...player.targetIds],
         ...(includeViews && player.board ? { view: player.board.view() } : {}),
       })),
-      winnerIds: [...this.winnerIds],
+      winnerIds: [...this.winnerIds], finalistIds: [...this.finalistIds],
     };
   }
 }
 
-module.exports = { Game, PHASES, MIN_PLAYERS, MAX_PLAYERS, STEP_MS, BOT_DIFFICULTIES, validId };
+module.exports = { Game, PHASES, MIN_PLAYERS, MAX_PLAYERS, STEP_MS, BOT_DIFFICULTIES, GAME_OVER_MS, validId };

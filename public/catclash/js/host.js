@@ -32,6 +32,10 @@
   var showTimer = null;
   var pendingView = null;
   function show(name) {
+    if (name !== 'final') {
+      if (window.clearConfetti) window.clearConfetti();
+      if (window.stopApplause) window.stopApplause();
+    }
     var incoming = views[name];
     if (!incoming) return;
     if (pendingView === name) return;

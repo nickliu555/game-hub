@@ -28,7 +28,7 @@
   // Serves leave the centre slower so whoever receives has time to react; the
   // first return lifts the ball straight back to rally speed.
   var SERVE_SPEED = START_SPEED * 0.6;
-  var SPEED_UP = 1.055;
+  var SPEED_UP = 1.08;
   var MAX_SPEED = 15;
   var MAX_BOUNCE = 55 * Math.PI / 180;
   // A human paddle chases the phone slider by closing this share of the gap
@@ -38,7 +38,7 @@
   var PADDLE_MAX_STEP = 70;
   var PADDLE_MIN_STEP = 6;
   var SERVE_SPREAD = 24 * Math.PI / 180;
-  var IDLE_TICKS = 15 * 60;
+  var IDLE_TICKS = 10 * 60;
   // How far past the goal line the ball must travel before the point counts
   // on the 2P court (its dotted goal line is the side itself).
   var GOAL_DEPTH = BALL_R * 2;
@@ -280,30 +280,47 @@
   World.prototype.step = function () {
     this.tick++;
     var i, p;
+    // Work out each paddle's move for this tick; it is applied in small slices
+    // inside the ball's substeps, so a fast swipe can't leap over the ball.
+    var deltas = [];
+    var maxD = 0;
     for (i = 0; i < this.paddles.length; i++) {
       p = this.paddles[i];
       p.prevS = p.s;
-      if (!p.alive) continue;
-      var tgt = clamp(p.target, p.sMin, p.sMax);
-      var gap = tgt - p.s;
-      var d;
-      if (p.isBot) d = clamp(gap, -BOT_SPEED, BOT_SPEED);
-      else if (Math.abs(gap) <= PADDLE_MIN_STEP * this.ui) d = gap;
-      else d = (gap < 0 ? -1 : 1) * Math.min(PADDLE_MAX_STEP * this.ui, Math.max(PADDLE_MIN_STEP * this.ui, Math.abs(gap) * PADDLE_FOLLOW));
-      p.s += d;
+      var d = 0;
+      if (p.alive) {
+        var tgt = clamp(p.target, p.sMin, p.sMax);
+        var gap = tgt - p.s;
+        if (p.isBot) d = clamp(gap, -BOT_SPEED, BOT_SPEED);
+        else if (Math.abs(gap) <= PADDLE_MIN_STEP * this.ui) d = gap;
+        else d = (gap < 0 ? -1 : 1) * Math.min(PADDLE_MAX_STEP * this.ui, Math.max(PADDLE_MIN_STEP * this.ui, Math.abs(gap) * PADDLE_FOLLOW));
+      }
+      deltas.push(d);
+      if (Math.abs(d) > maxD) maxD = Math.abs(d);
+    }
+    var self = this;
+    function settlePaddles() {
+      for (var j = 0; j < self.paddles.length; j++) self.paddles[j].s = self.paddles[j].prevS + deltas[j];
     }
     var b = this.ball;
     b.px = b.x; b.py = b.y;
-    if (this.frozen || b.speed === 0) return null;
+    if (this.frozen || b.speed === 0) { settlePaddles(); return null; }
 
     this.sinceHit++;
-    if (this.sinceHit > IDLE_TICKS) return { idle: true };
+    if (this.sinceHit > IDLE_TICKS) { settlePaddles(); return { idle: true }; }
 
-    var sub = Math.max(1, Math.ceil(b.speed / 4));
     var R = this.ballR;
-    var front = this.inset + this.paddleThick / 2 + R;
-    var reach = this.paddleLen / 2 + R * 0.8;
+    var half = this.paddleLen / 2;
+    var thick = this.paddleThick / 2;
+    var front = this.inset + thick + R;
+    var reach = half + R * 0.8;
+    // Neither the ball nor a paddle moves more than about a ball radius per substep.
+    var sub = Math.max(1, Math.ceil(b.speed / 4), Math.ceil(maxD / R));
     for (var k = 0; k < sub; k++) {
+      for (i = 0; i < this.paddles.length; i++) {
+        p = this.paddles[i];
+        p.s = p.prevS + deltas[i] * (k + 1) / sub;
+      }
       var ox = b.x, oy = b.y;
       b.x += b.vx / sub;
       b.y += b.vy / sub;
@@ -323,18 +340,45 @@
             var cy = oy + (b.y - oy) * f;
             var tc = (cx - side.ax) * side.tx + (cy - side.ay) * side.ty;
             if (Math.abs(tc - p.s) <= reach) {
-              var rel = clamp((tc - p.s) / (this.paddleLen / 2), -1, 1);
-              var ang = rel * MAX_BOUNCE;
-              b.speed = Math.min(MAX_SPEED, Math.max(START_SPEED, b.speed * SPEED_UP));
-              b.vx = (side.nx * Math.cos(ang) + side.tx * Math.sin(ang)) * b.speed;
-              b.vy = (side.ny * Math.cos(ang) + side.ty * Math.sin(ang)) * b.speed;
-              b.x = cx + side.nx * 0.01;
-              b.y = cy + side.ny * 0.01;
+              this.returnBall(side, p, tc);
+              continue;
+            }
+          }
+        }
+
+        // The rest of the paddle is solid too: its rounded ends and body. A ball
+        // that slips round the face (off a corner wall, or a paddle sliding
+        // into it) is deflected instead of passing through.
+        if (live) {
+          var bt = (b.x - side.ax) * side.tx + (b.y - side.ay) * side.ty;
+          var qt = clamp(bt, p.s - half, p.s + half);
+          var lt = bt - qt;
+          var ld = dist - this.inset;
+          var dd = Math.sqrt(lt * lt + ld * ld);
+          if (dd < thick + R) {
+            var onFace = qt > p.s - half && qt < p.s + half;
+            if (onFace && ld > 0) {
+              // Overlapping the face from the arena side: a return, as if it
+              // had come straight in (the paddle got there in time).
+              this.returnBall(side, p, bt);
+              continue;
+            }
+            var nt = dd > 1e-6 ? lt / dd : 0;
+            var nd = dd > 1e-6 ? ld / dd : -1;
+            var nx = side.tx * nt + side.nx * nd;
+            var ny = side.ty * nt + side.ny * nd;
+            var vdn = b.vx * nx + b.vy * ny;
+            if (vdn < 0) {
+              b.vx -= 2 * vdn * nx;
+              b.vy -= 2 * vdn * ny;
               this.sinceHit = 0;
               this.lastHitSeat = p.seat;
               this.events.push({ t: 'hit', seat: p.seat, speed: b.speed });
-              continue;
             }
+            b.x += nx * (thick + R - dd);
+            b.y += ny * (thick + R - dd);
+            dist = (b.x - side.ax) * side.nx + (b.y - side.ay) * side.ny;
+            vn = b.vx * side.nx + b.vy * side.ny;
           }
         }
 
@@ -350,6 +394,7 @@
             this.events.push({ t: 'goal', seat: p.seat });
             b.speed = 0; b.vx = b.vy = 0;
             b.hidden = true;
+            settlePaddles();
             return { seat: p.seat };
           }
           continue;
@@ -364,6 +409,24 @@
       }
     }
     return null;
+  };
+
+  // Classic Pong return off the paddle face: the further from the centre the
+  // ball meets the paddle (`tc`, along the side), the steeper it leaves.
+  World.prototype.returnBall = function (side, p, tc) {
+    var b = this.ball;
+    var rel = clamp((tc - p.s) / (this.paddleLen / 2), -1, 1);
+    var ang = rel * MAX_BOUNCE;
+    var front = this.inset + this.paddleThick / 2 + this.ballR;
+    b.speed = Math.min(MAX_SPEED, Math.max(START_SPEED, b.speed * SPEED_UP));
+    b.vx = (side.nx * Math.cos(ang) + side.tx * Math.sin(ang)) * b.speed;
+    b.vy = (side.ny * Math.cos(ang) + side.ty * Math.sin(ang)) * b.speed;
+    b.x = side.ax + side.tx * tc + side.nx * (front + 0.01);
+    b.y = side.ay + side.ty * tc + side.ny * (front + 0.01);
+    b.mouth = -1;
+    this.sinceHit = 0;
+    this.lastHitSeat = p.seat;
+    this.events.push({ t: 'hit', seat: p.seat, speed: b.speed });
   };
 
   var api = {

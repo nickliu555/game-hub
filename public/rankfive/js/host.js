@@ -28,6 +28,10 @@
   };
   var showTimer = null;
   function show(name) {
+    if (name !== 'final') {
+      if (window.clearConfetti) window.clearConfetti();
+      if (window.stopApplause) window.stopApplause();
+    }
     var incoming = views[name];
     if (!incoming) return;
     // Leaving the reveal: kill any pending pill zoom-out so its timer can't

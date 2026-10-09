@@ -7,8 +7,10 @@
 // scoring) runs on the HOST browser for the lowest possible input latency
 // (player -> server -> host is a single relay hop). This module does NOT
 // simulate the game. It owns:
-//   • the lobby: 2–4 players (no teams), Add-CPU bots, rounds-to-win + round
-//     length config.
+//   • the lobby: 1–4 players (no teams), Add-CPU bots, rounds-to-win + round
+//     length config. A single chomper (human or CPU) plays SOLO: one life, no
+//     timer, the maze refills and the ghosts speed up each time it's cleared.
+//   • the solo "best this session" score (cleared on any return to the lobby).
 //   • a CACHE of match meta (round, per-player round score, game points, who is
 //     alive, clock, chosen maze, plus an optional board snapshot) that the host
 //     pushes as rounds run, so reconnecting phones and a refreshed host can be
@@ -23,7 +25,7 @@ const PHASES = {
   FINAL: 'FINAL',
 };
 
-const MIN_PLAYERS = 2;
+const MIN_PLAYERS = 1;
 const MAX_PLAYERS = 4;
 
 const MAX_NAME_LEN = 20;
@@ -48,11 +50,15 @@ class Game {
     this._orderSeq = 0;
     /** @type {Map<string, object>} */
     this.players = new Map();
+    this.soloBest = null; // { score, name } — best solo score this session (cleared on any return to the lobby)
     this.match = this._freshMatch();
   }
 
   _freshMatch() {
     return {
+      mode: 'multi',      // 'solo' | 'multi' (fixed when the match starts)
+      level: 1,           // solo: current level (each maze clear = +1)
+      solo: null,         // final (solo): { score, level, newBest }
       round: 1,
       mazeIndex: 0,
       clockMs: this.roundLengthSec * 1000,
@@ -191,6 +197,9 @@ class Game {
     return { ok: true };
   }
 
+  /** A single chomper (human or CPU) plays solo; 2+ is the multiplayer showdown. */
+  lobbyMode() { return this.players.size === 1 ? 'solo' : 'multi'; }
+
   canStart() {
     if (this.phase !== PHASES.LOBBY) return false;
     return this.players.size >= MIN_PLAYERS && this.players.size <= MAX_PLAYERS;
@@ -216,16 +225,27 @@ class Game {
 
   startMatch() {
     if (!this.canStart()) return { ok: false, reason: 'cannot-start' };
+    const mode = this.lobbyMode();
     this.phase = PHASES.PLAYING;
     this.match = this._freshMatch();
+    this.match.mode = mode;
     const roster = this.getRoster();
     for (const r of roster) {
       this.match.scores[r.id] = 0;
       this.match.gamePoints[r.id] = 0;
       this.match.alive[r.id] = true;
     }
-    return { ok: true, roster };
+    return { ok: true, roster, mode };
   }
+
+  /** Final screen → same roster, straight into a fresh match. */
+  rematch() {
+    if (this.phase !== PHASES.FINAL) return { ok: false, reason: 'not-final' };
+    this.phase = PHASES.LOBBY;
+    return this.startMatch();
+  }
+
+  setLevel(level) { if (Number.isFinite(level)) this.match.level = Math.max(1, level | 0); }
 
   // Host pushes live meta as rounds run. These keep the cache fresh.
   setLive(live) { this.match.live = !!live; }
@@ -260,17 +280,32 @@ class Game {
   }
   setBoard(board) { this.match.board = board || null; }
 
-  endMatch({ winnerIds, gamePoints, awards } = {}) {
+  endMatch({ winnerIds, gamePoints, awards, soloScore, soloLevel } = {}) {
     this.phase = PHASES.FINAL;
     this.match.live = false;
+    this.match.paused = false;
     if (gamePoints) this.setGamePoints(gamePoints);
     this.match.winnerIds = Array.isArray(winnerIds) ? winnerIds.filter((id) => this.players.has(id)) : [];
     this.match.awards = Array.isArray(awards) ? awards : [];
+    if (this.match.mode === 'solo') {
+      const score = Math.max(0, Number.isFinite(soloScore) ? soloScore | 0 : 0);
+      const level = Math.max(1, Number.isFinite(soloLevel) ? soloLevel | 0 : 1);
+      const roster = this.getRoster();
+      const name = roster.length ? roster[0].name : '';
+      // The session best is for people to chase — a CPU's solo run never sets it.
+      const isBot = roster.length > 0 && roster[0].isBot;
+      const newBest = !isBot && (!this.soloBest || score > this.soloBest.score);
+      if (newBest) this.soloBest = { score, name };
+      this.match.solo = { score, level, newBest: newBest && score > 0 };
+    }
   }
 
+  /** Back to an empty lobby. The solo best is per session, so it's always
+   *  cleared here (only "Play again" keeps it). */
   reset(keepConfig) {
     this.phase = PHASES.LOBBY;
     this.players = new Map();
+    this.soloBest = null;
     this._orderSeq = 0;
     if (!keepConfig) {
       this.roundLengthSec = DEFAULT_ROUND_SEC;
@@ -297,6 +332,8 @@ class Game {
       minPlayers: MIN_PLAYERS,
       roundLengthSec: this.roundLengthSec,
       roundsToWin: this.roundsToWin,
+      mode: this.lobbyMode(),
+      soloBest: this.soloBest,
       players,
       total: this.players.size,
       canStart: this.canStart(),
@@ -305,6 +342,10 @@ class Game {
 
   getMatchMeta() {
     return {
+      mode: this.match.mode,
+      level: this.match.level,
+      solo: this.match.solo,
+      soloBest: this.soloBest,
       roundLengthSec: this.roundLengthSec,
       roundsToWin: this.roundsToWin,
       roster: this.getRoster(),

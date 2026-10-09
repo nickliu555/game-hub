@@ -233,7 +233,7 @@ function mountStackingRoyale(app, httpServer, opts = {}) {
     on('player:spectate', (payload, ack) => {
       const player = playerForSocket();
       if (!player) return ack({ ok: false, reason: 'not-player' });
-      if (player.alive || ![PHASES.PLAYING, PHASES.FINAL].includes(game.phase)) return ack({ ok: false, reason: 'not-eliminated' });
+      if (player.alive || ![PHASES.PLAYING, PHASES.GAME_OVER, PHASES.FINAL].includes(game.phase)) return ack({ ok: false, reason: 'not-eliminated' });
       const target = validId(payload.playerId) && game.players.get(payload.playerId);
       if (!target || !target.board) return ack({ ok: false, reason: 'unknown-player' });
       player.spectating = target.id;

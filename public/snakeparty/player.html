@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Snake Party · Play</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0f2a1d">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/snakeparty/css/base.css" />
+  <link rel="stylesheet" href="/snakeparty/css/player.css" />
+</head>
+<body class="player">
+  <div class="player-shell">
+
+    <!-- Lobby waiting -->
+    <div class="view-wait" id="view-lobby">
+      <div class="pulse">🐍</div>
+      <div class="wait-title"><span class="me-dot" aria-hidden="true"></span><span id="lobbyName">You're in!</span></div>
+      <div class="wait-sub">Waiting for the host to start the game…</div>
+    </div>
+
+    <!-- Controller (during a round) -->
+    <div id="view-controller" style="display:none;">
+      <div class="hud">
+        <div class="hud-name"><span class="me-dot" aria-hidden="true"></span><span id="hudName">You</span></div>
+        <div class="hud-score-wrap">
+          <span class="hud-score" id="hudScore">3</span>
+          <span class="hud-pts" id="hudUnit">length</span>
+        </div>
+        <div class="hud-pips" id="hudPips"></div>
+      </div>
+      <div class="power-badges" id="powerBadges"></div>
+      <div class="gamepad-badge" id="gamepadBadge" hidden>🎮 Controller connected</div>
+
+      <!-- Control pad: the whole area is the control. Joystick (default), Swipe
+           (a big arrow shows your heading) or Tap (4 triangular zones). -->
+      <div class="pad" id="pad">
+        <div class="swipe-dir" id="swipeDir">
+          <span class="swipe-arrow" id="swipeArrow">➤</span>
+        </div>
+        <div class="dpad" id="dpad" aria-hidden="true">
+          <div class="dpad-zone dz-up"    data-dir="0"><span class="dz-arrow">▲</span></div>
+          <div class="dpad-zone dz-down"  data-dir="1"><span class="dz-arrow">▼</span></div>
+          <div class="dpad-zone dz-left"  data-dir="2"><span class="dz-arrow">◀</span></div>
+          <div class="dpad-zone dz-right" data-dir="3"><span class="dz-arrow">▶</span></div>
+        </div>
+        <div class="stick-layer" id="stickLayer" aria-hidden="true">
+          <div class="stick-base" id="stickBase">
+            <div class="stick-ring"></div>
+            <div class="stick-knob" id="stickKnob"></div>
+          </div>
+        </div>
+        <div class="swipe-hint" id="swipeHint">Drag the stick to steer</div>
+      </div>
+
+      <!-- Pre-play overlay -->
+      <div class="ctrl-overlay" id="ctrlOverlay" hidden>
+        <div class="co-count" id="coCount">3</div>
+        <div class="co-text" id="coText">Get ready…</div>
+      </div>
+
+      <!-- Paused: covers + blocks the pad while the host has paused -->
+      <div class="pause-cover" id="pauseCover" hidden>
+        <div class="pc-icon">⏸</div>
+        <div class="pc-title">Paused</div>
+        <div class="pc-sub">The host paused the game. Hang tight…</div>
+      </div>
+    </div>
+
+    <!-- Crashed: out until the round ends -->
+    <div class="view-wait" id="view-eliminated" style="display:none;">
+      <div class="elim-icon">💥</div>
+      <h1 class="wait-title">You died</h1>
+      <div class="wait-big elim-len">Length <span class="elim-num" id="elimLen">3</span></div>
+      <div class="wait-sub" id="elimSub">Watch the big screen — you're back in next round.</div>
+    </div>
+
+    <!-- Between rounds -->
+    <div class="view-wait" id="view-results" style="display:none;">
+      <div class="elim-icon" id="resIcon">🏆</div>
+      <h1 class="wait-title" id="resTitle">Round over</h1>
+      <div class="wait-big" id="resWins">🏆 0 / 3</div>
+      <div class="wait-sub" id="resSub">Next round starting soon…</div>
+    </div>
+
+    <!-- Final result -->
+    <div class="view-wait" id="view-final" style="display:none;">
+      <div class="final-emoji" id="finalEmoji">🏆</div>
+      <h1 class="final-title" id="finalTitle">You win!</h1>
+      <div class="wait-big" id="finalBig"></div>
+      <div class="wait-sub" id="finalSub">Look up at the host screen for the results.</div>
+    </div>
+
+    <!-- Removed by host -->
+    <div class="view-wait" id="view-kicked" style="display:none;">
+      <div class="kick-icon" aria-hidden="true">🚪</div>
+      <div class="wait-title">You were removed by the host.</div>
+      <div class="wait-sub">You can rejoin if the game is still open.</div>
+      <button type="button" class="btn-primary" id="kickRejoinBtn" style="margin-top:18px;">Rejoin</button>
+    </div>
+
+    <!-- Control-scheme picker. Available while playing AND while crashed, so a
+         dead player can pre-pick their controls for next round. -->
+    <div class="ctrl-settings" id="ctrlSettings" style="display:none;">
+      <button type="button" class="gear-btn" id="gearBtn" aria-label="Controls settings" aria-haspopup="true" aria-expanded="false">⚙️</button>
+      <div class="ctrl-popover" id="ctrlPopover" hidden>
+        <div class="cp-title">Controls</div>
+        <div class="mode-toggle" id="modeToggle" role="tablist" aria-label="Control mode">
+          <button type="button" class="mode-opt" data-mode="stick" role="tab">Joystick</button>
+          <button type="button" class="mode-opt" data-mode="swipe" role="tab">Swipe</button>
+          <button type="button" class="mode-opt" data-mode="tap" role="tab">Tap</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reactions: lobby, between-round results and final only -->
+  <div class="reaction-bar" id="reactionBar" hidden>
+    <button type="button" class="reaction-btn" data-reaction="0" aria-label="laugh">😂</button>
+    <button type="button" class="reaction-btn" data-reaction="1" aria-label="fire">🔥</button>
+    <button type="button" class="reaction-btn" data-reaction="2" aria-label="party">🎉</button>
+    <button type="button" class="reaction-btn" data-reaction="3" aria-label="shock">😱</button>
+    <button type="button" class="reaction-btn" data-reaction="4" aria-label="cry">😭</button>
+    <button type="button" class="reaction-btn" data-reaction="5" aria-label="angry">😡</button>
+    <div class="reaction-cooldown" id="reactionCooldown" hidden></div>
+  </div>
+
+  <div class="player-attribution" id="playerAttribution" hidden>Developed by Nick Liu (with help from Claude)</div>
+
+  <!-- Host absent overlay -->
+  <div class="host-absent-overlay" id="hostAbsentOverlay" hidden>
+    <div class="host-absent-card">
+      <div class="icon">🐍</div>
+      <div class="title">No game in progress</div>
+      <div class="sub">
+        <span class="pulse-dot"></span>
+        The host isn't here right now. This page will unlock automatically when they return.
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/snakeparty/js/player.js"></script>
+</body>
+</html>

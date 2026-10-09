@@ -30,6 +30,9 @@
   const getMode = ui.controls(function () { if (input) input.clear(); });
   function me() { return state && state.players.find(function (player) { return player.id === playerId; }); }
   function playerIn(source) { return source && Array.isArray(source.players) ? source.players.find(function (item) { return item.id === playerId; }) : null; }
+  // Players still stacking when the match ended keep their frozen board up
+  // until the server moves everyone to the results together.
+  function frozen() { return !!state && state.phase === 'GAME_OVER' && (state.finalistIds || []).includes(playerId); }
   function spectating() { return !!state && state.phase !== 'FINAL' && !!el('spectateSelect').value; }
   function enabled() { const player = me(); return ready && socket.connected && state.hostPresent && board && boardMatch === state.matchId && state.phase === 'PLAYING' && !state.paused && player && player.alive && !board.over && !document.hidden && !ui.overlayOpen(); }
   function clearPrediction() { pending = []; accumulator = 0; previous = 0; if (input) input.clear(); }
@@ -88,7 +91,7 @@
     const item = document.createElement('div'); item.className = 'roster-row';
     // Nobody has a survival time until they top out, so players still stacking
     // get a live marker and their line count instead of a bogus clock.
-    const live = state.phase !== 'LOBBY' && state.phase !== 'FINAL' && player.alive;
+    const live = ['COUNTDOWN', 'PLAYING'].includes(state.phase) && player.alive;
     const place = document.createElement('span'); place.className = 'place' + (live ? ' live' : '');
     if (live) { const dot = document.createElement('span'); dot.className = 'pulse-dot'; place.append(dot); }
     else place.textContent = player.placement ? '#' + player.placement : rank ? String(rank) : '';
@@ -108,14 +111,16 @@
     const player = me();
     if (old && old.phase !== next.phase) input.clear();
     if (old && !old.paused && next.paused) input.clear();
-    if (old && old.phase !== 'FINAL' && next.phase === 'FINAL') ui.sound((next.winnerIds || []).includes(playerId) ? 'win' : 'lose');
+    if (old && old.phase === 'PLAYING' && next.phase === 'GAME_OVER') ui.sound((next.winnerIds || []).includes(playerId) ? 'win' : 'lose');
     if (!player && ready) { lostIdentity(); return; }
     // Edge-triggered, and only when there is a previous state — a phone that
     // reconnects into a finished match must not replay the ending.
     if (old && player && old.matchId === next.matchId) {
-      const wasOut = !!(before && before.alive === false);
+      const finalist = (next.finalistIds || []).includes(playerId);
+      const wasOut = !!(before && before.alive === false) && !(finalist && old.phase === 'GAME_OVER');
       const ending = old.phase !== 'FINAL' && next.phase === 'FINAL';
-      if (!wasOut && player.alive === false && old.phase !== 'LOBBY') startOutro('topout');
+      if (next.phase === 'GAME_OVER') { /* hold the frozen board until FINAL */ }
+      else if (!wasOut && player.alive === false && old.phase !== 'LOBBY') startOutro('topout');
       else if (ending && !wasOut && (next.winnerIds || []).includes(playerId)) startOutro('win');
       else if (ending && wasOut) swapCard();
     }
@@ -133,7 +138,8 @@
     el('playerName').replaceChildren(ui.name(player));
     const lobby = state.phase === 'LOBBY';
     const ended = state.phase === 'FINAL';
-    const eliminated = !lobby && player.alive === false;
+    const holding = frozen();
+    const eliminated = !lobby && player.alive === false && !holding;
     el('waiting').hidden = !lobby;
     el('playSurface').hidden = lobby || ((ended || eliminated) && !outro);
     el('playSurface').classList.toggle('is-topout', outro === 'topout');
@@ -182,6 +188,8 @@
     } else { el('results').classList.remove('is-entering', 'is-win', 'is-swapping', 'is-spectating'); }
     const blocked = !ready || !socket.connected || !board || state.paused || state.phase === 'COUNTDOWN' || ui.overlayOpen();
     el('boardOverlay').hidden = lobby || ended || eliminated || !blocked;
+    el('gameOverBanner').hidden = !holding;
+    if (holding) el('gameOverTitle').textContent = (state.winnerIds || []).includes(playerId) ? 'You win!' : 'Game over';
     el('overlayTitle').textContent = !ready || !socket.connected ? 'Reconnecting' : !board ? 'Syncing board' : state.paused ? 'Paused' : state.phase === 'COUNTDOWN' ? String(state.countdown || 'Ready') : 'Controls paused';
     el('overlayDetail').textContent = !ready ? 'Your match continues on the server' : state.paused ? 'Waiting for the host' : state.phase === 'COUNTDOWN' ? 'Get ready' : ui.overlayOpen() ? 'Close settings or help to play' : '';
     el('resumeBtn').hidden = true;

@@ -30,7 +30,7 @@ async function main() {
   check('p1 join ok', j1 && j1.ok);
   await wait(60);
   let lob = hostLobbies[hostLobbies.length - 1];
-  check('1 player cannot start yet', lob && lob.total === 1 && lob.canStart === false);
+  check('1 player → solo mode, can start', lob && lob.total === 1 && lob.canStart === true && lob.mode === 'solo');
 
   // Config setters.
   const rw = await new Promise((r) => host.emit('host:setRoundsToWin', { roundsToWin: 2 }, r));
@@ -43,7 +43,7 @@ async function main() {
   check('addBot ok', bot && bot.ok);
   await wait(60);
   lob = hostLobbies[hostLobbies.length - 1];
-  check('2 players (1 human + CPU) canStart', lob && lob.total === 2 && lob.canStart === true);
+  check('2 players (1 human + CPU) canStart, multiplayer', lob && lob.total === 2 && lob.canStart === true && lob.mode === 'multi');
   check('roster has a bot with a colour', lob.players.some((p) => p.isBot && p.color));
 
   // Player receives m:start and round events.

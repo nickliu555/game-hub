@@ -12,6 +12,10 @@
     final: document.getElementById('view-final'),
   };
   function show(name) {
+    if (name !== 'final') {
+      if (window.clearConfetti) window.clearConfetti();
+      if (window.stopApplause) window.stopApplause();
+    }
     if (name !== 'reveal' && typeof stopRevealAuto === 'function') stopRevealAuto();
     const currentName = Object.keys(views).find(function (k) {
       return views[k].classList.contains('active');
@@ -464,6 +468,7 @@
     const master = ctx.createGain();
     master.gain.value = 0.9;
     master.connect(ctx.destination);
+    if (window.trackApplause) window.trackApplause(master);
     const peakDensity = 24;
     const totalClaps = Math.floor(peakDensity * dur);
     for (let i = 0; i < totalClaps; i++) {

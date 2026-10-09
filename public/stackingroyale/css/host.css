@@ -63,6 +63,9 @@ body.host { height: 100vh; height: 100dvh; overflow: hidden; display: flex; flex
 .match-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px; background: #172422dc; color: white; text-align: center; }
 .match-overlay span { font-size: 20px; }
 .match-overlay strong { font-size: 80px; }
+.match-heading.is-gameover h1 { color: var(--accent); animation: srGameOver 900ms ease-in-out infinite alternate; }
+@keyframes srGameOver { to { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .match-heading.is-gameover h1 { animation: none; } }
 .final-view { display: flex; flex-direction: column; min-height: 0; flex: 1; max-width: 1000px; width: 100%; align-self: center; padding: 25px 0; }
 .final-header { display: grid; gap: 10px; text-align: center; justify-items: center; flex: 0 0 auto; padding-bottom: 20px; }
 .final-header > svg { width: 45px; height: 45px; color: #ab8120; }

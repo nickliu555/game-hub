@@ -107,6 +107,10 @@
     currentView = name;
   }
   function show(name, done) {
+    if (name !== 'final') {
+      if (window.clearConfetti) window.clearConfetti();
+      if (window.stopApplause) window.stopApplause();
+    }
     if (currentView === name) { if (done) done(); return; }
     // Clear any in-flight transition first, or two views can end up .active.
     if (showTimer) { clearTimeout(showTimer); showTimer = null; forceSingle(currentView); }
@@ -322,6 +326,7 @@
     const master = ctx.createGain();
     master.gain.value = 0.9;
     master.connect(ctx.destination);
+    if (window.trackApplause) window.trackApplause(master);
     const totalClaps = Math.floor(24 * dur);
     for (let i = 0; i < totalClaps; i++) {
       const when = Math.random() * dur;
@@ -397,7 +402,7 @@
   document.addEventListener('pointerdown', function () {
     if (!applausePending) return;
     applausePending = false;
-    playApplause();
+    if (currentView === 'final') playApplause();
   });
 
   // ---------------- Confetti ----------------

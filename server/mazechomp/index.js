@@ -274,22 +274,38 @@ function mountMazeChomp(app, httpServer, opts) {
       broadcastLobby();
     });
 
+    function startPayload(res) {
+      return {
+        roster: res.roster,
+        mode: res.mode,
+        roundLengthSec: game.roundLengthSec,
+        roundsToWin: game.roundsToWin,
+        soloBest: game.soloBest,
+      };
+    }
+    function startWith(res, ack) {
+      if (!res.ok) return ack && ack(res);
+      const payload = startPayload(res);
+      ack && ack(Object.assign({ ok: true }, payload));
+      ns.emit('m:start', payload);
+      broadcastLobby();
+    }
     socket.on('host:start', (_p, ack) => {
       if (!requireHost(ack)) return;
       touchActivity();
-      const res = game.startMatch();
-      if (!res.ok) return ack && ack(res);
-      ack && ack({
-        ok: true,
-        roster: res.roster,
-        roundLengthSec: game.roundLengthSec,
-        roundsToWin: game.roundsToWin,
-      });
-      ns.emit('m:start', {
-        roster: res.roster,
-        roundLengthSec: game.roundLengthSec,
-        roundsToWin: game.roundsToWin,
-      });
+      startWith(game.startMatch(), ack);
+    });
+    // Final screen "Play again": same roster, straight into a fresh match.
+    socket.on('host:rematch', (_p, ack) => {
+      if (!requireHost(ack)) return;
+      touchActivity();
+      startWith(game.rematch(), ack);
+    });
+    // Solo: a new level started (the maze was cleared).
+    socket.on('host:level', ({ level } = {}) => {
+      if (role !== 'host' || game.phase !== PHASES.PLAYING) return;
+      game.setLevel(level);
+      ns.to(PLAYER_ROOM).emit('m:level', { level: game.match.level });
     });
 
     // ---- Live match meta pushed by the host (rebroadcast to players) ----
@@ -327,6 +343,12 @@ function mountMazeChomp(app, httpServer, opts) {
       touchActivity();
       game.setPaused(true);
       ns.to(PLAYER_ROOM).emit('m:pause', {});
+    });
+    // Resume 3-2-1 (the game stays paused until it ends); n = 0 cancels it.
+    socket.on('host:resumeCount', ({ n } = {}) => {
+      if (role !== 'host') return;
+      const v = Math.max(0, Math.min(9, Number(n) | 0));
+      ns.to(PLAYER_ROOM).emit('m:resumeCount', { n: v });
     });
     socket.on('host:resume', ({ live } = {}) => {
       if (role !== 'host') return;
@@ -369,15 +391,21 @@ function mountMazeChomp(app, httpServer, opts) {
         roundsToWin: game.roundsToWin,
       });
     });
-    socket.on('host:matchEnd', ({ winnerIds, gamePoints, awards } = {}) => {
-      if (role !== 'host') return;
+    socket.on('host:matchEnd', ({ winnerIds, gamePoints, awards, soloScore, soloLevel } = {}, ack) => {
+      if (role !== 'host') return ack && ack({ ok: false, reason: 'not-host' });
       touchActivity();
-      game.endMatch({ winnerIds, gamePoints, awards });
-      ns.to(PLAYER_ROOM).emit('m:end', {
+      game.endMatch({ winnerIds, gamePoints, awards, soloScore, soloLevel });
+      const out = {
+        mode: game.match.mode,
         winnerIds: game.match.winnerIds,
         gamePoints: game.match.gamePoints,
         scores: game.match.scores,
-      });
+        solo: game.match.solo,
+        soloBest: game.soloBest,
+      };
+      ack && ack(Object.assign({ ok: true }, out));
+      ns.to(PLAYER_ROOM).emit('m:end', out);
+      broadcastLobby();
     });
 
     socket.on('host:reset', (_p, ack) => {

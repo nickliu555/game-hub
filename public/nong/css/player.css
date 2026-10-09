@@ -225,3 +225,8 @@ body.axis-v .track-knob { left: 8px; right: 8px; height: 26%; top: calc(var(--u,
   .co-count { font-size: 52px; }
   .final-emoji { font-size: 56px; }
 }
+
+/* Resume countdown on the pause cover. */
+.resuming .pc-icon { display: none; }
+.resuming .pc-title, .resuming .pc-note { font-size: 96px; line-height: 1; animation: resumepop 0.4s ease; }
+@keyframes resumepop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }

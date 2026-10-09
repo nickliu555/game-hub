@@ -11,6 +11,10 @@
     final: document.getElementById('view-final'),
   };
   function show(name) {
+    if (name !== 'final') {
+      if (window.clearConfetti) window.clearConfetti();
+      if (window.stopApplause) window.stopApplause();
+    }
     Object.keys(views).forEach(function (k) {
       views[k].classList.toggle('active', k === name);
     });
@@ -722,6 +726,7 @@
     const master = ctx.createGain();
     master.gain.value = 0.9;
     master.connect(ctx.destination);
+    if (window.trackApplause) window.trackApplause(master);
     const peakDensity = 24;
     const totalClaps = Math.floor(peakDensity * dur);
     for (let i = 0; i < totalClaps; i++) {

@@ -12,6 +12,10 @@
     final: document.getElementById('view-final'),
   };
   function show(name) {
+    if (name !== 'final') {
+      if (window.clearConfetti) window.clearConfetti();
+      if (window.stopApplause) window.stopApplause();
+    }
     Object.keys(views).forEach(function (k) {
       views[k].classList.toggle('active', k === name);
     });

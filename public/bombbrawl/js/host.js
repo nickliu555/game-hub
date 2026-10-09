@@ -24,6 +24,10 @@
     final: document.getElementById('view-final'),
   };
   function show(name) {
+    if (name !== 'final') {
+      if (window.clearConfetti) window.clearConfetti();
+      if (window.stopApplause) window.stopApplause();
+    }
     Object.keys(views).forEach(function (k) { views[k].classList.toggle('active', k === name); });
   }
 
@@ -121,7 +125,7 @@
         let navigated = false;
         const go = function () {
           if (navigated) return; navigated = true;
-          if (window.Iris && typeof window.Iris.transitionTo === 'function') window.Iris.transitionTo('/', origin, window.Iris.HUB);
+          if (window.Iris && typeof window.Iris.transitionTo === 'function') window.Iris.transitionTo('/', origin, { emoji: '💣', name: 'Game Hub', color: '#171233' });
           else window.location.href = '/';
         };
         socket.emit('host:leave', {}, go);
@@ -460,19 +464,6 @@
   let sdStarted = false;
   let prevHud = {};
 
-  /**
-   * With drops off nobody can earn anything mid-round, so everyone spawns on
-   * the preset loadout instead — otherwise a round is four bombers stuck at a
-   * single one-tile bomb, which never resolves.
-   */
-  function startLoadout() { return powerUps ? null : BB.PRESET_LOADOUT; }
-
-  /** Stats a bomber starts on, in HUD shape — used before the world exists. */
-  function startHud() {
-    const l = startLoadout() || BB.BASE_LOADOUT;
-    return { bombs: l.bombs, fire: l.fire, speed: l.speedTier, kick: !!l.kick };
-  }
-
   // ---------------- Pause ----------------
   // The whole simulation runs in this browser, so pausing means: stop stepping
   // the world/clock in loop(), and freeze every wall-clock timer so the
@@ -514,14 +505,16 @@
       }
     });
   }
+  let resumeTimer = null;   // running resume 3-2-1, if any
   function updatePauseBtn() {
     if (!pauseBtn) return;
     const ongoing = matchState === 'countdown' || matchState === 'play' || matchState === 'roundover';
     pauseBtn.hidden = !ongoing;
-    pauseBtn.textContent = paused ? '▶ Resume' : '⏸ Pause';
+    pauseBtn.textContent = (paused && !resumeTimer) ? '▶ Resume' : '⏸ Pause';
   }
   function pauseMatch() {
     if (paused) return;
+    clearResumeCount();
     const ongoing = matchState === 'countdown' || matchState === 'play' || matchState === 'roundover';
     if (!ongoing) return;
     paused = true;
@@ -541,7 +534,52 @@
     updatePauseBtn();
     socket.emit('host:resume', { live: matchState === 'play' });
   }
-  pauseBtn && pauseBtn.addEventListener('click', function () { if (paused) resumeMatch(); else pauseMatch(); });
+  // ---- Resume countdown ----
+  // Resuming into live play runs a 3-2-1 first. The game stays paused the whole
+  // time (clock, movement and timers frozen), so the countdown never counts as
+  // play time. Pressing Pause again cancels it; resuming anywhere else (pre-round
+  // countdown, between points/rounds) is instant.
+  const poTitle = pauseOverlay && pauseOverlay.querySelector('.po-title');
+  const poSub = pauseOverlay && pauseOverlay.querySelector('.po-sub');
+  const poTitleText = poTitle ? poTitle.textContent : '';
+  const poSubText = poSub ? poSub.textContent : '';
+  function showResumeCount(n) {
+    if (!pauseOverlay) return;
+    pauseOverlay.classList.add('resuming');
+    if (poTitle) { poTitle.textContent = n; poTitle.style.animation = 'none'; void poTitle.offsetWidth; poTitle.style.animation = ''; }
+    if (poSub) poSub.textContent = 'Get ready…';
+  }
+  function clearResumeCount() {
+    if (resumeTimer) { clearInterval(resumeTimer); resumeTimer = null; }
+    if (pauseOverlay) pauseOverlay.classList.remove('resuming');
+    if (poTitle) poTitle.textContent = poTitleText;
+    if (poSub) poSub.textContent = poSubText;
+  }
+  function requestResume() {
+    if (!paused || resumeTimer) return;
+    if (!(matchState === 'play')) { resumeMatch(); return; }
+    let n = COUNTDOWN_FROM;
+    const tick = function () { showResumeCount(n); socket.emit('host:resumeCount', { n: n }); beep(n); };
+    tick();
+    resumeTimer = setInterval(function () {
+      if (!paused) { clearResumeCount(); return; }
+      n--;
+      if (n >= 1) { tick(); return; }
+      clearResumeCount();
+      resumeMatch();
+    }, COUNTDOWN_STEP_MS);
+    updatePauseBtn();
+  }
+  function cancelResume() {
+    clearResumeCount();
+    socket.emit('host:resumeCount', { n: 0 });
+    updatePauseBtn();
+  }
+  pauseBtn && pauseBtn.addEventListener('click', function () {
+    if (!paused) pauseMatch();
+    else if (resumeTimer) cancelResume();
+    else requestResume();
+  });
 
   // ---------------- Match flow ----------------
   function startMatch(rost, cfg, initial) {
@@ -563,7 +601,7 @@
   function beginRound(r) {
     round = r;
     const seed = (Math.random() * 2147483647) | 0;
-    world = new BB.World({ powerUps: powerUps, startLoadout: startLoadout() });
+    world = new BB.World({ powerUps: powerUps });
     world.reset(seed, roster);
     world.frozen = true;
     if (!renderer) renderer = new window.BombBrawlRender.Renderer(canvas, world);
@@ -581,8 +619,6 @@
     requestAnimationFrame(function () { if (renderer) renderer.resize(); });
     socket.emit('host:roundStart', { round: round, seed: seed, durationSec: roundLengthSec });
     socket.emit('host:board', { board: { round: round, gamePoints: gamePoints } });
-    // Phones need their stats during the countdown — the tick only emits once play starts.
-    emitHudChanges();
     playLookUp();
     beginCountdown();
   }
@@ -809,7 +845,7 @@
       }
       for (let k = 0; k < pipsEl.children.length; k++) pipsEl.children[k].classList.toggle('on', k < have);
 
-      const h = p ? world.hudOf(p) : startHud();
+      const h = p ? world.hudOf(p) : { bombs: 1, fire: 1, speed: 0, kick: false };
       setStat(card, 'bombs', '💣 ' + h.bombs, false);
       setStat(card, 'fire', '🔥 ' + h.fire, false);
       setStat(card, 'speed', '👟 ' + h.speed, h.speed === 0);

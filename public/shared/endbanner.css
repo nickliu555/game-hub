@@ -1,0 +1,104 @@
+/* Round-end banner (see endbanner.js). Layers inside .reason-overlay.eb. */
+.reason-overlay.eb { padding: 0; overflow: hidden; --eb-color: #fff; --eb-x: 50%; --eb-y: 50%; }
+
+/* Board dims around the edges; on a win it opens up into a spotlight. */
+.eb .eb-vignette {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0) 35%, rgba(0,0,0,0.55) 100%);
+  animation: eb-fade 0.35s ease both;
+}
+.eb.eb-spot .eb-vignette {
+  background: radial-gradient(circle at var(--eb-x) var(--eb-y), rgba(0,0,0,0) 0, rgba(0,0,0,0) 70px, rgba(0,0,0,0.6) 260px);
+}
+.eb.eb-down .eb-vignette {
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0) 30%, rgba(239,68,68,0.45) 100%);
+  animation: eb-redflash 0.9s ease both;
+}
+
+/* The ribbon the text sits on: slams in from above, overshoots, settles. */
+.eb .eb-ribbon {
+  position: relative; z-index: 4;   /* banner sits in front of the crown + confetti */
+  width: 100%; padding: 16px 24px; overflow: hidden;
+  background: linear-gradient(180deg, rgba(0,0,0,0.78), rgba(0,0,0,0.62));
+  border-top: 3px solid var(--eb-color); border-bottom: 3px solid var(--eb-color);
+  box-shadow: 0 0 34px -6px var(--eb-color), 0 10px 30px rgba(0,0,0,0.5);
+  animation: eb-slam 0.48s cubic-bezier(0.2, 0.9, 0.25, 1.25) both;
+}
+.eb .reason-text {
+  position: relative;
+  font-size: clamp(34px, 5.2vw, 66px); line-height: 1.05; letter-spacing: 0.01em;
+  color: #fff; text-align: center; overflow-wrap: anywhere;
+  /* Outline via shadows, not -webkit-text-stroke: stroking a variable font
+     traces its internal overlaps and leaves stray lines inside letters. */
+  text-shadow: 0 0 2px rgba(0,0,0,0.7), 0 0 18px var(--eb-color), 0 4px 0 rgba(0,0,0,0.55);
+  animation: none;
+}
+.eb.eb-win .reason-text { color: var(--eb-color); text-shadow: 0 0 2px rgba(0,0,0,0.7), 0 0 22px var(--eb-color), 0 4px 0 rgba(0,0,0,0.6); }
+/* One light sweep across the ribbon after it lands. */
+.eb .eb-shine {
+  position: absolute; top: 0; bottom: 0; left: -40%; width: 30%; pointer-events: none;
+  background: linear-gradient(100deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0) 100%);
+  transform: skewX(-18deg);
+  animation: eb-shine 0.75s ease-out 0.45s both;
+}
+/* Shockwave ring from the impact. */
+.eb .eb-ring {
+  position: absolute; left: 50%; top: 50%; width: 120px; height: 120px; margin: -60px 0 0 -60px; z-index: 1;
+  border-radius: 50%; border: 4px solid var(--eb-color); opacity: 0; pointer-events: none;
+  animation: eb-ring 0.7s ease-out 0.28s both;
+}
+.eb.eb-spot .eb-ring { left: var(--eb-x); top: var(--eb-y); }
+/* Winner's crown + confetti. */
+.eb .eb-crown {
+  position: absolute; z-index: 3; display: none; font-size: 44px; line-height: 1;
+  transform: translate(-50%, -150%); pointer-events: none;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.6));
+  animation: eb-crown 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.4) 0.3s both;
+}
+.eb.eb-spot .eb-crown { display: block; }
+.eb .eb-burst { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.eb .eb-burst i {
+  position: absolute; width: 9px; height: 13px; border-radius: 2px; margin: -6px 0 0 -4px;
+  animation: eb-confetti 1.3s cubic-bezier(0.15, 0.6, 0.35, 1) both;
+}
+
+/* Board effects (applied to the game canvas, never the banner). */
+.eb-freeze { filter: saturate(0.25) brightness(0.85); transition: filter 0.45s ease; }
+.eb-shake-sm { animation: eb-shake 0.28s linear; --eb-amp: 4px; }
+.eb-shake-md { animation: eb-shake 0.32s linear; --eb-amp: 7px; }
+.eb-shake-lg { animation: eb-shake 0.42s linear; --eb-amp: 12px; }
+.eb-clock-flash { animation: eb-clock 0.3s ease 4; }
+
+@keyframes eb-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes eb-redflash { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0.55; } }
+@keyframes eb-slam {
+  0% { transform: translateY(-140%) scale(1.25); opacity: 0; }
+  55% { transform: translateY(6%) scale(0.97); opacity: 1; }
+  75% { transform: translateY(-2%) scale(1.01); }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes eb-shine { from { left: -40%; } to { left: 120%; } }
+@keyframes eb-ring { 0% { transform: scale(0.3); opacity: 0.9; } 100% { transform: scale(4.2); opacity: 0; } }
+@keyframes eb-crown {
+  0% { transform: translate(-50%, -60%) scale(0.2); opacity: 0; }
+  100% { transform: translate(-50%, -150%) scale(1); opacity: 1; }
+}
+@keyframes eb-confetti {
+  0% { transform: translate(0, 0) rotate(0); opacity: 1; }
+  100% { transform: translate(var(--dx), calc(var(--dy) + 140px)) rotate(var(--rot)); opacity: 0; }
+}
+@keyframes eb-shake {
+  0%, 100% { transform: translate(0, 0); }
+  15% { transform: translate(calc(var(--eb-amp) * -1), calc(var(--eb-amp) * 0.5)); }
+  30% { transform: translate(var(--eb-amp), calc(var(--eb-amp) * -0.6)); }
+  45% { transform: translate(calc(var(--eb-amp) * -0.7), calc(var(--eb-amp) * -0.4)); }
+  60% { transform: translate(calc(var(--eb-amp) * 0.5), calc(var(--eb-amp) * 0.5)); }
+  80% { transform: translate(calc(var(--eb-amp) * -0.25), 0); }
+}
+@keyframes eb-clock { 0%, 100% { color: inherit; transform: scale(1); } 50% { color: #FBBF24; transform: scale(1.12); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .eb .eb-ribbon, .eb .eb-shine, .eb .eb-ring, .eb .eb-crown, .eb .eb-burst i, .eb-clock-flash { animation: none; }
+  .eb-shake-sm, .eb-shake-md, .eb-shake-lg { animation: none; }
+  .eb .eb-ring { display: none; }
+}

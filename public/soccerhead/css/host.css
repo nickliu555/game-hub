@@ -150,6 +150,9 @@ body.host {
 .team-slots { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
 .vs-badge { align-self: center; font-weight: 900; font-size: 20px; color: rgba(255,255,255,0.55); }
 
+/* Player tiles and open-spot placeholders share one height, so a join swaps a
+   placeholder for a tile without the list jumping. */
+.player-chip, .slot-empty { box-sizing: border-box; min-height: 50px; }
 .player-chip {
   background: rgba(255,255,255,0.96);
   color: var(--ink);
@@ -183,9 +186,12 @@ body.host {
   line-height: 1;
 }
 .slot-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 2px dashed rgba(255,255,255,0.2);
   border-radius: 12px;
-  padding: 14px;
+  padding: 0 14px;
   text-align: center;
   color: rgba(255,255,255,0.5);
   font-size: 14px;
@@ -408,3 +414,8 @@ body.host {
   z-index: 2000;
 }
 .inline-toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* Resume countdown: the pause overlay turns into a big 3-2-1. */
+.pause-overlay.resuming .po-icon { display: none; }
+.pause-overlay.resuming .po-title { font-size: 120px; line-height: 1; animation: resumepop 0.4s ease; }
+@keyframes resumepop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }

@@ -39,7 +39,7 @@
   }
   function controllerMarkup() {
     return '<div class="stats"><div><span>Lines</span><strong id="linesStat">0</strong></div><div><span>Level</span><strong id="levelStat">1</strong></div><div><span>Time</span><strong id="timeStat">0:00</strong></div><span id="boardLabel" class="board-label" aria-live="polite"></span></div>' + boardMarkup() +
-      '<div id="controller" class="controller"><div id="controlModes" class="seg mode-seg" role="group" aria-label="Control mode"><button data-mode="buttons" aria-pressed="true">Buttons</button><button data-mode="gestures" aria-pressed="false">Gestures</button></div><div class="control-pad"><div class="movement">' + tool('leftBtn', 'arrow-left', 'Move left', 'data-action="left"') + tool('softBtn', 'arrow-down', 'Soft drop', 'data-action="soft"') + tool('rightBtn', 'arrow-right', 'Move right', 'data-action="right"') + '</div><div class="rotation">' + tool('holdBtn', 'archive', 'Hold piece', 'data-action="hold"') + tool('ccwBtn', 'rotate-ccw', 'Rotate counterclockwise', 'data-action="rotateCCW"') + tool('cwBtn', 'rotate-cw', 'Rotate clockwise', 'data-action="rotateCW"') + tool('dropBtn', 'arrow-down-to-line', 'Hard drop', 'data-action="drop"') + '</div></div></div>';
+      '<div id="controller" class="controller"><div id="gameOverBanner" class="gameover-banner" hidden><strong id="gameOverTitle">Game over</strong><span>Results in a moment...</span></div><div id="controlModes" class="seg mode-seg" role="group" aria-label="Control mode"><button data-mode="buttons" aria-pressed="true">Buttons</button><button data-mode="gestures" aria-pressed="false">Gestures</button></div><div class="control-pad"><div class="movement">' + tool('leftBtn', 'arrow-left', 'Move left', 'data-action="left"') + tool('softBtn', 'arrow-down', 'Soft drop', 'data-action="soft"') + tool('rightBtn', 'arrow-right', 'Move right', 'data-action="right"') + '</div><div class="rotation">' + tool('holdBtn', 'archive', 'Hold piece', 'data-action="hold"') + tool('ccwBtn', 'rotate-ccw', 'Rotate counterclockwise', 'data-action="rotateCCW"') + tool('cwBtn', 'rotate-cw', 'Rotate clockwise', 'data-action="rotateCW"') + tool('dropBtn', 'arrow-down-to-line', 'Hard drop', 'data-action="drop"') + '</div></div></div>';
   }
   function paint(view) {
     if (!view) return;
@@ -120,7 +120,7 @@
       osc.start(context.currentTime); osc.stop(context.currentTime + 0.4);
       return;
     }
-    const tunes = { start: [392, 523, 784], clear: [587, 880], drop: [160], lose: [330, 247, 165], win: [523, 659, 784, 1047], tick: [440], attack: [196, 262] };
+    const tunes = { start: [392, 523, 784], clear: [587, 880], drop: [160], lose: [330, 247, 165], win: [523, 659, 784, 1047], tick: [440], attack: [196, 262], reveal: [659, 880] };
     (tunes[kind] || tunes.drop).forEach(function (frequency, index) {
       const oscillator = context.createOscillator(); const gain = context.createGain(); const time = context.currentTime + index * 0.095;
       oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(frequency, time);

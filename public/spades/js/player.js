@@ -650,7 +650,7 @@
   function teamDetail(r) {
     const parts = [];
     if (r.contract > 0 || !r.players.every(function (p) { return p.nil; })) {
-      parts.push('Bid ' + r.contract + ' · took ' + r.won + (r.made ? '' : ' (set)'));
+      parts.push('Bid ' + r.contract + ' · took ' + r.won + (r.made ? '' : ' (missed)'));
     }
     r.players.forEach(function (p) {
       if (p.nil) parts.push(p.name + ' ' + (p.blind ? 'Blind Nil' : 'Nil') + (p.nilMade ? ' ✓' : ' ✗'));
@@ -704,11 +704,11 @@
     } else if (me && me.nil) {
       resultEmoji.textContent = me.nilMade ? '🎯' : '💥';
       resultTitle.textContent = (me.blind ? 'Blind Nil' : 'Nil') + (me.nilMade ? ' made! ' : ' busted ') + signed(me.nilPoints);
-      resultSub.textContent = 'Hand ' + s.handNumber + ' complete.';
+      resultSub.textContent = '';
     } else if (mine) {
       resultEmoji.textContent = mine.made ? '✅' : '❌';
-      resultTitle.textContent = mine.made ? 'Contract made!' : 'Your team was set';
-      resultSub.textContent = 'Hand ' + s.handNumber + ' · ' + signed(mine.delta) + ' for your team.';
+      resultTitle.textContent = mine.made ? 'Bid made!' : 'Bid missed';
+      resultSub.textContent = signed(mine.delta) + ' for your team.';
     } else {
       resultEmoji.textContent = '♠️';
       resultTitle.textContent = 'Hand over';
