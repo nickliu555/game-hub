@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Blob Ball · Host</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="/shared/iris-preload.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/topbar.css" />
+  <link rel="stylesheet" href="/shared/modal.css" />
+  <link rel="stylesheet" href="/shared/iris.css" />
+  <link rel="stylesheet" href="/blobball/css/base.css" />
+  <link rel="stylesheet" href="/blobball/css/host.css" />
+  <script src="/shared/topbar.js" defer></script>
+  <script src="/shared/modal.js" defer></script>
+  <script src="/shared/iris.js" defer></script>
+</head>
+<body class="host">
+  <div class="host-container">
+    <div class="game-topbar">
+      <span class="gtb-brand"><span class="brand-bg">🏐</span> Blob Ball</span>
+      <div class="gtb-controls">
+        <a href="/" id="hubBtn" class="gtb-btn" title="Back to hub (resets game)">← Hub</a>
+        <button id="fullscreenBtn" class="gtb-btn" type="button" title="Toggle fullscreen">⛶ Fullscreen</button>
+        <div class="gtb-settings-wrapper">
+          <button class="gtb-btn" type="button" data-gtb-settings-toggle aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️ Settings</button>
+          <div class="gtb-settings-panel" id="settingsPanel" hidden>
+            <button class="gtb-btn" type="button" data-gtb-help-open="helpOverlay" title="How to play">? Help</button>
+            <button id="muteReactionsBtn" class="gtb-btn" type="button" data-gtb-settings-keep-open title="Mute player reactions">🔔 Reactions: On</button>
+            <div class="gtb-divider"></div>
+            <button id="resetBtn" class="gtb-btn gtb-btn-danger" type="button" title="Reset the whole game">Reset game</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ LOBBY ============ -->
+    <section class="view active lobby" id="view-lobby">
+      <div class="lobby-grid">
+        <div class="lobby-left">
+          <div class="qr-card">
+            <div class="qr-title">Scan to join</div>
+            <div class="qr-sub">Or type the URL below on your phone</div>
+            <div id="qrSlot"><svg viewBox="0 0 1 1"></svg></div>
+            <div class="qr-url" id="joinUrl"></div>
+          </div>
+        </div>
+
+        <div class="lobby-right">
+          <div class="lobby-header">
+            <div class="brand"><span class="brand-bg">🏐</span> Blob Ball</div>
+            <div class="player-count"><span id="playerCount">0</span> / <span id="playerCap">2</span></div>
+          </div>
+
+          <div class="config-block">
+            <div class="config-row">
+              <label id="targetLabel">Points to win</label>
+              <div class="seg" id="targetSeg" role="group" aria-labelledby="targetLabel"></div>
+            </div>
+          </div>
+
+          <div class="seat-list" id="seatList"></div>
+
+          <div class="lobby-foot">
+            <button id="addBotBtn" class="btn-ghost" type="button">🤖 Add CPU</button>
+            <div class="config-hint" id="configHint"></div>
+            <button id="startBtn" class="btn-start" disabled>Play</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ MATCH ============ -->
+    <section class="view match" id="view-match">
+      <div class="match-top">
+        <div class="mt-side" aria-hidden="true"></div>
+        <div class="scoreboard" id="scoreboard"></div>
+        <div class="mt-side mt-right">
+          <button type="button" id="pauseBtn" class="pause-btn" hidden title="Pause the match">⏸ Pause</button>
+        </div>
+      </div>
+      <div class="pitch-wrap">
+        <canvas id="pitch"></canvas>
+        <div class="match-overlay" id="countOverlay" hidden>
+          <div class="co-note" id="coNote" hidden></div>
+          <div class="co-num" id="coNum">3</div>
+        </div>
+        <div class="point-banner" id="pointBanner" hidden>
+          <div class="pb-text" id="pbText">POINT!</div>
+          <div class="pb-sub" id="pbSub"></div>
+        </div>
+        <div class="serve-stack">
+          <div class="match-point-tag" id="matchPointTag" hidden>🔥 MATCH POINT 🔥</div>
+          <div class="serve-tag" id="serveTag" hidden></div>
+        </div>
+        <div class="pause-overlay" id="pauseOverlay" hidden>
+          <div class="po-icon">⏸</div>
+          <div class="po-title">Paused</div>
+          <div class="po-sub">The match is paused. Press Resume to continue.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FINAL ============ -->
+    <section class="view final" id="view-final">
+      <div class="final-inner">
+        <div class="trophy" id="finalTrophy">🏆</div>
+        <h1 class="final-heading" id="finalHeading">Winner!</h1>
+        <div class="final-sub" id="finalSub"></div>
+        <ol class="standings" id="standings"></ol>
+        <div class="final-actions">
+          <button type="button" id="playAgainBtn" class="btn-start">▶ Play again</button>
+          <button type="button" id="backToLobbyBtn" class="btn-ghost">Back to lobby</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Floating reaction emojis from players -->
+  <div class="reaction-layer" id="reactionLayer" aria-hidden="true"></div>
+
+  <!-- Another host screen took over the simulation -->
+  <div class="superseded-overlay" id="supersededOverlay" hidden>
+    <div class="so-card">
+      <div class="so-icon">🏐</div>
+      <div class="so-title">Another host screen took over</div>
+      <div class="so-sub">Blob Ball can only run on one screen at a time. Close this tab, or reload it to take control back.</div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/blobball/js/engine.js"></script>
+  <script src="/blobball/js/render.js"></script>
+  <script src="/blobball/js/host.js"></script>
+
+  <!-- Help modal -->
+  <div class="gtb-help-overlay" id="helpOverlay">
+    <div class="gtb-help-modal">
+      <button class="gtb-help-modal-close" type="button" data-gtb-help-close aria-label="Close help">&times;</button>
+      <h2><span class="brand-bg">🏐</span> Blob Ball</h2>
+      <p>Bouncy blob volleyball on <strong>this screen</strong>, with each player steering a blob from their phone.</p>
+      <ol>
+        <li>Players scan the QR code to join from their phone — it's <strong>1v1</strong></li>
+        <li>No opponent? Hit <strong>🤖 Add CPU</strong> to play against the computer</li>
+        <li><strong>Drag a player</strong> onto the other one to swap who plays left and right</li>
+        <li>Pick the <strong>points to win</strong>, then hit <strong>Play</strong></li>
+        <li>On the phone: <strong>◀ ▶</strong> buttons on the left to move (the <strong>⚙️</strong> gear switches to a <strong>joystick</strong>), <strong>JUMP</strong> on the right — hold for a full jump, tap for a short hop</li>
+        <li>A <strong>Bluetooth controller</strong> paired with the phone works too: left stick or D-pad moves, A jumps</li>
+        <li>You can only move on your own side of the net</li>
+        <li>Knock the ball with your blob as many times as you like — where it hits your dome sets its direction, and moving or jumping into it hits it harder</li>
+        <li>The ball bounces off the walls, the ceiling and the net</li>
+        <li>Land the ball on your opponent's sand to score — whoever lost the point serves next</li>
+        <li>First to the target score wins! Then hit <strong>▶ Play again</strong> for a rematch, or go back to the lobby</li>
+      </ol>
+    </div>
+  </div>
+</body>
+</html>

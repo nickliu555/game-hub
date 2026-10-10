@@ -299,7 +299,7 @@
   let rejected = false;
 
   // ---------------- Reactions ----------------
-  const REACTION_COOLDOWN_MS = 10 * 1000;
+  const REACTION_COOLDOWN_MS = 5 * 1000;
   const REACTION_LS_KEY = 'trivia.lastReactionAt';
   const reactionBar = document.getElementById('reactionBar');
   const reactionCooldownEl = document.getElementById('reactionCooldown');

@@ -246,6 +246,21 @@ The classic arcade snake for 1–4 players on the Host screen — eat, grow, and
 
 The host can **Pause** at any time. Each round rotates to a different obstacle map.
 
+### 🏐 Blob Ball
+Bouncy 1v1 blob volleyball on the Host screen — a tribute to the classic Slime Volleyball.
+
+1. Players scan the QR code to join — it's **1v1**; no opponent? The host can **Add CPU** to play solo
+2. The host can **drag a player** onto the other one to swap who plays left and right, picks the **points to win** (5, 7, 10, 12 or 15), then hits **Play**
+3. Each phone is a gamepad — **◀ ▶** buttons on the left to move (tap the **⚙️** gear to switch to a **joystick**), **JUMP** on the right: **hold** it for a full jump, **tap** it for a short hop
+   - A **Bluetooth controller** paired with the phone works too: **left stick / D-pad** moves, **A** jumps
+4. You can only move on **your own side** of the net
+5. Knock the ball with your blob **as many times as you like** — where it meets your dome sets its direction, and **moving or jumping into it** hits it harder
+6. The ball bounces off the **walls**, the **ceiling** and the **net**
+7. Land the ball on your **opponent's sand** to score a point — it keeps bouncing after it lands, then **whoever lost the point serves** next (the ball drops from above the server)
+8. **First to the target score wins!** Hit **▶ Play again** for an instant rematch with the same players, or go back to the lobby
+
+The host can **Pause** at any time.
+
 ### 🧱 Stacking Royale
 **A falling-block Puzzle battle for 1–30 players, with classic endless solo practice.**
 

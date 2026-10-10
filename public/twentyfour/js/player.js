@@ -795,7 +795,7 @@
   // implementation: 6 emojis, 10s per-player cooldown (persisted to
   // localStorage so a refresh doesn't grant a free reaction), host can
   // globally mute. Gated to lobby + final views via showView() below.
-  const REACTION_COOLDOWN_MS_CLIENT = 10 * 1000;
+  const REACTION_COOLDOWN_MS_CLIENT = 5 * 1000;
   const REACTION_LS_KEY = 'twentyfour.lastReactionAt';
   const reactionBar = document.getElementById('reactionBar');
   const reactionCooldownEl = document.getElementById('reactionCooldown');

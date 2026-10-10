@@ -23,6 +23,7 @@ const mountCamo = require('./server/camo');
 const mountNockey = require('./server/nockey');
 const mountNong = require('./server/nong');
 const mountSnek = require('./server/snek');
+const mountBlobBall = require('./server/blobball');
 const mountStackingRoyale = require('./server/stackingroyale');
 const app = express();
 
@@ -140,6 +141,9 @@ mountNong(app, httpServer, { getPublicBaseUrl });
 
 // Mount the Snek 1–4 player snake game (Socket.IO namespace + REST + page routes).
 mountSnek(app, httpServer, { getPublicBaseUrl });
+
+// Mount the Blob Ball 1v1 blob volleyball game (Socket.IO namespace + REST + page routes).
+mountBlobBall(app, httpServer, { getPublicBaseUrl });
 mountStackingRoyale(app, httpServer, { getPublicBaseUrl });
 
 httpServer.listen(PORT, '0.0.0.0', () => {

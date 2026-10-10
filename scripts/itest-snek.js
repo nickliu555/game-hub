@@ -106,7 +106,7 @@ async function main() {
   check('solo matchEnd → first best is a new best', end.ok && end.solo.score === 6 && end.solo.newBest === true && end.soloBest.score === 6 && end.soloBest.name === 'Alice');
   await wait(40);
   check('player got m:end with solo result', pev.some((e) => e[0] === 'm:end' && e[1].solo && e[1].solo.score === 6));
-  await wait(3000);
+  await wait(5000);
   check('reaction allowed on the final screen', (await emit(p1, 'player:reaction', { index: 3 })).ok === true);
 
   console.log('\nRematch + solo best');
@@ -191,7 +191,7 @@ async function main() {
 
   // Mute silences reactions everywhere.
   await emit(host, 'host:setReactionsMuted', { muted: true });
-  await wait(3100);
+  await wait(5100);
   check('muted reactions rejected', (await emit(b, 'player:reaction', { index: 0 })).reason === 'muted');
   await emit(host, 'host:setReactionsMuted', { muted: false });
 

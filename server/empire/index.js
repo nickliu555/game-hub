@@ -26,7 +26,7 @@ const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public', 'empire');
 
 const HOST_ROOM = 'hosts';
 const HOST_GRACE_MS = 5000;
-const REACTION_COOLDOWN_MS = 10 * 1000;
+const REACTION_COOLDOWN_MS = 5 * 1000;
 const INACTIVITY_RESET_MS = 60 * 60 * 1000;
 // Per-socket submission throttle, replacing the old per-IP express rate limit.
 const SUBMIT_WINDOW_MS = 60 * 1000;

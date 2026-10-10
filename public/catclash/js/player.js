@@ -574,7 +574,7 @@
   socket.on('state:reactionsMuted', function (p) { reactionsMutedByHost = !!(p && p.muted); updateReactionState(); });
 
   // ---- Reaction bar ----
-  var REACTION_COOLDOWN_MS = 10 * 1000;
+  var REACTION_COOLDOWN_MS = 5 * 1000;
   var REACTION_LS_KEY = 'catclash.lastReactionAt';
   var reactionCooldown = document.getElementById('reactionCooldown');
   var reactionUntil = 0, cooldownRaf = null;

@@ -11,7 +11,7 @@ const questions = require('./questions');
 const HOST_ROOM = 'hosts';
 const PLAYER_ROOM = 'players';
 const REACTION_COUNT = 6;
-const REACTION_COOLDOWN_MS = 10 * 1000;
+const REACTION_COOLDOWN_MS = 5 * 1000;
 const INACTIVITY_RESET_MS = 60 * 60 * 1000;
 const HOST_GRACE_MS = 15000;
 

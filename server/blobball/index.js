@@ -4,18 +4,7 @@ const path = require('path');
 const { Server } = require('socket.io');
 const QRCode = require('qrcode');
 
-const {
-  Game,
-  PHASES,
-  STAGES,
-  MIN_ROUND_SEC,
-  MAX_ROUND_SEC,
-  ROUND_SEC_STEP,
-  DEFAULT_ROUND_SEC,
-  MIN_ROUNDS_TO_WIN,
-  MAX_ROUNDS_TO_WIN,
-  DEFAULT_ROUNDS_TO_WIN,
-} = require('./game');
+const { Game, PHASES, CAPACITY } = require('./game');
 
 const HOST_ROOM = 'hosts';
 const PLAYER_ROOM = 'players';
@@ -27,20 +16,20 @@ const REACTION_COUNT = 6;
 const REACTION_COOLDOWN_MS = 5000;
 
 /**
- * Mount Snek onto the hub's Express app and HTTP server.
+ * Mount Blob Ball onto the hub's Express app and HTTP server.
  *
- * The live game runs on the HOST browser; this module is a thin relay + lobby
- * manager + match-meta cache. It MUST reuse the single shared Socket.IO Server
- * cached on the HTTP server (httpServer._triviaIo) — creating a second Server
- * binds a second engine.io upgrade handler and crashes on the first WebSocket
- * upgrade.
+ * The live match is simulated on the HOST browser (public/blobball/js/engine.js);
+ * this module is a thin relay + lobby manager. It MUST reuse the single shared
+ * Socket.IO Server cached on the HTTP server (httpServer._triviaIo) — creating
+ * a second Server binds a second engine.io upgrade handler and crashes on the
+ * first WebSocket upgrade.
  *
  * @param {import('express').Application} app
  * @param {import('http').Server} httpServer
  * @param {Object} opts
  * @param {() => string} opts.getPublicBaseUrl
  */
-function mountSnek(app, httpServer, opts) {
+function mountBlobBall(app, httpServer, opts) {
   const getPublicBaseUrl = (opts && opts.getPublicBaseUrl) || (() => '');
 
   const game = new Game();
@@ -48,6 +37,8 @@ function mountSnek(app, httpServer, opts) {
   let lastHostSeenAt = 0;
   let hostGraceTimer = null;
   let hostLeftIntentionally = false;
+  // The host browser runs the physics, so exactly one screen may drive a match.
+  let activeHostId = null;
   let reactionsMuted = false;
   const lastReactionAt = new Map();
 
@@ -66,41 +57,32 @@ function mountSnek(app, httpServer, opts) {
   setInterval(() => {
     if (Date.now() - lastActivity >= INACTIVITY_RESET_MS) {
       game.reset();
-      game.clearSoloBest();
+      lastReactionAt.clear();
       ns.emit('state:reset');
       broadcastLobby();
-      console.log('[snek] auto-reset after 60 minutes of inactivity.');
+      console.log('[blobball] auto-reset after 60 minutes of inactivity.');
       touchActivity();
     }
   }, 60 * 1000).unref();
 
   // ---------------- Page routes ----------------
-  app.get('/snek/host', (_req, res) => {
-    res.sendFile(path.join(__dirname, '..', '..', 'public', 'snek', 'host.html'));
+  app.get('/blobball/host', (_req, res) => {
+    res.sendFile(path.join(__dirname, '..', '..', 'public', 'blobball', 'host.html'));
   });
-  app.get('/snek/join', (_req, res) => {
-    res.sendFile(path.join(__dirname, '..', '..', 'public', 'snek', 'join.html'));
+  app.get('/blobball/join', (_req, res) => {
+    res.sendFile(path.join(__dirname, '..', '..', 'public', 'blobball', 'join.html'));
   });
-  app.get('/snek/play', (_req, res) => {
-    res.sendFile(path.join(__dirname, '..', '..', 'public', 'snek', 'player.html'));
+  app.get('/blobball/play', (_req, res) => {
+    res.sendFile(path.join(__dirname, '..', '..', 'public', 'blobball', 'player.html'));
   });
 
   // ---------------- REST endpoints ----------------
-  app.get('/api/snek/config', (_req, res) => {
+  app.get('/api/blobball/config', (_req, res) => {
     const base = getPublicBaseUrl();
-    res.json({
-      joinUrl: `${base}/snek/join`,
-      minRoundSec: MIN_ROUND_SEC,
-      maxRoundSec: MAX_ROUND_SEC,
-      roundSecStep: ROUND_SEC_STEP,
-      defaultRoundSec: DEFAULT_ROUND_SEC,
-      minRoundsToWin: MIN_ROUNDS_TO_WIN,
-      maxRoundsToWin: MAX_ROUNDS_TO_WIN,
-      defaultRoundsToWin: DEFAULT_ROUNDS_TO_WIN,
-    });
+    res.json({ joinUrl: `${base}/blobball/join`, capacity: CAPACITY });
   });
 
-  app.get('/api/snek/qr', async (req, res) => {
+  app.get('/api/blobball/qr', async (req, res) => {
     const url = String(req.query.url || '');
     if (!url || url.length > 500) return res.status(400).send('bad url');
     try {
@@ -108,7 +90,7 @@ function mountSnek(app, httpServer, opts) {
         type: 'svg',
         margin: 1,
         width: 320,
-        color: { dark: '#0f2a1d', light: '#FFFFFF' },
+        color: { dark: '#0B2B3D', light: '#FFFFFF' },
       });
       res.setHeader('Content-Type', 'image/svg+xml');
       res.setHeader('Cache-Control', 'no-store');
@@ -123,21 +105,14 @@ function mountSnek(app, httpServer, opts) {
     httpServer._triviaIo = new Server(httpServer, { cors: { origin: '*' } });
   }
   const io = httpServer._triviaIo;
-  const ns = io.of('/snek');
+  const ns = io.of('/blobball');
 
   function broadcastLobby() {
     ns.emit('state:lobby', game.getLobby());
   }
 
-  function startPayload(res) {
-    return {
-      roster: res.roster,
-      mode: res.mode,
-      roundLengthSec: game.roundLengthSec,
-      roundsToWin: game.roundsToWin,
-      powerups: game.powerups,
-      soloBest: game.soloBest,
-    };
+  function playerPayload(p) {
+    return { id: p.id, name: p.name };
   }
 
   // ---------------- Socket handlers ----------------
@@ -161,7 +136,7 @@ function mountSnek(app, httpServer, opts) {
       socket.join(PLAYER_ROOM);
       ack && ack({
         ok: true,
-        player: { id: res.player.id, name: res.player.name },
+        player: playerPayload(res.player),
         hostPresent: isHostPresent(),
         phase: game.phase,
       });
@@ -177,7 +152,7 @@ function mountSnek(app, httpServer, opts) {
       socket.join(PLAYER_ROOM);
       const payload = {
         ok: true,
-        player: { id: res.player.id, name: res.player.name },
+        player: playerPayload(res.player),
         phase: game.phase,
         hostPresent: isHostPresent(),
         reactionsMuted,
@@ -191,19 +166,18 @@ function mountSnek(app, httpServer, opts) {
       broadcastLobby();
     });
 
-    // Controller input relay: forwarded straight to the host with the player's
-    // id attached. dir: 0=up 1=down 2=left 3=right (a turn request).
+    // Controller input relay — the latency-critical path, kept minimal.
+    // c: 0 = left, 1 = right, 2 = jump; d: 1 down / 0 up. Relayed while paused
+    // too, so a button let go during a pause never comes back stuck down.
     socket.on('in', (msg) => {
       if (role !== 'player' || !playerId) return;
-      if (game.phase !== PHASES.PLAYING || !game.match.live) return;
-      if (game.match.paused) return;
-      if (game.match.alive && game.match.alive[playerId] === false) return;
-      const dir = msg && msg.dir;
-      if (dir !== 0 && dir !== 1 && dir !== 2 && dir !== 3) return;
-      ns.to(HOST_ROOM).emit('in', { id: playerId, dir });
+      if (game.phase !== PHASES.PLAYING) return;
+      const c = msg && msg.c;
+      if (c !== 0 && c !== 1 && c !== 2) return;
+      ns.to(HOST_ROOM).emit('in', { id: playerId, c, d: msg.d ? 1 : 0 });
     });
 
-    // Reactions: downtime only (lobby, round results, final), cooldown-throttled,
+    // Reactions: downtime only (lobby + final results), cooldown-throttled,
     // and silenced entirely while the host has them muted.
     socket.on('player:reaction', ({ index } = {}, ack) => {
       if (role !== 'player' || !playerId) return ack && ack({ ok: false, reason: 'not-joined' });
@@ -232,17 +206,16 @@ function mountSnek(app, httpServer, opts) {
       hostLeftIntentionally = false;
       hostCount += 1;
       lastHostSeenAt = Date.now();
+      if (activeHostId && activeHostId !== socket.id && ns.sockets.get(activeHostId)) {
+        ns.to(activeHostId).emit('host:superseded');
+      }
+      activeHostId = socket.id;
       if (wasAbsent) emitHostPresence(true);
       const payload = {
         ok: true,
         phase: game.phase,
         lobby: game.getLobby(),
         reactionsMuted,
-        minRoundSec: MIN_ROUND_SEC,
-        maxRoundSec: MAX_ROUND_SEC,
-        roundSecStep: ROUND_SEC_STEP,
-        minRoundsToWin: MIN_ROUNDS_TO_WIN,
-        maxRoundsToWin: MAX_ROUNDS_TO_WIN,
       };
       if (game.phase === PHASES.PLAYING || game.phase === PHASES.FINAL) {
         payload.match = game.getMatchMeta();
@@ -258,35 +231,29 @@ function mountSnek(app, httpServer, opts) {
       return true;
     }
 
-    socket.on('host:setRoundLength', ({ roundLengthSec } = {}, ack) => {
+    // Only one screen may drive the live match. The newest host screen claims
+    // it; if the holder has gone away the slot is free for the next host.
+    function isActiveHost() {
+      if (role !== 'host') return false;
+      if (activeHostId && !ns.sockets.get(activeHostId)) activeHostId = null;
+      if (!activeHostId) activeHostId = socket.id;
+      return activeHostId === socket.id;
+    }
+
+    socket.on('host:setTarget', ({ value } = {}, ack) => {
       if (!requireHost(ack)) return;
-      const res = game.setRoundLength(roundLengthSec);
+      const res = game.setTarget(value);
       if (!res.ok) return ack && ack(res);
-      ack && ack({ ok: true, roundLengthSec: game.roundLengthSec });
+      ack && ack({ ok: true });
       broadcastLobby();
     });
 
-    socket.on('host:setPowerups', ({ on } = {}, ack) => {
+    socket.on('host:swap', (_p, ack) => {
       if (!requireHost(ack)) return;
-      const res = game.setPowerups(on);
+      const res = game.swapSides();
       if (!res.ok) return ack && ack(res);
-      ack && ack({ ok: true, powerups: game.powerups });
+      ack && ack({ ok: true });
       broadcastLobby();
-    });
-
-    socket.on('host:setRoundsToWin', ({ roundsToWin } = {}, ack) => {
-      if (!requireHost(ack)) return;
-      const res = game.setRoundsToWin(roundsToWin);
-      if (!res.ok) return ack && ack(res);
-      ack && ack({ ok: true, roundsToWin: game.roundsToWin });
-      broadcastLobby();
-    });
-
-    socket.on('host:setReactionsMuted', ({ muted } = {}, ack) => {
-      if (!requireHost(ack)) return;
-      reactionsMuted = !!muted;
-      ack && ack({ ok: true, reactionsMuted });
-      ns.emit('state:reactionsMuted', { muted: reactionsMuted });
     });
 
     socket.on('host:kick', ({ playerId: pid } = {}, ack) => {
@@ -299,14 +266,6 @@ function mountSnek(app, httpServer, opts) {
       broadcastLobby();
     });
 
-    socket.on('host:reorder', ({ playerId: pid, beforeId } = {}, ack) => {
-      if (!requireHost(ack)) return;
-      const res = game.reorderPlayer(pid, beforeId);
-      if (!res.ok) return ack && ack(res);
-      ack && ack({ ok: true });
-      broadcastLobby();
-    });
-
     socket.on('host:addBot', (_p, ack) => {
       if (!requireHost(ack)) return;
       const res = game.addBot();
@@ -315,158 +274,114 @@ function mountSnek(app, httpServer, opts) {
       broadcastLobby();
     });
 
+    socket.on('host:setReactionsMuted', ({ muted } = {}, ack) => {
+      if (!requireHost(ack)) return;
+      reactionsMuted = !!muted;
+      ack && ack({ ok: true, reactionsMuted });
+      ns.emit('state:reactionsMuted', { muted: reactionsMuted });
+    });
+
     socket.on('host:start', (_p, ack) => {
       if (!requireHost(ack)) return;
+      if (!isActiveHost()) return ack && ack({ ok: false, reason: 'not-active-host' });
       touchActivity();
       const res = game.startMatch();
       if (!res.ok) return ack && ack(res);
-      const payload = startPayload(res);
-      ack && ack(Object.assign({ ok: true }, payload));
-      ns.emit('m:start', payload);
-      broadcastLobby();
+      ack && ack({ ok: true, match: res.meta });
+      ns.emit('m:start', res.meta);
     });
 
-    // Solo "Play again" from the phone: only the lone player of a finished
-    // solo game can ask; the host restarts it exactly like its own button.
-    socket.on('player:playAgain', (_p, ack) => {
-      if (role !== 'player' || !playerId) return ack && ack({ ok: false, reason: 'not-joined' });
-      if (game.phase !== PHASES.FINAL || game.match.mode !== 'solo') return ack && ack({ ok: false, reason: 'not-solo-final' });
-      if (!game.players.has(playerId)) return ack && ack({ ok: false, reason: 'unknown-player' });
-      if (!isHostPresent()) return ack && ack({ ok: false, reason: 'host-absent' });
-      touchActivity();
-      ns.to(HOST_ROOM).emit('host:playAgainRequest', {});
-      ack && ack({ ok: true });
-    });
-
+    // Play again from the results screen: same roster, sides and target.
     socket.on('host:rematch', (_p, ack) => {
       if (!requireHost(ack)) return;
+      if (!isActiveHost()) return ack && ack({ ok: false, reason: 'not-active-host' });
       touchActivity();
       const res = game.rematch();
       if (!res.ok) return ack && ack(res);
-      const payload = startPayload(res);
-      ack && ack(Object.assign({ ok: true }, payload));
-      ns.emit('m:start', payload);
+      ack && ack({ ok: true, match: res.meta });
+      ns.emit('m:start', res.meta);
       broadcastLobby();
     });
 
     // ---- Live match meta pushed by the host (rebroadcast to players) ----
-    socket.on('host:roundStart', ({ round, mapIndex, durationSec } = {}) => {
-      if (role !== 'host' || game.phase !== PHASES.PLAYING) return;
+    socket.on('host:countdown', ({ n, note } = {}) => {
+      if (!isActiveHost() || game.phase !== PHASES.PLAYING) return;
       touchActivity();
-      game.setRound(round, mapIndex);
-      game.setClock((durationSec || game.roundLengthSec) * 1000);
       game.setLive(false);
-      game.setPaused(false);
-      game.setStage(STAGES.COUNTDOWN);
-      game.setAllAlive();
-      game.clearPowers();
-      ns.to(PLAYER_ROOM).emit('m:roundStart', {
-        round: game.match.round,
-        mapIndex: game.match.mapIndex,
-        roundsToWin: game.roundsToWin,
-        durationSec: durationSec || game.roundLengthSec,
-        mode: game.match.mode,
+      ns.to(PLAYER_ROOM).emit('m:countdown', {
+        n: Number.isInteger(n) ? n : 0,
+        note: typeof note === 'string' ? note.slice(0, 40) : null,
       });
     });
-    socket.on('host:countdown', ({ n } = {}) => {
-      if (role !== 'host' || game.phase !== PHASES.PLAYING) return;
-      touchActivity();
+    // The ball is hanging over the server, about to drop.
+    socket.on('host:serve', ({ serverId } = {}) => {
+      if (!isActiveHost() || game.phase !== PHASES.PLAYING) return;
       game.setLive(false);
-      game.setStage(STAGES.COUNTDOWN);
-      ns.to(PLAYER_ROOM).emit('m:countdown', { n });
+      ns.to(PLAYER_ROOM).emit('m:serve', { serverId: game.isRosterId(serverId) ? serverId : null });
     });
     socket.on('host:play', () => {
-      if (role !== 'host' || game.phase !== PHASES.PLAYING) return;
+      if (!isActiveHost() || game.phase !== PHASES.PLAYING) return;
       game.setLive(true);
-      game.setStage(STAGES.PLAY);
       ns.to(PLAYER_ROOM).emit('m:play', {});
     });
+    // The heartbeat carries the full authoritative snapshot so a phone that
+    // missed an event (backgrounded, signal blip) re-syncs within a moment.
+    socket.on('host:sync', ({ scores, live, paused } = {}) => {
+      if (!isActiveHost() || game.phase !== PHASES.PLAYING) return;
+      game.setScores(scores);
+      if (typeof paused === 'boolean') game.setPaused(paused);
+      if (typeof live === 'boolean') game.setLive(live);
+      ns.to(PLAYER_ROOM).emit('m:sync', {
+        scores: game.match.scores,
+        live: game.match.live,
+        paused: game.match.paused,
+      });
+    });
+    socket.on('host:point', ({ scorerId, scores } = {}) => {
+      if (!isActiveHost() || game.phase !== PHASES.PLAYING) return;
+      touchActivity();
+      game.setScores(scores);
+      game.setLive(false);
+      ns.to(PLAYER_ROOM).emit('m:point', {
+        scorerId: game.isRosterId(scorerId) ? scorerId : null,
+        scores: game.match.scores,
+      });
+    });
     socket.on('host:pause', () => {
-      if (role !== 'host' || game.phase !== PHASES.PLAYING) return;
+      if (!isActiveHost() || game.phase !== PHASES.PLAYING) return;
       touchActivity();
       game.setPaused(true);
       ns.to(PLAYER_ROOM).emit('m:pause', {});
     });
     // Resume 3-2-1 (the game stays paused until it ends); n = 0 cancels it.
     socket.on('host:resumeCount', ({ n } = {}) => {
-      if (role !== 'host') return;
+      if (!isActiveHost()) return;
       const v = Math.max(0, Math.min(9, Number(n) | 0));
       ns.to(PLAYER_ROOM).emit('m:resumeCount', { n: v });
     });
     socket.on('host:resume', ({ live } = {}) => {
-      if (role !== 'host' || game.phase !== PHASES.PLAYING) return;
+      if (!isActiveHost() || game.phase !== PHASES.PLAYING) return;
       touchActivity();
       game.setPaused(false);
       ns.to(PLAYER_ROOM).emit('m:resume', { live: !!live });
     });
-    socket.on('host:clock', ({ ms, lengths } = {}) => {
-      if (role !== 'host' || game.phase !== PHASES.PLAYING) return;
-      game.setClock(ms);
-      if (lengths) game.setLengths(lengths);
-      ns.to(PLAYER_ROOM).emit('m:clock', { ms: game.match.clockMs, lengths: game.match.lengths });
-    });
-    // A snake picked up (sec > 0) or lost (sec 0) a power-up: tell the phones.
-    socket.on('host:power', ({ id, power, sec } = {}) => {
-      if (role !== 'host' || game.phase !== PHASES.PLAYING) return;
-      if (!id || !game.players.has(id)) return;
-      if (power !== 'magnet' && power !== 'phantom') return;
-      const s = Math.max(0, Math.min(30, Number(sec) || 0));
-      game.setPower(id, power, s);
-      ns.to(PLAYER_ROOM).emit('m:power', { id, power, sec: s });
-    });
-    socket.on('host:eliminated', ({ id, length } = {}) => {
-      if (role !== 'host' || game.phase !== PHASES.PLAYING) return;
-      if (!id || !game.players.has(id)) return;
+    socket.on('host:matchEnd', ({ winnerId, scores } = {}) => {
+      if (!isActiveHost()) return;
       touchActivity();
-      game.setAlive({ [id]: false });
-      game.setPower(id, null, 0);
-      if (Number.isFinite(length)) game.setLengths({ [id]: length });
-      ns.to(PLAYER_ROOM).emit('m:eliminated', { id, length: game.match.lengths[id] || 0 });
-    });
-    // The round is decided (slow-mo + frozen clock): controls go dead now.
-    socket.on('host:decided', () => {
-      if (role !== 'host' || game.phase !== PHASES.PLAYING) return;
-      game.setLive(false);
-      ns.to(PLAYER_ROOM).emit('m:decided', {});
-    });
-    socket.on('host:roundOver', ({ round, winnerId, draw, reason, lengths, gamePoints, alive } = {}) => {
-      if (role !== 'host' || game.phase !== PHASES.PLAYING) return;
-      touchActivity();
-      game.setLive(false);
-      game.setStage(STAGES.ROUNDOVER);
-      if (lengths) game.setLengths(lengths);
-      if (gamePoints) game.setGamePoints(gamePoints);
-      if (alive) game.setAlive(alive);
-      game.setLastRound({ round, winnerId, draw, reason });
-      ns.to(PLAYER_ROOM).emit('m:roundOver', {
-        round: game.match.lastRound.round,
-        winnerId: game.match.lastRound.winnerId,
-        draw: game.match.lastRound.draw,
-        reason: game.match.lastRound.reason,
-        lengths: game.match.lengths,
-        gamePoints: game.match.gamePoints,
-        roundsToWin: game.roundsToWin,
+      const res = game.endMatch({ winnerId, scores });
+      if (!res.ok) return;
+      const meta = game.getMatchMeta();
+      ns.to(PLAYER_ROOM).emit('m:end', {
+        winnerId: meta.winnerId,
+        scores: meta.scores,
       });
-    });
-    socket.on('host:matchEnd', ({ winnerIds, gamePoints, awards, soloScore, soloLength } = {}, ack) => {
-      if (role !== 'host' || game.phase !== PHASES.PLAYING) return ack && ack({ ok: false, reason: 'not-playing' });
-      touchActivity();
-      game.endMatch({ winnerIds, gamePoints, awards, soloScore, soloLength });
-      const out = {
-        mode: game.match.mode,
-        winnerIds: game.match.winnerIds,
-        gamePoints: game.match.gamePoints,
-        lengths: game.match.lengths,
-        solo: game.match.solo,
-        soloBest: game.soloBest,
-      };
-      ack && ack(Object.assign({ ok: true }, out));
-      ns.to(PLAYER_ROOM).emit('m:end', out);
-      broadcastLobby();
     });
 
     socket.on('host:reset', (_p, ack) => {
       if (!requireHost(ack)) return;
+      if (!isActiveHost()) return ack && ack({ ok: false, reason: 'not-active-host' });
+      // Reset from a live/finished match keeps the target setting; a lobby
+      // reset returns it to the default.
       const keepConfig = game.phase !== PHASES.LOBBY;
       game.reset(keepConfig);
       lastReactionAt.clear();
@@ -477,8 +392,8 @@ function mountSnek(app, httpServer, opts) {
 
     socket.on('host:leave', (_p, ack) => {
       if (!requireHost(ack)) return;
+      if (!isActiveHost()) return ack && ack({ ok: false, reason: 'not-active-host' });
       game.reset();
-      game.clearSoloBest();
       lastReactionAt.clear();
       hostLeftIntentionally = true;
       if (hostGraceTimer) { clearTimeout(hostGraceTimer); hostGraceTimer = null; }
@@ -488,10 +403,12 @@ function mountSnek(app, httpServer, opts) {
 
     socket.on('disconnect', () => {
       if (role === 'player') {
+        // The player stays on the roster — a dropped phone is never a forfeit.
         game.markDisconnected(socket.id);
         broadcastLobby();
         ns.to(HOST_ROOM).emit('player:dropped', { id: playerId });
       } else if (role === 'host') {
+        if (activeHostId === socket.id) activeHostId = null;
         hostCount = Math.max(0, hostCount - 1);
         lastHostSeenAt = Date.now();
         if (hostCount === 0) {
@@ -506,4 +423,4 @@ function mountSnek(app, httpServer, opts) {
   });
 }
 
-module.exports = mountSnek;
+module.exports = mountBlobBall;

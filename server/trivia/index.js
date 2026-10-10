@@ -9,7 +9,7 @@ const { fetchQuestions, fetchCategories, TriviaApiError, prewarmToken } = requir
 
 const HOST_ROOM = 'hosts';
 const REACTION_COUNT = 6;
-const REACTION_COOLDOWN_MS = 10 * 1000;
+const REACTION_COOLDOWN_MS = 5 * 1000;
 const INACTIVITY_RESET_MS = 60 * 60 * 1000; // 60 minutes
 
 /**

@@ -430,7 +430,7 @@
   }
 
   // ---------------- Reactions ----------------
-  const REACTION_COOLDOWN_MS = 3000;
+  const REACTION_COOLDOWN_MS = 5000;
   let reactionUntil = 0, cooldownRaf = null;
   const reactionBtns = reactionBar ? Array.prototype.slice.call(reactionBar.querySelectorAll('.reaction-btn')) : [];
   function startCooldown() {

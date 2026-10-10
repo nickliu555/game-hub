@@ -459,7 +459,7 @@
 
   // ---------------- Reactions ----------------
   let reactionsMuted = false;
-  const REACTION_COOLDOWN_MS = 10 * 1000;
+  const REACTION_COOLDOWN_MS = 5 * 1000;
   socket.on('state:reactionsMuted', function (p) { reactionsMuted = !!(p && p.muted); });
   if (reactionBar) {
     reactionBar.addEventListener('click', function (e) {

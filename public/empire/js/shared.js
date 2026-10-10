@@ -175,7 +175,7 @@
     // Cooldown between consecutive reactions, in ms, persisted to
     // localStorage so it survives page navigation between /join
     // and /play.
-    const REACTION_COOLDOWN_MS = 10 * 1000;
+    const REACTION_COOLDOWN_MS = 5 * 1000;
     const REACTION_LS_KEY = 'empire.lastReactionAt';
     let reactionUntilMs = 0;
     let reactionCountdownTimer = null;

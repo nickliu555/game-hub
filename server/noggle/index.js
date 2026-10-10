@@ -13,7 +13,7 @@ const PLAYER_ROOM = 'players';
 const INACTIVITY_RESET_MS = 60 * 60 * 1000; // 60 minutes
 const HOST_GRACE_MS = 15000;
 const REACTION_COUNT = 6;
-const REACTION_COOLDOWN_MS = 10 * 1000;
+const REACTION_COOLDOWN_MS = 5 * 1000;
 
 /**
  * Mount the Boggle word game onto the hub's Express app and HTTP server.

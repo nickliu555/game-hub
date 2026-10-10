@@ -494,6 +494,31 @@ const games = [
         hostPath: '/snek/host',
         playPath: '/snek/play',
     },
+    {
+        id: 'blobball',
+        name: 'Blob Ball',
+        tagline: 'Bouncy blob volleyball — your phone is the controller',
+        emoji: '🏐',
+        color: '#0E4D64',
+        category: 'Arcade',
+        playerCount: '1–2 (+CPU)',
+        duration: '3–8 min',
+        description: 'A tribute to the classic Slime Volleyball. Two squishy blobs face off across a little net on the shared screen, each steered live from a phone. Slide, hop and leap to knock the ball over — bounce it as many times as you like, off the walls and the ceiling too — and land it on your opponent\'s sand. First to the target score wins. No opponent? Play against the CPU.',
+        rules: [
+            'The host opens the game on a shared screen (TV, laptop, etc.)',
+            'Players scan the QR code on their phones and enter a name — it\'s 1v1 (add a CPU to play solo)',
+            'The host can drag a player onto the other to swap sides, sets the points to win (5, 7, 10, 12 or 15), then hits Play',
+            'Your phone is the controller: ◀ ▶ buttons on the left to move (or switch to a joystick with the ⚙️ gear), JUMP on the right — hold it for a full jump, tap it for a short hop',
+            'Got a Bluetooth controller? Pair it with your phone: left stick or D-pad moves, A jumps',
+            'You can only move on your own side of the net',
+            'Knock the ball with your blob as many times as you like — where it hits your dome sets its direction, and moving or jumping into it hits it harder',
+            'The ball bounces off the walls, the ceiling and the net',
+            'Land the ball on your opponent\'s side of the sand to score a point — whoever lost the point serves next',
+            'First to the target score wins!'
+        ],
+        hostPath: '/blobball/host',
+        playPath: '/blobball/play',
+    },
 ];
 
 module.exports = games;
