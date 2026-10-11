@@ -259,23 +259,90 @@ for (const [x, scorer] of [[750, 0], [250, 1]]) {
   check('stress: the ball never ends a tick inside the post (' + inside + ')', inside === 0);
 }
 
-// ---- CPU vs CPU ----
+// ---- One touch = one boing: back-to-back contacts are flagged as continuing ----
 {
   const w = world(true);
-  let serve = 0, pts = 0, hits = 0, stalls = 0;
-  const wins = [0, 0];
+  let serve = 0, fresh = 0, cont = 0, wrong = 0;
+  const last = [-99, -99];
   for (let p = 0; p < 200; p++) {
     w.setupServe(serve);
     w.release();
+    last[0] = last[1] = -99;
     let res = null, t = 0;
+    while (!res && t < 3000) {
+      w.stepBots();
+      res = w.step();
+      t++;
+      for (const e of w.events) {
+        if (e.t !== 'hit') continue;
+        const close = w.tick - last[e.seat] <= 8;
+        if (close !== !!e.cont) wrong++;
+        if (e.cont) cont++; else fresh++;
+        last[e.seat] = w.tick;
+      }
+      w.events.length = 0;
+    }
+    if (res) serve = res.loserSeat;
+  }
+  check('a blob carrying the ball for a tick or two happens (' + cont + ' follow-up contacts)', cont > 0);
+  check('follow-up contacts are flagged so the boing plays once per touch (' + fresh + ' touches)', wrong === 0 && fresh > 0);
+}
+
+// ---- The CPU moves like a thumb on a phone: slower, and hesitates to turn ----
+{
+  const w = world(true);
+  w.setupServe(0);
+  w.release();
+  w.ballHeld = true;
+  const cpu = w.blobs[0];
+  w.stepBots();
+  cpu.ai.target = 400;
+  let started = -1, maxStep = 0;
+  for (let t = 0; t < 40; t++) {
+    const x0 = cpu.x;
+    w._steer(cpu);
+    w.step();
+    const dx = cpu.x - x0;
+    if (dx !== 0 && started < 0) started = t;
+    maxStep = Math.max(maxStep, Math.abs(dx));
+  }
+  check('CPU waits a beat before it starts moving (' + started + ' ticks, min ' + BB.AI_TURN_MIN + ')', started >= BB.AI_TURN_MIN);
+  check('CPU moves slower than a player (' + maxStep.toFixed(1) + ' vs ' + BB.MOVE_SPEED + ' per tick)', maxStep > 0 && maxStep < BB.MOVE_SPEED);
+  // Reverse: it lets go at once, then hesitates before pushing the other way.
+  cpu.ai.target = 60;
+  w._steer(cpu);
+  w.step();
+  const xr = cpu.x;
+  check('CPU lets go at once when it changes its mind', cpu.vx === 0);
+  w.step();
+  check('…and hesitates before moving the other way', cpu.x === xr);
+  // Players are untouched.
+  const h = liveCourt(); park(h);
+  h.setInput('a', 1, true);
+  h.step();
+  check('players still move at full speed', h.blobs[0].x === BB.HOME[0] + BB.MOVE_SPEED);
+}
+
+// ---- CPU vs CPU ----
+{
+  const w = world(true);
+  let serve = 0, pts = 0, hits = 0, stalls = 0, serveFaults = 0;
+  const wins = [0, 0];
+  for (let p = 0; p < 300; p++) {
+    w.setupServe(serve);
+    w.release();
+    let res = null, t = 0, crossed = false;
+    const startSide = w.ball.x < BB.NET_X ? 0 : 1;
     while (!res && t < 3000) {
       w.stepBots();
       res = w.step();
       t++;
       for (const e of w.events) if (e.t === 'hit') hits++;
       w.events.length = 0;
+      if ((w.ball.x < BB.NET_X ? 0 : 1) !== startSide) crossed = true;
     }
     if (!res) { stalls++; serve = 1 - serve; continue; }
+    if (!crossed) serveFaults++;
     pts++;
     wins[res.scorerSeat]++;
     serve = res.loserSeat;
@@ -283,7 +350,8 @@ for (const [x, scorer] of [[750, 0], [250, 1]]) {
   const avg = hits / Math.max(1, pts);
   check('CPU rallies always end (no endless dribbles)', stalls === 0);
   check('CPU keeps a rally going (avg ' + avg.toFixed(1) + ' hits per point)', avg >= 3);
-  check('both sides win points (' + wins.join(' / ') + ')', wins[0] > 40 && wins[1] > 40);
+  check('both sides win points (' + wins.join(' / ') + ')', wins[0] > 60 && wins[1] > 60);
+  check('CPU rarely wrecks its own serve (' + (100 * serveFaults / Math.max(1, pts)).toFixed(1) + '%)', serveFaults / Math.max(1, pts) < 0.08);
 }
 
 console.log(failures ? '\n' + failures + ' FAILED' : '\nAll engine checks passed.');

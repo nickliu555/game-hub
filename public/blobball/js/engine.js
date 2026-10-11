@@ -30,6 +30,10 @@
   var HOP_CUT_V = 6;
   var MIN_HOP_TICKS = 3;
   var JUMP_BUFFER_TICKS = 5;   // a press just before landing still jumps
+  // A rising/falling blob can outrun the ball's speed cap and touch it again a
+  // tick or two later. Contacts this close together are one touch: flagged
+  // `cont` so the boing and hit sparks play once.
+  var HIT_CHAIN_TICKS = 8;
 
   var BALL_G = 1;
   var MAX_VX = 15;
@@ -70,6 +74,7 @@
       held: { l: false, r: false, j: false },
       jumpBuf: 0,
       airTicks: 0,
+      lastHitTick: -99,
       ai: null,
     };
   }
@@ -107,7 +112,8 @@
       p.vx = p.vy = 0;
       p.jumpBuf = 0;
       p.airTicks = 0;
-      if (p.ai) p.ai.wait = 0;
+      p.lastHitTick = -99;
+      if (p.ai) { p.ai.wait = 0; p.ai.lastBallSide = -1; p.ai.move = 0; p.ai.turn = 0; }
     }
     var b = this.ball;
     b.x = b.px = HOME[this.serveSeat];
@@ -159,7 +165,10 @@
     var l = !locked && p.held.l;
     var r = !locked && p.held.r;
     var j = !locked && p.held.j;
-    p.vx = l && !r ? -MOVE_SPEED : (r && !l ? MOVE_SPEED : 0);
+    // The CPU's feet are slower than a player's, to match how fiddly sideways
+    // movement is on a phone.
+    var speed = p.isBot ? MOVE_SPEED * AI_SPEED : MOVE_SPEED;
+    p.vx = l && !r ? -speed : (r && !l ? speed : 0);
     if (!locked && p.y === 0 && (j || p.jumpBuf > 0)) {
       p.vy = JUMP_V;
       p.airTicks = 0;
@@ -250,7 +259,9 @@
     for (var i = 0; i < this.blobs.length; i++) {
       var p = this.blobs[i];
       if (collideBlob(b, p)) {
-        this.events.push({ t: 'hit', seat: p.seat, x: b.x, y: b.y, speed: Math.sqrt(b.vx * b.vx + b.vy * b.vy), live: this.live });
+        var cont = this.tick - p.lastHitTick <= HIT_CHAIN_TICKS;
+        p.lastHitTick = this.tick;
+        this.events.push({ t: 'hit', seat: p.seat, x: b.x, y: b.y, speed: Math.sqrt(b.vx * b.vx + b.vy * b.vy), live: this.live, cont: cont });
       }
     }
 
@@ -296,12 +307,18 @@
   // Plans off a forward simulation of the ball (walls, ceiling and net, no
   // blobs), gets behind where it will come down so the dome knocks it toward
   // the net, and jumps when a leap would meet the ball high on its own side.
-  // A little reaction lag and aim noise keep it beatable.
+  // To be beatable from a phone, its only handicap is sideways movement: it
+  // reads the ball and jumps as sharply as ever, but its feet are slow and it
+  // hesitates whenever it starts moving or reverses — like a thumb on the
+  // phone's ◀ ▶ buttons.
   var AI_THINK_MIN = 3;
   var AI_THINK_MAX = 6;
   var AI_AIM = 16;
   var AI_AIM_NOISE = 14;
   var AI_JUMP_CHANCE = 0.72;
+  var AI_SPEED = 0.9;           // sideways speed vs a player's
+  var AI_TURN_MIN = 4;          // ticks to start moving / reverse ("thumb lag")
+  var AI_TURN_MAX = 6;
   var PLAN_TICKS = 120;
 
   function predictPath(ball, n) {
@@ -362,6 +379,8 @@
     if (this.blobsLocked) {
       p.held.l = p.held.r = p.held.j = false;
       ai.jumpHold = 0;
+      ai.move = 0;
+      ai.turn = 0;
       return;
     }
     if (ai.wait > 0) { ai.wait--; this._steer(p); return; }
@@ -392,10 +411,23 @@
     this._steer(p);
   };
 
+  // Like a thumb on the phone: letting go is instant, but starting to move or
+  // reversing takes a moment before the new direction is pressed.
   World.prototype._steer = function (p) {
-    var d = p.ai.target - p.x;
-    p.held.l = d < -5;
-    p.held.r = d > 5;
+    var ai = p.ai;
+    var d = ai.target - p.x;
+    var want = d < -5 ? -1 : (d > 5 ? 1 : 0);
+    if (want === 0) { ai.move = 0; ai.turn = 0; }
+    else if (want !== ai.move) {
+      if (!ai.turn) {
+        ai.move = 0;
+        ai.turn = AI_TURN_MIN + Math.floor(this.rng() * (AI_TURN_MAX - AI_TURN_MIN + 1));
+      } else if (--ai.turn === 0) {
+        ai.move = want;
+      }
+    }
+    p.held.l = ai.move === -1;
+    p.held.r = ai.move === 1;
   };
 
   var api = {
@@ -423,6 +455,7 @@
     NET_DRAW_HALF: NET_DRAW_HALF,
     LIMITS: LIMITS,
     HOME: HOME,
+    AI_TURN_MIN: AI_TURN_MIN,
     SERVE_Y: SERVE_Y,
     predictPath: predictPath,
   };

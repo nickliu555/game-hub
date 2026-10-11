@@ -918,7 +918,7 @@
     for (let i = 0; i < evs.length; i++) {
       const e = evs[i];
       if (renderer) renderer.handleEvent(e);
-      if (e.t === 'hit') playBoing(e.speed);
+      if (e.t === 'hit') { if (!e.cont) playBoing(e.speed); }
       else if ((e.t === 'wall' || e.t === 'ceil') && ticks < 2) { playTick(); ticks++; }
       else if (e.t === 'net') playPostSfx();
       else if (e.t === 'ground') {

@@ -217,6 +217,7 @@
       this.fx[e.seat].sv += 1.6;
       this.dust(w.blobs[e.seat].x, 4);
     } else if (e.t === 'hit') {
+      if (e.cont) return;
       this.fx[e.seat].sv -= 0.9;
       this.ring(e.x, e.y / 2, '#ffffff', 0.35);
       this.sparks(e.x, e.y / 2, '#ffffff', 5);
