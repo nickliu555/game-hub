@@ -319,6 +319,12 @@ function mountBlobBall(app, httpServer, opts) {
       game.setLive(false);
       ns.to(PLAYER_ROOM).emit('m:serve', { serverId: game.isRosterId(serverId) ? serverId : null });
     });
+    // The serve hit the sand untouched: no point, the same player serves again.
+    socket.on('host:miss', ({ serverId } = {}) => {
+      if (!isActiveHost() || game.phase !== PHASES.PLAYING) return;
+      game.setLive(false);
+      ns.to(PLAYER_ROOM).emit('m:miss', { serverId: game.isRosterId(serverId) ? serverId : null });
+    });
     socket.on('host:play', () => {
       if (!isActiveHost() || game.phase !== PHASES.PLAYING) return;
       game.setLive(true);

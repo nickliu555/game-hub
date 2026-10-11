@@ -152,9 +152,10 @@ function park(w) { Object.assign(w.ball, { x: 980, y: 700, vx: 0, vy: 0 }); w.ba
   check('ball speed stays within the caps', Math.abs(w2.ball.vx) <= BB.MAX_VX && Math.abs(w2.ball.vy) <= BB.MAX_VY);
 }
 
-// ---- Scoring + dead ball ----
+// ---- Scoring + dead ball (a ball already in play: someone has touched it) ----
 for (const [x, scorer] of [[750, 0], [250, 1]]) {
   const w = liveCourt();
+  w.touched = true;
   Object.assign(w.ball, { x, y: 60, vx: 0, vy: -10 });
   let res = null;
   for (let t = 0; t < 20 && !res; t++) res = w.step();
@@ -162,6 +163,7 @@ for (const [x, scorer] of [[750, 0], [250, 1]]) {
 }
 {
   const w = liveCourt();
+  w.touched = true;
   Object.assign(w.ball, { x: 750, y: 300, vx: 4, vy: -12 });
   let res = null, points = 0, rose = false, lowest = Infinity;
   w.setInput('a', 1, true);
@@ -180,6 +182,113 @@ for (const [x, scorer] of [[750, 0], [250, 1]]) {
   const ax = w.blobs[0].x;
   w.step();
   check('blobs ignore input while the ball is dead', w.blobs[0].x === ax);
+}
+
+// ---- A whiffed serve (nobody touched it) is re-served, not a point ----
+{
+  // The server jumps away from the ball and it drops untouched onto the sand.
+  for (const seat of [0, 1]) {
+    const w = world(false);
+    w.setupServe(seat);
+    w.release();
+    const id = seat === 0 ? 'a' : 'b';
+    w.setInput(id, seat === 0 ? 0 : 1, true);   // run away from the ball
+    let res = null;
+    for (let t = 0; t < 200 && !res; t++) res = w.step();
+    check('seat ' + seat + ': an untouched serve that lands is a missed serve, not a point',
+      res && res.missedServe === true && !res.point && res.serverSeat === seat);
+    check('seat ' + seat + ': the miss is reported as a ground event with miss=true', w.events.some((e) => e.t === 'ground' && e.miss));
+    check('seat ' + seat + ': blobs freeze while it bounces', w.blobsLocked && !w.live);
+  }
+  // Whiffing again and again never scores.
+  const w = world(false);
+  let misses = 0, points = 0;
+  for (let n = 0; n < 6; n++) {
+    w.setupServe(0);
+    w.release();
+    w.setInput('a', 0, true);
+    let res = null;
+    for (let t = 0; t < 200 && !res; t++) res = w.step();
+    if (res && res.missedServe) misses++;
+    if (res && res.point) points++;
+  }
+  check('a server can whiff as many times as it takes (' + misses + ' re-serves, ' + points + ' points)', misses === 6 && points === 0);
+  // Touch it, even barely, and it's live: landing on your own side loses the
+  // point. Try every way of stepping away under the ball.
+  let ruleBroken = 0, ownSideLosses = 0, whiffed = 0;
+  for (const dirBtn of [0, 1]) {
+    for (let k = 1; k <= 30; k++) {
+      const t2 = world(false);
+      t2.setupServe(0);
+      t2.release();
+      let res2 = null;
+      for (let t = 0; t < 300 && !res2; t++) {
+        t2.setInput('a', dirBtn, t < k);
+        res2 = t2.step();
+      }
+      if (!res2) continue;
+      if (t2.touched && !res2.point) ruleBroken++;          // touched ⇒ must count
+      if (!t2.touched && !res2.missedServe) ruleBroken++;   // untouched ⇒ re-serve
+      if (!t2.touched) whiffed++;
+      if (t2.touched && res2.point && res2.scorerSeat === 1) ownSideLosses++;
+    }
+  }
+  check('touched serves always count, untouched ones are always re-served', ruleBroken === 0);
+
+  // Waiting: the ball bounces on the server's head, then they walk away and it
+  // falls. The head bounces don't count — it's a re-serve.
+  {
+    const w = world(false);
+    w.setupServe(0);
+    w.release();
+    let bounces = 0, res = null;
+    for (let t = 0; t < 400 && !res; t++) {
+      if (bounces >= 3) w.setInput('a', 0, true);   // after 3 head bounces, walk off left
+      res = w.step();
+      for (const e of w.events) if (e.t === 'hit' && !e.cont) bounces++;
+      w.events.length = 0;
+    }
+    check('ball bounced on the waiting server\'s head (' + bounces + ' bounces)', bounces >= 3);
+    check('…then they walked away and it fell: re-serve, not a point', res && res.missedServe === true);
+  }
+  // Jumping in place forever never counts as a touch (and never lands).
+  {
+    const w = world(false);
+    w.setupServe(1);
+    w.release();
+    let hits = 0, res = null;
+    for (let t = 0; t < 600 && !res; t++) {
+      w.setInput('b', 2, t % 40 < 12);
+      res = w.step();
+      for (const e of w.events) if (e.t === 'hit' && !e.cont) hits++;
+      w.events.length = 0;
+    }
+    check('jumping in place keeps bouncing it (' + hits + ' bounces) without it counting as a touch', hits >= 3 && !w.touched && !res);
+  }
+  // Once the server has moved, contacts count: wait, then a quick tap that
+  // clips the ball off the back of the dome loses the point.
+  {
+    let lost = 0, tries = 0;
+    for (let tap = 1; tap <= 6; tap++) {
+      const w = world(false);
+      w.setupServe(0);
+      w.release();
+      let bounces = 0, tapAt = -1, res = null;
+      for (let t = 0; t < 400 && !res; t++) {
+        if (bounces >= 2 && tapAt < 0 && w.ball.vy > 0) tapAt = t;
+        w.setInput('a', 0, tapAt >= 0 && t < tapAt + tap);
+        res = w.step();
+        for (const e of w.events) if (e.t === 'hit' && !e.cont) bounces++;
+        w.events.length = 0;
+      }
+      if (!res) continue;
+      tries++;
+      if (res.point && res.scorerSeat === 1 && w.touched) lost++;
+    }
+    check('after moving, clipping the ball into your own court still loses the point (' + lost + ' / ' + tries + ')', lost > 0);
+  }
+  check('a serve the server touches into their own court loses the point (' + ownSideLosses + ' cases)', ownSideLosses > 0);
+  check('…and a clean whiff never does (' + whiffed + ' cases)', whiffed > 0);
 }
 
 // ---- Disconnect clears held input ----
@@ -252,7 +361,7 @@ for (const [x, scorer] of [[750, 0], [250, 1]]) {
       const r = s.step();
       if (through(px, py, s.ball.x, s.ball.y)) crossings++;
       if (inPost(s.ball)) inside++;
-      if (!s.live) { s.setupServe(r ? r.loserSeat : 0); s.release(); }
+      if (!s.live) { s.setupServe(r ? (r.missedServe ? r.serverSeat : r.loserSeat) : 0); s.release(); }
     }
   }
   check('stress: the ball never crosses below the post top (' + crossings + ')', crossings === 0);
@@ -282,10 +391,53 @@ for (const [x, scorer] of [[750, 0], [250, 1]]) {
       }
       w.events.length = 0;
     }
-    if (res) serve = res.loserSeat;
+    if (res) serve = res.missedServe ? res.serverSeat : res.loserSeat;
   }
   check('a blob carrying the ball for a tick or two happens (' + cont + ' follow-up contacts)', cont > 0);
   check('follow-up contacts are flagged so the boing plays once per touch (' + fresh + ' touches)', wrong === 0 && fresh > 0);
+}
+
+// ---- The CPU returns deep serves (it used to jump early and let them pass under) ----
+{
+  const rng = seeded(3);
+  let deep = 0, returned = 0, early = 0;
+  for (let off = -45; off <= 45; off += 6) {
+    for (let jumpAt = -1; jumpAt <= 14; jumpAt++) {
+      const w = new BB.World({ roster: [{ id: 'h' }, { id: 'c', isBot: true }], rng });
+      w.setupServe(0);
+      w.release();
+      const h = w.blobs[0], c = w.blobs[1];
+      let t = 0, res = null, crossed = false, back = false, landX = 0;
+      while (!res && t < 600) {
+        const target = BB.HOME[0] + off;
+        w.setInput('h', 0, !crossed && h.x > target + 4);
+        w.setInput('h', 1, !crossed && h.x < target - 4);
+        w.setInput('h', 2, !crossed && jumpAt >= 0 && t >= jumpAt && t < jumpAt + 12);
+        w.stepBots();
+        res = w.step();
+        t++;
+        for (const e of w.events) {
+          // Leaping while the ball is still well over 0.3 s away is the old bug.
+          if (crossed && e.t === 'jump' && e.seat === 1) {
+            const away = (Math.abs(w.ball.x - c.x) - 60) / Math.max(1, Math.abs(w.ball.vx));
+            if (away > 16) early++;
+          }
+        }
+        w.events.length = 0;
+        if (crossed && w.ball.x < BB.NET_X) { back = true; break; }
+        if (!crossed && w.ball.x > BB.NET_X) {
+          crossed = true;
+          const path = BB.predictPath(w.ball, 200);
+          landX = path[path.length - 1].x;
+        }
+      }
+      if (!crossed || landX < 800) continue;
+      deep++;
+      if (back) returned++;
+    }
+  }
+  check('CPU returns most deep serves (' + returned + ' / ' + deep + ')', deep > 50 && returned / deep >= 0.55);
+  check('CPU never leaps while the ball is still far away (' + early + ')', early === 0);
 }
 
 // ---- The CPU moves like a thumb on a phone: slower, and hesitates to turn ----
@@ -326,7 +478,7 @@ for (const [x, scorer] of [[750, 0], [250, 1]]) {
 // ---- CPU vs CPU ----
 {
   const w = world(true);
-  let serve = 0, pts = 0, hits = 0, stalls = 0, serveFaults = 0;
+  let serve = 0, pts = 0, hits = 0, stalls = 0, serveFaults = 0, whiffs = 0;
   const wins = [0, 0];
   for (let p = 0; p < 300; p++) {
     w.setupServe(serve);
@@ -342,6 +494,7 @@ for (const [x, scorer] of [[750, 0], [250, 1]]) {
       if ((w.ball.x < BB.NET_X ? 0 : 1) !== startSide) crossed = true;
     }
     if (!res) { stalls++; serve = 1 - serve; continue; }
+    if (res.missedServe) { whiffs++; continue; }   // same server again
     if (!crossed) serveFaults++;
     pts++;
     wins[res.scorerSeat]++;
@@ -352,6 +505,7 @@ for (const [x, scorer] of [[750, 0], [250, 1]]) {
   check('CPU keeps a rally going (avg ' + avg.toFixed(1) + ' hits per point)', avg >= 3);
   check('both sides win points (' + wins.join(' / ') + ')', wins[0] > 60 && wins[1] > 60);
   check('CPU rarely wrecks its own serve (' + (100 * serveFaults / Math.max(1, pts)).toFixed(1) + '%)', serveFaults / Math.max(1, pts) < 0.08);
+  check('CPU rarely whiffs its serve completely (' + whiffs + ' re-serves)', whiffs / Math.max(1, pts) < 0.08);
 }
 
 console.log(failures ? '\n' + failures + ' FAILED' : '\nAll engine checks passed.');

@@ -514,6 +514,7 @@ const games = [
             'Knock the ball with your blob as many times as you like — where it hits your dome sets its direction, and moving or jumping into it hits it harder',
             'The ball bounces off the walls, the ceiling and the net',
             'Land the ball on your opponent\'s side of the sand to score a point — whoever lost the point serves next',
+            'Miss your serve and you just serve again — bouncing it on your head while you wait doesn\'t count, but once you\'ve moved left/right any touch does',
             'First to the target score wins!'
         ],
         hostPath: '/blobball/host',

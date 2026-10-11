@@ -91,6 +91,11 @@
     this.blobsLocked = true;   // inputs ignored (countdown, serve hold, dead ball)
     this.ballHeld = true;      // ball hovers in place (serve hold)
     this.live = false;         // a ground touch scores
+    // Has the ball been touched since the serve? The server's contacts only
+    // count once they have moved left/right: a ball left bouncing on their head
+    // (waiting, or just jumping in place) isn't a touch yet.
+    this.touched = false;
+    this.serverMoved = false;
     this.serveSeat = 0;
     this.tick = 0;
     this.rng = (opts && opts.rng) || Math.random;
@@ -122,6 +127,8 @@
     this.blobsLocked = true;
     this.ballHeld = true;
     this.live = false;
+    this.touched = false;
+    this.serverMoved = false;
   };
 
   World.prototype.release = function () {
@@ -169,6 +176,7 @@
     // movement is on a phone.
     var speed = p.isBot ? MOVE_SPEED * AI_SPEED : MOVE_SPEED;
     p.vx = l && !r ? -speed : (r && !l ? speed : 0);
+    if (p.vx !== 0 && this.live && p.seat === this.serveSeat) this.serverMoved = true;
     if (!locked && p.y === 0 && (j || p.jumpBuf > 0)) {
       p.vy = JUMP_V;
       p.airTicks = 0;
@@ -261,6 +269,7 @@
       if (collideBlob(b, p)) {
         var cont = this.tick - p.lastHitTick <= HIT_CHAIN_TICKS;
         p.lastHitTick = this.tick;
+        if (p.seat !== this.serveSeat || this.serverMoved) this.touched = true;
         this.events.push({ t: 'hit', seat: p.seat, x: b.x, y: b.y, speed: Math.sqrt(b.vx * b.vx + b.vy * b.vy), live: this.live, cont: cont });
       }
     }
@@ -278,6 +287,16 @@
       if (this.live) {
         this.live = false;
         this.blobsLocked = true;
+        // A serve nobody touched (the server whiffed it completely, or only
+        // ever bounced it on their head without moving) doesn't count: no
+        // point, the same player serves again. Once it's been touched it's
+        // live and the landing scores as normal.
+        if (!this.touched) {
+          this.events.push({ t: 'ground', x: b.x, v: impact, point: false, miss: true });
+          b.vy = impact * DEAD_BOUNCE;
+          b.vx *= DEAD_FRICTION;
+          return { point: false, missedServe: true, serverSeat: this.serveSeat, x: b.x };
+        }
         var scorer = b.x > NET_X ? 0 : 1;
         this.events.push({ t: 'ground', x: b.x, v: impact, point: true });
         b.vy = impact * DEAD_BOUNCE;
@@ -307,19 +326,22 @@
   // Plans off a forward simulation of the ball (walls, ceiling and net, no
   // blobs), gets behind where it will come down so the dome knocks it toward
   // the net, and jumps when a leap would meet the ball high on its own side.
-  // To be beatable from a phone, its only handicap is sideways movement: it
-  // reads the ball and jumps as sharply as ever, but its feet are slow and it
-  // hesitates whenever it starts moving or reverses — like a thumb on the
-  // phone's ◀ ▶ buttons.
+  // To be beatable from a phone its feet are slow and it hesitates whenever it
+  // starts moving or reverses — like a thumb on the phone's ◀ ▶ buttons.
   var AI_THINK_MIN = 3;
   var AI_THINK_MAX = 6;
   var AI_AIM = 16;
   var AI_AIM_NOISE = 14;
   var AI_JUMP_CHANCE = 0.72;
-  var AI_SPEED = 0.9;           // sideways speed vs a player's
-  var AI_TURN_MIN = 4;          // ticks to start moving / reverse ("thumb lag")
-  var AI_TURN_MAX = 6;
+  var AI_SPEED = 0.75;          // sideways speed vs a player's
+  var AI_TURN_MIN = 7;          // ticks to start moving / reverse ("thumb lag")
+  var AI_TURN_MAX = 11;
   var PLAN_TICKS = 120;
+  // Only jump for a meeting within the jump's rise (~0.3 s), and only once in
+  // position. Looking further ahead had it leap early — or mid-run — and the
+  // ball (deep serves especially) passed under it as it came back down.
+  var JUMP_LOOK = 14;
+  var JUMP_IN_PLACE = 24;
 
   function predictPath(ball, n) {
     var b = { x: ball.x, y: ball.y, vx: ball.vx, vy: ball.vy };
@@ -348,7 +370,7 @@
   // Would a jump started now meet the ball on our side within the next ticks?
   function jumpMeets(p, path, dir) {
     var sy = 0, vy = JUMP_V;
-    for (var t = 0; t < Math.min(path.length, 22); t++) {
+    for (var t = 0; t < Math.min(path.length, JUMP_LOOK); t++) {
       vy -= BLOB_G;
       sy += vy;
       if (sy < 0) break;
@@ -404,7 +426,8 @@
     }
     ai.lastBallSide = landSide;
 
-    if (p.y === 0 && sideOf(b.x) === p.seat && jumpMeets(p, path, dir) && rng() < AI_JUMP_CHANCE) {
+    var inPlace = Math.abs(ai.target - p.x) < JUMP_IN_PLACE;
+    if (p.y === 0 && inPlace && sideOf(b.x) === p.seat && jumpMeets(p, path, dir) && rng() < AI_JUMP_CHANCE) {
       p.held.j = true;
       ai.jumpHold = 18;
     }

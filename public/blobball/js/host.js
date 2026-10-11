@@ -11,6 +11,7 @@
   const COUNTDOWN_STEP_MS = 700;
   const SERVE_HOLD_MS = 900;      // ball hangs over the server before it drops
   const POINT_MS = 2000;          // the dead ball keeps bouncing this long
+  const MISS_MS = 1300;           // a whiffed serve bounces briefly, then re-serve
   const WIN_EXTRA_MS = 1400;      // extra beat on the winning point
   const OVERLAY_FADE_MS = 220;
   const SYNC_MS = 300;
@@ -228,6 +229,12 @@
   }
   function playThud(v) { noise(0.22, 320, Math.min(0.3, 0.08 + (v || 10) * 0.01)); sweep(170, 60, 0.18, 'sine', 0.22); }
   function playPlop(v) { noise(0.07, 500, Math.min(0.08, 0.02 + (v || 0) * 0.004)); }
+  // Whiffed serve: a light "whoops", nothing like the point fanfare.
+  function playMiss() {
+    const c = getAudioCtx(); if (!c) return;
+    blip(660, 0.12, 'triangle', 0.14);
+    blip(494, 0.18, 'triangle', 0.14, c.currentTime + 0.11);
+  }
   function playPoint() {
     const c = getAudioCtx(); if (!c) return;
     [523, 659, 784, 1047].forEach(function (f, i) { blip(f, 0.16, 'square', 0.1, c.currentTime + 0.05 + i * 0.08); });
@@ -688,6 +695,22 @@
     pbText.style.animation = '';
   }
 
+  // The server whiffed the serve completely (nobody touched it): no point —
+  // the ball bounces briefly and the same player serves again, as often as it
+  // takes.
+  function onMissedServe(res) {
+    matchState = 'point';
+    updatePauseBtn();
+    const server = roster[res.serverSeat];
+    showBanner('REDO!', '#ffffff', server ? [nameSpan(server), ' serves again'] : []);
+    playMiss();
+    socket.emit('host:miss', { serverId: server ? server.id : null });
+    after(MISS_MS, function () {
+      pointBanner.hidden = true;
+      beginServe(res.serverSeat);
+    });
+  }
+
   // The ball landed. It plays on (dead) while the blobs stand still, then the
   // player who lost the point serves.
   function onPoint(res) {
@@ -904,7 +927,8 @@
         }
         if (steps >= MAX_STEPS) acc = 0;
         drainEvents();
-        if (res) onPoint(res);
+        if (res && res.missedServe) onMissedServe(res);
+        else if (res) onPoint(res);
       }
     }
 

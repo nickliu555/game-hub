@@ -144,6 +144,19 @@ async function main() {
   check('players get countdown, serve and play', b2.evs.some((x) => x[0] === 'm:countdown' && x[1].n === 3) &&
     b2.evs.some((x) => x[0] === 'm:serve' && x[1].serverId === 'pb2') && b2.evs.some((x) => x[0] === 'm:play'));
   check('players get the heartbeat', b2.evs.some((x) => x[0] === 'm:sync' && x[1].live === true));
+
+  // ---- A whiffed serve: relayed, no score change ----
+  host.emit('host:miss', { serverId: 'pb2' });
+  host.emit('host:miss', { serverId: 'nobody' });
+  await wait(80);
+  const misses = b2.evs.filter((x) => x[0] === 'm:miss');
+  check('players hear about a missed serve (same server)', misses.length === 2 && misses[0][1].serverId === 'pb2');
+  check('unknown server ids are dropped from a miss', misses[1][1].serverId === null);
+  a.s.emit('host:miss', { serverId: 'pa' });
+  await wait(60);
+  check('players cannot fake a missed serve', b2.evs.filter((x) => x[0] === 'm:miss').length === 2);
+  const afterMiss = await call(host, 'host:auth');
+  check('a missed serve changes no score', afterMiss.match.scores.pa === 0 && afterMiss.match.scores.pb2 === 0);
   host.emit('host:point', { scorerId: 'pa', scores: { pa: 1, pb2: 0 } });
   await wait(80);
   const pt = b2.evs.filter((x) => x[0] === 'm:point').pop();

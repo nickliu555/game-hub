@@ -483,6 +483,11 @@
     else if (server.id === playerId) setOverlay(['Your serve!'], '');
     else setOverlay([nameSpan(server), ' serves'], '');
   });
+  socket.on('m:miss', function (d) {
+    const server = rosterById(d && d.serverId);
+    if (server && server.id === playerId) { setOverlay(['Redo! Serve again'], ''); vibrate(40); }
+    else if (server) setOverlay(['Redo — ', nameSpan(server), ' serves again'], '');
+  });
   socket.on('m:play', function () { setOverlay(null, ''); resendHeld(); vibrate(15); });
   socket.on('m:sync', function (d) {
     if (!d || phase !== 'PLAYING') return;
