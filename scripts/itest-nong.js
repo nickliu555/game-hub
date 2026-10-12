@@ -54,6 +54,8 @@ async function main() {
   dup.s.close();
 
   // ---- Targets ----
+  check('default points to win is 10, options 5/7/10/12/15', last().pointsToWin === 10 && last().pointOptions.join() === '5,7,10,12,15');
+  check('old options 3 and 11 are gone', !(await call(host, 'host:setTarget', { mode: 'points', value: 3 })).ok && !(await call(host, 'host:setTarget', { mode: 'points', value: 11 })).ok);
   check('points target accepted', (await call(host, 'host:setTarget', { mode: 'points', value: 7 })).ok);
   check('bad target rejected', !(await call(host, 'host:setTarget', { mode: 'points', value: 9 })).ok);
   check('lives target accepted', (await call(host, 'host:setTarget', { mode: 'lives', value: 5 })).ok);
@@ -199,7 +201,7 @@ async function main() {
   // A lobby reset returns targets to defaults.
   await call(host, 'host:reset');
   await wait(60);
-  check('lobby reset restores default targets', last().pointsToWin === 5 && last().lives === 3);
+  check('lobby reset restores default targets', last().pointsToWin === 10 && last().lives === 3);
 
   // ---- CPU-only games are allowed ----
   await call(host, 'host:addBot');

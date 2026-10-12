@@ -166,6 +166,7 @@
     if (old && next.phase === 'LOBBY' && next.players.length > old.players.length) ui.sound('join');
     if (!old || next.matchId !== old.matchId) { selected = []; boardSignature = ''; rosterSignature = ''; el('battleFeed').replaceChildren(); }
     if (old && next.phase !== old.phase) {
+      if (window.screenChange) window.screenChange(old.phase, next.phase, ['LOBBY', 'GAME_OVER', 'FINAL']);
       if (next.phase === 'COUNTDOWN' || next.phase === 'PLAYING') ui.sound('start');
       else if (next.phase === 'GAME_OVER') ui.sound((next.winnerIds || []).length ? 'win' : 'lose');
       else if (next.phase === 'FINAL') ui.sound('reveal');

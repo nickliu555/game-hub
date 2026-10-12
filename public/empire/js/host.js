@@ -319,6 +319,8 @@ function render(state) {
 
     const prevPhase = lastHostPhase;
     lastHostPhase = state.phase;
+    // Leaving the lobby (submission) or a finished game tidies up after it.
+    if (window.screenChange) window.screenChange(prevPhase, state.phase, ['submission', 'playing']);
     hideAllViews();
 
     if (state.phase === 'setup' || !state.hasApiKey) {

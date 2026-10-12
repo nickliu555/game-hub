@@ -26,9 +26,9 @@ const CAPACITY = 4;
 const MIN_PLAYERS = 2;
 const MAX_NAME_LEN = 20;
 
-const POINT_OPTIONS = [3, 5, 7, 11];
+const POINT_OPTIONS = [5, 7, 10, 12, 15];
 const LIFE_OPTIONS = [1, 3, 5, 7];
-const DEFAULT_POINTS = 5;
+const DEFAULT_POINTS = 10;
 const DEFAULT_LIVES = 3;
 
 // Seat colours, in seat order. Sent to the clients in the roster payload.

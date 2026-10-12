@@ -28,6 +28,7 @@
     final: document.getElementById('view-final'),
   };
   function show(name) {
+    if (window.screenChange) window.screenChange(Object.keys(views).find(function (k) { return views[k].classList.contains('active'); }), name);
     if (name !== 'final') clearConfetti();
     Object.keys(views).forEach(function (k) { views[k].classList.toggle('active', k === name); });
   }
@@ -702,6 +703,8 @@
     matchState = 'point';
     updatePauseBtn();
     const server = roster[res.serverSeat];
+    // REDO! takes the match-point bubble's spot; it comes back with the re-serve.
+    setMatchPoint(false);
     showBanner('REDO!', '#ffffff', server ? [nameSpan(server), ' serves again'] : []);
     playMiss();
     socket.emit('host:miss', { serverId: server ? server.id : null });

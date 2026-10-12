@@ -144,6 +144,35 @@ Please reference the existing games as examples.
 
 ---
 
+## ✅ Leaving a lobby or results screen leaves nothing behind
+
+Sounds and visuals belong to the screen that made them. When the Host leaves the lobby or a
+results screen (final results, or a round/hand results screen), nothing from it may carry
+over — no floating reactions, no confetti, no applause or fanfare still playing over the
+next screen (e.g. a quick **Play again** or **Back to lobby**).
+
+The shared `/shared/topbar.js` (loaded by every host page) does the cleanup — just call
+`screenChange(from, to, downtime)` from the host's view switch, **before** the new screen
+plays its own sounds:
+```js
+function show(name) {
+  if (window.screenChange) window.screenChange(currentViewName, name, ['lobby', 'reveal', 'final']);
+  // …switch views…
+}
+```
+- Reactions/emote bubbles are cleared on every view change.
+- When leaving a view in `downtime` (default `['lobby', 'final']`; add your round-results
+  views), confetti, applause and any Web Audio sound still ringing are cut — except when
+  heading **into** the final results, so the win fanfare isn't chopped. Sounds started in
+  the last ~0.5 s are spared, so the new screen's start jingle survives.
+- Keep floating reactions on the shared class names (`.reaction-emoji` / `.reaction-float`
+  / `.emote-bubble`) and confetti on `.confetti` / `.confetti-piece` / `.confetti-bit`, and
+  register recorded applause with `trackApplause()`, so the shared cleanup finds them.
+- Every view switch must go through this — including shortcuts like a reconnect jumping
+  straight to the lobby.
+
+---
+
 ## ✅ Host screen must NEVER fall asleep
 
 The Host screen sits on a TV/laptop across the room for the whole session, so it must stay

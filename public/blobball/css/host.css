@@ -326,6 +326,8 @@ body.host {
    bouncing on the sand underneath. */
 .point-banner {
   position: absolute;
+  /* Above the serve / match-point bubbles, which share the same spot. */
+  z-index: 2;
   left: 0; right: 0;
   top: 7%;
   display: flex;
@@ -365,6 +367,7 @@ body.host {
 /* "<name> serves" pill while the ball hangs above the server. */
 .serve-stack {
   position: absolute;
+  z-index: 1;
   top: 7%;
   left: 0;
   right: 0;

@@ -28,6 +28,7 @@
   };
   var showTimer = null;
   function show(name) {
+    if (window.screenChange) window.screenChange(Object.keys(views).find(function (k) { return views[k].classList.contains('active'); }), name, ['lobby', 'reveal', 'final']);
     if (name !== 'final') {
       if (window.clearConfetti) window.clearConfetti();
       if (window.stopApplause) window.stopApplause();

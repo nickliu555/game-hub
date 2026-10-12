@@ -12,6 +12,7 @@
     final: document.getElementById('view-final'),
   };
   function show(name) {
+    if (window.screenChange) window.screenChange(Object.keys(views).find(function (k) { return views[k].classList.contains('active'); }), name);
     if (name !== 'final') {
       if (window.clearConfetti) window.clearConfetti();
       if (window.stopApplause) window.stopApplause();

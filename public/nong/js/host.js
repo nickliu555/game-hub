@@ -29,6 +29,7 @@
   };
   let activeView = 'lobby';
   function show(name) {
+    if (window.screenChange) window.screenChange(Object.keys(views).find(function (k) { return views[k].classList.contains('active'); }), name);
     if (name !== 'final') {
       if (window.clearConfetti) window.clearConfetti();
       if (window.stopApplause) window.stopApplause();
@@ -243,7 +244,7 @@
   }
 
   // ---------------- Lobby ----------------
-  let lobby = { capacity: 4, total: 0, players: [], mode: 'points', pointsToWin: 5, lives: 3, pointOptions: [3, 5, 7, 11], lifeOptions: [1, 3, 5, 7], canStart: false };
+  let lobby = { capacity: 4, total: 0, players: [], mode: 'points', pointsToWin: 10, lives: 3, pointOptions: [5, 7, 10, 12, 15], lifeOptions: [1, 3, 5, 7], canStart: false };
   let lastLobbyHumanTotal = -1;
   let suppressClick = false; // swallow the click that trails a real drag
   let dragActive = false;    // a seat is mid-drag; defer lobby rebuilds

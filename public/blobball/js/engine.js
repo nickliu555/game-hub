@@ -233,7 +233,18 @@
     if (b.x < WALL_MIN) { b.x = WALL_MIN; b.vx = -b.vx; hit |= 1; }
     else if (b.x > WALL_MAX) { b.x = WALL_MAX; b.vx = -b.vx; hit |= 1; }
     if (b.y > CEIL - BALL_R) { b.y = CEIL - BALL_R; if (b.vy > 0) b.vy = -b.vy; hit |= 2; }
-    if (b.x > NET_X - NET_BAND && b.x < NET_X + NET_BAND && b.y < NET_TOP) {
+    // The post's faces are checked along the ball's whole path this tick, not
+    // just where it ends: a ball shoved up a face can't clip the top corner.
+    var L = NET_X - NET_BAND, R = NET_X + NET_BAND;
+    if (px <= L && b.x > L && b.x !== px && py + (b.y - py) * (L - px) / (b.x - px) < NET_TOP) {
+      b.x = L;
+      if (b.vx > 0) b.vx = -b.vx;
+      hit |= 4;
+    } else if (px >= R && b.x < R && b.x !== px && py + (b.y - py) * (R - px) / (b.x - px) < NET_TOP) {
+      b.x = R;
+      if (b.vx < 0) b.vx = -b.vx;
+      hit |= 4;
+    } else if (b.x > L && b.x < R && b.y < NET_TOP) {
       if (py >= NET_TOP) {
         // Landed on the top: sit it right on the cap (fully outside the post).
         b.y = NET_TOP;
@@ -264,17 +275,23 @@
     b.x += b.vx;
     b.y += b.vy;
 
+    // Push the ball out of the post before each blob sees it — and again after
+    // every touch, since a blob pressed against the net can shove it back in —
+    // so no blob can ever touch the ball through the post.
+    var hit = bounceStatic(b, this.rng, b.px, b.py);
     for (var i = 0; i < this.blobs.length; i++) {
       var p = this.blobs[i];
-      if (collideBlob(b, p)) {
+      // collideBlob can move the ball even when it doesn't count as a hit, so
+      // re-resolve the post after every blob, not just after a hit.
+      var touched = collideBlob(b, p);
+      hit |= bounceStatic(b, this.rng, b.px, b.py);
+      if (touched) {
         var cont = this.tick - p.lastHitTick <= HIT_CHAIN_TICKS;
         p.lastHitTick = this.tick;
         if (p.seat !== this.serveSeat || this.serverMoved) this.touched = true;
         this.events.push({ t: 'hit', seat: p.seat, x: b.x, y: b.y, speed: Math.sqrt(b.vx * b.vx + b.vy * b.vy), live: this.live, cont: cont });
       }
     }
-
-    var hit = bounceStatic(b, this.rng, b.px, b.py);
     if (hit & 1) this.events.push({ t: 'wall', x: b.x, y: b.y });
     if (hit & 2) this.events.push({ t: 'ceil', x: b.x, y: b.y });
     if (hit & 4) this.events.push({ t: 'net', x: b.x, y: b.y, speed: Math.sqrt(b.vx * b.vx + b.vy * b.vy) });

@@ -365,6 +365,47 @@ for (const [x, scorer] of [[750, 0], [250, 1]]) {
     }
   }
   check('stress: the ball never crosses below the post top (' + crossings + ')', crossings === 0);
+
+  // Sweep: balls hugging the post faces, both blobs shoved against the net and
+  // jumping at different moments. Catches a ball scooped over the top corner
+  // and a blob touching the ball through the post (both happened once).
+  let sweepCross = 0, sweepInside = 0, throughTouch = 0;
+  const N = BB.NET_X, BAND = BB.NET_BAND, TOP = BB.NET_TOP;
+  for (let x = 440; x <= 560; x += 4) {
+    for (let y = 26; y <= 170; y += 8) {
+      for (let vx = -15; vx <= 15; vx += 5) {
+        for (let vy = -22; vy <= 22; vy += 11) {
+          if (x > N - BAND && x < N + BAND && y < TOP) continue;
+          for (const jump of [-1, 0, 5]) {
+            const s = liveCourt();
+            s.touched = true;
+            s.blobs[0].x = BB.LIMITS[0][1];
+            s.blobs[1].x = BB.LIMITS[1][0];
+            Object.assign(s.ball, { x, y, vx, vy });
+            for (let t = 0; t < 25 && s.live; t++) {
+              s.setInput('a', 1, true);
+              s.setInput('b', 0, true);
+              s.setInput('a', 2, jump >= 0 && t >= jump && t < jump + 12);
+              s.setInput('b', 2, jump >= 0 && t >= jump + 2 && t < jump + 14);
+              px = s.ball.x; py = s.ball.y;
+              s.step();
+              for (const e of s.events) {
+                if (e.t !== 'hit') continue;
+                const far = e.seat === 0 ? (v) => v >= N + BAND : (v) => v <= N - BAND;
+                if (far(px) && far(s.ball.x) && py < TOP && s.ball.y < TOP) throughTouch++;
+              }
+              s.events.length = 0;
+              if (through(px, py, s.ball.x, s.ball.y)) sweepCross++;
+              if (inPost(s.ball)) sweepInside++;
+            }
+          }
+        }
+      }
+    }
+  }
+  check('sweep: no ball slips over the post\'s top corner (' + sweepCross + ')', sweepCross === 0);
+  check('sweep: no ball ends a tick inside the post (' + sweepInside + ')', sweepInside === 0);
+  check('sweep: no blob ever touches the ball through the post (' + throughTouch + ')', throughTouch === 0);
   check('stress: the ball never ends a tick inside the post (' + inside + ')', inside === 0);
 }
 

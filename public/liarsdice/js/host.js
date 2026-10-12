@@ -107,6 +107,7 @@
     currentView = name;
   }
   function show(name, done) {
+    if (window.screenChange) window.screenChange(currentView, name);
     if (name !== 'final') {
       if (window.clearConfetti) window.clearConfetti();
       if (window.stopApplause) window.stopApplause();
@@ -1492,7 +1493,10 @@
       if (!res || !res.ok) return;
       connOverlay.hidden = true;
       if (res.lobby) renderLobby(res.lobby);
-      if (res.phase === 'LOBBY') forceSingle('lobby');
+      if (res.phase === 'LOBBY') {
+        if (window.screenChange) window.screenChange(currentView, 'lobby');
+        forceSingle('lobby');
+      }
       if (window.Iris && typeof window.Iris.ready === 'function') window.Iris.ready();
     });
   }

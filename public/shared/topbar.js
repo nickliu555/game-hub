@@ -216,3 +216,60 @@
     tracked = tracked.filter(function (x) { return silence(x); });
   };
 })();
+
+/* Leaving a screen tidies up after it, so nothing carries over:
+   - clearReactions(): floating player reactions and seat emote bubbles.
+   - stopScreenSounds(): cuts every Web Audio sound still ringing (applause,
+     fanfares, stings…). Each node a game connects to the speakers is
+     remembered; sounds started in the last moment are spared, so a sound for
+     the screen being entered (e.g. a start jingle) is never cut.
+   - screenChange(from, to, downtime): call on every view change. Reactions
+     always go; sounds go when leaving a lobby/results screen (`downtime`,
+     default lobby + final) — but not when heading into the final results,
+     whose fanfare may already be playing. */
+(function () {
+  var REACTION_SEL = '.reaction-emoji, .reaction-float, .emote-bubble';
+  window.clearReactions = function () {
+    var els = document.querySelectorAll(REACTION_SEL);
+    for (var i = 0; i < els.length; i++) if (els[i].parentNode) els[i].parentNode.removeChild(els[i]);
+  };
+
+  var GRACE_MS = 500;
+  var MAX_AGE_MS = 30000;
+  var live = [];
+  var Node = window.AudioNode;
+  if (Node && Node.prototype && Node.prototype.connect && !Node.prototype.__screenFxPatched) {
+    var connect = Node.prototype.connect;
+    Node.prototype.connect = function (dest) {
+      var out = connect.apply(this, arguments);
+      try {
+        if (dest && this.context && dest === this.context.destination) {
+          var now = Date.now();
+          if (live.length > 200) live = live.filter(function (r) { return now - r.at < MAX_AGE_MS; });
+          live.push({ node: this, at: now });
+        }
+      } catch (_) {}
+      return out;
+    };
+    Node.prototype.__screenFxPatched = true;
+  }
+  window.stopScreenSounds = function () {
+    var now = Date.now();
+    live = live.filter(function (r) {
+      if (now - r.at < GRACE_MS) return true;
+      try { r.node.disconnect(r.node.context.destination); } catch (_) {}
+      return false;
+    });
+  };
+
+  window.screenChange = function (from, to, downtime) {
+    if (!from || from === to) return;
+    window.clearReactions();
+    var leaving = downtime || ['lobby', 'final'];
+    if (leaving.indexOf(from) >= 0 && String(to).toLowerCase() !== 'final') {
+      window.stopScreenSounds();
+      if (window.stopApplause) window.stopApplause();
+      if (window.clearConfetti) window.clearConfetti();
+    }
+  };
+})();
