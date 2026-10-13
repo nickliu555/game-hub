@@ -350,9 +350,9 @@
   var AI_AIM = 16;
   var AI_AIM_NOISE = 14;
   var AI_JUMP_CHANCE = 0.72;
-  var AI_SPEED = 0.75;          // sideways speed vs a player's
-  var AI_TURN_MIN = 7;          // ticks to start moving / reverse ("thumb lag")
-  var AI_TURN_MAX = 11;
+  var AI_SPEED = 0.9;           // sideways speed vs a player's
+  var AI_TURN_MIN = 5;          // ticks to start moving / reverse ("thumb lag")
+  var AI_TURN_MAX = 7;
   var PLAN_TICKS = 120;
   // Only jump for a meeting within the jump's rise (~0.3 s), and only once in
   // position. Looking further ahead had it leap early — or mid-run — and the

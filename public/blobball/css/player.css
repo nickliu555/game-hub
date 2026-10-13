@@ -254,6 +254,11 @@ body.mode-stick .stick-layer { display: block; position: absolute; inset: 0; poi
   padding: 0 8px;
 }
 .pad-jump { flex: 1 1 0; min-width: 0; display: flex; }
+/* Landscape: an even split (50:50) so the left thumb can reach ▶. */
+@media (orientation: landscape) {
+  .pad-move { flex: 1 1 0; }
+  .pad-jump { flex: 1 1 0; }
+}
 
 .mv-btn, .jump-btn {
   position: relative;
