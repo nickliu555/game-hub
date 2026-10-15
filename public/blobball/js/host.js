@@ -782,7 +782,7 @@
       li.style.setProperty('--seat', r.color);
       const rank = document.createElement('div');
       rank.className = 'st-rank';
-      rank.textContent = i === 0 ? '1st' : '2nd';
+      rank.textContent = r.id === winnerId ? 'Winner' : (winnerId ? 'Runner-up' : '');
       const name = document.createElement('div');
       name.className = 'st-name';
       name.textContent = displayName(r);
