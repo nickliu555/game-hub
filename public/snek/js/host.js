@@ -737,6 +737,11 @@
     playGo();
   }
 
+  // 0 at the starting speed … 1 at top speed: the CPU gets sloppier as it rises.
+  function botPressure() {
+    return Math.max(0, Math.min(1, (START_INTERVAL - stepInterval()) / (START_INTERVAL - END_INTERVAL)));
+  }
+
   function startLoop() { if (rafId) cancelAnimationFrame(rafId); lastFrame = performance.now(); rafId = requestAnimationFrame(loop); }
   function stopLoop() { if (rafId) { cancelAnimationFrame(rafId); rafId = null; } }
 
@@ -814,7 +819,7 @@
     if (!world || !botIds.length) return;
     for (const id of botIds) {
       const p = world.byId.get(id);
-      if (p && world.willMove(p)) world.setBotDir(id, window.SnekBot.think(world, p));
+      if (p && world.willMove(p)) world.setBotDir(id, window.SnekBot.think(world, p, botPressure()));
     }
   }
 

@@ -19,10 +19,14 @@
     playerRadius: 13.5,
     playerInvMass: 0.5,
     playerBCoef: 0.5,
-    playerDamping: 0.96,
-    playerAccel: 0.1,
-    kickingAccel: 0.07,
-    kickingDamping: 0.96,
+    // HaxBall's defaults are damping 0.96 / accel 0.1 (kicking 0.07). A touch
+    // more friction makes skaters less icy on a phone — they settle and turn a
+    // little quicker — with accel raised so top speed is unchanged (2.4 u/tick,
+    // 1.68 while kicking).
+    playerDamping: 0.95,
+    playerAccel: 0.1263,
+    kickingAccel: 0.0884,
+    kickingDamping: 0.95,
     // HaxBall's default is 5. Phone controls are less precise than a keyboard,
     // so shots get a deliberate ~30% bump to feel punchy on the host screen.
     kickStrength: 6.5,

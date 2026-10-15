@@ -284,6 +284,49 @@ const byPid = (pid) => Object.keys(humans).find((n) => humans[n].pid === pid);
   check(await resetSeen, 'players are told the game was reset');
   Object.keys(humans).forEach((n) => { humans[n].sock.close(); delete humans[n]; });
 
+  // ═══════════ Knocked out mid-game ═══════════
+  // With three at the table the first player out sits on the rail while the
+  // other two play on: they can't react until the final results.
+  section('Knocked out');
+  for (const name of ['Kai', 'Lee', 'Mo']) {
+    const s = await connect();
+    const pid = 'pid3_' + name;
+    const ack = await emit(s, 'player:join', { playerId: pid, name });
+    check(ack && ack.ok, name + ' joins');
+    track(name, s, pid);
+  }
+  await emit(host, 'host:setStartDice', { startDice: 3 });
+  await emit(host, 'host:start', {});
+  {
+    let busy3 = false;
+    const drive3 = async () => {
+      if (busy3 || !lastTable || lastTable.phase !== 'BIDDING') return;
+      busy3 = true;
+      try {
+        const turn = byPid(lastTable.turnPlayerId);
+        if (!turn) return;
+        if (!lastTable.currentBid) await emit(humans[turn].sock, 'player:action', { type: 'bid', qty: lastTable.totalDice, face: 6 });
+        else await emit(humans[turn].sock, 'player:action', { type: 'bs' });
+      } finally { busy3 = false; }
+    };
+    const onTable = () => { setTimeout(drive3, 50); };
+    host.on('state:table', onTable);
+    const outNow = await until(host, 'state:table', (t) => t.seats.some((x) => x.busted) && t.seats.filter((x) => !x.busted).length >= 2, 120000).catch(() => null);
+    host.off('state:table', onTable);
+    check(!!outNow, 'one player is knocked out while two play on');
+    if (outNow) {
+      const goneSeat = outNow.seats.find((x) => x.busted);
+      const gone = humans[byPid(goneSeat.playerId)];
+      await sleep(5200);   // let any earlier cooldown lapse
+      const blocked = await emit(gone.sock, 'player:emote', { e: '😭' });
+      check(blocked && blocked.reason === 'out', 'a knocked-out player cannot react while the others are still playing');
+    }
+  }
+  const reset3 = once(humans.Kai.sock, 'state:reset', 3000).then(() => true).catch(() => false);
+  await emit(host, 'host:reset', {});
+  await reset3;
+  ['Kai', 'Lee', 'Mo'].forEach((n) => { humans[n].sock.close(); delete humans[n]; });
+
   // ═══════════ Heads-up to the finish ═══════════
   section('Final');
   for (const name of ['Ann', 'Ben']) {
@@ -321,7 +364,7 @@ const byPid = (pid) => Object.keys(humans).find((n) => humans[n].pid === pid);
     const endReact = await emit(champ.sock, 'player:emote', { e: '🎉' });
     check(endReact && endReact.ok && endReact.kind === 'float', 'the champion can float an emote on the final standings');
     const outReact = await emit(out.sock, 'player:emote', { e: '😭' });
-    check(outReact && outReact.reason === 'out', 'a knocked-out player cannot emote');
+    check(outReact && outReact.ok && outReact.kind === 'float', 'a knocked-out player can float an emote on the final standings too');
     const reFinal = await emit(await connect(), 'player:reconnect', { playerId: out.pid });
     check(reFinal && reFinal.ok && reFinal.final && reFinal.me && reFinal.me.busted, 'a reconnect on the final screen gets the standings');
   }

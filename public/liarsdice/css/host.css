@@ -196,15 +196,11 @@ body.host {
 }
 .seat-badge {
   flex: 0 0 auto;
-  width: clamp(32px, 4.4vmin, 40px);
-  height: clamp(32px, 4.4vmin, 40px);
-  border-radius: 11px;
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  font-size: clamp(15px, 2.4vmin, 20px);
-  color: #1C130C;
+  width: clamp(18px, 2.6vmin, 24px);
+  height: clamp(18px, 2.6vmin, 24px);
+  border-radius: 50%;
   background: var(--seat-c, rgba(255, 255, 255, 0.4));
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.2);
 }
 
 .seat-name {
@@ -629,14 +625,9 @@ body.host {
 }
 .seat-pip {
   flex: 0 0 auto;
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  font-size: 13px;
-  font-weight: 800;
-  color: #1C130C;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
   background: var(--seat-c, rgba(255, 255, 255, 0.4));
 }
 /* A player's name always reads as a person, in their own seat colour. Shrunk

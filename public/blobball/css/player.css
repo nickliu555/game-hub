@@ -244,15 +244,6 @@ body.mode-stick .stick-layer { display: block; position: absolute; inset: 0; poi
   will-change: transform;
 }
 .stick-base.active .stick-knob { transition: none; box-shadow: 0 0 0 4px rgba(255,255,255,0.18), 0 8px 22px rgba(0,0,0,0.5); }
-.stick-hint {
-  position: absolute;
-  left: 0; right: 0; bottom: 10px;
-  text-align: center;
-  font-size: 12px;
-  font-weight: 700;
-  color: rgba(255,255,255,0.45);
-  padding: 0 8px;
-}
 .pad-jump { flex: 1 1 0; min-width: 0; display: flex; }
 /* Landscape: an even split (50:50) so the left thumb can reach ▶. */
 @media (orientation: landscape) {

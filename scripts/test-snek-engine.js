@@ -671,5 +671,31 @@ for (let seed = 1; seed <= 12; seed++) {
   ok(simTicks.length === 12 && avg > 150, 'bots survive a while on average (' + Math.round(avg) + ' ticks; min ' + Math.min.apply(null, simTicks) + ')');
 }
 
+{
+  // The faster the game, the more the CPU slips up: same games, crash rate at
+  // top speed vs the starting speed.
+  const crashRate = (pressure) => {
+    let moves = 0, deaths = 0;
+    for (let seed = 1; seed <= 24; seed++) {
+      const w = new SP.World({ maps: Maps, rng: seeded(seed) });
+      w.setRoster(roster(4));
+      w.reset(seed % Maps.count, { mode: 'multi' });
+      w.releaseWaiting();
+      let ticks = 0;
+      while (w.aliveCount() > 1 && ticks < 3000) {
+        for (const p of w.players) if (p.alive) { w.setBotDir(p.id, Bot.think(w, p, pressure)); moves++; }
+        const before = w.aliveCount();
+        w.step();
+        deaths += before - w.aliveCount();
+        ticks++;
+      }
+    }
+    return 1000 * deaths / moves;
+  };
+  const slow = crashRate(0), fast = crashRate(1);
+  ok(fast > slow * 1.4, 'CPU makes more mistakes at top speed (' + fast.toFixed(2) + ' vs ' + slow.toFixed(2) + ' crashes per 1000 moves)');
+  ok(Bot.think.length >= 3 && Bot.SKILL_FAST && Bot.SKILL_FAST.slip > Bot.SKILL.slip, 'speed pressure is wired into the bot');
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

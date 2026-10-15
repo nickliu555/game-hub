@@ -585,7 +585,7 @@
       grip.className = 'seat-grip'; grip.textContent = '⠿'; grip.title = 'Drag to reseat';
 
       const badge = document.createElement('span');
-      badge.className = 'seat-badge'; badge.dataset.seat = p.seat; badge.textContent = p.seat;
+      badge.className = 'seat-badge'; badge.dataset.seat = p.seat;
 
       const name = document.createElement('span');
       name.className = 'seat-name pname'; name.textContent = p.name;
@@ -619,7 +619,7 @@
     for (let i = l.players.length; i < l.capacity; i++) {
       const e = document.createElement('div');
       e.className = 'seat-empty';
-      e.textContent = 'Seat ' + (i + 1) + ' · open';
+      e.textContent = 'Open seat';
       seatList.appendChild(e);
     }
 
@@ -813,7 +813,7 @@
       const label = document.createElement('div');
       label.className = 'seat-label';
       const pip = document.createElement('span');
-      pip.className = 'seat-pip'; pip.dataset.seat = s.seat; pip.textContent = s.seat;
+      pip.className = 'seat-pip'; pip.dataset.seat = s.seat;
       const name = document.createElement('span');
       name.className = 'pname';
       label.appendChild(pip); label.appendChild(name);
@@ -1376,7 +1376,7 @@
       const inner = document.createElement('div');
       inner.className = 'st-player-inner';
       const pip = document.createElement('span');
-      pip.className = 'seat-pip'; pip.dataset.seat = r.seat; pip.textContent = r.seat;
+      pip.className = 'seat-pip'; pip.dataset.seat = r.seat;
       const name = document.createElement('span');
       name.className = 'pname';
       name.textContent = r.name + (r.isBot && !/^CPU\b/.test(r.name) ? ' (CPU)' : '');
@@ -1389,7 +1389,7 @@
       tr.appendChild(rank); tr.appendChild(who); tr.appendChild(dice);
       STAT_COLS.forEach(function (c) {
         const td = document.createElement('td');
-        td.textContent = statText(r, c);
+        td.textContent = opts.stat ? opts.stat(r, c, statText(r, c)) : statText(r, c);
         tr.appendChild(td);
       });
       body.appendChild(tr);
@@ -1474,8 +1474,12 @@
         return p === 1 ? '🥇' : (p === 2 ? '🥈' : (p === 3 ? '🥉' : ordinal(p)));
       },
       dice: function (r) {
-        if (r.playerId === s.winnerId) return r.diceCount + (r.diceCount === 1 ? ' die left' : ' dice left');
+        if (r.playerId === s.winnerId) return 'Winner';
         return 'Out in round ' + r.outRound;
+      },
+      // The winner was still in when the game ended: they'd have kept going.
+      stat: function (r, c, text) {
+        return c.key === 'rounds' && r.playerId === s.winnerId && text !== '–' ? text + '+' : text;
       },
     }));
 

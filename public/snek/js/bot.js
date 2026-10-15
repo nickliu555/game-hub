@@ -11,6 +11,7 @@
  * To play like a person rather than a machine, the bot is deliberately flawed
  * (see SKILL): it sometimes reacts late, plans only a short way ahead, is
  * careless about head-ons, only notices nearby food, and now and then blunders.
+ * The faster the game gets, the more of those mistakes it makes (SKILL_FAST).
  * It also can't whip around: after a turn it has to travel a few cells straight
  * before it turns again, and only sometimes reacts in time to dodge a crash
  * while it's still committed to that straight line.
@@ -18,7 +19,7 @@
 (function (global) {
   'use strict';
 
-  const SKILL = {
+  const BASE = {
     lazy: 0.35,         // chance per tick to skip planning and just keep going (if the next cell is free)
     lookahead: 0.5,     // fraction of its own length it checks for room (1 = never traps itself)
     headonCare: 0.75,   // chance it bothers avoiding cells another head could reach
@@ -28,9 +29,22 @@
     slip: 0.03,         // chance it reacts too late to a crash right in front of it (and hits it)
     reflex: 0.5,        // chance it spots a crash two cells ahead (or a head cutting in) during that gap; one right in front it always dodges
   };
+  // As the game speeds up the bot gets flustered, like a person would: at top
+  // speed these replace the matching SKILL values (blended in between).
+  const SKILL_FAST = {
+    lazy: 0.45,
+    headonCare: 0.55,
+    blunder: 0.035,
+    slip: 0.08,
+    reflex: 0.3,
+  };
 
-  function think(world, p) {
+  // pressure: 0 at the starting speed … 1 at top speed (omitted = 0).
+  function think(world, p, pressure) {
     const SP = global.Snek;
+    const k0 = pressure > 0 ? Math.min(1, pressure) : 0;
+    const SKILL = Object.assign({}, BASE);
+    if (k0) for (const key in SKILL_FAST) SKILL[key] = BASE[key] + (SKILL_FAST[key] - BASE[key]) * k0;
     const DIRS = SP.DIRS, REVERSE = SP.REVERSE;
     const b = world.board, W = b.w, H = b.h;
     if (!p.alive || !p.body.length) return p.dir;
@@ -169,5 +183,5 @@
     return cands[0].d;
   }
 
-  global.SnekBot = { think: think, SKILL: SKILL };
+  global.SnekBot = { think: think, SKILL: BASE, SKILL_FAST: SKILL_FAST };
 })(typeof window !== 'undefined' ? window : globalThis);

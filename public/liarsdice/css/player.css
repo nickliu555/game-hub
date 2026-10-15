@@ -179,13 +179,8 @@ body.player.my-turn .p-top::after { transform: scaleX(1); }
 }
 .p-seat {
   flex: 0 0 auto;
-  width: 30px; height: 30px;
-  border-radius: 9px;
-  display: grid;
-  place-items: center;
-  font-size: 14px;
-  font-weight: 800;
-  color: #1C130C;
+  width: 16px; height: 16px;
+  border-radius: 50%;
   background: var(--seat-c, rgba(255, 255, 255, 0.4));
 }
 .p-name {

@@ -273,7 +273,7 @@
 
   // ---------------- Rendering ----------------
   function renderTop() {
-    if (mySeat) { pSeat.textContent = mySeat; pSeat.dataset.seat = mySeat; }
+    if (mySeat) pSeat.dataset.seat = mySeat;
     pName.textContent = myName;
     pScore.textContent = '';
     if (me && publicPhase !== 'LOBBY' && !me.busted) {
@@ -636,7 +636,7 @@
       n.className = 'rr-name pname'; n.textContent = r.name;
       const sc = document.createElement('span');
       sc.className = 'rr-score';
-      sc.textContent = r.playerId === s.winnerId ? 'Winner' : 'Round ' + r.outRound;
+      sc.textContent = r.playerId === s.winnerId ? 'Round ' + s.rounds + '+' : 'Round ' + r.outRound;
       row.appendChild(place); row.appendChild(n); row.appendChild(sc);
       resultRows.appendChild(row);
     });
@@ -761,7 +761,7 @@
 
   function emotesAllowed() {
     if (!hostPresent || reactionsMutedByHost) return false;
-    return !(me && me.busted);
+    return publicPhase === 'FINAL' || !(me && me.busted);
   }
   function setEmotePanel(open) {
     emotePanel.hidden = !open;

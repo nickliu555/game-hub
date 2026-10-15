@@ -254,7 +254,9 @@ function mountLiarsDice(app, httpServer, opts) {
       if (!isHostPresent()) return ack && ack({ ok: false, reason: 'host-absent' });
       if (typeof e !== 'string' || !ALLOWED_EMOTES.has(e)) return ack && ack({ ok: false, reason: 'bad-emote' });
       const p = game.players.get(playerId);
-      if (!p || p.busted) return ack && ack({ ok: false, reason: 'out' });
+      // Knocked out players sit out the rest of the rounds, but everyone can
+      // react on the final results, just like in the lobby.
+      if (!p || (p.busted && game.phase !== PHASES.FINAL)) return ack && ack({ ok: false, reason: 'out' });
       if (reactionsMuted) return ack && ack({ ok: false, reason: 'muted' });
       const now = Date.now();
       const kind = BUBBLE_PHASES.has(game.phase) ? 'bubble' : 'float';
