@@ -106,6 +106,10 @@ body.player[data-team="blue"] { --me: var(--blue); --me-deep: var(--blue-deep); 
 }
 .pad-left { flex: 1 1 auto; flex-direction: row; }
 .pad-right { flex: 0 0 40%; flex-direction: column; }
+/* Sideways there's room for Jump beside Kick: two equal halves, both rows. */
+@media (orientation: landscape) {
+  .pad-left, .pad-right { flex: 1 1 0; flex-direction: row; }
+}
 
 .mv-btn, .act-btn {
   position: relative;
