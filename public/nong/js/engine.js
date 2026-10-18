@@ -24,10 +24,10 @@
 
   var BALL_R = 7;
   var PADDLE_THICK = 12;
-  var START_SPEED = 6;
+  var START_SPEED = 8;
   // Serves leave the centre slower so whoever receives has time to react; the
   // first return lifts the ball straight back to rally speed.
-  var SERVE_SPEED = START_SPEED * 0.6;
+  var SERVE_SPEED = 3.6;
   var SPEED_UP = 1.08;
   var MAX_SPEED = 15;
   var MAX_BOUNCE = 55 * Math.PI / 180;
