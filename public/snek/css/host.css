@@ -420,9 +420,6 @@ body.host {
   100% { transform: translateY(-105vh) rotate(0deg) scale(0.85); opacity: 0; }
 }
 
-/* A crashed snake can still be leading on length — keep its card readable. */
-.sc-card.dead.leader { opacity: 0.85; filter: grayscale(0.3); }
-
 /* Resume countdown: the pause overlay turns into a big 3-2-1. */
 .pause-overlay.resuming .po-icon { display: none; }
 .pause-overlay.resuming .po-title { font-size: 120px; line-height: 1; animation: resumepop 0.4s ease; }
@@ -442,3 +439,28 @@ body.host {
 /* Active power-up icon on a score card. */
 .sc-pw { margin-left: 4px; font-size: 15px; }
 .sc-pw:empty { display: none; }
+
+/* Wide screens: the board is height-limited, so the round/clock bar and the
+   score cards move into a column on the right and the board gets the full
+   height. Below 3:2 the stacked layout above gives the board more room. */
+@media (min-width: 901px) and (min-aspect-ratio: 3/2) {
+  #view-match.active {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 220px;
+    grid-template-rows: auto minmax(0, 1fr);
+    column-gap: 16px;
+    row-gap: 30px;
+  }
+  #view-match .board-wrap { grid-column: 1; grid-row: 1 / span 2; min-width: 0; }
+  #view-match .match-top { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; align-items: stretch; gap: 10px; }
+  #view-match .mt-left { flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+  #view-match .mt-map { max-width: 100%; }
+  #view-match .mt-clock { text-align: center; }
+  #view-match .mt-right { justify-content: center; }
+  #view-match .score-strip {
+    grid-column: 2; grid-row: 2;
+    flex-direction: column; flex-wrap: nowrap; justify-content: flex-start; align-items: stretch;
+    min-height: 0; overflow-y: auto;
+  }
+  #view-match .sc-card { min-width: 0; }
+}
