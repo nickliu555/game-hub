@@ -549,5 +549,91 @@ for (const [x, scorer] of [[750, 0], [250, 1]]) {
   check('CPU rarely whiffs its serve completely (' + whiffs + ' re-serves)', whiffs / Math.max(1, pts) < 0.08);
 }
 
+// ---- Ball under a blob: never pops up through it ----
+{
+  const fresh = () => {
+    const w = new BB.World({ roster: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }], rng: seeded(5) });
+    w.setupServe(0); w.release();
+    return w;
+  };
+  // Ball centre starts under the blob's base and inside its footprint, then
+  // ends the tick above the base still well inside it: it passed through.
+  const throughBlob = (b0, b1, p) => b0.y < p.py && Math.abs(b0.x - p.px) < BB.HIT_R / 2
+    && b1.y > p.y + BB.BALL_R && Math.abs(b1.x - p.x) < BB.BLOB_R / 2;
+
+  // A blob coming down on a ball floating under its base.
+  let w = fresh();
+  const a = w.blobs[0];
+  Object.assign(a, { x: 250, y: 150, vy: -4 });
+  Object.assign(w.ball, { x: 255, y: 80, vx: 0, vy: 0 });
+  let popped = false, maxRise = 0;
+  for (let t = 0; t < 30 && w.live; t++) {
+    const b0 = { x: w.ball.x, y: w.ball.y };
+    w.step();
+    if (throughBlob(b0, w.ball, a)) popped = true;
+    maxRise = Math.max(maxRise, w.ball.y - b0.y);
+  }
+  check('a blob landing on a ball beneath it doesn\'t pop the ball on top', !popped && maxRise < 30);
+  check('…it knocks the ball down into the sand instead', !w.live);
+
+  // A dead ball lying on the sand, a blob falls on it: it squirts out sideways.
+  w = fresh();
+  w.live = false;
+  const b = w.blobs[0];
+  Object.assign(b, { x: 250, y: 60, vy: -2 });
+  Object.assign(w.ball, { x: 262, y: BB.BALL_R, vx: 0, vy: 0 });
+  let maxStep = 0, rose = false;
+  for (let t = 0; t < 40; t++) {
+    const b0 = { x: w.ball.x, y: w.ball.y };
+    w.step();
+    maxStep = Math.max(maxStep, Math.hypot(w.ball.x - b0.x, w.ball.y - b0.y));
+    if (w.ball.y > b.y + BB.BALL_R && Math.abs(w.ball.x - b.x) < BB.BLOB_R / 2) rose = true;
+  }
+  check('a blob landing on a ball on the sand squeezes it out sideways', !rose && Math.abs(w.ball.x - b.x) >= BB.HIT_R / 2 - 0.5);
+  check('…smoothly, a few units a tick (max ' + maxStep.toFixed(1) + ')', maxStep <= 16);
+
+  // A ball rising into the rim of a hanging blob glances off sideways/down.
+  w = fresh();
+  const c = w.blobs[0];
+  Object.assign(c, { x: 250, y: 200, vy: 0 });
+  w.blobsLocked = true;
+  Object.assign(w.ball, { x: 250 + 58, y: 150, vx: 0, vy: 12 });
+  const hold = c.y;
+  let poppedRim = false;
+  for (let t = 0; t < 6; t++) {
+    const b0 = { x: w.ball.x, y: w.ball.y };
+    c.y = hold; c.vy = 0;
+    w.step();
+    c.y = hold;
+    if (w.ball.y > hold + BB.BALL_R && b0.y < hold) poppedRim = true;
+  }
+  check('a ball hitting the rim from below glances off, never over the top', !poppedRim);
+
+  // Sweep: blobs jumping/falling over low balls from every angle.
+  const rng = seeded(31);
+  let pops = 0, jumps = 0, cases = 0;
+  for (let k = 0; k < 4000; k++) {
+    const s = fresh();
+    s.live = rng() < 0.5;
+    const p = s.blobs[0];
+    Object.assign(p, { x: 120 + rng() * 300, y: 40 + rng() * 180, vy: (rng() * 2 - 1) * 20 });
+    s.setInput('a', rng() < 0.5 ? 0 : 1, rng() < 0.6);
+    Object.assign(s.ball, {
+      x: p.x + (rng() * 2 - 1) * 70,
+      y: BB.BALL_R + rng() * Math.max(1, p.y - BB.BALL_R),
+      vx: (rng() * 2 - 1) * 10, vy: (rng() * 2 - 1) * 12,
+    });
+    cases++;
+    for (let t = 0; t < 40; t++) {
+      const b0 = { x: s.ball.x, y: s.ball.y };
+      s.step();
+      if (throughBlob(b0, s.ball, p)) pops++;
+      if (s.ball.y - b0.y > 60) jumps++;
+    }
+  }
+  check('sweep: a ball under a blob never passes up through it (' + pops + ' / ' + cases + ')', pops === 0);
+  check('sweep: the ball never jumps upward in one tick (' + jumps + ')', jumps === 0);
+}
+
 console.log(failures ? '\n' + failures + ' FAILED' : '\nAll engine checks passed.');
 process.exit(failures ? 1 : 0);

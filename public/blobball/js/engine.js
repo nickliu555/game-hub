@@ -21,6 +21,7 @@
   var BALL_R = 25;             // y-units (12.5 across)
   var HIT_R = BLOB_R + BALL_R; // 125
   var FUDGE = 5;
+  var SQUEEZE_STEP = 12;       // x-units a tick a pinned ball slides out from under a blob
 
   var MOVE_SPEED = 8;
   var JUMP_V = 31;
@@ -86,7 +87,7 @@
       var r = roster[s] || { id: 'empty-' + s, name: '', isBot: true };
       this.blobs.push(makeBlob(r, s));
     }
-    this.ball = { x: HOME[0], y: SERVE_Y, vx: 0, vy: 0, px: HOME[0], py: SERVE_Y, spin: 0, pspin: 0 };
+    this.ball = { x: HOME[0], y: SERVE_Y, vx: 0, vy: 0, px: HOME[0], py: SERVE_Y, spin: 0, pspin: 0, sq: [false, false] };
     this.events = [];
     this.blobsLocked = true;   // inputs ignored (countdown, serve hold, dead ball)
     this.ballHeld = true;      // ball hovers in place (serve hold)
@@ -124,6 +125,7 @@
     b.x = b.px = HOME[this.serveSeat];
     b.y = b.py = SERVE_Y;
     b.vx = b.vy = 0;
+    b.sq[0] = b.sq[1] = false;
     this.blobsLocked = true;
     this.ballHeld = true;
     this.live = false;
@@ -207,6 +209,9 @@
   function collideBlob(b, p) {
     var dx = 2 * (b.x - p.x);
     var dy = b.y - p.y;
+    // A ball that came from under the blob meets its flat base, never the dome:
+    // resolving it against the dome would pop it straight up through the blob.
+    if (b.py - p.py < 0 || b.sq[p.seat]) return collideUnderside(b, p, dx, dy);
     var dist = Math.sqrt(dx * dx + dy * dy);
     if (!(dy > 0 && dist < HIT_R && dist > FUDGE)) return false;
     var dvx = b.vx - p.vx;
@@ -217,6 +222,51 @@
     if (along > 0) return false;
     b.vx += p.vx - 2 * dx * along / dist;
     b.vy += p.vy - 2 * dy * along / dist;
+    b.vx = clamp(b.vx, -MAX_VX, MAX_VX);
+    b.vy = clamp(b.vy, -MAX_VY, MAX_VY);
+    return true;
+  }
+
+  // The blob's flat base (and its rim, where the base meets the dome) is solid
+  // from below. A ball the blob comes down on with no room beneath (it's on the
+  // sand) squirts out sideways a few units a tick until it's clear — `b.sq`
+  // remembers that in-progress squeeze so the dome can't grab it half-way.
+  function collideUnderside(b, p, dx, dy) {
+    var wasSq = b.sq[p.seat];
+    var sign = dx < 0 ? -1 : 1;
+    if (Math.abs(dx) >= HIT_R || dy <= -BALL_R) { b.sq[p.seat] = false; return false; }
+    var nx = 0, ny = -1, tx = dx, ty = -BALL_R;
+    if (!wasSq && Math.abs(dx) > BLOB_R) {
+      var cx = dx - sign * BLOB_R, cy = Math.min(dy, 0);
+      var d = Math.sqrt(cx * cx + cy * cy);
+      if (d >= BALL_R) return false;
+      if (d < 1e-6) { nx = sign; ny = 0; } else { nx = cx / d; ny = cy / d; }
+      tx = sign * BLOB_R + nx * BALL_R;
+      ty = ny * BALL_R;
+    }
+
+    if (p.y + ty < BALL_R) {
+      var lo = b.x < NET_X ? WALL_MIN : NET_X + NET_BAND;
+      var hi = b.x < NET_X ? NET_X - NET_BAND : WALL_MAX;
+      var out = p.x + sign * HIT_R / 2;
+      if (out < lo || out > hi) { sign = -sign; out = p.x + sign * HIT_R / 2; }
+      // Measured from where the ball started the tick, so its own drift doesn't add to the slide.
+      var gap = out - b.px;
+      b.x = b.px + clamp(gap, -SQUEEZE_STEP, SQUEEZE_STEP);
+      b.y = BALL_R;
+      b.sq[p.seat] = Math.abs(gap) > SQUEEZE_STEP;
+      b.vx = b.sq[p.seat] ? 0 : clamp(p.vx + sign * SQUEEZE_STEP, -MAX_VX, MAX_VX);
+      if (b.vy > 0) b.vy = 0;
+      return !wasSq;
+    }
+
+    b.sq[p.seat] = false;
+    b.x = p.x + tx / 2;
+    b.y = p.y + ty;
+    var along = nx * (b.vx - p.vx) + ny * (b.vy - p.vy);
+    if (along >= 0) return false;
+    b.vx += p.vx - 2 * nx * along;
+    b.vy += p.vy - 2 * ny * along;
     b.vx = clamp(b.vx, -MAX_VX, MAX_VX);
     b.vy = clamp(b.vy, -MAX_VY, MAX_VY);
     return true;
