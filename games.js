@@ -487,7 +487,7 @@ const games = [
             'Every so often a rare golden apple worth +3 length appears on the map',
             'Head-on collisions take out both snakes, and snakes speed up as the round goes on',
             'With Power-ups on: 🧲 Magnet pulls nearby apples (and golden apples) to you for 6 seconds; 👻 Phantom gives 1.2× speed and lets you pass through walls and snakes for 6 seconds — but the edges still kill',
-            'The longest snake wins the round, not the last one standing: a crashed snake keeps its length but stops growing, and a living snake wins ties',
+            'The longest snake wins the round, not the last one standing: a crashed snake keeps its length but stops growing, and equal lengths are a draw — alive or not',
             'The round ends when time runs out, when everyone has crashed, or once a lone survivor is longer than every crashed snake',
             'First to the target number of round wins takes the game!'
         ],

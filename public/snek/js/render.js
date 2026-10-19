@@ -26,6 +26,12 @@
     this.world = world;
     this.dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
     this.t = 0;
+    // Power-up effects run on their own clocks so the round-end freeze can stop
+    // them: fxT (auras, trails) halts while fxFrozen; blinkT is real time, so a
+    // power that was already blinking out keeps blinking at its normal rate.
+    this.fxT = 0;
+    this.blinkT = 0;
+    this.fxFrozen = false;
     this.alpha = 1;
     this.hitStop = 0;
     this.shake = 0;
@@ -55,9 +61,12 @@
 
   Renderer.prototype._metrics = function () {
     const b = this.world.board;
-    const ts = Math.max(4, Math.floor(Math.min(this.cssW / b.w, this.cssH / b.h)));
+    // Multiplayer keeps a tile of headroom above the board, so a name tag over a
+    // snake on the top row has room to stay where it always sits.
+    const head = this.world.mode === 'solo' ? 0 : 1;
+    const ts = Math.max(4, Math.floor(Math.min(this.cssW / b.w, this.cssH / (b.h + head))));
     const gw = ts * b.w, gh = ts * b.h;
-    return { ts: ts, ox: Math.floor((this.cssW - gw) / 2), oy: Math.floor((this.cssH - gh) / 2), gw: gw, gh: gh };
+    return { ts: ts, ox: Math.floor((this.cssW - gw) / 2), oy: Math.max(head * ts, Math.floor((this.cssH - gh) / 2)), gw: gw, gh: gh };
   };
 
   // ---------------- Events ----------------
@@ -96,11 +105,14 @@
   Renderer.prototype.busy = function () { return this.dying.length > 0; };
 
   // ---------------- Frame ----------------
-  Renderer.prototype.render = function (dt, alpha) {
+  /** `realDt`: wall-clock seconds this frame (defaults to dt), for blinks that ignore slow-motion. */
+  Renderer.prototype.render = function (dt, alpha, realDt) {
     const ctx = this.ctx, b = this.world.board;
     if (!b) return;
     dt = dt || 0;
     this.t += dt;
+    if (!this.fxFrozen) this.fxT += dt;
+    this.blinkT += realDt != null ? realDt : dt;
     if (alpha != null) this.alpha = Math.max(0, Math.min(1, alpha));
     this.shake = Math.max(0, this.shake - dt * 1.6);
     this.flash = Math.max(0, this.flash - dt);
@@ -337,7 +349,7 @@
   }
 
   Renderer.prototype._drawSnakes = function (ctx, b, ts) {
-    const t = this.t;
+    const t = this.blinkT;
     for (const p of this.world.players) {
       if (!p.alive || !p.body.length) continue;
       const pts = this._points(p, b);
@@ -353,7 +365,7 @@
         strokeBody(ctx, pts, p.color, ts);
         this._drawHead(ctx, p, pts[0], b, ts);
         ctx.restore();
-        if (this.t - this.trailT > 0.035) {
+        if (!this.fxFrozen && this.t - this.trailT > 0.035) {
           const tail = pts[pts.length - 1];
           this.particles.push({ x: tail.x + (Math.random() - 0.5) * 0.4, y: tail.y + (Math.random() - 0.5) * 0.4, vx: 0, vy: 0, t: 0, max: 0.45, size: 0.16, color: 'rgba(224,231,255,0.55)' });
           this.particles.push({ x: pts[0].x, y: pts[0].y, vx: (Math.random() - 0.5) * 0.6, vy: (Math.random() - 0.5) * 0.6, t: 0, max: 0.35, size: 0.12, color: p.color });
@@ -395,8 +407,8 @@
   // actually being attracted — so the pull reads as aimed at real targets.
   // Blinks off (with a head flash) as it runs out.
   Renderer.prototype._drawMagnetField = function (ctx, p, h, ts) {
-    const t = this.t;
-    if (fading(p.fxMagnetLeft, t)) return;
+    if (fading(p.fxMagnetLeft, this.blinkT)) return;
+    const t = this.fxT;
     const cx = h.x * ts, cy = h.y * ts;
     ctx.save();
     const pulse = 0.5 + 0.5 * Math.sin(t * 4);
@@ -551,8 +563,8 @@
     ctx.globalAlpha = 1;
   };
 
-  // Name tags (multiplayer), drawn outside the clip so a tag near the top edge
-  // is never cut off. Long names are squeezed to a max width by fillText.
+  // Name tags (multiplayer), drawn outside the clip and over the board's rim so
+  // a tag near an edge is never cut off. Long names are squeezed to a max width by fillText.
   Renderer.prototype._drawTags = function (ctx, b, ts, m) {
     const solo = this.world.mode === 'solo';
     const fs = Math.max(11, Math.round(ts * 0.48));
@@ -572,9 +584,11 @@
         const tw = Math.min(ctx.measureText(label).width, ts * 8);
         // Clear the heading arrows when they point up past the tag.
         const lift = (p.dir === 0 && (this.showHeadings || p.waiting)) ? ts * 2.4 : ts * 1.05;
+        // Always in its usual spot above the head, even over the board edge (it
+        // is drawn on top of the rim). Only the screen's own edge can nudge it.
         let x = hx * ts, y = hy * ts - lift;
-        if (y - fs < 0) y = hy * ts + ts * 1.05;
-        x = Math.max(tw / 2 + 6, Math.min(m.gw - tw / 2 - 6, x));
+        x = Math.max(tw / 2 + 6 - m.ox, Math.min(this.cssW - m.ox - tw / 2 - 6, x));
+        y = Math.max(fs * 0.7 - m.oy, y);
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
         roundRect(ctx, x - tw / 2 - 6, y - fs * 0.7, tw + 12, fs * 1.4, fs * 0.5);
         ctx.fill();

@@ -176,20 +176,21 @@
   const powerBadges = document.getElementById('powerBadges');
   const POWER_LABEL = { magnet: '🧲 MAGNET', phantom: '👻 PHANTOM' };
   let powerUntil = {};      // power -> Date.now() ms it ends
+  let powerFrozen = null;   // power -> ms left, held while the round's result is frozen on screen
   let powerTimer = null;
   function renderPowers() {
     if (!powerBadges) return;
     const now = Date.now();
     const parts = [];
     Object.keys(powerUntil).forEach(function (k) {
-      const left = Math.ceil((powerUntil[k] - now) / 1000);
+      const left = Math.ceil((powerFrozen ? powerFrozen[k] : powerUntil[k] - now) / 1000);
       if (left <= 0) { delete powerUntil[k]; return; }
       parts.push({ k: k, left: left });
     });
     powerBadges.textContent = '';
     parts.forEach(function (x) {
       const b = document.createElement('div');
-      b.className = 'power-badge pb-' + x.k + (x.left <= 2 ? ' ending' : '');
+      b.className = 'power-badge pb-' + x.k + (x.left <= 2 ? ' ending' : (powerFrozen ? ' frozen' : ''));
       b.textContent = POWER_LABEL[x.k] + ' · ' + x.left;
       powerBadges.appendChild(b);
     });
@@ -198,12 +199,26 @@
   function setPower(power, sec) {
     if (sec > 0) {
       powerUntil[power] = Date.now() + sec * 1000;
-      if (!powerTimer) powerTimer = setInterval(renderPowers, 250);
+      if (powerFrozen) powerFrozen[power] = sec * 1000;
+      else if (!powerTimer) powerTimer = setInterval(renderPowers, 250);
       vibrate([60, 40, 60]);
     } else delete powerUntil[power];
     renderPowers();
   }
-  function clearPowers() { powerUntil = {}; renderPowers(); }
+  // The round is decided: the countdown stops where it is (an "ending" badge keeps blinking).
+  function freezePowers() {
+    if (powerFrozen) return;
+    const now = Date.now();
+    powerFrozen = {};
+    Object.keys(powerUntil).forEach(function (k) { powerFrozen[k] = powerUntil[k] - now; });
+    if (powerTimer) { clearInterval(powerTimer); powerTimer = null; }
+    renderPowers();
+  }
+  function clearPowers() {
+    powerUntil = {}; powerFrozen = null;
+    if (powerTimer) { clearInterval(powerTimer); powerTimer = null; }
+    renderPowers();
+  }
   socket.on('m:power', function (d) {
     if (!d || d.id !== playerId) return;
     setPower(d.power, Number(d.sec) || 0);
@@ -321,7 +336,7 @@
     setControls(false);
     showEliminated();
   });
-  socket.on('m:decided', function () { setControls(false); });
+  socket.on('m:decided', function () { setControls(false); freezePowers(); });
   socket.on('m:roundOver', function (d) {
     clearPowers();
     stage = 'roundover';

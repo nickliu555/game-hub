@@ -807,7 +807,7 @@
       if (decidedT >= DECIDED_HOLD_SEC && (!(renderer && renderer.busy()) || decidedT >= DECIDED_MAX_SEC)) endRound();
     }
 
-    if (renderer) renderer.render(simDt, alpha);
+    if (renderer) renderer.render(simDt, alpha, dt);
   }
 
   function emitClock() {
@@ -941,14 +941,14 @@
     }
   }
 
-  /** Id(s) currently on top: longest first, and a living snake beats a crashed one at equal length. */
+  /** Id(s) currently on top: purely the longest. Alive or crashed makes no difference — equal length is a tie. */
   function leaders() {
-    let ids = [], bestLen = -1, bestAlive = -1;
+    let ids = [], bestLen = -1;
     if (!world) return ids;
     for (const p of world.players) {
-      const L = world.lengthOf(p), A = p.alive ? 1 : 0;
-      if (L > bestLen || (L === bestLen && A > bestAlive)) { bestLen = L; bestAlive = A; ids = [p.id]; }
-      else if (L === bestLen && A === bestAlive) ids.push(p.id);
+      const L = world.lengthOf(p);
+      if (L > bestLen) { bestLen = L; ids = [p.id]; }
+      else if (L === bestLen) ids.push(p.id);
     }
     return ids;
   }
@@ -959,6 +959,8 @@
     decidedT = 0;
     acc = 0;
     world.settle();
+    // Power-up auras and trails freeze with the board; a blink already in progress keeps blinking.
+    if (renderer) renderer.fxFrozen = true;
     inputQueue.length = 0;
     socket.emit('host:decided', {});
     emitClock();

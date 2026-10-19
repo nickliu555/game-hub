@@ -344,6 +344,7 @@ body.player.mode-stick .swipe-dir { display: none; }
 .power-badge.pb-magnet { background: #FB7185; }
 .power-badge.pb-phantom { background: #C4B5FD; }
 .power-badge.ending { animation: powblink 0.25s steps(2, end) infinite; }
+.power-badge.frozen { animation: none; }
 @keyframes powpulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
 @keyframes powblink { 0% { opacity: 1; } 100% { opacity: 0.35; } }
 

@@ -240,7 +240,7 @@ The classic arcade snake for 1–4 players on the Host screen — eat, grow, and
    - **Power-ups** (multiplayer, when On) appear one at a time — grab one by eating it:
      - 🧲 **Magnet** (6 s): apples and golden apples within 3 cells drift toward your head
      - 👻 **Phantom** (6 s): 1.2× speed and you pass through walls and every snake (they pass through you too) — but the **edges still kill**. If it runs out while you're inside something, you stay ghosted until your head is in an open cell (up to 2 s more)
-8. **The longest snake wins the round** — not the last one standing. A crashed snake keeps the length it crashed at, so it can still win, but it stops growing. On equal length a snake that's still alive wins; a dead heat between crashed snakes is a **draw**
+8. **The longest snake wins the round** — not the last one standing. A crashed snake keeps the length it crashed at, so it can still win, but it stops growing. Only length counts: if the longest snakes are the same length when the round ends — alive or crashed — it's a **draw**
    - The round ends when time runs out, when everyone has crashed, or as soon as a lone survivor is already longer than every crashed snake
 9. **First to the target number of round wins takes the game!**
 
