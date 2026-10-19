@@ -1314,10 +1314,7 @@
         playDealRiffle();
         if (ev.levelUp) { playBlindsUp(); showLevelBanner(s); }
         break;
-      case 'check': playCheck(); break;
-      case 'call': case 'bet': case 'raise': playChips(); break;
-      case 'allin': playAllIn(); break;
-      case 'fold': playFold(); break;
+      // Player actions sound from lastActed (playActed): a closing action's event is overwritten before it arrives.
       case 'collect': setTimeout(playCollect, Math.max(0, swept - SWEEP_MS)); break;
       case 'street': playBoardCards(ev.street === 'flop' ? 3 : 1); break;
       case 'runout': playShowdown(); break;
@@ -1562,6 +1559,13 @@
     return c;
   }
 
+  function playActionSound(type) {
+    if (type === 'check') playCheck();
+    else if (type === 'allin') playAllIn();
+    else if (type === 'fold') playFold();
+    else if (CHIP_ACTIONS[type]) playChips();
+  }
+
   /**
    * Flash the latest action and move its chips. When the action closed the street,
    * the closer's chips land in front of them first, then every bet sweeps into the
@@ -1579,7 +1583,7 @@
     const newCollect = !!c && c.seq !== lastCollectSeq;
     if (a) lastActedSeq = a.seq;
     if (c) lastCollectSeq = c.seq;
-    if (newAct) flashAction(a);
+    if (newAct) { flashAction(a); playActionSound(a.type); }
     const chipsMoved = newAct && CHIP_ACTIONS[a.type] && seatEls[a.playerId];
     if (!motionOk()) return 0;
 
