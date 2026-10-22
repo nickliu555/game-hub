@@ -78,6 +78,7 @@
   let kicked = false;
   let paused = false;
   let hostPresent = true;
+  let reactionsMuted = false;
   let armed = false;
   let roster = [];
   let railAngle = 0;     // on-screen direction the paddle moves as the slider grows
@@ -129,9 +130,19 @@
     updateChrome();
   }
 
-  // The attribution belongs to the lobby only. Gated on the phase, not just the view.
+  // The attribution belongs to the lobby only; reactions to the lobby and the
+  // final results. Gated on the phase, not just the view.
+  function reactionsOpen() {
+    if (kicked) return false;
+    if (phase === 'LOBBY') return view === 'lobby';
+    return phase === 'FINAL' && view === 'final';
+  }
   function updateChrome() {
     if (playerAttribution) playerAttribution.hidden = !(phase === 'LOBBY' && view === 'lobby');
+    const on = reactionsOpen() && !reactionsMuted && hostPresent;
+    const bar = document.getElementById('reactionBar');
+    if (bar) bar.hidden = !on;
+    body.classList.toggle('reactions-on', on);
   }
 
   function setSeatColor(color) {
@@ -145,6 +156,47 @@
     updateChrome();
   }
   socket.on('state:hostPresence', function (p) { setHostPresent(!(p && p.present === false)); });
+  socket.on('state:reactionsMuted', function (p) { reactionsMuted = !!(p && p.muted); updateChrome(); });
+
+  // ---------------- Reactions ----------------
+  const REACTION_COOLDOWN_MS = 5000;
+  const reactionBar = document.getElementById('reactionBar');
+  const reactionCooldown = document.getElementById('reactionCooldown');
+  const reactionBtns = reactionBar ? Array.prototype.slice.call(reactionBar.querySelectorAll('.reaction-btn')) : [];
+  let reactionUntil = 0, cooldownRaf = null;
+  function startCooldown() {
+    if (cooldownRaf) cancelAnimationFrame(cooldownRaf);
+    function tick() {
+      const left = reactionUntil - Date.now();
+      if (left <= 0) {
+        reactionBtns.forEach(function (b) { b.disabled = false; });
+        if (reactionCooldown) reactionCooldown.hidden = true;
+        cooldownRaf = null;
+        return;
+      }
+      reactionBtns.forEach(function (b) { b.disabled = true; });
+      if (reactionCooldown) { reactionCooldown.hidden = false; reactionCooldown.textContent = Math.ceil(left / 1000) + 's'; }
+      cooldownRaf = requestAnimationFrame(tick);
+    }
+    tick();
+  }
+  if (reactionBar) {
+    reactionBar.addEventListener('pointerdown', function (e) {
+      const btn = e.target.closest('.reaction-btn');
+      if (!btn || btn.disabled) return;
+      e.preventDefault();
+      const idx = parseInt(btn.dataset.reaction, 10);
+      if (isNaN(idx)) return;
+      reactionUntil = Date.now() + REACTION_COOLDOWN_MS;
+      startCooldown();
+      socket.emit('player:reaction', { index: idx }, function (res) {
+        if (res && !res.ok && res.reason === 'cooldown' && res.retryInMs) {
+          reactionUntil = Date.now() + res.retryInMs;
+          startCooldown();
+        }
+      });
+    });
+  }
   function setPaused(on) {
     paused = !!on;
     if (pauseCover) pauseCover.hidden = !paused || view !== 'controller';
@@ -483,6 +535,7 @@
       reconnectTries = 0;
       setReconnecting(false);
       kicked = false;
+      reactionsMuted = !!res.reactionsMuted;
       setHostPresent(res.hostPresent !== false);
       lastSent = -1;
       if (res.phase === 'PLAYING' && res.match) {

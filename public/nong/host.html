@@ -28,6 +28,7 @@
           <button class="gtb-btn" type="button" data-gtb-settings-toggle aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️ Settings</button>
           <div class="gtb-settings-panel" id="settingsPanel" hidden>
             <button class="gtb-btn" type="button" data-gtb-help-open="helpOverlay" title="How to play">? Help</button>
+            <button id="muteReactionsBtn" class="gtb-btn" type="button" data-gtb-settings-keep-open title="Mute player reactions">🔔 Reactions: On</button>
             <div class="gtb-divider"></div>
             <button id="resetBtn" class="gtb-btn gtb-btn-danger" type="button" title="Reset the whole game">Reset game</button>
           </div>
@@ -110,7 +111,10 @@
         <h1 class="final-heading" id="finalHeading">Winner!</h1>
         <div class="final-sub" id="finalSub"></div>
         <ol class="standings" id="standings"></ol>
-        <button id="playAgainBtn" class="btn-start">Back to lobby</button>
+        <div class="final-actions">
+          <button type="button" id="playAgainBtn" class="btn-start">▶ Play again</button>
+          <button type="button" id="backToLobbyBtn" class="btn-ghost-bot">Back to lobby</button>
+        </div>
       </div>
     </section>
   </div>
@@ -123,6 +127,9 @@
       <div class="so-sub">Nong can only run on one screen at a time. Close this tab, or reload it to take control back.</div>
     </div>
   </div>
+
+  <!-- Floating reaction emojis from players -->
+  <div class="reaction-layer" id="reactionLayer" aria-hidden="true"></div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/nong/js/engine.js"></script>

@@ -64,6 +64,7 @@
   const fsBlue = document.getElementById('fsBlue');
   const finalRosters = document.getElementById('finalRosters');
   const playAgainBtn = document.getElementById('playAgainBtn');
+  const backToLobbyBtn = document.getElementById('backToLobbyBtn');
 
   const fullscreenBtn = document.getElementById('fullscreenBtn');
   const resetBtn = document.getElementById('resetBtn');
@@ -989,7 +990,18 @@
     show('final');
   }
 
+  // Rematch: same players, teams and goal target, straight into a new match.
   playAgainBtn.addEventListener('click', function () {
+    unlockAudio();
+    primeWhistle();
+    playAgainBtn.disabled = true;
+    socket.emit('host:rematch', {}, function (res) {
+      playAgainBtn.disabled = false;
+      if (!res || !res.ok) { showToast('Could not start a new game.'); return; }
+      startMatch(res.roster, res.goalTarget, null);
+    });
+  });
+  backToLobbyBtn.addEventListener('click', function () {
     socket.emit('host:reset', {});
   });
 

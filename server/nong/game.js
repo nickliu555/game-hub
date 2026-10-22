@@ -190,6 +190,11 @@ class Game {
     return { ok: true };
   }
 
+  /** Reactions are a downtime-only thing: the lobby and the final results. */
+  reactionsOpen() {
+    return this.phase === PHASES.LOBBY || this.phase === PHASES.FINAL;
+  }
+
   canStart() {
     return this.phase === PHASES.LOBBY &&
       this.players.size >= MIN_PLAYERS &&
@@ -233,6 +238,15 @@ class Game {
       this.match.scores[r.id] = this.match.mode === 'lives' ? this.match.target : 0;
     }
     return { ok: true, meta: this.getMatchMeta() };
+  }
+
+  /** Same players, same seats, same settings — straight back into a new match. */
+  rematch() {
+    if (this.phase !== PHASES.FINAL) return { ok: false, reason: 'not-final' };
+    this.phase = PHASES.LOBBY;
+    const res = this.startMatch();
+    if (!res.ok) this.phase = PHASES.FINAL;
+    return res;
   }
 
   isRosterId(id) { return this.roster.some((r) => r.id === id); }

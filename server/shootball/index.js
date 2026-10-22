@@ -255,16 +255,30 @@ function mountShootBall(app, httpServer, opts) {
       broadcastLobby();
     });
 
-    socket.on('host:start', (_p, ack) => {
-      if (!requireHost(ack)) return;
-      touchActivity();
-      const res = game.startMatch();
-      if (!res.ok) return ack && ack(res);
+    function beginMatch(res, ack) {
       ack && ack({ ok: true, roster: res.roster, goalTarget: res.goalTarget });
       ns.emit('m:start', {
         goalTarget: res.goalTarget,
         roster: res.roster,
       });
+    }
+
+    socket.on('host:start', (_p, ack) => {
+      if (!requireHost(ack)) return;
+      touchActivity();
+      const res = game.startMatch();
+      if (!res.ok) return ack && ack(res);
+      beginMatch(res, ack);
+    });
+
+    // Play again from the results screen: same players, teams and goal target.
+    socket.on('host:rematch', (_p, ack) => {
+      if (!requireHost(ack)) return;
+      touchActivity();
+      const res = game.rematch();
+      if (!res.ok) return ack && ack(res);
+      beginMatch(res, ack);
+      broadcastLobby();
     });
 
     // ---- Live match meta pushed by the host (rebroadcast to players) ----

@@ -28,6 +28,7 @@
           <button class="gtb-btn" type="button" data-gtb-settings-toggle aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️ Settings</button>
           <div class="gtb-settings-panel" id="settingsPanel" hidden>
             <button class="gtb-btn" type="button" data-gtb-help-open="helpOverlay" title="How to play">? Help</button>
+            <button id="muteReactionsBtn" class="gtb-btn" type="button" data-gtb-settings-keep-open title="Mute player reactions">🔔 Reactions: On</button>
             <div class="gtb-divider"></div>
             <button id="resetBtn" class="gtb-btn gtb-btn-danger" type="button" title="Reset the whole game">Reset game</button>
           </div>
@@ -142,10 +143,16 @@
           <div class="final-section-title">Rounds won</div>
           <div class="final-list" id="finalList"></div>
         </div>
-        <button type="button" id="backToLobbyBtn" class="btn-start">Back to lobby</button>
+        <div class="final-actions">
+          <button type="button" id="playAgainBtn" class="btn-start">▶ Play again</button>
+          <button type="button" id="backToLobbyBtn" class="btn-ghost-bot">Back to lobby</button>
+        </div>
       </div>
     </section>
   </div>
+
+  <!-- Floating reaction emojis from players -->
+  <div class="reaction-layer" id="reactionLayer" aria-hidden="true"></div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/bombbrawl/js/engine.js"></script>

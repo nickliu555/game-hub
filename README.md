@@ -138,7 +138,7 @@ A fast, physics-y arcade soccer showdown played on the shared screen, with each 
 3. Your phone becomes a controller: **left/right** to move, **jump** and **kick** on the right
 4. **Double-tap** left or right for a quick **dash** (short cooldown) — dash into the ball for a power shot
 5. Head, body, or boot the ball into the opponent's net to score — then fire off an **emoji reaction** during the celebration
-6. **Highest score when the timer hits zero wins — a tie goes to sudden-death golden goal**
+6. **Highest score when the timer hits zero wins — a tie goes to sudden-death golden goal**. Hit **▶ Play again** for an instant rematch with the same players, or go back to the lobby
 
 The host can **pause** mid-match from the button under the top bar (the whole game freezes and controllers are locked, then everything resumes exactly where it left off). If the ball goes untouched for **10 seconds**, the point automatically resets from a fresh centre kickoff.
 
@@ -152,7 +152,7 @@ A top-down, turn-based flick-soccer showdown — slingshot your tokens to knock 
 5. **Bank shots** off the walls, posts and other tokens to drive the ball into the net
 6. A token that lands in a goal **respawns just outside**, so it can't sit there blocking shots
 7. After each goal the board **resets** and the team that conceded kicks off
-8. **First team to the goal target wins!**
+8. **First team to the goal target wins!** Hit **▶ Play again** for an instant rematch with the same players, or go back to the lobby
 
 ### �🥇 Rank Five
 A co-op guessing game — one player secretly ranks a list, and the group has to rebuild that order without them.
@@ -193,7 +193,7 @@ A four-way bomber battle on the Host screen — blast open the arena, grab power
 6. Power-ups come in two flavours: on **Drops**, blown-up crates reveal **Extra Bomb**, **Fire** (bigger blast), **Speed** and **Kick** (walk into a bomb to shove it); on **Preset**, nothing drops and every bomber starts loaded with **3 bombs**, **fire 3**, **+1 speed** and **kick**
 7. If the clock runs low, **sudden death** begins — indestructible blocks slam down in a spiral and crush anyone left in the open
 8. **Last bomber standing wins the round**; if everyone dies in the same blast it's a **draw** and the round is replayed
-9. **First to the target number of round wins takes the game!**
+9. **First to the target number of round wins takes the game!** Hit **▶ Play again** for an instant rematch with the same players, or go back to the lobby
 
 The host can **Pause** at any time. Every round generates a fresh arena.
 
@@ -209,7 +209,7 @@ Two teams, one puck, pure chaos — a HaxBall-style rink on the Host screen with
 7. After every goal both teams **reset for a face-off** and the countdown restarts, with the puck spotted on the **conceding team's** side
 8. If the puck sits **untouched for 10 seconds** it's whistled dead and dropped back at centre for a fresh face-off
 9. The match runs until the **clock hits zero** — **highest score wins**
-10. Level at the buzzer? **Sudden death** — the clock stops, both teams line up for a fresh centre face-off, and the **next goal wins**
+10. Level at the buzzer? **Sudden death** — the clock stops, both teams line up for a fresh centre face-off, and the **next goal wins**. Hit **▶ Play again** for an instant rematch with the same players, or go back to the lobby
 11. The host can **Pause** at any time, and players can fire off **reactions** that pop above their skater
 
 ### 🏓 Nong
@@ -222,7 +222,7 @@ The arcade paddle classic on the Host screen — a head-to-head court for 2, a t
 5. Where the ball meets your paddle sets the **return angle**, and every return makes the ball **faster**
 6. **2 players:** let the ball past you and your opponent scores — **first to the target wins**
 7. **3–4 players:** let the ball past you and you **lose a life** — at zero you're out and your side turns into a **solid wall**
-8. The **last paddle standing wins!**
+8. The **last paddle standing wins!** Hit **▶ Play again** for an instant rematch with the same players, or go back to the lobby
 
 The host can **Pause** at any time.
 

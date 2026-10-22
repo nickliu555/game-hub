@@ -10,6 +10,9 @@ const HOST_ROOM = 'hosts';
 const PLAYER_ROOM = 'players';
 const INACTIVITY_RESET_MS = 60 * 60 * 1000; // 60 minutes
 const HOST_GRACE_MS = 15000;
+// 6-emoji reactions (index into REACTION_EMOJIS on the host + player pages).
+const REACTION_COUNT = 6;
+const REACTION_COOLDOWN_MS = 5000;
 
 /**
  * Mount Nong onto the hub's Express app and HTTP server.
@@ -33,6 +36,8 @@ function mountNong(app, httpServer, opts) {
   let lastHostSeenAt = 0;
   let hostGraceTimer = null;
   let hostLeftIntentionally = false;
+  let reactionsMuted = false;
+  const lastReactionAt = new Map();
   // The host browser runs the physics, so exactly one screen may drive a match.
   let activeHostId = null;
 
@@ -148,6 +153,7 @@ function mountNong(app, httpServer, opts) {
         player: playerPayload(res.player),
         phase: game.phase,
         hostPresent: isHostPresent(),
+        reactionsMuted,
         lobby: game.getLobby(),
       };
       if (game.phase === PHASES.PLAYING || game.phase === PHASES.FINAL) {
@@ -169,6 +175,26 @@ function mountNong(app, httpServer, opts) {
       ns.to(HOST_ROOM).emit('in', { id: playerId, p });
     });
 
+    // Reactions: downtime only (lobby, final), cooldown-throttled, and silenced
+    // entirely while the host has them muted.
+    socket.on('player:reaction', ({ index } = {}, ack) => {
+      if (role !== 'player' || !playerId) return ack && ack({ ok: false, reason: 'not-joined' });
+      if (!isHostPresent()) return ack && ack({ ok: false, reason: 'host-absent' });
+      if (typeof index !== 'number' || !Number.isInteger(index) || index < 0 || index >= REACTION_COUNT) {
+        return ack && ack({ ok: false, reason: 'bad-index' });
+      }
+      if (!game.reactionsOpen()) return ack && ack({ ok: false, reason: 'phase-closed' });
+      if (reactionsMuted) return ack && ack({ ok: false, reason: 'muted' });
+      const now = Date.now();
+      const last = lastReactionAt.get(playerId) || 0;
+      if (now - last < REACTION_COOLDOWN_MS) {
+        return ack && ack({ ok: false, reason: 'cooldown', retryInMs: REACTION_COOLDOWN_MS - (now - last) });
+      }
+      lastReactionAt.set(playerId, now);
+      ack && ack({ ok: true });
+      ns.to(HOST_ROOM).emit('host:reaction', { index, id: playerId });
+    });
+
     // ---- Host flows ----
     socket.on('host:auth', (_p, ack) => {
       role = 'host';
@@ -187,6 +213,7 @@ function mountNong(app, httpServer, opts) {
         ok: true,
         phase: game.phase,
         lobby: game.getLobby(),
+        reactionsMuted,
       };
       if (game.phase === PHASES.PLAYING || game.phase === PHASES.FINAL) {
         payload.match = game.getMatchMeta();
@@ -227,6 +254,13 @@ function mountNong(app, httpServer, opts) {
       broadcastLobby();
     });
 
+    socket.on('host:setReactionsMuted', ({ muted } = {}, ack) => {
+      if (!requireHost(ack)) return;
+      reactionsMuted = !!muted;
+      ack && ack({ ok: true, reactionsMuted });
+      ns.emit('state:reactionsMuted', { muted: reactionsMuted });
+    });
+
     socket.on('host:kick', ({ playerId: pid } = {}, ack) => {
       if (!requireHost(ack)) return;
       if (game.phase !== PHASES.LOBBY) return ack && ack({ ok: false, reason: 'not-lobby' });
@@ -253,6 +287,18 @@ function mountNong(app, httpServer, opts) {
       if (!res.ok) return ack && ack(res);
       ack && ack({ ok: true, match: res.meta });
       ns.emit('m:start', res.meta);
+    });
+
+    // Play again from the results screen: same roster, seats and settings.
+    socket.on('host:rematch', (_p, ack) => {
+      if (!requireHost(ack)) return;
+      if (!isActiveHost()) return ack && ack({ ok: false, reason: 'not-active-host' });
+      touchActivity();
+      const res = game.rematch();
+      if (!res.ok) return ack && ack(res);
+      ack && ack({ ok: true, match: res.meta });
+      ns.emit('m:start', res.meta);
+      broadcastLobby();
     });
 
     // ---- Live match meta pushed by the host (rebroadcast to players) ----
@@ -336,6 +382,7 @@ function mountNong(app, httpServer, opts) {
       // reset returns them to defaults.
       const keepConfig = game.phase !== PHASES.LOBBY;
       game.reset(keepConfig);
+      lastReactionAt.clear();
       ack && ack({ ok: true });
       ns.emit('state:reset');
       broadcastLobby();
@@ -345,6 +392,7 @@ function mountNong(app, httpServer, opts) {
       if (!requireHost(ack)) return;
       if (!isActiveHost()) return ack && ack({ ok: false, reason: 'not-active-host' });
       game.reset();
+      lastReactionAt.clear();
       hostLeftIntentionally = true;
       if (hostGraceTimer) { clearTimeout(hostGraceTimer); hostGraceTimer = null; }
       emitHostPresence(false);

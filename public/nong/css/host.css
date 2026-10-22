@@ -425,7 +425,7 @@ body.host {
 .st-rank { font-family: var(--font-retro); font-size: 16px; width: 44px; flex: 0 0 auto; text-align: left; color: rgba(255,255,255,0.75); }
 .st-name { flex: 1 1 auto; min-width: 0; text-align: left; font-size: 22px; font-weight: 800; color: var(--seat, #fff); overflow-wrap: anywhere; }
 .st-val { flex: 0 0 auto; font-size: 17px; font-weight: 800; color: rgba(255,255,255,0.85); white-space: nowrap; }
-#playAgainBtn { margin-top: 6px; }
+.final-actions { flex: 0 0 auto; display: flex; gap: 14px; justify-content: center; align-items: center; flex-wrap: wrap; margin-top: 6px; }
 
 /* ---------------- Responsive stack ---------------- */
 @media (max-width: 900px) {
@@ -502,3 +502,17 @@ body.host {
 .pause-overlay.resuming .po-icon { display: none; }
 .pause-overlay.resuming .po-title { font-size: 120px; line-height: 1; animation: resumepop 0.4s ease; }
 @keyframes resumepop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
+
+/* Floating reaction emojis */
+.reaction-layer { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 30; }
+.reaction-emoji {
+  position: absolute; bottom: -60px; font-size: 56px; line-height: 1;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35)); will-change: transform, opacity;
+  animation: reactionFloat 3.5s ease-out forwards; user-select: none;
+}
+@keyframes reactionFloat {
+  0%   { transform: translateY(0)      rotate(0deg)  scale(0.4);  opacity: 0; }
+  15%  { transform: translateY(-15vh)  rotate(-6deg) scale(1);    opacity: 1; }
+  85%  { transform: translateY(-90vh)  rotate(6deg)  scale(1);    opacity: 1; }
+  100% { transform: translateY(-105vh) rotate(0deg)  scale(0.85); opacity: 0; }
+}

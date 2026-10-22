@@ -64,9 +64,14 @@
   const finalHeading = document.getElementById('finalHeading');
   const finalList = document.getElementById('finalList');
   const backToLobbyBtn = document.getElementById('backToLobbyBtn');
+  const playAgainBtn = document.getElementById('playAgainBtn');
 
   const fullscreenBtn = document.getElementById('fullscreenBtn');
   const resetBtn = document.getElementById('resetBtn');
+  const muteBtn = document.getElementById('muteReactionsBtn');
+  const reactionLayer = document.getElementById('reactionLayer');
+  const REACTION_EMOJIS = ['😂', '🔥', '🎉', '😱', '😭', '😡'];
+  const REACTION_MAX = 30;
   const pauseBtn = document.getElementById('pauseBtn');
   const pauseOverlay = document.getElementById('pauseOverlay');
 
@@ -116,6 +121,16 @@
   });
   backToLobbyBtn && backToLobbyBtn.addEventListener('click', function () {
     socket.emit('host:reset', {});
+  });
+  // Rematch: same players and settings, straight into a new match.
+  playAgainBtn && playAgainBtn.addEventListener('click', function () {
+    unlockAudio();
+    playAgainBtn.disabled = true;
+    socket.emit('host:rematch', {}, function (res) {
+      playAgainBtn.disabled = false;
+      if (!res || !res.ok) { toast('Could not start a new game.'); return; }
+      startMatch(res.roster, res, null);
+    });
   });
   const hubBtn = document.getElementById('hubBtn');
   if (hubBtn) {
@@ -934,9 +949,40 @@
   });
 
   // ---------------- Boot ----------------
+  // ---------------- Reactions ----------------
+  function spawnReaction(index) {
+    const emoji = REACTION_EMOJIS[index];
+    if (!emoji || !reactionLayer) return;
+    while (reactionLayer.children.length >= REACTION_MAX) reactionLayer.removeChild(reactionLayer.firstChild);
+    const el = document.createElement('div');
+    el.className = 'reaction-emoji';
+    el.textContent = emoji;
+    el.style.left = (5 + Math.random() * 90) + '%';
+    const scale = 0.85 + Math.random() * 0.5;
+    el.style.fontSize = (44 * scale) + 'px';
+    el.style.animationDuration = (3.0 + Math.random() * 1.2) + 's';
+    el.addEventListener('animationend', function () { if (el.parentNode) el.parentNode.removeChild(el); });
+    reactionLayer.appendChild(el);
+  }
+  socket.on('host:reaction', function (p) { if (p && typeof p.index === 'number') spawnReaction(p.index); });
+
+  let reactionsMuted = false;
+  function updateMuteBtn() {
+    if (!muteBtn) return;
+    muteBtn.textContent = reactionsMuted ? '🔕 Reactions: Off' : '🔔 Reactions: On';
+    muteBtn.classList.toggle('is-muted', reactionsMuted);
+  }
+  muteBtn && muteBtn.addEventListener('click', function () {
+    socket.emit('host:setReactionsMuted', { muted: !reactionsMuted }, function (res) {
+      if (res && res.ok) { reactionsMuted = !!res.reactionsMuted; updateMuteBtn(); }
+    });
+  });
+  socket.on('state:reactionsMuted', function (p) { reactionsMuted = !!(p && p.muted); updateMuteBtn(); });
+
   socket.on('connect', function () {
     socket.emit('host:auth', {}, function (res) {
       if (!res || !res.ok) return;
+      reactionsMuted = !!res.reactionsMuted; updateMuteBtn();
       renderQR();
       renderLobby(res.lobby);
       roundsToWin = res.lobby.roundsToWin;

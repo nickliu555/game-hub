@@ -69,6 +69,7 @@ class Game {
       clockMs: this.roundLengthSec * 1000,
       live: false,        // true only while controls are active (host:play)
       paused: false,      // true while the host has the game paused
+      roundOver: false,   // true between a round's result and the next round's start
       suddenDeath: false, // true once the closing walls have started
       gamePoints: {},     // playerId -> rounds won so far
       alive: {},          // playerId -> bool (alive this round)
@@ -246,10 +247,26 @@ class Game {
     return { ok: true, roster };
   }
 
+  /** Same players, same settings — straight back into a new match. */
+  rematch() {
+    if (this.phase !== PHASES.FINAL) return { ok: false, reason: 'not-final' };
+    this.phase = PHASES.LOBBY;
+    const res = this.startMatch();
+    if (!res.ok) this.phase = PHASES.FINAL;
+    return res;
+  }
+
   // Host pushes live meta as rounds run. These keep the cache fresh.
   setLive(live) { this.match.live = !!live; }
   setPaused(on) { this.match.paused = !!on; }
   setSuddenDeath(on) { this.match.suddenDeath = !!on; }
+  setRoundOver(on) { this.match.roundOver = !!on; }
+
+  /** Reactions are a downtime-only thing: lobby, between-round results, final. */
+  reactionsOpen() {
+    if (this.phase === PHASES.LOBBY || this.phase === PHASES.FINAL) return true;
+    return this.phase === PHASES.PLAYING && this.match.roundOver;
+  }
   setRound(round, seed) {
     if (Number.isFinite(round)) this.match.round = round | 0;
     if (Number.isFinite(seed)) this.match.seed = seed >>> 0;
@@ -336,6 +353,7 @@ class Game {
       clockMs: this.match.clockMs,
       live: this.match.live,
       paused: this.match.paused,
+      roundOver: this.match.roundOver,
       suddenDeath: this.match.suddenDeath,
       gamePoints: this.match.gamePoints,
       alive: this.match.alive,

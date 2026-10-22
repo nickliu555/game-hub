@@ -3,7 +3,7 @@
 // >=1 each), goal target, start, turn rebroadcast, per-turn aim gating, goal /
 // match-end rebroadcast, and reconnect meta. A flow probe, not a unit test.
 const { io } = require('socket.io-client');
-const URL = 'http://localhost:3000/shootball';
+const URL = process.env.SHOOTBALL_URL || 'http://localhost:3000/shootball';
 
 function mk(opts) { return io(URL, Object.assign({ transports: ['websocket'], forceNew: true }, opts)); }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -115,6 +115,19 @@ async function main() {
   host.emit('host:matchEnd', { winner: 'red', red: 2, blue: 0 });
   await wait(40);
   check('players got m:end', pEvents.p1.some((e) => e[0] === 'm:end' && e[1].winner === 'red'));
+
+  // Play again: same players, teams and goal target straight into a new match.
+  const reByPlayer = await new Promise((r) => p1.emit('host:rematch', {}, r));
+  check('players cannot trigger a rematch', !reByPlayer || !reByPlayer.ok);
+  const startsBefore = pEvents.p2.filter((e) => e[0] === 'm:start').length;
+  const re = await new Promise((r) => host.emit('host:rematch', {}, r));
+  await wait(60);
+  check('rematch ok with the same roster + target', re && re.ok && re.goalTarget === 2 &&
+    re.roster.map((x) => x.id + ':' + x.team).sort().join() === start.roster.map((x) => x.id + ':' + x.team).sort().join());
+  check('players got a fresh m:start', pEvents.p2.filter((e) => e[0] === 'm:start').length > startsBefore);
+  const reRec = await new Promise((r) => p2.emit('player:reconnect', { playerId: 'p2' }, r));
+  check('rematch is PLAYING from 0–0', reRec && reRec.phase === 'PLAYING' && reRec.match.redScore === 0 && reRec.match.blueScore === 0);
+  check('no rematch mid-match', !(await new Promise((r) => host.emit('host:rematch', {}, r))).ok);
 
   // Reset returns everyone to the lobby.
   await new Promise((r) => host.emit('host:reset', {}, r));

@@ -254,6 +254,15 @@ class Game {
     return { ok: true, roster: this.getRoster() };
   }
 
+  /** Same players, same teams, same settings — straight back into a new match. */
+  rematch() {
+    if (this.phase !== PHASES.FINAL) return { ok: false, reason: 'not-final' };
+    this.phase = PHASES.LOBBY;
+    const res = this.startMatch();
+    if (!res.ok) this.phase = PHASES.FINAL;
+    return res;
+  }
+
   // Host pushes live meta as the match runs. These just keep the cache fresh.
   setLive(live) { this.match.live = !!live; }
   setClock(ms, sudden) {

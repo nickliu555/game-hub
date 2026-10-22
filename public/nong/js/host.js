@@ -67,9 +67,14 @@
   const finalSub = document.getElementById('finalSub');
   const standingsEl = document.getElementById('standings');
   const playAgainBtn = document.getElementById('playAgainBtn');
+  const backToLobbyBtn = document.getElementById('backToLobbyBtn');
 
   const fullscreenBtn = document.getElementById('fullscreenBtn');
   const resetBtn = document.getElementById('resetBtn');
+  const muteBtn = document.getElementById('muteReactionsBtn');
+  const reactionLayer = document.getElementById('reactionLayer');
+  const REACTION_EMOJIS = ['😂', '🔥', '🎉', '😱', '😭', '😡'];
+  const REACTION_MAX = 30;
   const supersededOverlay = document.getElementById('supersededOverlay');
 
   // ---------------- Modal helpers (match other games) ----------------
@@ -387,7 +392,17 @@
       if (res && !res.ok) toast('Cannot start yet.');
     });
   });
+  // Rematch: same players, seats and settings. The server broadcasts m:start,
+  // which drops everyone (this screen included) straight into the countdown.
   playAgainBtn && playAgainBtn.addEventListener('click', function () {
+    unlockAudio();
+    playAgainBtn.disabled = true;
+    socket.emit('host:rematch', {}, function (res) {
+      playAgainBtn.disabled = false;
+      if (!res || !res.ok) toast('Could not start a new game.');
+    });
+  });
+  backToLobbyBtn && backToLobbyBtn.addEventListener('click', function () {
     socket.emit('host:reset', {});
   });
 
@@ -1030,10 +1045,41 @@
     if (world && d) world.setConnected(d.id, true);
   });
 
+  // ---------------- Reactions ----------------
+  function spawnReaction(index) {
+    const emoji = REACTION_EMOJIS[index];
+    if (!emoji || !reactionLayer) return;
+    while (reactionLayer.children.length >= REACTION_MAX) reactionLayer.removeChild(reactionLayer.firstChild);
+    const el = document.createElement('div');
+    el.className = 'reaction-emoji';
+    el.textContent = emoji;
+    el.style.left = (5 + Math.random() * 90) + '%';
+    const scale = 0.85 + Math.random() * 0.5;
+    el.style.fontSize = (44 * scale) + 'px';
+    el.style.animationDuration = (3.0 + Math.random() * 1.2) + 's';
+    el.addEventListener('animationend', function () { if (el.parentNode) el.parentNode.removeChild(el); });
+    reactionLayer.appendChild(el);
+  }
+  socket.on('host:reaction', function (p) { if (p && typeof p.index === 'number') spawnReaction(p.index); });
+
+  let reactionsMuted = false;
+  function updateMuteBtn() {
+    if (!muteBtn) return;
+    muteBtn.textContent = reactionsMuted ? '🔕 Reactions: Off' : '🔔 Reactions: On';
+    muteBtn.classList.toggle('is-muted', reactionsMuted);
+  }
+  muteBtn && muteBtn.addEventListener('click', function () {
+    socket.emit('host:setReactionsMuted', { muted: !reactionsMuted }, function (res) {
+      if (res && res.ok) { reactionsMuted = !!res.reactionsMuted; updateMuteBtn(); }
+    });
+  });
+  socket.on('state:reactionsMuted', function (p) { reactionsMuted = !!(p && p.muted); updateMuteBtn(); });
+
   let authedOnce = false;
   socket.on('connect', function () {
     socket.emit('host:auth', {}, function (res) {
       if (!res || !res.ok) return;
+      reactionsMuted = !!res.reactionsMuted; updateMuteBtn();
       superseded = false;
       if (supersededOverlay) supersededOverlay.hidden = true;
       // A dropped-and-restored socket must never restart a match this screen is

@@ -291,12 +291,7 @@ function mountNockey(app, httpServer, opts) {
       ack && ack({ ok: true, emotesMuted });
     });
 
-    socket.on('host:start', (_p, ack) => {
-      if (!requireHost(ack)) return;
-      if (!isActiveHost()) return ack && ack({ ok: false, reason: 'not-active-host' });
-      touchActivity();
-      const res = game.startMatch();
-      if (!res.ok) return ack && ack(res);
+    function beginMatch(res, ack) {
       ack && ack({
         ok: true,
         roster: res.roster,
@@ -310,6 +305,26 @@ function mountNockey(app, httpServer, opts) {
         roster: res.roster,
         kickoffTeam: res.kickoffTeam,
       });
+    }
+
+    socket.on('host:start', (_p, ack) => {
+      if (!requireHost(ack)) return;
+      if (!isActiveHost()) return ack && ack({ ok: false, reason: 'not-active-host' });
+      touchActivity();
+      const res = game.startMatch();
+      if (!res.ok) return ack && ack(res);
+      beginMatch(res, ack);
+    });
+
+    // Play again from the results screen: same players, teams and settings.
+    socket.on('host:rematch', (_p, ack) => {
+      if (!requireHost(ack)) return;
+      if (!isActiveHost()) return ack && ack({ ok: false, reason: 'not-active-host' });
+      touchActivity();
+      const res = game.rematch();
+      if (!res.ok) return ack && ack(res);
+      beginMatch(res, ack);
+      broadcastLobby();
     });
 
     // ---- Live match meta pushed by the host (rebroadcast to players) ----

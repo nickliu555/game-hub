@@ -69,6 +69,7 @@
   const fsBlue = document.getElementById('fsBlue');
   const finalRosters = document.getElementById('finalRosters');
   const playAgainBtn = document.getElementById('playAgainBtn');
+  const backToLobbyBtn = document.getElementById('backToLobbyBtn');
 
   const fullscreenBtn = document.getElementById('fullscreenBtn');
   const emoteBtn = document.getElementById('emoteBtn');
@@ -376,7 +377,17 @@
       if (res && !res.ok) showToast('Cannot start yet.');
     });
   });
+  // Rematch: same players, teams and settings. The server broadcasts m:start,
+  // which drops everyone (this screen included) straight into the countdown.
   playAgainBtn && playAgainBtn.addEventListener('click', function () {
+    unlockAudio();
+    playAgainBtn.disabled = true;
+    socket.emit('host:rematch', {}, function (res) {
+      playAgainBtn.disabled = false;
+      if (!res || !res.ok) showToast('Could not start a new game.');
+    });
+  });
+  backToLobbyBtn && backToLobbyBtn.addEventListener('click', function () {
     socket.emit('host:reset', {});
   });
 

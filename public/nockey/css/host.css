@@ -424,7 +424,7 @@ body.host {
 .final-rosters .fr-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; max-width: 40vw; }
 .final-rosters .fr-title { font-weight: 900; }
 .final-rosters .fr-name { overflow-wrap: anywhere; }
-#playAgainBtn { margin-top: 6px; }
+.final-actions { flex: 0 0 auto; display: flex; gap: 14px; justify-content: center; align-items: center; flex-wrap: wrap; margin-top: 6px; }
 
 /* ---------------- Responsive stack ---------------- */
 @media (max-width: 900px) {

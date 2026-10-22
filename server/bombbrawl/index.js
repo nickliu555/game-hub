@@ -22,6 +22,9 @@ const HOST_ROOM = 'hosts';
 const PLAYER_ROOM = 'players';
 const INACTIVITY_RESET_MS = 60 * 60 * 1000; // 60 minutes
 const HOST_GRACE_MS = 15000;
+// 6-emoji reactions (index into REACTION_EMOJIS on the host + player pages).
+const REACTION_COUNT = 6;
+const REACTION_COOLDOWN_MS = 5000;
 
 /**
  * Mount Bomb Brawl onto the hub's Express app and HTTP server.
@@ -45,6 +48,8 @@ function mountBombBrawl(app, httpServer, opts) {
   let lastHostSeenAt = 0;
   let hostGraceTimer = null;
   let hostLeftIntentionally = false;
+  let reactionsMuted = false;
+  const lastReactionAt = new Map();
 
   function isHostPresent() {
     if (hostLeftIntentionally) return false;
@@ -171,6 +176,7 @@ function mountBombBrawl(app, httpServer, opts) {
         player: { id: res.player.id, name: res.player.name },
         phase: game.phase,
         hostPresent: isHostPresent(),
+        reactionsMuted,
         lobby: game.getLobby(),
       };
       if (game.phase === PHASES.PLAYING || game.phase === PHASES.FINAL) {
@@ -212,6 +218,26 @@ function mountBombBrawl(app, httpServer, opts) {
       ns.to(HOST_ROOM).emit('bomb', { id: playerId });
     });
 
+    // Reactions: downtime only (lobby, round results, final), cooldown-throttled,
+    // and silenced entirely while the host has them muted.
+    socket.on('player:reaction', ({ index } = {}, ack) => {
+      if (role !== 'player' || !playerId) return ack && ack({ ok: false, reason: 'not-joined' });
+      if (!isHostPresent()) return ack && ack({ ok: false, reason: 'host-absent' });
+      if (typeof index !== 'number' || !Number.isInteger(index) || index < 0 || index >= REACTION_COUNT) {
+        return ack && ack({ ok: false, reason: 'bad-index' });
+      }
+      if (!game.reactionsOpen()) return ack && ack({ ok: false, reason: 'phase-closed' });
+      if (reactionsMuted) return ack && ack({ ok: false, reason: 'muted' });
+      const now = Date.now();
+      const last = lastReactionAt.get(playerId) || 0;
+      if (now - last < REACTION_COOLDOWN_MS) {
+        return ack && ack({ ok: false, reason: 'cooldown', retryInMs: REACTION_COOLDOWN_MS - (now - last) });
+      }
+      lastReactionAt.set(playerId, now);
+      ack && ack({ ok: true });
+      ns.to(HOST_ROOM).emit('host:reaction', { index, id: playerId });
+    });
+
     // ---- Host flows ----
     socket.on('host:auth', (_p, ack) => {
       role = 'host';
@@ -226,6 +252,7 @@ function mountBombBrawl(app, httpServer, opts) {
         ok: true,
         phase: game.phase,
         lobby: game.getLobby(),
+        reactionsMuted,
         minRoundSec: MIN_ROUND_SEC,
         maxRoundSec: MAX_ROUND_SEC,
         minRoundsToWin: MIN_ROUNDS_TO_WIN,
@@ -278,6 +305,13 @@ function mountBombBrawl(app, httpServer, opts) {
       broadcastLobby();
     });
 
+    socket.on('host:setReactionsMuted', ({ muted } = {}, ack) => {
+      if (!requireHost(ack)) return;
+      reactionsMuted = !!muted;
+      ack && ack({ ok: true, reactionsMuted });
+      ns.emit('state:reactionsMuted', { muted: reactionsMuted });
+    });
+
     socket.on('host:kick', ({ playerId: pid } = {}, ack) => {
       if (!requireHost(ack)) return;
       const p = game.removePlayer(pid);
@@ -303,14 +337,28 @@ function mountBombBrawl(app, httpServer, opts) {
       broadcastLobby();
     });
 
+    function beginMatch(res, ack) {
+      const payload = Object.assign({ roster: res.roster }, game.getConfig());
+      ack && ack(Object.assign({ ok: true }, payload));
+      ns.emit('m:start', payload);
+    }
+
     socket.on('host:start', (_p, ack) => {
       if (!requireHost(ack)) return;
       touchActivity();
       const res = game.startMatch();
       if (!res.ok) return ack && ack(res);
-      const payload = Object.assign({ roster: res.roster }, game.getConfig());
-      ack && ack(Object.assign({ ok: true }, payload));
-      ns.emit('m:start', payload);
+      beginMatch(res, ack);
+    });
+
+    // Play again from the results screen: same players and settings.
+    socket.on('host:rematch', (_p, ack) => {
+      if (!requireHost(ack)) return;
+      touchActivity();
+      const res = game.rematch();
+      if (!res.ok) return ack && ack(res);
+      beginMatch(res, ack);
+      broadcastLobby();
     });
 
     // ---- Live match meta pushed by the host (rebroadcast to players) ----
@@ -320,6 +368,7 @@ function mountBombBrawl(app, httpServer, opts) {
       game.setRound(round, seed);
       game.setClock((durationSec || game.roundLengthSec) * 1000);
       game.setLive(false);
+      game.setRoundOver(false);
       game.setSuddenDeath(false);
       // A fresh round: everyone is alive again with starting power stats.
       const roster = game.getRoster();
@@ -341,11 +390,13 @@ function mountBombBrawl(app, httpServer, opts) {
       if (role !== 'host') return;
       touchActivity();
       game.setLive(false);
+      game.setRoundOver(false);
       ns.to(PLAYER_ROOM).emit('m:countdown', { n, note });
     });
     socket.on('host:play', () => {
       if (role !== 'host') return;
       game.setLive(true);
+      game.setRoundOver(false);
       ns.to(PLAYER_ROOM).emit('m:play', {});
     });
     socket.on('host:pause', () => {
@@ -397,6 +448,7 @@ function mountBombBrawl(app, httpServer, opts) {
       if (role !== 'host') return;
       touchActivity();
       game.setLive(false);
+      game.setRoundOver(true);
       game.setSuddenDeath(false);
       if (gamePoints) game.setGamePoints(gamePoints);
       ns.to(PLAYER_ROOM).emit('m:roundEnd', {
@@ -420,6 +472,7 @@ function mountBombBrawl(app, httpServer, opts) {
       if (!requireHost(ack)) return;
       const keepConfig = game.phase !== PHASES.LOBBY;
       game.reset(keepConfig);
+      lastReactionAt.clear();
       ack && ack({ ok: true });
       ns.emit('state:reset');
       broadcastLobby();
@@ -428,6 +481,7 @@ function mountBombBrawl(app, httpServer, opts) {
     socket.on('host:leave', (_p, ack) => {
       if (!requireHost(ack)) return;
       game.reset();
+      lastReactionAt.clear();
       hostLeftIntentionally = true;
       if (hostGraceTimer) { clearTimeout(hostGraceTimer); hostGraceTimer = null; }
       emitHostPresence(false);

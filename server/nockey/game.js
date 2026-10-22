@@ -230,6 +230,15 @@ class Game {
     return { ok: true, roster: this.getRoster(), tier: this.lockedTier, kickoffTeam: this.match.kickoffTeam };
   }
 
+  /** Same players, same teams, same settings — straight back into a new match. */
+  rematch() {
+    if (this.phase !== PHASES.FINAL) return { ok: false, reason: 'not-final' };
+    this.phase = PHASES.LOBBY;
+    const res = this.startMatch();
+    if (!res.ok) this.phase = PHASES.FINAL;
+    return res;
+  }
+
   setLive(live) { this.match.live = !!live; }
   setClock(ms, sudden) {
     if (Number.isFinite(ms)) this.match.clockMs = Math.max(0, Math.round(ms));

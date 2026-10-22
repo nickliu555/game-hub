@@ -205,6 +205,20 @@ async function main() {
   const drawEnd = evs.filter((e) => e[0] === 'm:end').pop();
   check('a level match ends as a draw', drawEnd && drawEnd[1].winner === null && drawEnd[1].red === 2 && drawEnd[1].blue === 2);
 
+  // ---- Play again: same players and teams straight into a new match ----
+  const reByPlayer = await new Promise((r) => p0.s.emit('host:rematch', {}, r));
+  check('players cannot trigger a rematch', !reByPlayer || !reByPlayer.ok);
+  const startsBefore = evs.filter((e) => e[0] === 'm:start').length;
+  const re = await new Promise((r) => host.emit('host:rematch', {}, r));
+  await wait(80);
+  check('rematch ok with the same roster', re && re.ok && re.roster.length === 5);
+  check('rematch keeps everyone on their team', re && re.roster.map((x) => x.id + ':' + x.team).sort().join() === start.roster.map((x) => x.id + ':' + x.team).sort().join());
+  const reStart = evs.filter((e) => e[0] === 'm:start');
+  check('players get a fresh m:start', reStart.length > startsBefore && reStart[reStart.length - 1][1].roster.length === 5);
+  const reMeta = await new Promise((r) => host.emit('host:auth', {}, r));
+  check('rematch is PLAYING from 0–0', reMeta && reMeta.phase === 'PLAYING' && reMeta.match.redScore === 0 && reMeta.match.blueScore === 0 && !reMeta.match.sudden);
+  check('no rematch mid-match', !(await new Promise((r) => host.emit('host:rematch', {}, r))).ok);
+
   await new Promise((r) => host.emit('host:reset', {}, r));
   await wait(80);
   check('reset returns to an empty lobby', last() && last().phase === 'LOBBY' && last().total === 0);

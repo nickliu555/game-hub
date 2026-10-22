@@ -234,6 +234,15 @@ class Game {
     return { ok: true, roster: this.getRoster(), goalTarget: this.goalTarget };
   }
 
+  /** Same players, same teams, same goal target — straight back into a new match. */
+  rematch() {
+    if (this.phase !== PHASES.FINAL) return { ok: false, reason: 'not-final' };
+    this.phase = PHASES.LOBBY;
+    const res = this.startMatch();
+    if (!res.ok) this.phase = PHASES.FINAL;
+    return res;
+  }
+
   // Host pushes live meta as the match runs. These keep the cache fresh.
   setTurn({ team, playerId, playerName, red, blue } = {}) {
     if (team === 'red' || team === 'blue') this.match.currentTeam = team;

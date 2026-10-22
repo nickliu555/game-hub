@@ -87,6 +87,19 @@ async function main() {
   await wait(60);
   check('player got m:end winner', p1Events.some((e) => e[0] === 'm:end' && e[1] && e[1].winner === 'red'));
 
+  // Play again: same players, teams and settings straight into a new match.
+  const reByPlayer = await new Promise((r) => p1.emit('host:rematch', {}, r));
+  check('players cannot trigger a rematch', !reByPlayer || !reByPlayer.ok);
+  const startsBefore = p1Events.filter((e) => e[0] === 'm:start').length;
+  const re = await new Promise((r) => host.emit('host:rematch', {}, r));
+  await wait(60);
+  check('rematch ok with the same roster', re && re.ok && re.mode === start.mode && re.durationSec === start.durationSec &&
+    re.roster.map((x) => x.id + ':' + x.team).sort().join() === start.roster.map((x) => x.id + ':' + x.team).sort().join());
+  check('player got a fresh m:start', p1Events.filter((e) => e[0] === 'm:start').length > startsBefore);
+  const reRec = await new Promise((r) => p1b.emit('player:reconnect', { playerId: 'p1' }, r));
+  check('rematch is PLAYING from 0–0', reRec && reRec.phase === 'PLAYING' && reRec.match.redScore === 0 && reRec.match.blueScore === 0 && !reRec.match.sudden);
+  check('no rematch mid-match', !(await new Promise((r) => host.emit('host:rematch', {}, r))).ok);
+
   // Reset returns to lobby.
   await new Promise((r) => host.emit('host:reset', {}, r));
   await wait(60);

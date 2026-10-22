@@ -386,7 +386,7 @@ body.host {
 .final-rosters { display: flex; gap: 40px; font-size: 16px; color: rgba(255,255,255,0.85); }
 .final-rosters .fr-col { display: flex; flex-direction: column; gap: 4px; }
 .final-rosters .fr-title { font-weight: 900; }
-#playAgainBtn { margin-top: 10px; }
+.final-actions { flex: 0 0 auto; display: flex; gap: 14px; justify-content: center; align-items: center; flex-wrap: wrap; margin-top: 10px; }
 
 /* ---------------- Responsive stack ---------------- */
 @media (max-width: 900px) {

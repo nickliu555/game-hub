@@ -382,6 +382,7 @@ body.host {
   width: 100%;
 }
 .final-inner > *:not(.final-scroll) { flex: 0 0 auto; }
+.final-actions { display: flex; gap: 14px; justify-content: center; align-items: center; flex-wrap: wrap; }
 .trophy { font-size: 74px; line-height: 1; animation: bob 2.4s ease-in-out infinite; }
 .final-heading { font-size: 42px; margin: 0; color: var(--wc, var(--accent-2)); overflow-wrap: anywhere; max-width: 92vw; }
 /* Shrink-to-fit (not grow-to-fill) so the whole block stays centred and the
@@ -422,3 +423,48 @@ body.host {
 .pause-overlay.resuming .po-icon { display: none; }
 .pause-overlay.resuming .po-title { font-size: 120px; line-height: 1; animation: resumepop 0.4s ease; }
 @keyframes resumepop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
+
+/* Wide screens: the board is height-limited, so the round/clock bar and the
+   score cards move into a column on the right and the board gets the full
+   height. The arena is near-square, so this pays off on any landscape screen. */
+@media (min-width: 901px) and (min-aspect-ratio: 1/1) {
+  #view-match.active {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 240px;
+    grid-template-rows: auto minmax(0, 1fr);
+    column-gap: 16px;
+    row-gap: 30px;
+  }
+  #view-match .arena-wrap { grid-column: 1; grid-row: 1 / span 2; min-width: 0; }
+  #view-match .match-top { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; align-items: stretch; gap: 10px; }
+  #view-match .mt-left { flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+  #view-match .mt-target { max-width: 100%; }
+  #view-match .mt-clock { text-align: center; }
+  #view-match .mt-right { justify-content: center; }
+  #view-match .score-strip {
+    grid-column: 2; grid-row: 2;
+    flex-direction: column; flex-wrap: nowrap; justify-content: flex-start; align-items: stretch;
+    min-height: 0; max-height: none; overflow-y: auto;
+  }
+  #view-match .sc-card { min-width: 0; max-width: none; }
+  /* Beside the column the arena can be width-limited, so size it to the largest
+     15:13 box that fits either way — the stage keeps hugging the board. */
+  @supports (width: 1cqw) {
+    #view-match .arena-wrap { container-type: size; }
+    #view-match #arena { width: min(100cqw, 100cqh * 15 / 13); height: auto; }
+  }
+}
+
+/* Floating reaction emojis */
+.reaction-layer { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 30; }
+.reaction-emoji {
+  position: absolute; bottom: -60px; font-size: 56px; line-height: 1;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35)); will-change: transform, opacity;
+  animation: reactionFloat 3.5s ease-out forwards; user-select: none;
+}
+@keyframes reactionFloat {
+  0%   { transform: translateY(0)      rotate(0deg)  scale(0.4);  opacity: 0; }
+  15%  { transform: translateY(-15vh)  rotate(-6deg) scale(1);    opacity: 1; }
+  85%  { transform: translateY(-90vh)  rotate(6deg)  scale(1);    opacity: 1; }
+  100% { transform: translateY(-105vh) rotate(0deg)  scale(0.85); opacity: 0; }
+}

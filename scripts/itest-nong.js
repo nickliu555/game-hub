@@ -95,17 +95,39 @@ async function main() {
 
   check('3 paddles → canStart', last().canStart === true);
 
-  // ---- Reactions are not part of Nong ----
-  const hostEmotes = [];
-  host.on('emote', (d) => hostEmotes.push(d));
-  a.s.emit('emote', { e: '🔥' });
-  await wait(80);
-  check('no reactions are relayed', hostEmotes.length === 0);
+  // ---- Reactions: lobby + final only ----
+  const hostReactions = [];
+  host.on('host:reaction', (d) => hostReactions.push(d));
+  const rLobby = await call(b.s, 'player:reaction', { index: 2 });
+  await wait(60);
+  check('lobby reaction ok + relayed to the host', rLobby && rLobby.ok && hostReactions.some((x) => x.id === 'pb' && x.index === 2));
+  const rAgain = await call(b.s, 'player:reaction', { index: 0 });
+  check('second reaction inside the cooldown is refused', rAgain && !rAgain.ok && rAgain.reason === 'cooldown' && rAgain.retryInMs > 0);
+  const rBad = await call(a.s, 'player:reaction', { index: 6 });
+  check('out-of-range reaction refused', rBad && !rBad.ok && rBad.reason === 'bad-index');
+  const mutedEvs = [];
+  a.s.on('state:reactionsMuted', (x) => mutedEvs.push(x));
+  const mute = await call(host, 'host:setReactionsMuted', { muted: true });
+  await wait(60);
+  check('host can mute reactions (phones told)', mute && mute.ok && mute.reactionsMuted === true && mutedEvs.some((x) => x.muted === true));
+  const rMuted = await call(a.s, 'player:reaction', { index: 1 });
+  check('reactions refused while muted', rMuted && !rMuted.ok && rMuted.reason === 'muted');
+  check('players cannot mute', !(await call(a.s, 'host:setReactionsMuted', { muted: false })).ok);
+  const snapSock = mk();
+  await connected(snapSock);
+  const muteSnap = await call(snapSock, 'player:reconnect', { playerId: 'pa' });
+  check('a reconnecting phone learns reactions are muted', muteSnap && muteSnap.reactionsMuted === true);
+  snapSock.close();
+  await wait(60);
+  await call(a.s, 'player:reconnect', { playerId: 'pa' });
+  await call(host, 'host:setReactionsMuted', { muted: false });
 
   // ---- Start (3 players, lives) ----
   const start = await call(host, 'host:start');
   await wait(80);
   check('start ok', start && start.ok);
+  const rLive = await call(a.s, 'player:reaction', { index: 1 });
+  check('no reactions mid-match', rLive && !rLive.ok && rLive.reason === 'phase-closed');
   const mStart = a.evs.find((x) => x[0] === 'm:start');
   check('players get m:start', !!mStart);
   const meta = mStart && mStart[1];
@@ -182,6 +204,28 @@ async function main() {
   check('placings: winner, then last out first', end && end[1].placings.join() === 'pa,pc,pb');
   const fin = await call(host, 'host:auth');
   check('phase is FINAL', fin.phase === 'FINAL' && fin.match.winnerId === 'pa');
+  const rFinal = await call(a.s, 'player:reaction', { index: 5 });
+  await wait(60);
+  check('reactions open on the final results', rFinal && rFinal.ok && hostReactions.some((x) => x.id === 'pa' && x.index === 5));
+
+  // ---- Play again: same players straight into a new match ----
+  const reByPlayer = await call(a.s, 'host:rematch');
+  check('players cannot trigger a rematch', !reByPlayer || !reByPlayer.ok);
+  const startsBefore = a.evs.filter((x) => x[0] === 'm:start').length;
+  const re = await call(host, 'host:rematch');
+  await wait(80);
+  check('rematch ok', re && re.ok);
+  const reStart = a.evs.filter((x) => x[0] === 'm:start');
+  const reMeta = reStart.length > startsBefore && reStart[reStart.length - 1][1];
+  check('players get a fresh m:start', !!reMeta);
+  check('rematch keeps the same roster and seats', reMeta && reMeta.roster.map((r) => r.id + '@' + r.seat).join() === meta.roster.map((r) => r.id + '@' + r.seat).join());
+  check('rematch resets lives', reMeta && reMeta.mode === 'lives' && reMeta.roster.every((r) => reMeta.scores[r.id] === 5) && !reMeta.winnerId);
+  const reAuth2 = await call(host, 'host:auth');
+  check('rematch is PLAYING', reAuth2.phase === 'PLAYING');
+  check('no rematch mid-match', !(await call(host, 'host:rematch')).ok);
+  host.emit('host:matchEnd', { winnerId: 'pb', scores: { pa: 0, pb: 1, pc: 0 }, out: ['pa', 'pc'] });
+  await wait(80);
+  check('the rematch can finish too', (await call(host, 'host:auth')).phase === 'FINAL');
 
   await call(host, 'host:reset');
   await wait(80);

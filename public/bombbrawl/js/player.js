@@ -92,6 +92,29 @@
     // Releasing the stick whenever the controller leaves the screen prevents a
     // "stuck walking" bomber if a round ends mid-drag.
     if (name !== 'play') releaseStick(true);
+    // Like Soccer Head, the controller is just the controls: no header, no pills.
+    document.body.classList.toggle('playing', name === 'play');
+    updateChrome();
+  }
+
+  // Reactions are gated on the PHASE (the wait view is reused for the countdown),
+  // never just the view: lobby, between-round results and the final standings.
+  let phase = 'LOBBY';
+  let roundOver = false;
+  let hostPresent = true;
+  let reactionsMuted = false;
+  let kicked = false;
+  function reactionsOpen() {
+    if (kicked) return false;
+    if (phase === 'LOBBY') return currentView === 'wait';
+    if (phase === 'FINAL') return currentView === 'final';
+    return phase === 'PLAYING' && roundOver && currentView === 'wait';
+  }
+  function updateChrome() {
+    const on = reactionsOpen() && !reactionsMuted && hostPresent;
+    const bar = el('reactionBar');
+    if (bar) bar.hidden = !on;
+    document.body.classList.toggle('reactions-on', on);
   }
 
   // ---------- Local state ----------
@@ -230,6 +253,9 @@
     socket.emit('player:reconnect', { playerId: PID }, function (res) {
       if (!res || !res.ok) return bailToJoin(true);
       if (res.player && res.player.name) localStorage.setItem('bombbrawl.playerName', res.player.name);
+      reactionsMuted = !!res.reactionsMuted;
+      hostPresent = res.hostPresent !== false;
+      phase = res.phase || phase;
       if (res.lobby) applyLobby(res.lobby);
       if (res.match) applyMatchSnapshot(res.match);
       else if (res.phase === 'LOBBY') enterWaiting();
@@ -244,8 +270,52 @@
   socket.on('disconnect', function () { setNetPill(true); });
   socket.io.on('reconnect_attempt', function () { setNetPill(true); });
 
+  socket.on('state:hostPresence', function (p) { hostPresent = !(p && p.present === false); updateChrome(); });
+  socket.on('state:reactionsMuted', function (p) { reactionsMuted = !!(p && p.muted); updateChrome(); });
+
+  // ---------------- Reactions ----------------
+  const REACTION_COOLDOWN_MS = 5000;
+  const reactionBar = el('reactionBar');
+  const reactionCooldown = el('reactionCooldown');
+  const reactionBtns = reactionBar ? Array.prototype.slice.call(reactionBar.querySelectorAll('.reaction-btn')) : [];
+  let reactionUntil = 0, cooldownRaf = null;
+  function startCooldown() {
+    if (cooldownRaf) cancelAnimationFrame(cooldownRaf);
+    function tick() {
+      const left = reactionUntil - Date.now();
+      if (left <= 0) {
+        reactionBtns.forEach(function (b) { b.disabled = false; });
+        if (reactionCooldown) reactionCooldown.hidden = true;
+        cooldownRaf = null;
+        return;
+      }
+      reactionBtns.forEach(function (b) { b.disabled = true; });
+      if (reactionCooldown) { reactionCooldown.hidden = false; reactionCooldown.textContent = Math.ceil(left / 1000) + 's'; }
+      cooldownRaf = requestAnimationFrame(tick);
+    }
+    tick();
+  }
+  if (reactionBar) {
+    reactionBar.addEventListener('pointerdown', function (e) {
+      const btn = e.target.closest('.reaction-btn');
+      if (!btn || btn.disabled) return;
+      e.preventDefault();
+      const idx = parseInt(btn.dataset.reaction, 10);
+      if (isNaN(idx)) return;
+      reactionUntil = Date.now() + REACTION_COOLDOWN_MS;
+      startCooldown();
+      socket.emit('player:reaction', { index: idx }, function (res) {
+        if (res && !res.ok && res.reason === 'cooldown' && res.retryInMs) {
+          reactionUntil = Date.now() + res.retryInMs;
+          startCooldown();
+        }
+      });
+    });
+  }
+
   socket.on('player:rejected', function (p) {
     if (p && p.reason === 'kicked') {
+      kicked = true;
       waitTitle.textContent = 'Removed from the game';
       waitSub.innerHTML = 'The host removed you. Sending you back…';
       showView('wait');
@@ -270,6 +340,8 @@
   }
 
   function enterWaiting() {
+    phase = 'LOBBY';
+    roundOver = false;
     waitTitle.textContent = "You're in!";
     waitSub.innerHTML = '<span class="pulse-dot"></span>Waiting for the host to start…';
     showView('wait');
@@ -278,6 +350,8 @@
 
   // ---- Match lifecycle ----
   socket.on('m:start', function (p) {
+    phase = 'PLAYING';
+    roundOver = false;
     if (p && p.roster) setRoster(p.roster);
     if (p && typeof p.roundsToWin === 'number') roundsToWin = p.roundsToWin;
     gamePoints = {};
@@ -288,6 +362,7 @@
   });
 
   socket.on('m:roundStart', function (p) {
+    roundOver = false;
     alive = true;
     live = false;
     paused = false;
@@ -303,6 +378,7 @@
   });
 
   socket.on('m:countdown', function (p) {
+    if (roundOver) { roundOver = false; updateChrome(); }
     if (!alive) return;
     countOverlay.hidden = false;
     pcNote.textContent = (p && p.note) || 'Get ready';
@@ -356,6 +432,7 @@
   socket.on('m:roundEnd', function (p) {
     live = false;
     paused = false;
+    roundOver = true;
     if (!p) return;
     gamePoints = p.gamePoints || gamePoints;
     if (typeof p.roundsToWin === 'number') roundsToWin = p.roundsToWin;
@@ -368,6 +445,8 @@
   });
 
   socket.on('m:end', function (p) {
+    phase = 'FINAL';
+    roundOver = false;
     live = false;
     releaseStick(true);
     if (!p) return;
@@ -422,12 +501,19 @@
     setHud((m.hud && m.hud[PID]) || { bombs: 1, fire: 1, speed: 0, kick: false, out: 0 }, false);
     updateScore();
 
+    roundOver = !!m.roundOver;
     if (m.winnerIds && m.winnerIds.length) {
+      phase = 'FINAL';
       const iWon = m.winnerIds.indexOf(PID) !== -1;
       finalEmoji.textContent = iWon ? '🏆' : '💥';
       finalTitle.textContent = iWon ? 'You win!' : m.winnerIds.map(nameOf).join(' & ') + ' wins!';
       renderStandings(finalList, m.winnerIds);
       return showView('final');
+    }
+    if (roundOver) {
+      waitTitle.textContent = 'Round over';
+      waitSub.innerHTML = '<span class="pulse-dot"></span>Next round coming up…';
+      return showView('wait');
     }
     if (!alive) {
       return showView('out');
