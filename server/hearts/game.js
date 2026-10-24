@@ -65,7 +65,9 @@ const DEFAULT_TARGET = 100;
 const DEAL_DURATION_MS = 2600;
 // Long enough to actually read the three cards you were handed.
 const EXCHANGE_DURATION_MS = 7000;
-const TRICK_END_DURATION_MS = 3000;
+// The host holds the finished trick for 2.5 s, then plays a 0.62 s sweep
+// (public/hearts/js/host.js); this leaves a short beat of clear table after it.
+const TRICK_END_DURATION_MS = 3500;
 const AUTO_ADVANCE_MS = 15000;
 
 function makePlayer(id, name, socketId) {

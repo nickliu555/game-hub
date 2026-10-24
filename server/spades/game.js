@@ -55,7 +55,9 @@ const DEFAULT_TARGET = 500;
 const LOSING_SCORE = -200;
 
 const DEAL_DURATION_MS = 2600;
-const TRICK_END_DURATION_MS = 3000;
+// The host holds the finished trick for 2.5 s, then plays a 0.62 s sweep
+// (public/spades/js/host.js); this leaves a short beat of clear table after it.
+const TRICK_END_DURATION_MS = 3500;
 const AUTO_ADVANCE_MS = 20000;
 
 function otherTeam(team) { return team === 'red' ? 'blue' : 'red'; }

@@ -1013,6 +1013,9 @@
   let fxTrickKey = null;
   let seenQueen = false;
   let seenJack = false;
+  // Paired with TRICK_END_DURATION_MS in server/hearts/game.js (3.5 s): the hold
+  // plus the 0.62 s sweep must finish before the server starts the next trick.
+  const TRICK_HOLD_MS = 2500;
   let collectTimer = null;
   let collectKey = null;
 
@@ -1292,7 +1295,7 @@
       collectTimer = setTimeout(function () {
         collectTimer = null;
         collectTrick(seatByPlayer[r.winnerId]);
-      }, 2000);
+      }, TRICK_HOLD_MS);
     }
 
     checkCardFx(s);

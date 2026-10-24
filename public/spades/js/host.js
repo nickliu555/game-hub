@@ -815,6 +815,9 @@
   // mid-hand adopts the current state instead of replaying the slam.
   let spadesWereBroken = false;
   let fxHandKey = null;
+  // Paired with TRICK_END_DURATION_MS in server/spades/game.js (3.5 s): the hold
+  // plus the 0.62 s sweep must finish before the server starts the next trick.
+  const TRICK_HOLD_MS = 2500;
   let collectTimer = null;
   let collectKey = null;
 
@@ -976,6 +979,7 @@
     if (bidding && !t.allBid) bid.textContent = '';
     else bid.textContent = t.tricks + ' / ' + t.bid;
     bid.classList.toggle('made', !bidding && t.bid > 0 && t.tricks >= t.bid);
+    node.querySelector('.st-bags').textContent = t.bags + (t.bags === 1 ? ' bag' : ' bags');
     node.title = 'Team ' + t.label + ': ' + t.score + ' points, ' + t.bags + ' bags';
   }
 
@@ -1137,7 +1141,7 @@
       collectTimer = setTimeout(function () {
         collectTimer = null;
         collectTrick(seatByPlayer[r.winnerId]);
-      }, 2000);
+      }, TRICK_HOLD_MS);
       if (currentView === 'table') {
         if (r.bustedNil && key !== bustedKey) { bustedKey = key; playNilBusted(); }
         else playTrickWin();
