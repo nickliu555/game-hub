@@ -14,7 +14,6 @@ const mountHoldemPoker = require('./server/holdempoker');
 const mountLiarsDice = require('./server/liarsdice');
 const mountCatClash = require('./server/catclash');
 const mountBoggle = require('./server/noggle');
-const mountSoccerHead = require('./server/soccerhead');
 const mountShootBall = require('./server/shootball');
 const mountRankFive = require('./server/rankfive');
 const mountChompMan = require('./server/chompman');
@@ -114,9 +113,6 @@ mountCatClash(app, httpServer, { getPublicBaseUrl });
 
 // Mount the Boggle word game (Socket.IO namespace + REST endpoints + page routes).
 mountBoggle(app, httpServer, { getPublicBaseUrl });
-
-// Mount the Soccer Head arcade-soccer game (Socket.IO namespace + REST + page routes).
-mountSoccerHead(app, httpServer, { getPublicBaseUrl });
 
 // Mount the Shoot Ball turn-based flick-soccer game (Socket.IO namespace + REST + page routes).
 mountShootBall(app, httpServer, { getPublicBaseUrl });

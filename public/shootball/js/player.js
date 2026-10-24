@@ -201,6 +201,7 @@
   });
   socket.on('m:end', function (d) {
     currentPhase = 'FINAL';
+    hideFlash();
     setMyTurn(false, null, null);
     renderFinal(d || {});
   });
@@ -379,6 +380,9 @@
   }
 
   let flashTimer = null;
+  // The flash normally clears when the host moves on (m:countdown / m:turn /
+  // m:end), so it lasts exactly as long as the host's GOAL banner; the timer is
+  // only a fallback if that never arrives.
   function showFlash(text, good) {
     if (!flash) return;
     flashText.textContent = text;
@@ -388,7 +392,7 @@
     void flashText.offsetWidth;
     flashText.style.animation = '';
     if (flashTimer) clearTimeout(flashTimer);
-    flashTimer = setTimeout(function () { flash.hidden = true; }, 1600);
+    flashTimer = setTimeout(function () { flash.hidden = true; }, 6000);
   }
   function hideFlash() { if (flash) flash.hidden = true; }
 

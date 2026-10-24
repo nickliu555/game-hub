@@ -635,5 +635,135 @@ for (const [x, scorer] of [[750, 0], [250, 1]]) {
   check('sweep: the ball never jumps upward in one tick (' + jumps + ')', jumps === 0);
 }
 
+// ---- Team play (2v2 / 2v1) ----
+function teamWorld(bots, three) {
+  const roster = [
+    { id: 'l0', name: 'L0', seat: 0, slot: 0, isBot: !!bots },
+    { id: 'l1', name: 'L1', seat: 0, slot: 1, isBot: !!bots },
+    { id: 'r0', name: 'R0', seat: 1, slot: 0, isBot: !!bots },
+  ];
+  if (!three) roster.push({ id: 'r1', name: 'R1', seat: 1, slot: 1, isBot: !!bots });
+  return new BB.World({ roster, teams: true, rng: seeded(7) });
+}
+{
+  const w = teamWorld(false);
+  const g = w.geo;
+  check('team court is 1.5× wider with the net in the middle', g.W === 1500 && g.NET_X === 750 && g.WALL_MAX === 1485);
+  check('team limits keep the 1v1 net gap', g.LIMITS[0][0] === 50 && g.LIMITS[0][1] === 695 && g.LIMITS[1][0] === 805 && g.LIMITS[1][1] === 1450);
+  check('four blobs, two a side', w.blobs.length === 4 && w.sideBlobs[0].length === 2 && w.sideBlobs[1].length === 2);
+  const one = new BB.World({ roster: [{ id: 'a' }, { id: 'b' }] });
+  check('1v1 keeps the original court', one.geo.W === 1000 && one.geo.NET_X === BB.NET_X && one.geo.LIMITS[1][1] === BB.LIMITS[1][1]);
+
+  w.setupServe(0);
+  const l0 = w.byId('l0'), l1 = w.byId('l1'), r0 = w.byId('r0'), r1 = w.byId('r1');
+  check('first serve: slot 0 serves from the back, teammate up front', w.server() === l0 && l0.x === 220 && l1.x === 540);
+  check('the ball hangs over the server', w.ball.x === l0.x && w.ball.y === BB.SERVE_Y);
+  check('receivers start back (slot 0) and front (slot 1)', r0.x === 1280 && r1.x === 960);
+  w.setupServe(0, true);
+  check('a re-serve keeps the same server and spots', w.server() === l0 && l0.x === 220 && l1.x === 540);
+  w.setupServe(1);
+  check('receivers keep their spots when the other team serves', l0.x === 220 && l1.x === 540);
+  check('right team: slot 0 serves first', w.server() === r0 && r0.x === 1280);
+  w.setupServe(0);
+  check('next left serve passes to the teammate, who swaps to the back', w.server() === l1 && l1.x === 220 && l0.x === 540);
+  w.setupServe(0);
+  check('and back again', w.server() === l0 && l0.x === 220 && l1.x === 540);
+  w.setupServe(1);
+  check('right team rotates too', w.server() === r1 && r1.x === 1280 && r0.x === 960);
+}
+{
+  const w = teamWorld(false, true);
+  w.setupServe(1);
+  const r0 = w.byId('r0');
+  check('2v1: the lone blob stands mid-court and serves from there', w.server() === r0 && r0.x === 1125 && w.ball.x === 1125);
+  w.setupServe(1);
+  check('2v1: the lone blob serves every time', w.server() === r0);
+}
+{
+  // Teammates bump instead of overlapping.
+  const w = teamWorld(false);
+  w.setupServe(1);
+  w.release();
+  Object.assign(w.ball, { x: 1400, y: 700, vx: 0, vy: 0 }); w.ballHeld = true;
+  const l0 = w.byId('l0'), l1 = w.byId('l1');
+  w.setInput('l0', 1, true);
+  let minGap = 1e9;
+  for (let t = 0; t < 80; t++) { w.step(); minGap = Math.min(minGap, l1.x - l0.x); }
+  check('a teammate running into the other can\'t pass through (min gap ' + minGap.toFixed(1) + ')', minGap > 85 && l0.x < l1.x);
+  check('…and shoves them toward the net', l1.x > 540 + 20);
+  check('nobody leaves their half', l1.x <= w.geo.LIMITS[0][1] && l0.x >= w.geo.LIMITS[0][0]);
+  w.setInput('l0', 1, false);
+  // Pinned against the net limit: the runner stops, the pair keeps its spacing.
+  for (let t = 0; t < 40; t++) w.step();
+  check('pinned at the net limit they still don\'t overlap', l1.x - l0.x > 85);
+
+  // One coming down onto the other's head slides off sideways.
+  const w2 = teamWorld(false);
+  w2.setupServe(1); w2.release();
+  Object.assign(w2.ball, { x: 1400, y: 700, vx: 0, vy: 0 }); w2.ballHeld = true;
+  const a = w2.byId('l0'), b = w2.byId('l1');
+  a.x = a.px = 400; b.x = b.px = 405; a.y = a.py = 160; b.y = b.py = 0;
+  let maxJump = 0, prev = b.x - a.x;
+  for (let t = 0; t < 60; t++) { w2.step(); const gap = b.x - a.x; maxJump = Math.max(maxJump, Math.abs(gap - prev)); prev = gap; }
+  check('a teammate landing on the other slides off', b.x - a.x > 85 && a.y === 0);
+  check('…smoothly, no snap (max ' + maxJump.toFixed(1) + '/tick)', maxJump <= 16.01);
+  // Opponents never bump (they're on different halves anyway).
+  check('blobs on opposite sides are untouched by bumping', w2.byId('r0').x === 1280);
+}
+{
+  // Ball physics on the wide court: walls, net and scoring use the team geometry.
+  const w = teamWorld(false);
+  w.setupServe(0); w.release();
+  Object.assign(w.ball, { x: 1480, y: 400, vx: 15, vy: 0 });
+  w.step();
+  check('the far wall is at 1485', w.ball.x <= w.geo.WALL_MAX && w.ball.vx < 0);
+  Object.assign(w.ball, { x: 720, y: 60, vx: 15, vy: 0, px: 720, py: 60 });
+  w.step();
+  check('the net post at 750 blocks a low ball', w.ball.x <= 750 - BB.NET_BAND + 0.01 && w.ball.vx < 0);
+  // A touched ball landing on the right half scores for the left team.
+  const w3 = teamWorld(false);
+  w3.setupServe(0); w3.release(); w3.touched = true;
+  Object.assign(w3.ball, { x: 1100, y: 40, vx: 0, vy: -10 });
+  let res = null;
+  for (let t = 0; t < 10 && !res; t++) res = w3.step();
+  check('landing on the right half scores for the left team', res && res.point && res.scorerSeat === 0 && res.loserSeat === 1);
+  // A teammate touching the serve counts as a touch even if the server never moved.
+  const w4 = teamWorld(false);
+  w4.setupServe(0); w4.release();
+  const front = w4.byId('l1');
+  Object.assign(w4.ball, { x: front.x + 5, y: 140, vx: 0, vy: -4 });
+  for (let t = 0; t < 4; t++) w4.step();
+  check('a teammate\'s touch on the serve counts', w4.touched === true);
+  const w5 = teamWorld(false);
+  w5.setupServe(0); w5.release();
+  for (let t = 0; t < 20; t++) w5.step();
+  check('the server bouncing it in place still doesn\'t count', w5.touched === false);
+}
+{
+  // CPU teams: full matches play out without errors, every blob gets touches,
+  // and teammates split the work instead of both chasing every ball.
+  let points = 0, touches = [0, 0, 0, 0], stuck = 0;
+  for (let game = 0; game < 6; game++) {
+    const w = teamWorld(true, game % 3 === 2);
+    w.rng = seeded(100 + game);
+    let seat = game % 2;
+    for (let rally = 0; rally < 12; rally++) {
+      w.setupServe(seat);
+      w.release();
+      let res = null, t = 0;
+      for (; t < 3000 && !res; t++) {
+        w.stepBots();
+        res = w.step();
+        for (const e of w.events) if (e.t === 'hit' && !e.cont) touches[e.i]++;
+        w.events.length = 0;
+      }
+      if (!res) { stuck++; break; }
+      if (res.point) { points++; seat = res.loserSeat; }
+    }
+  }
+  check('CPU team matches keep producing points (' + points + ', stuck ' + stuck + ')', points > 40 && stuck === 0);
+  check('every CPU blob plays the ball (' + touches.join(', ') + ')', touches.every((n) => n > 5));
+}
+
 console.log(failures ? '\n' + failures + ' FAILED' : '\nAll engine checks passed.');
 process.exit(failures ? 1 : 0);

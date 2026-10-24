@@ -165,7 +165,7 @@ async function scenario(engine, browserType) {
     await check(host.locator('#addBotBtn')).toHaveText('Add CPU');
     await check(host.locator('#addBotBtn svg')).toBeVisible();
     await check(host.locator('#diffSeg button')).toHaveText(['Novice', 'Easy', 'Medium', 'Hard']);
-    await check(host.locator('#diffSeg [data-diff="medium"]')).toHaveAttribute('aria-pressed', 'true');
+    await check(host.locator('#diffSeg [data-diff="easy"]')).toHaveAttribute('aria-pressed', 'true');
     for (const level of ['easy', 'medium', 'hard', 'novice']) {
       await host.locator(`#diffSeg [data-diff="${level}"]`).click();
       await check.poll(() => game.botDifficulty).toBe(level);
@@ -345,11 +345,11 @@ async function scenario(engine, browserType) {
     await host.locator('#againBtn').click();
     await check(host.locator('#view-lobby')).toBeVisible();
     await check(host.locator('.player-chip')).toHaveCount(0);
-    await check(host.locator('#diffSeg [data-diff="medium"]')).toHaveAttribute('aria-pressed', 'true');
+    await check(host.locator('#diffSeg [data-diff="easy"]')).toHaveAttribute('aria-pressed', 'true');
     await check(host.locator('#addBotBtn')).toBeEnabled();
     await check(host.locator('#startBtn')).toBeDisabled();
     assert.equal(game.players.size, 0);
-    assert.equal(game.botDifficulty, 'medium');
+    assert.equal(game.botDifficulty, 'easy');
     await phone.waitForURL('**/stackingroyale/join');
     assert.equal(await phone.evaluate(() => localStorage.getItem('stackingroyale.playerId')), null);
     await shot(host, engine, 'reset-host');

@@ -23,7 +23,7 @@
     ov.hidden = true;
     ov.innerHTML =
       '<div class="host-absent-card">' +
-        '<div class="icon">🥅</div>' +
+        '<div class="icon">⚽</div>' +
         '<div class="title">' + title + '</div>' +
         '<div class="sub"><span class="pulse-dot"></span>' + sub + '</div>' +
       '</div>';

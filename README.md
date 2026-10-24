@@ -130,19 +130,7 @@ A Boggle-style word hunt on a shared, randomly shaken letter grid.
 
 Also includes a **Solo Practice** mode — pick a board size and hunt for words on a freshly shaken grid with no time limit (a count-up timer tracks your run). Tap **See all words** to reveal everything on the board and see how many you found.
 
-### ⚽ Soccer Head
-A fast, physics-y arcade soccer showdown played on the shared screen, with each phone as a live controller.
-
-1. Play **1v1** or **2v2** — get sorted onto Team Red or Team Blue (or add a **CPU** opponent to play solo)
-2. The host sets the match length (**0:30–2:00**), then hits Start
-3. Your phone becomes a controller: **left/right** to move, **jump** and **kick** on the right
-4. **Double-tap** left or right for a quick **dash** (short cooldown) — dash into the ball for a power shot
-5. Head, body, or boot the ball into the opponent's net to score — then fire off an **emoji reaction** during the celebration
-6. **Highest score when the timer hits zero wins — a tie goes to sudden-death golden goal**. Hit **▶ Play again** for an instant rematch with the same players, or go back to the lobby
-
-The host can **pause** mid-match from the button under the top bar (the whole game freezes and controllers are locked, then everything resumes exactly where it left off). If the ball goes untouched for **10 seconds**, the point automatically resets from a fresh centre kickoff.
-
-### 🥅 Shoot Ball
+### ⚽ Shoot Ball
 A top-down, turn-based flick-soccer showdown — slingshot your tokens to knock the ball into the opponent's net.
 
 1. Players scan the QR code and join **Team Red** or **Team Blue** (up to **3 per team**, at least 1 each) — no opponent? the host can **Add CPU**
@@ -247,16 +235,17 @@ The classic arcade snake for 1–4 players on the Host screen — eat, grow, and
 The host can **Pause** at any time. Each round rotates to a different obstacle map.
 
 ### 🏐 Blob Ball
-Bouncy 1v1 blob volleyball on the Host screen — a tribute to the classic Slime Volleyball.
+Bouncy blob volleyball on the Host screen, **1v1 or 2v2** — a tribute to the classic Slime Volleyball.
 
-1. Players scan the QR code to join — it's **1v1**; no opponent? The host can **Add CPU** to play solo
-2. The host can **drag a player** onto the other one to swap who plays left and right, picks the **points to win** (5, 7, 10, 12 or 15), then hits **Play**
+1. Players scan the QR code to join — **2 players is 1v1**, **3–4 switches to teams** (2v1 or 2v2) on a court 1.5× wider; short on players? The host can **Add CPU** to fill any open spot
+2. The host can **drag a player** onto another to swap them (or onto an open spot to move there), picks the **points to win** (5, 7, 10, 12 or 15), then hits **Play**
 3. Each phone is a gamepad — **◀ ▶** buttons on the left to move (tap the **⚙️** gear to switch to a **joystick**), **JUMP** on the right: **hold** it for a full jump, **tap** it for a short hop
    - A **Bluetooth controller** paired with the phone works too: **left stick / D-pad** moves, **A** jumps
 4. You can only move on **your own side** of the net
 5. Knock the ball with your blob **as many times as you like** — where it meets your dome sets its direction, and **moving or jumping into it** hits it harder
 6. The ball bounces off the **walls**, the **ceiling** and the **net**
 7. Land the ball on your **opponent's sand** to score a point — it keeps bouncing after it lands, then **whoever lost the point serves** next (the ball drops from above the server)
+   - In **teams**, teammates **bump** into each other and **take turns serving**: the server starts at the back with their teammate up by the net, so a team swaps front/back each time it gets the serve
 8. **First to the target score wins!** Hit **▶ Play again** for an instant rematch with the same players, or go back to the lobby
 
 The host can **Pause** at any time.
@@ -268,7 +257,7 @@ The host can **Pause** at any time.
 2. Start the match, then move, rotate, hold, and drop pieces to complete rows. Choose touch buttons or gestures; keyboard controls are also supported.
 3. Build larger clears, combos, T-spins, and back-to-back bonuses to send garbage. Your clears cancel incoming garbage first.
 4. Attacks go to a random surviving opponent while the host follows live boards and eliminations.
-5. Avoid topping out. With multiple players, the last survivor wins and eliminated players can spectate. A one-player host match continues until that player tops out. Disconnected players continue as AFK and restore their current board when they return.
+5. Avoid topping out. With multiple players, the last survivor wins and eliminated players can spectate. A one-player host match continues until that player tops out. Disconnected players continue as AFK and restore their current board when they return. Hit **▶ Play again** for an instant rematch with the same players, or **New Game** to start over with a fresh lobby.
 6. Choose **Practice solo** from the Strategy section to play endless falling blocks without a host, opponents, or garbage. Pause, resume, restart, or restore a paused session after refreshing.
 
 ## How It Works

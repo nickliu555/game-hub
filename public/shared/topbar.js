@@ -181,6 +181,102 @@
   });
 })();
 
+/* Fullscreen host screens: the topbar slides out of the way so the game gets the
+ * whole screen, and floats back over it while the mouse is at the top edge or on
+ * the bar (or a tap lands there / keyboard focus enters it). It stays out while
+ * its settings menu or help is open. Windowed pages keep the bar as-is.
+ */
+(function () {
+  var HOT_PX = 10;
+  var TOUCH_HOT_PX = 28;
+  var LEAVE_MS = 800;
+  var IDLE_MS = 5000;
+  var TOUCH_MS = 4000;
+  var root = document.documentElement;
+  var timer = null;
+  var leaving = false;
+
+  function isFullscreen() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+
+  function getBar() {
+    if (!document.body || !document.body.classList.contains('host')) return null;
+    return document.querySelector('.game-topbar');
+  }
+
+  function active() {
+    return root.classList.contains('gtb-fs-autohide');
+  }
+
+  function isPinned(bar) {
+    if (bar.querySelector('.gtb-settings-panel:not([hidden])')) return true;
+    if (document.querySelector('.gtb-help-overlay.is-open')) return true;
+    try { if (bar.querySelector(':focus-visible')) return true; } catch (_) {}
+    return false;
+  }
+
+  function hideLater(ms) {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(function () {
+      timer = null;
+      var bar = getBar();
+      if (!bar || !active()) return;
+      if (isPinned(bar)) { hideLater(LEAVE_MS); return; }
+      leaving = false;
+      root.classList.remove('gtb-topbar-shown');
+    }, ms);
+  }
+
+  function reveal(ms) {
+    leaving = false;
+    root.classList.add('gtb-topbar-shown');
+    hideLater(ms);
+  }
+
+  document.addEventListener('mousemove', function (e) {
+    if (!active()) return;
+    if (e.movementX === 0 && e.movementY === 0) return;
+    var bar = getBar();
+    if (!bar) return;
+    if (e.clientY <= HOT_PX || bar.contains(e.target)) reveal(IDLE_MS);
+    else if (!leaving && root.classList.contains('gtb-topbar-shown')) {
+      leaving = true;
+      hideLater(LEAVE_MS);
+    }
+  }, { passive: true });
+
+  document.addEventListener('pointerdown', function (e) {
+    if (!active() || e.pointerType === 'mouse') return;
+    var bar = getBar();
+    if (bar && (e.clientY <= TOUCH_HOT_PX || bar.contains(e.target))) reveal(TOUCH_MS);
+  }, { passive: true });
+
+  document.addEventListener('focusin', function (e) {
+    var bar = getBar();
+    if (!active() || !bar || !bar.contains(e.target)) return;
+    try { if (!e.target.matches(':focus-visible')) return; } catch (_) {}
+    reveal(IDLE_MS);
+  });
+
+  function sync() {
+    if (timer) clearTimeout(timer);
+    timer = null;
+    leaving = false;
+    var on = isFullscreen() && !!getBar();
+    if (on === active()) return;
+    root.classList.toggle('gtb-fs-autohide', on);
+    root.classList.remove('gtb-topbar-shown');
+    // The bar just left (or rejoined) the layout — let games that size their
+    // stage from the window re-measure.
+    requestAnimationFrame(function () {
+      try { window.dispatchEvent(new Event('resize')); } catch (_) {}
+    });
+  }
+  document.addEventListener('fullscreenchange', sync);
+  document.addEventListener('webkitfullscreenchange', sync);
+})();
+
 /* Clear every confetti piece on the page at once. Games call this when they
    leave their results screen, so a quick "Play again" doesn't carry falling
    confetti into the next game. Covers each game's confetti class names. */

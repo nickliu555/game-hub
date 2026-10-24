@@ -309,6 +309,18 @@ body.team-blue .stick-knob { background: var(--blue); }
   .stick-knob { width: 88px; height: 88px; }
 }
 
+/* Landscape: nothing but the stick and HIT, split 50:50 across the screen. */
+@media (orientation: landscape) {
+  #view-controller {
+    padding: calc(10px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right))
+      calc(10px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
+  }
+  body.has-gamepad #view-controller { padding-top: calc(50px + env(safe-area-inset-top)); }
+  #view-controller .hud, #view-controller .emote-bar { display: none; }
+  .stick-layer, .kick-zone { flex: 1 1 0; }
+  .kick-face { width: min(34vw, 152px, 60vh); height: min(34vw, 152px, 60vh); }
+}
+
 /* Resume countdown on the pause cover. */
 .resuming .pc-icon { display: none; }
 .resuming .pc-title, .resuming .pc-note { font-size: 96px; line-height: 1; animation: resumepop 0.4s ease; }

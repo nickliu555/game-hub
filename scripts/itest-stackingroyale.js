@@ -59,13 +59,13 @@ async function cpuLifecycle({ game, client, initialHost, outsider }) {
   const { Board } = require('../public/stackingroyale/js/engine');
   let host = initialHost;
   for (const level of ['novice', 'easy', 'medium', 'hard']) {
-    assert.equal(game.botDifficulty, 'medium');
+    assert.equal(game.botDifficulty, 'easy');
     for (const command of ['addBot', 'setBotDifficulty']) {
       assert.equal((await request(outsider, `host:${command}`, { level })).reason, 'not-host');
     }
     for (const payload of [null, [], {}, { level: 'expert' }, { level: 'HARD' }, { level: 1 }, { level: ['easy'] }]) {
       assert.equal((await request(host, 'host:setBotDifficulty', payload)).reason, 'bad-difficulty');
-      assert.equal(game.botDifficulty, 'medium');
+      assert.equal(game.botDifficulty, 'easy');
     }
     const difficultyBroadcast = eventOnce(outsider, 'state:lobby', state => state.botDifficulty === level);
     assert.equal((await request(host, 'host:setBotDifficulty', { level })).state.botDifficulty, level);
@@ -198,13 +198,20 @@ async function cpuLifecycle({ game, client, initialHost, outsider }) {
     assert.deepEqual(finalState.winnerIds, [botId]);
     assert.equal(finalState.players.length, 2);
     assert.equal(finalState.players.find(entry => entry.id === botId).isBot, true);
+    const cpuRematch = await request(host, 'host:rematch');
+    assert.equal(cpuRematch.ok, true, cpuRematch.reason);
+    assert.equal(cpuRematch.state.phase, 'COUNTDOWN');
+    assert.equal(cpuRematch.state.botDifficulty, level);
+    assert.deepEqual(cpuRematch.state.players.map(entry => entry.id).sort(), [botId, humanId].sort());
+    assert.equal(cpuRematch.state.players.find(entry => entry.id === botId).isBot, true);
+    assert.ok(cpuRematch.state.players.every(entry => entry.alive));
     const resetBroadcast = eventOnce(humanSocket, 'state:reset');
     const reset = await request(host, 'host:reset');
     assert.equal(reset.ok, true);
     assert.deepEqual(reset.state.players, []);
-    assert.equal(reset.state.botDifficulty, 'medium');
+    assert.equal(reset.state.botDifficulty, 'easy');
     assert.notEqual(reset.state.matchId, matchId);
-    assert.equal((await resetBroadcast).botDifficulty, 'medium');
+    assert.equal((await resetBroadcast).botDifficulty, 'easy');
     assert.equal((await request(outsider, 'player:reconnect', { playerId: botId })).reason, 'unknown-player');
     assert.equal((await request(humanSocket, 'player:reconnect', { playerId: humanId })).reason, 'unknown-player');
     humanSocket.disconnect();
@@ -873,6 +880,26 @@ async function run() {
     assert.equal((await request(players[0], 'player:spectate', { playerId: 'unknown' })).reason, 'unknown-player');
     assert.equal((await request(host, 'host:kick', { playerId: 'player-0' })).reason, 'not-lobby');
 
+    assert.equal((await request(players[0], 'host:rematch')).reason, 'not-host');
+    const finalMatchId = game.matchId;
+    const rematchBoard = eventOnce(players[0], 'state:board', payload => payload.matchId !== finalMatchId);
+    const rematch = await request(host, 'host:rematch');
+    assert.equal(rematch.ok, true, rematch.reason);
+    assert.equal(rematch.state.phase, 'COUNTDOWN');
+    assert.notEqual(rematch.state.matchId, finalMatchId);
+    assert.deepEqual(rematch.state.players.map(entry => entry.id).sort(), ['player-0', 'player-1']);
+    assert.ok(rematch.state.players.every(entry => entry.alive && entry.placement === null && entry.lines === 0 && entry.survivalMs === 0));
+    assert.deepEqual(rematch.state.winnerIds, []);
+    assert.deepEqual(rematch.state.finalistIds, []);
+    assert.equal(rematch.state.elapsedMs, 0);
+    assert.equal((await rematchBoard).matchId, rematch.state.matchId);
+    assert.ok([player(0), player(1)].every(entry => entry.board && !entry.board.over && entry.spectating === null));
+    assert.equal((await request(host, 'host:rematch')).reason, 'not-final');
+    assert.equal((await request(host, 'host:kick', { playerId: 'player-0' })).reason, 'not-lobby');
+    matchId = rematch.state.matchId;
+    await advanceToPlaying(host);
+    assert.equal((await request(players[0], 'player:action', { matchId, seq: 1, action: 'left' })).ok, true);
+    console.log('PASS play again: same roster, fresh boards/stats, new match id, host-only, FINAL-only');
     await resetGame(host);
     await rejoinPlayers(2);
     matchId = await start(host);

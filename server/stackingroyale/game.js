@@ -42,7 +42,7 @@ class Game {
     this.winnerIds = [];
     this.finalistIds = [];
     this.gameOverMs = 0;
-    this.botDifficulty = 'medium';
+    this.botDifficulty = 'easy';
     this.botCursor = 0;
   }
 
@@ -146,6 +146,20 @@ class Game {
     for (const { player, board } of boards) Object.assign(player, this.freshPlayerState(), { board });
     this.refreshTargets();
     return { ok: true };
+  }
+
+  // Play again from the results screen: same roster (CPUs included) and CPU
+  // difficulty, straight into a new countdown.
+  rematch() {
+    if (this.phase !== PHASES.FINAL) return { ok: false, reason: 'not-final' };
+    this.phase = PHASES.LOBBY;
+    let result = null;
+    try {
+      result = this.start();
+    } finally {
+      if (!result || !result.ok) this.phase = PHASES.FINAL;
+    }
+    return result;
   }
 
   setPaused(paused) {

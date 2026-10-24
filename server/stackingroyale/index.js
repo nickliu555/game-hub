@@ -186,9 +186,9 @@ function mountStackingRoyale(app, httpServer, opts = {}) {
       ack(response(socket));
     });
 
-    hostCommand('host:start', () => {
+    function beginMatch(begin) {
       try {
-        const result = game.start();
+        const result = begin();
         if (result.ok) {
           accumulator = 0;
           previousTime = performance.now();
@@ -199,7 +199,9 @@ function mountStackingRoyale(app, httpServer, opts = {}) {
         console.error('[stackingroyale] Unable to start:', error.message);
         return { ok: false, reason: 'engine-unavailable' };
       }
-    });
+    }
+    hostCommand('host:start', () => beginMatch(() => game.start()));
+    hostCommand('host:rematch', () => beginMatch(() => game.rematch()));
     hostCommand('host:addBot', () => game.addBot());
     hostCommand('host:setBotDifficulty', payload => game.setBotDifficulty(payload.level));
     hostCommand('host:pause', () => game.setPaused(true));

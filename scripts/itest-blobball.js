@@ -31,7 +31,7 @@ async function main() {
     auth = await call(host, 'host:auth');
   }
   check('host:auth ok in LOBBY', auth && auth.ok && auth.phase === 'LOBBY');
-  check('capacity is 2, default first to 10', auth.lobby.capacity === 2 && auth.lobby.pointsToWin === 10 &&
+  check('capacity is 4, default first to 10', auth.lobby.capacity === 4 && auth.lobby.pointsToWin === 10 &&
     auth.lobby.pointOptions.join() === '5,7,10,12,15');
 
   const lobbies = [];
@@ -56,11 +56,47 @@ async function main() {
   check('names are capped at 20 characters', b.res.ok && b.res.player.name.length === 20);
   check('first joiner plays left, second right', last().players[0].id === 'pa' && last().players[0].side === 'Left side' &&
     last().players[1].id === 'pb' && last().players[1].side === 'Right side');
-  check('two players → startable', last().canStart === true);
+  check('two players → startable 1v1', last().canStart === true && last().teams === false && last().mode === '1v1');
+
+  // ---- Teams: a 3rd and 4th player switch to 2v1 / 2v2 ----
+  const spot = (l, id) => { const p = l.players.find((q) => q.id === id); return p ? p.seat + ':' + p.slot : null; };
   const c = await joinAs('pc', 'Cara');
-  check('a third join is rejected: game full', !c.res.ok && c.res.reason === 'game-full');
+  await wait(60);
+  check('a third player joins the left team → 2v1 teams', c.res.ok && last().teams === true && last().mode === '2v1' &&
+    spot(last(), 'pa') === '0:0' && spot(last(), 'pc') === '0:1' && spot(last(), 'pb') === '1:0' && last().canStart);
+  const cara = last().players.find((q) => q.id === 'pc');
+  check('teammates share a colour family (Cara is Lime)', cara.color === '#C8F04B' && cara.colorName === 'Lime' && cara.side === 'Left side');
+  check('a CPU fills the 4th spot → 2v2', (await call(host, 'host:addBot')).ok);
+  await wait(60);
+  check('2v2 lobby: CPU on the right in Rose', last().mode === '2v2' && spot(last(), 'bot-1') === '1:1' &&
+    last().players.find((q) => q.id === 'bot-1').color === '#FFA0C8');
+  const e5 = await joinAs('pe', 'Eve');
+  check('a fifth join is rejected: game full', !e5.res.ok && e5.res.reason === 'game-full');
+  e5.s.close();
+  check('no CPU past 4', !(await call(host, 'host:addBot')).ok);
+  check('drop onto a player swaps them', (await call(host, 'host:move', { playerId: 'pc', side: 1, slot: 1 })).ok);
+  await wait(60);
+  check('Cara and the CPU traded spots', spot(last(), 'pc') === '1:1' && spot(last(), 'bot-1') === '0:1');
+  check('swap within a team (who serves first)', (await call(host, 'host:move', { playerId: 'pc', side: 1, slot: 0 })).ok);
+  await wait(60);
+  check('Cara now slot 0 on the right', spot(last(), 'pc') === '1:0' && spot(last(), 'pb') === '1:1');
+  check('bad spots rejected', !(await call(host, 'host:move', { playerId: 'pc', side: 2, slot: 0 })).ok &&
+    !(await call(host, 'host:move', { playerId: 'pc', side: 0, slot: 5 })).ok &&
+    !(await call(host, 'host:move', { playerId: 'nobody', side: 0, slot: 0 })).ok);
+  check('players cannot move seats', !(await call(a.s, 'host:move', { playerId: 'pa', side: 1, slot: 0 })).ok);
+  await call(host, 'host:kick', { playerId: 'bot-1' });
+  await wait(60);
+  check('kick back to 3 → 1v2', last().mode === '1v2' && last().teams === true && spot(last(), 'pa') === '0:0');
+  check('move onto an open spot', (await call(host, 'host:move', { playerId: 'pb', side: 0, slot: 1 })).ok);
+  await wait(60);
+  check('Bob moved to the left team → 2v1, Cara alone on the right', last().mode === '2v1' && spot(last(), 'pb') === '0:1' && spot(last(), 'pc') === '1:0');
+  await call(host, 'host:kick', { playerId: 'pc' });
   c.s.close();
-  check('no CPU past 2', !(await call(host, 'host:addBot')).ok);
+  await wait(60);
+  check('back to 1v1 on opposite sides', last().mode === '1v1' && last().teams === false && spot(last(), 'pa') === '0:0' && spot(last(), 'pb') === '1:0');
+  check('1v1: moving next to the other is undone (sides stay split)', (await call(host, 'host:move', { playerId: 'pa', side: 1, slot: 1 })).ok);
+  await wait(60);
+  check('…Alice is still on the left', spot(last(), 'pa') === '0:0' && spot(last(), 'pb') === '1:0');
 
   check('swap sides ok', (await call(host, 'host:swap')).ok);
   await wait(60);
@@ -109,6 +145,7 @@ async function main() {
   const mStart = a.evs.find((x) => x[0] === 'm:start');
   const meta = mStart && mStart[1];
   check('players get m:start, first to 5, 0–0', meta && meta.target === 5 && meta.scores.pa === 0 && meta.scores.pb2 === 0);
+  check('1v1 match is not teams', meta && meta.teams === false);
   check('roster carries sides + colours', meta && meta.roster[0].id === 'pa' && meta.roster[0].seat === 0 &&
     meta.roster[1].side === 'Right side' && meta.roster.every((r) => /^#[0-9A-F]{6}$/i.test(r.color)));
 
@@ -241,6 +278,47 @@ async function main() {
   await call(host, 'host:reset');
   await call(host, 'host:reset');
   await wait(60);
+
+  // ---- A 2v2 team match ----
+  const t1 = await joinAs('t1', 'Tia');
+  const t2 = await joinAs('t2', 'Tom');
+  const t3 = await joinAs('t3', 'Tess');
+  await call(host, 'host:addBot');
+  await wait(60);
+  check('2v2 lobby ready', last().mode === '2v2' && last().canStart);
+  const ts = await call(host, 'host:start');
+  await wait(80);
+  const tm = ts && ts.match;
+  check('team match starts with teams on', ts && ts.ok && tm.teams === true && tm.roster.length === 4);
+  check('team roster: sides + slots + shades', tm.roster.map((r) => r.id + '@' + r.seat + ':' + r.slot).join() === 't1@0:0,t3@0:1,t2@1:0,bot-1@1:1' &&
+    tm.roster[1].color === '#C8F04B' && tm.roster[3].color === '#FFA0C8');
+  check('players are told it\'s teams', t2.evs.some((x) => x[0] === 'm:start' && x[1].teams === true));
+  host.emit('host:point', { scorerId: 't1', scores: { t1: 2, t3: 2, t2: 1, 'bot-1': 1 } });
+  await wait(60);
+  host.emit('host:sync', { scores: { t1: 3, t3: 1, t2: 1, 'bot-1': 1 }, live: true, paused: false });
+  await wait(60);
+  const tsync = t3.evs.filter((x) => x[0] === 'm:sync').pop();
+  check('teammates always share the team score', tsync && tsync[1].scores.t1 === 3 && tsync[1].scores.t3 === 3 && tsync[1].scores.t2 === 1);
+  t3.s.close();
+  await wait(80);
+  const tAuth = await call(host, 'host:auth');
+  check('a dropped teammate stays on the roster', tAuth.match.roster.length === 4 && tAuth.match.roster.some((r) => r.id === 't3' && r.connected === false));
+  const t3b = mk();
+  await connected(t3b);
+  const t3rec = await call(t3b, 'player:reconnect', { playerId: 't3' });
+  check('team reconnect snapshot says teams', t3rec.ok && t3rec.phase === 'PLAYING' && t3rec.match.teams === true && t3rec.match.scores.t3 === 3);
+  host.emit('host:matchEnd', { winnerId: 't1', scores: { t1: 5, t3: 5, t2: 2, 'bot-1': 2 } });
+  await wait(80);
+  const tend = t2.evs.find((x) => x[0] === 'm:end');
+  check('team match end relayed', tend && tend[1].winnerId === 't1' && tend[1].scores.t3 === 5);
+  const trm = await call(host, 'host:rematch');
+  check('team rematch keeps the teams', trm.ok && trm.match.teams === true &&
+    trm.match.roster.map((r) => r.id + '@' + r.seat + ':' + r.slot).join() === 't1@0:0,t3@0:1,t2@1:0,bot-1@1:1');
+  await call(host, 'host:reset');
+  await call(host, 'host:reset');
+  await wait(60);
+  [t1, t2].forEach((p) => p.s.close());
+  t3b.close();
 
   [a, b2].forEach((p) => p.s.close());
   b3.close();

@@ -19,7 +19,7 @@ Games live in two mirrored places:
 
 **Do not invent structure.** Copy the closest existing game and adapt it. For turn-based /
 question-style games use **Herd Mind** (`server/herdmind`, `public/herdmind`) as the
-template; for real-time games use **Soccer Head** / **Shoot Ball**.
+template; for real-time games use **Blob Ball** / **Shoot Ball**.
 
 Reuse these patterns verbatim:
 - **Three-page flow:** `host` (projection + QR + lobby + view stack), `join` (name entry →
@@ -216,6 +216,14 @@ the key while typing in an input/textarea/select/contenteditable and when a modi
 label from a `fullscreenchange` listener (not from the button's click handler) so the label
 stays correct whether fullscreen was toggled by the button, the F key, or Esc. Don't bind
 **F** to anything else on a host page.
+
+**In fullscreen the topbar auto-hides** (also shared, in `topbar.js`/`topbar.css`): it leaves
+the layout so the game gets the whole screen, and floats back **over** the game (no layout
+shift) while the mouse is at the top edge or on the bar, on a tap at the top edge, or on
+keyboard focus. It stays out while its Settings menu or Help is open. Outside fullscreen the
+bar is always shown. For this to work, every host page keeps `<body class="host">` and uses
+the shared `.game-topbar`, and its layout must let the main area grow into the freed space
+(no hard-coded topbar height offsets).
 
 ---
 

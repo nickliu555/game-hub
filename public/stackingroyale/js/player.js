@@ -106,7 +106,7 @@
     if (!next || !Array.isArray(next.players)) return;
     const old = state;
     const before = playerIn(old);
-    if (!old || old.matchId !== next.matchId) { board = null; boardMatch = null; snapshotSeq = -1; sequence = 0; clearPrediction(); cancelOutro(); }
+    if (!old || old.matchId !== next.matchId) { board = null; boardMatch = null; snapshotSeq = -1; sequence = 0; clearPrediction(); cancelOutro(); el('spectateSelect').value = ''; }
     state = next;
     const player = me();
     if (old && old.phase !== next.phase) input.clear();

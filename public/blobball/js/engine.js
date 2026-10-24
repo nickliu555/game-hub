@@ -55,23 +55,51 @@
   var HOME = [200, 800];
   var SERVE_Y = 356;
 
+  // Team play (3–4 blobs) uses a court 1.5× wider; the net, ceiling, jump and
+  // ball physics are unchanged. Each side spawns one blob near the net and one
+  // at the back (a lone blob stands mid-court).
+  var TEAM_W = 1500;
+  var BACK_X = 220;
+  var FRONT_GAP = 210;         // front spawn: this far from the net
+
   // Once a point is decided the ball plays on (dead) and settles on the sand.
   var DEAD_BOUNCE = 0.62;
   var DEAD_FRICTION = 0.82;
   var DEAD_ROLL = 0.985;
 
   function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
-  function sideOf(x) { return x < NET_X ? 0 : 1; }
 
-  function makeBlob(r, seat) {
+  // Court geometry. 1v1 matches the original constants exactly.
+  function makeGeo(teams) {
+    var w = teams ? TEAM_W : W;
+    var net = w / 2;
+    return {
+      teams: !!teams,
+      W: w,
+      NET_X: net,
+      WALL_MAX: w - (W - WALL_MAX),
+      LIMITS: [[50, net - (NET_X - LIMITS[0][1])], [net + (LIMITS[1][0] - NET_X), w - 50]],
+      // kind: 'solo' (1v1), 'mid' (a lone blob in team play), 'back' or 'front'.
+      spot: function (side, kind) {
+        var x = kind === 'back' ? BACK_X : (kind === 'front' ? net - FRONT_GAP : (teams ? net / 2 : HOME[0]));
+        return side === 0 ? x : w - x;
+      },
+    };
+  }
+  var GEO_1V1 = makeGeo(false);
+
+  function sideOf(x, geo) { return x < (geo || GEO_1V1).NET_X ? 0 : 1; }
+
+  function makeBlob(r, seat, i) {
     return {
       id: r.id,
       name: r.name,
+      i: i,
       seat: seat,
       color: r.color,
       isBot: !!r.isBot,
       connected: r.connected !== false,
-      x: HOME[seat], y: 0, vx: 0, vy: 0, px: HOME[seat], py: 0,
+      x: 0, y: 0, vx: 0, vy: 0, px: 0, py: 0,
       held: { l: false, r: false, j: false },
       jumpBuf: 0,
       airTicks: 0,
@@ -80,14 +108,41 @@
     };
   }
 
+  // opts.roster: [{ id, name, seat (0 left / 1 right), slot, color, isBot }].
+  // Entries without a seat take sides by index. opts.teams allows two blobs a
+  // side on the wide court; otherwise it's one blob a side.
   function World(opts) {
     var roster = (opts && opts.roster) || [];
-    this.blobs = [];
-    for (var s = 0; s < 2; s++) {
-      var r = roster[s] || { id: 'empty-' + s, name: '', isBot: true };
-      this.blobs.push(makeBlob(r, s));
+    this.teams = !!(opts && opts.teams);
+    this.geo = makeGeo(this.teams);
+    var per = this.teams ? 2 : 1;
+    var picked = [[], []];
+    for (var k = 0; k < roster.length; k++) {
+      var r = roster[k];
+      var side = (r.seat === 0 || r.seat === 1) ? r.seat : (k % 2);
+      if (picked[side].length < per) picked[side].push(r);
     }
-    this.ball = { x: HOME[0], y: SERVE_Y, vx: 0, vy: 0, px: HOME[0], py: SERVE_Y, spin: 0, pspin: 0, sq: [false, false] };
+    this.blobs = [];
+    this.sideBlobs = [[], []];
+    for (var s = 0; s < 2; s++) {
+      if (!picked[s].length) picked[s].push({ id: 'empty-' + s, name: '', isBot: true });
+      picked[s].sort(function (a, b) { return (a.slot | 0) - (b.slot | 0); });
+      for (var m = 0; m < picked[s].length; m++) {
+        var blob = makeBlob(picked[s][m], s, this.blobs.length);
+        this.blobs.push(blob);
+        this.sideBlobs[s].push(blob);
+      }
+    }
+    // Serve rotation: whose turn it is on each team, and who stands at the back.
+    this.serveTurn = [-1, -1];
+    this.backIdx = [this.sideBlobs[0][0].i, this.sideBlobs[1][0].i];
+    this.serverIdx = this.sideBlobs[0][0].i;
+    for (var q = 0; q < this.blobs.length; q++) {
+      var b0 = this.blobs[q];
+      b0.x = b0.px = this.spotOf(b0);
+    }
+    var sx = this.spotOf(this.blobs[0]);
+    this.ball = { x: sx, y: SERVE_Y, vx: 0, vy: 0, px: sx, py: SERVE_Y, spin: 0, pspin: 0, sq: this.blobs.map(function () { return false; }) };
     this.events = [];
     this.blobsLocked = true;   // inputs ignored (countdown, serve hold, dead ball)
     this.ballHeld = true;      // ball hovers in place (serve hold)
@@ -107,13 +162,32 @@
     return null;
   };
 
+  // Where a blob stands for a serve: 1v1 home, or front/back (mid if alone).
+  World.prototype.spotOf = function (p) {
+    if (!this.teams) return this.geo.spot(p.seat, 'solo');
+    if (this.sideBlobs[p.seat].length < 2) return this.geo.spot(p.seat, 'mid');
+    return this.geo.spot(p.seat, p.i === this.backIdx[p.seat] ? 'back' : 'front');
+  };
+
+  World.prototype.server = function () { return this.blobs[this.serverIdx] || null; };
+
   // Reset every blob home and hang the ball above the server. Nothing moves
-  // until release().
-  World.prototype.setupServe = function (seat) {
+  // until release(). `again` re-serves with the same player (kick-off after the
+  // countdown, or a whiffed serve); otherwise the team's next player serves.
+  // The server stands at the back with any teammate up front, so a team swaps
+  // front/back exactly when its serve passes to the other teammate.
+  World.prototype.setupServe = function (seat, again) {
     this.serveSeat = seat === 1 ? 1 : 0;
+    var team = this.sideBlobs[this.serveSeat];
+    if (!again || this.serveTurn[this.serveSeat] < 0) {
+      this.serveTurn[this.serveSeat] = (this.serveTurn[this.serveSeat] + 1) % team.length;
+    }
+    var server = team[this.serveTurn[this.serveSeat]];
+    this.serverIdx = server.i;
+    this.backIdx[this.serveSeat] = server.i;
     for (var i = 0; i < this.blobs.length; i++) {
       var p = this.blobs[i];
-      p.x = p.px = HOME[p.seat];
+      p.x = p.px = this.spotOf(p);
       p.y = p.py = 0;
       p.vx = p.vy = 0;
       p.jumpBuf = 0;
@@ -122,10 +196,10 @@
       if (p.ai) { p.ai.wait = 0; p.ai.lastBallSide = -1; p.ai.move = 0; p.ai.turn = 0; }
     }
     var b = this.ball;
-    b.x = b.px = HOME[this.serveSeat];
+    b.x = b.px = server.x;
     b.y = b.py = SERVE_Y;
     b.vx = b.vy = 0;
-    b.sq[0] = b.sq[1] = false;
+    for (var k = 0; k < b.sq.length; k++) b.sq[k] = false;
     this.blobsLocked = true;
     this.ballHeld = true;
     this.live = false;
@@ -178,18 +252,18 @@
     // movement is on a phone.
     var speed = p.isBot ? MOVE_SPEED * AI_SPEED : MOVE_SPEED;
     p.vx = l && !r ? -speed : (r && !l ? speed : 0);
-    if (p.vx !== 0 && this.live && p.seat === this.serveSeat) this.serverMoved = true;
+    if (p.vx !== 0 && this.live && p.i === this.serverIdx) this.serverMoved = true;
     if (!locked && p.y === 0 && (j || p.jumpBuf > 0)) {
       p.vy = JUMP_V;
       p.airTicks = 0;
       p.jumpBuf = 0;
-      this.events.push({ t: 'jump', seat: p.seat });
+      this.events.push({ t: 'jump', seat: p.seat, i: p.i });
     }
     if (p.jumpBuf > 0) p.jumpBuf--;
     if (!j && p.vy > HOP_CUT_V && p.airTicks >= MIN_HOP_TICKS) p.vy = HOP_CUT_V;
 
     if (p.vx !== 0) {
-      var lim = LIMITS[p.seat];
+      var lim = this.geo.LIMITS[p.seat];
       p.x = clamp(p.x + p.vx, lim[0], lim[1]);
     }
     if (p.vy !== 0 || p.y > 0) {
@@ -197,21 +271,51 @@
       p.y += p.vy;
       p.airTicks++;
       if (p.y <= 0) {
-        this.events.push({ t: 'land', seat: p.seat, v: -p.vy });
+        this.events.push({ t: 'land', seat: p.seat, i: p.i, v: -p.vy });
         p.y = 0;
         p.vy = 0;
       }
     }
   };
 
+  // Teammates bump: their domes (radius 50 across, iso units) can't overlap, so
+  // they shove each other sideways — a runner pushes a standing teammate along,
+  // and one coming down on the other's head slides off. The shove per tick is
+  // capped so a landing slides apart instead of snapping.
+  var BUMP_STEP = 8;
+  World.prototype._bump = function () {
+    var half = BLOB_R / 2;
+    for (var s = 0; s < 2; s++) {
+      var team = this.sideBlobs[s];
+      if (team.length < 2) continue;
+      var p = team[0], q = team[1];
+      var dy = Math.abs(q.y - p.y) / 2;
+      if (dy >= half) continue;
+      var need = half + Math.sqrt(half * half - dy * dy);
+      var dx = q.x - p.x;
+      if (Math.abs(dx) >= need) continue;
+      var dir = dx > 0 ? 1 : (dx < 0 ? -1 : (q.px > p.px ? 1 : (q.px < p.px ? -1 : (q.i > p.i ? 1 : -1))));
+      var push = Math.min((need - Math.abs(dx)) / 2, BUMP_STEP);
+      var lim = this.geo.LIMITS[s];
+      var np = clamp(p.x - dir * push, lim[0], lim[1]);
+      var nq = clamp(q.x + dir * push, lim[0], lim[1]);
+      // One pinned against a limit: the other takes the whole shove.
+      var gap = Math.abs(dx) + 2 * push;
+      if (np !== p.x - dir * push) nq = clamp(np + dir * gap, lim[0], lim[1]);
+      else if (nq !== q.x + dir * push) np = clamp(nq - dir * gap, lim[0], lim[1]);
+      p.x = np;
+      q.x = nq;
+    }
+  };
+
   // The original's ball/blob bounce: the ball reflects off the dome AND picks
   // up the blob's own velocity, which is what makes spikes and lobs work.
-  function collideBlob(b, p) {
+  function collideBlob(b, p, geo) {
     var dx = 2 * (b.x - p.x);
     var dy = b.y - p.y;
     // A ball that came from under the blob meets its flat base, never the dome:
     // resolving it against the dome would pop it straight up through the blob.
-    if (b.py - p.py < 0 || b.sq[p.seat]) return collideUnderside(b, p, dx, dy);
+    if (b.py - p.py < 0 || b.sq[p.i]) return collideUnderside(b, p, dx, dy, geo);
     var dist = Math.sqrt(dx * dx + dy * dy);
     if (!(dy > 0 && dist < HIT_R && dist > FUDGE)) return false;
     var dvx = b.vx - p.vx;
@@ -231,10 +335,10 @@
   // from below. A ball the blob comes down on with no room beneath (it's on the
   // sand) squirts out sideways a few units a tick until it's clear — `b.sq`
   // remembers that in-progress squeeze so the dome can't grab it half-way.
-  function collideUnderside(b, p, dx, dy) {
-    var wasSq = b.sq[p.seat];
+  function collideUnderside(b, p, dx, dy, geo) {
+    var wasSq = b.sq[p.i];
     var sign = dx < 0 ? -1 : 1;
-    if (Math.abs(dx) >= HIT_R || dy <= -BALL_R) { b.sq[p.seat] = false; return false; }
+    if (Math.abs(dx) >= HIT_R || dy <= -BALL_R) { b.sq[p.i] = false; return false; }
     var nx = 0, ny = -1, tx = dx, ty = -BALL_R;
     if (!wasSq && Math.abs(dx) > BLOB_R) {
       var cx = dx - sign * BLOB_R, cy = Math.min(dy, 0);
@@ -246,21 +350,21 @@
     }
 
     if (p.y + ty < BALL_R) {
-      var lo = b.x < NET_X ? WALL_MIN : NET_X + NET_BAND;
-      var hi = b.x < NET_X ? NET_X - NET_BAND : WALL_MAX;
+      var lo = b.x < geo.NET_X ? WALL_MIN : geo.NET_X + NET_BAND;
+      var hi = b.x < geo.NET_X ? geo.NET_X - NET_BAND : geo.WALL_MAX;
       var out = p.x + sign * HIT_R / 2;
       if (out < lo || out > hi) { sign = -sign; out = p.x + sign * HIT_R / 2; }
       // Measured from where the ball started the tick, so its own drift doesn't add to the slide.
       var gap = out - b.px;
       b.x = b.px + clamp(gap, -SQUEEZE_STEP, SQUEEZE_STEP);
       b.y = BALL_R;
-      b.sq[p.seat] = Math.abs(gap) > SQUEEZE_STEP;
-      b.vx = b.sq[p.seat] ? 0 : clamp(p.vx + sign * SQUEEZE_STEP, -MAX_VX, MAX_VX);
+      b.sq[p.i] = Math.abs(gap) > SQUEEZE_STEP;
+      b.vx = b.sq[p.i] ? 0 : clamp(p.vx + sign * SQUEEZE_STEP, -MAX_VX, MAX_VX);
       if (b.vy > 0) b.vy = 0;
       return !wasSq;
     }
 
-    b.sq[p.seat] = false;
+    b.sq[p.i] = false;
     b.x = p.x + tx / 2;
     b.y = p.y + ty;
     var along = nx * (b.vx - p.vx) + ny * (b.vy - p.vy);
@@ -278,10 +382,11 @@
   // top if it was above the post, otherwise back out the side it started on —
   // so neither a fast drop nor a blob shoving it sideways can ever carry it
   // through to the other half. Returns a bitmask: 1 wall, 2 ceiling, 4 net.
-  function bounceStatic(b, rng, px, py) {
+  function bounceStatic(b, rng, px, py, geo) {
+    var NET_X = geo.NET_X;
     var hit = 0;
     if (b.x < WALL_MIN) { b.x = WALL_MIN; b.vx = -b.vx; hit |= 1; }
-    else if (b.x > WALL_MAX) { b.x = WALL_MAX; b.vx = -b.vx; hit |= 1; }
+    else if (b.x > geo.WALL_MAX) { b.x = geo.WALL_MAX; b.vx = -b.vx; hit |= 1; }
     if (b.y > CEIL - BALL_R) { b.y = CEIL - BALL_R; if (b.vy > 0) b.vy = -b.vy; hit |= 2; }
     // The post's faces are checked along the ball's whole path this tick, not
     // just where it ends: a ball shoved up a face can't clip the top corner.
@@ -328,18 +433,19 @@
     // Push the ball out of the post before each blob sees it — and again after
     // every touch, since a blob pressed against the net can shove it back in —
     // so no blob can ever touch the ball through the post.
-    var hit = bounceStatic(b, this.rng, b.px, b.py);
+    var geo = this.geo;
+    var hit = bounceStatic(b, this.rng, b.px, b.py, geo);
     for (var i = 0; i < this.blobs.length; i++) {
       var p = this.blobs[i];
       // collideBlob can move the ball even when it doesn't count as a hit, so
       // re-resolve the post after every blob, not just after a hit.
-      var touched = collideBlob(b, p);
-      hit |= bounceStatic(b, this.rng, b.px, b.py);
+      var touched = collideBlob(b, p, geo);
+      hit |= bounceStatic(b, this.rng, b.px, b.py, geo);
       if (touched) {
         var cont = this.tick - p.lastHitTick <= HIT_CHAIN_TICKS;
         p.lastHitTick = this.tick;
-        if (p.seat !== this.serveSeat || this.serverMoved) this.touched = true;
-        this.events.push({ t: 'hit', seat: p.seat, x: b.x, y: b.y, speed: Math.sqrt(b.vx * b.vx + b.vy * b.vy), live: this.live, cont: cont });
+        if (p.i !== this.serverIdx || this.serverMoved) this.touched = true;
+        this.events.push({ t: 'hit', seat: p.seat, i: p.i, x: b.x, y: b.y, speed: Math.sqrt(b.vx * b.vx + b.vy * b.vy), live: this.live, cont: cont });
       }
     }
     if (hit & 1) this.events.push({ t: 'wall', x: b.x, y: b.y });
@@ -362,9 +468,9 @@
           this.events.push({ t: 'ground', x: b.x, v: impact, point: false, miss: true });
           b.vy = impact * DEAD_BOUNCE;
           b.vx *= DEAD_FRICTION;
-          return { point: false, missedServe: true, serverSeat: this.serveSeat, x: b.x };
+          return { point: false, missedServe: true, serverSeat: this.serveSeat, serverIdx: this.serverIdx, x: b.x };
         }
-        var scorer = b.x > NET_X ? 0 : 1;
+        var scorer = b.x > geo.NET_X ? 0 : 1;
         this.events.push({ t: 'ground', x: b.x, v: impact, point: true });
         b.vy = impact * DEAD_BOUNCE;
         b.vx *= DEAD_FRICTION;
@@ -386,6 +492,7 @@
   World.prototype.step = function () {
     this.tick++;
     for (var i = 0; i < this.blobs.length; i++) this._stepBlob(this.blobs[i]);
+    this._bump();
     return this._stepBall();
   };
 
@@ -410,7 +517,8 @@
   var JUMP_LOOK = 14;
   var JUMP_IN_PLACE = 24;
 
-  function predictPath(ball, n) {
+  function predictPath(ball, n, geo) {
+    geo = geo || GEO_1V1;
     var b = { x: ball.x, y: ball.y, vx: ball.vx, vy: ball.vy };
     var path = [];
     for (var t = 0; t < n; t++) {
@@ -419,7 +527,7 @@
       var px = b.x, py = b.y;
       b.x += b.vx;
       b.y += b.vy;
-      bounceStatic(b, null, px, py);
+      bounceStatic(b, null, px, py, geo);
       path.push({ x: b.x, y: b.y, vy: b.vy });
       if (b.y <= BALL_R) break;
     }
@@ -435,14 +543,14 @@
   }
 
   // Would a jump started now meet the ball on our side within the next ticks?
-  function jumpMeets(p, path, dir) {
+  function jumpMeets(p, path, dir, geo) {
     var sy = 0, vy = JUMP_V;
     for (var t = 0; t < Math.min(path.length, JUMP_LOOK); t++) {
       vy -= BLOB_G;
       sy += vy;
       if (sy < 0) break;
       var q = path[t];
-      if (sideOf(q.x) !== p.seat) continue;
+      if (sideOf(q.x, geo) !== p.seat) continue;
       var dx = 2 * (q.x - p.x);
       var dy = q.y - sy;
       if (dy > 20 && Math.sqrt(dx * dx + dy * dy) < HIT_R + 10 && (q.x - p.x) * dir > 4) return true;
@@ -459,7 +567,7 @@
 
   World.prototype._think = function (p) {
     var rng = this.rng;
-    if (!p.ai) p.ai = { wait: 0, target: HOME[p.seat], aim: AI_AIM, jumpHold: 0, lastBallSide: -1 };
+    if (!p.ai) p.ai = { wait: 0, target: this.spotOf(p), aim: AI_AIM, jumpHold: 0, lastBallSide: -1 };
     var ai = p.ai;
     if (ai.jumpHold > 0) {
       ai.jumpHold--;
@@ -477,24 +585,37 @@
 
     var dir = p.seat === 0 ? 1 : -1;   // toward the net
     var b = this.ball;
-    var path = predictPath(b, PLAN_TICKS);
+    var geo = this.geo;
+    var path = predictPath(b, PLAN_TICKS, geo);
     var land = landingAt(path, HIT_R - 10);
-    var lim = LIMITS[p.seat];
-    var landSide = land ? sideOf(land.x) : sideOf(b.x);
+    var lim = geo.LIMITS[p.seat];
+    var landSide = land ? sideOf(land.x, geo) : sideOf(b.x, geo);
+    var home = this.spotOf(p);
+    var team = this.sideBlobs[p.seat];
+    var mate = team.length > 1 ? (team[0] === p ? team[1] : team[0]) : null;
+    // With a teammate the half splits between the front and back spots: a CPU
+    // only goes for balls coming down in its own zone, and otherwise holds its
+    // spot so the two don't pile onto the same ball.
+    var mine = true;
+    if (mate && land) {
+      var split = (home + this.spotOf(mate)) / 2;
+      var front = Math.abs(home - geo.NET_X) < Math.abs(split - geo.NET_X);
+      mine = (Math.abs(land.x - geo.NET_X) < Math.abs(split - geo.NET_X)) === front;
+    }
 
-    if (land && landSide === p.seat) {
+    if (land && landSide === p.seat && mine) {
       // Fresh aim noise per incoming ball, not per think.
       if (ai.lastBallSide !== p.seat) ai.aim = clamp(AI_AIM + (rng() * 2 - 1) * AI_AIM_NOISE, 8, 34);
       // Close to the net the dome has to sit further back to lift it over.
-      var nearNet = Math.abs(land.x - NET_X) < 110 ? 14 : 0;
+      var nearNet = Math.abs(land.x - geo.NET_X) < 110 ? 14 : 0;
       ai.target = clamp(land.x - dir * (ai.aim + nearNet), lim[0], lim[1]);
     } else {
-      ai.target = clamp(HOME[p.seat] + dir * 50, lim[0], lim[1]);
+      ai.target = clamp(home + (mate ? 0 : dir * 50), lim[0], lim[1]);
     }
     ai.lastBallSide = landSide;
 
     var inPlace = Math.abs(ai.target - p.x) < JUMP_IN_PLACE;
-    if (p.y === 0 && inPlace && sideOf(b.x) === p.seat && jumpMeets(p, path, dir) && rng() < AI_JUMP_CHANCE) {
+    if (p.y === 0 && inPlace && sideOf(b.x, geo) === p.seat && jumpMeets(p, path, dir, geo) && rng() < AI_JUMP_CHANCE) {
       p.held.j = true;
       ai.jumpHold = 18;
     }
@@ -545,6 +666,8 @@
     NET_DRAW_HALF: NET_DRAW_HALF,
     LIMITS: LIMITS,
     HOME: HOME,
+    TEAM_W: TEAM_W,
+    makeGeo: makeGeo,
     AI_TURN_MIN: AI_TURN_MIN,
     SERVE_Y: SERVE_Y,
     predictPath: predictPath,

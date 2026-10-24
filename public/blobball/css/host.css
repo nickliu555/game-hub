@@ -109,7 +109,7 @@ body.host {
 .seg-btn.active { background: var(--accent); color: #2A1A00; }
 @media (hover: hover) { .seg-btn:hover:not(.active) { background: rgba(255,255,255,0.1); box-shadow: none; transform: none; } }
 
-/* Two seats — capped + scrollable so long names never push Play off-screen. */
+/* Two spots a side — capped + scrollable so long names never push Play off-screen. */
 .seat-list {
   flex: 0 1 auto;
   min-height: 0;
@@ -131,7 +131,7 @@ body.host {
   flex: 0 0 auto;
 }
 .seat.filled { border-color: var(--seat); border-color: color-mix(in srgb, var(--seat) 55%, transparent); }
-/* Two seated players: drag one onto the other to swap sides. */
+/* Seated players: drag one onto another spot to move or swap. */
 .seat.draggable { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; position: relative; }
 @media (hover: hover) { .seat.draggable:hover { background: rgba(255,255,255,0.1); } }
 .seat.dragging {
@@ -141,6 +141,16 @@ body.host {
   box-shadow: 0 16px 36px rgba(0,0,0,0.5);
 }
 .seat.drop-target { background: rgba(255,255,255,0.12); }
+.seat.empty.drop-target { border-style: dashed; border-color: rgba(255,255,255,0.45); }
+.seat-vs {
+  flex: 0 0 auto;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 15px;
+  letter-spacing: 0.12em;
+  color: rgba(255,255,255,0.45);
+  margin: -4px 0;
+}
 .seat-grip {
   flex: 0 0 auto;
   width: 14px;

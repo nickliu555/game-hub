@@ -8,7 +8,6 @@
   // render-only and never touch the physics.
 
   var BB = window.BlobBall;
-  var COURT_W = BB.W;
   var SKY_H = BB.CEIL / 2;          // 400 — the ceiling, in iso units
   var SAND_H = 64;                  // sand band drawn under the ground line
   var R = BB.BLOB_R / 2;            // 50
@@ -37,6 +36,11 @@
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.world = world;
+    // Team play widens the court; scenery is laid out on the 1v1 court and
+    // stretched across by K.
+    this.W = world.geo.W;
+    this.NET_X = world.geo.NET_X;
+    this.K = this.W / BB.W;
     this.S = 1;
     this.ox = 0;
     this.oy = 0;
@@ -47,9 +51,10 @@
     this.trail = [];
     this.clouds = [];
     // Spread evenly across the sky (with a little jitter) so they never clump.
-    for (var i = 0; i < 6; i++) {
+    var nClouds = Math.round(6 * this.K);
+    for (var i = 0; i < nClouds; i++) {
       this.clouds.push({
-        x: i * (1300 / 6) - 150 + Math.random() * 80,
+        x: i * (1300 * this.K / nClouds) - 150 + Math.random() * 80,
         y: (i % 2 ? 250 : 320) + Math.random() * 60,
         w: 70 + Math.random() * 90,
         v: 4 + Math.random() * 7,
@@ -69,6 +74,7 @@
     c.width = Math.max(1, Math.round(rect.width * dpr));
     c.height = Math.max(1, Math.round(rect.height * dpr));
     var boxH = SKY_H + SAND_H;
+    var COURT_W = this.W;
     this.S = Math.min(c.width / COURT_W, c.height / boxH);
     this.ox = (c.width - COURT_W * this.S) / 2;
     this.oy = (c.height - boxH * this.S) / 2 + SKY_H * this.S;
@@ -83,6 +89,7 @@
     bg.height = c.height;
     var g = bg.getContext('2d');
     var S = this.S, ox = this.ox, oy = this.oy;
+    var COURT_W = this.W, K = this.K;
     var yOf = function (Y) { return oy - Y * S; };
     var horizonPx = yOf(HORIZON);
 
@@ -110,7 +117,7 @@
     g.globalAlpha = 1;
 
     // Sun, half sunk into the sea.
-    var sunX = ox + 735 * S, sunY = yOf(HORIZON + 10), sunR = 64 * S;
+    var sunX = ox + 735 * K * S, sunY = yOf(HORIZON + 10), sunR = 64 * S;
     var glow = g.createRadialGradient(sunX, sunY, sunR * 0.5, sunX, sunY, sunR * 3.4);
     glow.addColorStop(0, 'rgba(255,214,140,0.55)');
     glow.addColorStop(1, 'rgba(255,170,120,0)');
@@ -128,14 +135,14 @@
     // Far islands on the horizon.
     g.fillStyle = 'rgba(70,40,110,0.75)';
     g.beginPath();
-    g.moveTo(ox + 40 * S, horizonPx);
-    g.quadraticCurveTo(ox + 120 * S, horizonPx - 34 * S, ox + 210 * S, horizonPx - 12 * S);
-    g.quadraticCurveTo(ox + 260 * S, horizonPx - 22 * S, ox + 330 * S, horizonPx);
+    g.moveTo(ox + 40 * K * S, horizonPx);
+    g.quadraticCurveTo(ox + 120 * K * S, horizonPx - 34 * S, ox + 210 * K * S, horizonPx - 12 * S);
+    g.quadraticCurveTo(ox + 260 * K * S, horizonPx - 22 * S, ox + 330 * K * S, horizonPx);
     g.closePath(); g.fill();
     g.beginPath();
-    g.moveTo(ox + 860 * S, horizonPx);
-    g.quadraticCurveTo(ox + 920 * S, horizonPx - 18 * S, ox + 1010 * S, horizonPx - 8 * S);
-    g.lineTo(ox + 1010 * S, horizonPx);
+    g.moveTo(ox + 860 * K * S, horizonPx);
+    g.quadraticCurveTo(ox + 920 * K * S, horizonPx - 18 * S, ox + 1010 * K * S, horizonPx - 8 * S);
+    g.lineTo(ox + 1010 * K * S, horizonPx);
     g.closePath(); g.fill();
 
     // Sea.
@@ -183,7 +190,7 @@
     g.fillStyle = 'rgba(255,255,255,0.85)';
     g.fillRect(ox, oy - 1.5 * S, COURT_W * S, 3 * S);
     g.fillStyle = 'rgba(255,255,255,0.35)';
-    g.fillRect(ox + (BB.NET_X - 2) * S, oy, 4 * S, SAND_H * 0.55 * S);
+    g.fillRect(ox + (this.NET_X - 2) * S, oy, 4 * S, SAND_H * 0.55 * S);
 
     // Court edges: if the screen is wider/taller than the court, mark the
     // walls and ceiling the ball bounces off.
@@ -209,16 +216,16 @@
   Renderer.prototype.handleEvent = function (e) {
     var w = this.world;
     if (e.t === 'land') {
-      var b = w.blobs[e.seat];
-      var f = this.fx[e.seat];
+      var b = w.blobs[e.i];
+      var f = this.fx[e.i];
       f.sv -= 1.2 + Math.min(30, e.v || 0) * 0.09;
       this.dust(b.x, 5 + Math.round(Math.min(30, e.v || 0) / 3));
     } else if (e.t === 'jump') {
-      this.fx[e.seat].sv += 1.6;
-      this.dust(w.blobs[e.seat].x, 4);
+      this.fx[e.i].sv += 1.6;
+      this.dust(w.blobs[e.i].x, 4);
     } else if (e.t === 'hit') {
       if (e.cont) return;
-      this.fx[e.seat].sv -= 0.9;
+      this.fx[e.i].sv -= 0.9;
       this.ring(e.x, e.y / 2, '#ffffff', 0.35);
       this.sparks(e.x, e.y / 2, '#ffffff', 5);
     } else if (e.t === 'wall' || e.t === 'net' || e.t === 'ceil') {
@@ -263,7 +270,7 @@
   };
   // Confetti burst in a player's colour over their half.
   Renderer.prototype.celebrate = function (seat, color) {
-    var cx = seat === 0 ? 250 : 750;
+    var cx = seat === 0 ? this.W / 4 : this.W * 3 / 4;
     var cols = [color, '#FFFFFF', '#FFD23F', mix(color, 'w', 0.5)];
     for (var i = 0; i < 70; i++) {
       var a = Math.PI * (0.2 + Math.random() * 0.6);
@@ -275,8 +282,10 @@
       });
     }
   };
+  // Every blob on that side of the net.
   Renderer.prototype.setMood = function (seat, mood) {
-    if (this.fx[seat]) this.fx[seat].mood = mood || null;
+    var blobs = this.world.blobs;
+    for (var i = 0; i < blobs.length; i++) if (blobs[i].seat === seat && this.fx[i]) this.fx[i].mood = mood || null;
   };
   Renderer.prototype.clearMoods = function () {
     this.fx.forEach(function (f) { f.mood = null; });
@@ -316,15 +325,16 @@
     ctx.fillStyle = 'rgba(90,50,20,' + (0.3 * bk).toFixed(3) + ')';
     ctx.beginPath(); ctx.ellipse(bx, 3, BR * 1.3 * bk, 4 * bk, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = 'rgba(90,50,20,0.22)';
-    ctx.beginPath(); ctx.ellipse(BB.NET_X + 6, 3, NET_HW * 2.6, 4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(this.NET_X + 6, 3, NET_HW * 2.6, 4, 0, 0, Math.PI * 2); ctx.fill();
 
     this.drawNet();
 
     for (var j = 0; j < w.blobs.length; j++) this.drawBlob(w.blobs[j], this.fx[j], alpha, dt, bx, bY);
+    if (w.teams) this.drawHeadTags(alpha);
 
     this.drawBall(bx, bY, spin, ball);
     this.drawEffects(dt);
-    this.drawTags();
+    if (!w.teams) this.drawTags();
   };
 
   Renderer.prototype.drawClouds = function (dt) {
@@ -332,7 +342,7 @@
     for (var i = 0; i < this.clouds.length; i++) {
       var cl = this.clouds[i];
       cl.x += cl.v * dt;
-      if (cl.x - cl.w > 1150) cl.x = -150 - cl.w;
+      if (cl.x - cl.w > this.W + 150) cl.x = -150 - cl.w;
       ctx.fillStyle = 'rgba(255,214,226,' + cl.a.toFixed(3) + ')';
       ctx.beginPath();
       ctx.ellipse(cl.x, -cl.y, cl.w, cl.w * 0.16, 0, 0, Math.PI * 2);
@@ -344,7 +354,7 @@
 
   Renderer.prototype.drawNet = function () {
     var ctx = this.ctx;
-    var x = BB.NET_X;
+    var x = this.NET_X;
     var top = -NET_H;
     // Post.
     var g = ctx.createLinearGradient(x - NET_HW, 0, x + NET_HW, 0);
@@ -384,7 +394,7 @@
     f.sv += (-260 * f.sq - 13 * f.sv) * dt;
     f.sq = clamp(f.sq + f.sv * dt, -0.32, 0.3);
     var air = Y > 0.5 ? clamp(vy * 0.004, -0.06, 0.1) : 0;
-    var breathe = Math.sin(this.time * 2.6 + p.seat * 1.7) * 0.014;
+    var breathe = Math.sin(this.time * 2.6 + p.i * 1.7) * 0.014;
     var sy = 1 + f.sq + air + breathe;
     var sx = 1 - (sy - 1) * 0.75;
     f.lean += ((-vx / 8) * 0.2 - f.lean) * Math.min(1, dt * 10);
@@ -601,7 +611,7 @@
     for (var i = 0; i < w.blobs.length; i++) {
       var p = w.blobs[i];
       if (!p.name) continue;
-      var cx = p.seat === 0 ? 250 : 750;
+      var cx = p.seat === 0 ? this.W / 4 : this.W * 3 / 4;
       var label = (p.isBot ? '🤖 ' : '') + p.name;
       var sub = !p.isBot && !p.connected ? 'reconnecting…' : '';
       ctx.save();
@@ -624,6 +634,45 @@
         ctx.font = '400 16px ' + FONT;
         ctx.fillStyle = 'rgba(70,40,20,0.85)';
         ctx.fillText(sub, cx, y + 27);
+      }
+      ctx.restore();
+    }
+  };
+
+  // Team play: a name tag floats over each blob (in its own shade) so
+  // teammates in the same colour family are easy to tell apart. The full names
+  // are on the scoreboard; tags are capped to about a blob and a half wide.
+  Renderer.prototype.drawHeadTags = function (alpha) {
+    var ctx = this.ctx;
+    var w = this.world;
+    for (var i = 0; i < w.blobs.length; i++) {
+      var p = w.blobs[i];
+      if (!p.name) continue;
+      var x = p.px + (p.x - p.px) * alpha;
+      var Y = (p.py + (p.y - p.py) * alpha) / 2;
+      var label = (p.isBot ? '🤖 ' : '') + p.name;
+      var sub = !p.isBot && !p.connected ? 'reconnecting…' : '';
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '400 17px ' + FONT;
+      label = ellipsize(ctx, label, 150);
+      var tw = ctx.measureText(label).width;
+      var y = -(Y + R + 26);
+      ctx.globalAlpha = sub ? 0.7 : 1;
+      ctx.fillStyle = 'rgba(20,12,40,0.5)';
+      roundRect(ctx, x - tw / 2 - 11, y - 13, tw + 22, 26, 13);
+      ctx.fill();
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillText(label, x, y + 1);
+      if (sub) {
+        ctx.globalAlpha = 1;
+        ctx.font = '400 13px ' + FONT;
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.fillText(sub, x, y - 22);
       }
       ctx.restore();
     }

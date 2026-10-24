@@ -64,7 +64,7 @@
     const roundOv = ensureOverlay('roundLockedOverlay', 'Match in progress',
       'You can\'t hop in mid-match. This page will unlock as soon as the host returns to the lobby.');
     const fullOv = ensureOverlay('gameFullOverlay', 'Game full',
-      'Both blobs are taken right now. This page will unlock if a spot opens up.');
+      'All four blobs are taken right now. This page will unlock if a spot opens up.');
     hostOv.hidden = hostPresent;
     roundOv.hidden = !(hostPresent && roundLocked);
     fullOv.hidden = !(hostPresent && !roundLocked && gameFull);
@@ -128,7 +128,7 @@
           'name-taken': (res && res.name ? '"' + res.name + '"' : 'That name') + ' is already taken.',
           'host-absent': 'The host isn\'t here right now. Wait for them to return and try again.',
           'round-in-progress': 'A match is already in progress. Wait for the host to return to the lobby.',
-          'game-full': 'Game full — both blobs are taken.',
+          'game-full': 'Game full — all four blobs are taken.',
           'bad-player-id': 'Something went wrong. Please reload the page.',
         }[reason] || 'Could not join. Please try again.';
         return showError(friendly);

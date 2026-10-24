@@ -16,8 +16,12 @@
   const OVERLAY_FADE_MS = 220;
   const SYNC_MS = 300;
 
-  const SEAT_COLORS = ['#5BE06B', '#FF5C8D'];
-  const SEAT_LABELS = [{ side: 'Left side', color: 'Green' }, { side: 'Right side', color: 'Pink' }];
+  // [side][slot]: a team shares a colour family (matches server/blobball/game.js).
+  const SLOT_COLORS = [
+    [{ hex: '#5BE06B', name: 'Green' }, { hex: '#C8F04B', name: 'Lime' }],
+    [{ hex: '#FF5C8D', name: 'Pink' }, { hex: '#FFA0C8', name: 'Rose' }],
+  ];
+  const SIDE_LABELS = ['Left side', 'Right side'];
   const REACTION_EMOJIS = ['😂', '🔥', '🎉', '😱', '😭', '😡'];
   const REACTION_MAX = 30;
 
@@ -295,14 +299,25 @@
     });
 
     seatList.innerHTML = '';
-    const canSwap = players.length >= 2;
-    for (let i = 0; i < l.capacity; i++) {
-      const p = players[i];
+    const canMove = players.length >= 2;
+    const teamSize = l.teamSize || 2;
+    for (let i = 0; i < 2 * teamSize; i++) {
+      const side = i < teamSize ? 0 : 1;
+      const slot = i % teamSize;
+      if (i === teamSize) {
+        const vs = document.createElement('div');
+        vs.className = 'seat-vs';
+        vs.textContent = 'VS';
+        seatList.appendChild(vs);
+      }
+      const p = players.find(function (q) { return q.seat === side && q.slot === slot; });
       const row = document.createElement('div');
-      row.className = 'seat' + (p ? ' filled' : ' empty') + (p && canSwap ? ' draggable' : '') + (p && p.connected === false && !p.isBot ? ' disconnected' : '');
-      if (p && canSwap) {
+      row.className = 'seat' + (p ? ' filled' : ' empty') + (p && canMove ? ' draggable' : '') + (p && p.connected === false && !p.isBot ? ' disconnected' : '');
+      row.dataset.side = String(side);
+      row.dataset.slot = String(slot);
+      if (p && canMove) {
         row.dataset.pid = p.id;
-        row.title = 'Drag onto the other player to swap sides';
+        row.title = 'Drag onto another spot to move or swap';
       }
       const grip = document.createElement('div');
       grip.className = 'seat-grip';
@@ -312,11 +327,11 @@
       blob.className = 'seat-blob';
       const meta = document.createElement('div');
       meta.className = 'seat-meta';
-      const side = document.createElement('div');
-      side.className = 'seat-side';
+      const sideEl = document.createElement('div');
+      sideEl.className = 'seat-side';
       const col = document.createElement('div');
       col.className = 'seat-color';
-      meta.appendChild(side);
+      meta.appendChild(sideEl);
       meta.appendChild(col);
       const name = document.createElement('div');
       name.className = 'seat-name';
@@ -338,13 +353,14 @@
         });
         row.appendChild(kick);
       }
-      applySeat(row, i);
+      applySeat(row, side, slot);
       seatList.appendChild(row);
     }
 
     startBtn.disabled = !l.canStart;
     if (addBotBtn) addBotBtn.disabled = l.total >= l.capacity;
-    if (l.canStart) configHint.textContent = 'Drag a player onto the other to swap sides';
+    if (l.canStart && l.teams) configHint.textContent = l.mode + ' teams — drag players to rearrange';
+    else if (l.canStart) configHint.textContent = '1v1 — drag to swap sides. 3+ players makes it teams!';
     else if (l.total === 0) configHint.textContent = 'Waiting for players…';
     else configHint.textContent = 'Waiting for an opponent — or add a CPU';
   }
@@ -352,7 +368,7 @@
   addBotBtn && addBotBtn.addEventListener('click', function () {
     unlockAudio();
     socket.emit('host:addBot', {}, function (res) {
-      if (res && !res.ok && res.reason === 'game-full') toast('Both blobs are taken.');
+      if (res && !res.ok && res.reason === 'game-full') toast('All four blobs are taken.');
     });
   });
   startBtn && startBtn.addEventListener('click', function () {
@@ -375,45 +391,38 @@
     socket.emit('host:reset', {});
   });
 
-  // Paint a seat tile as the left (0) or right (1) side of the net.
-  function applySeat(row, seat) {
-    row.dataset.seat = String(seat);
-    row.classList.toggle('left', seat === 0);
-    row.classList.toggle('right', seat === 1);
-    row.style.setProperty('--seat', SEAT_COLORS[seat]);
-    const side = row.querySelector('.seat-side');
+  // Paint a seat tile as its side of the net and its shade.
+  function applySeat(row, side, slot) {
+    const c = SLOT_COLORS[side][slot] || SLOT_COLORS[side][0];
+    row.classList.toggle('left', side === 0);
+    row.classList.toggle('right', side === 1);
+    row.style.setProperty('--seat', c.hex);
+    const sideEl = row.querySelector('.seat-side');
     const col = row.querySelector('.seat-color');
-    if (side) side.textContent = SEAT_LABELS[seat].side;
-    if (col) col.textContent = SEAT_LABELS[seat].color + ' blob';
+    if (sideEl) sideEl.textContent = SIDE_LABELS[side];
+    if (col) col.textContent = c.name + ' blob';
   }
 
-  // ---- Drag a player onto the other to swap sides -------------------------
-  // The grabbed tile follows the pointer; once it is past halfway to the other
-  // player, that tile slides into its place and both repaint as their new
-  // side, previewing the swap. Dropping there swaps; dropping short snaps back.
+  // ---- Drag a player onto any spot to move there (or swap) ------------------
+  // The grabbed tile follows the pointer and the spot under it lights up.
+  // Dropping on a player swaps the two; dropping on an open spot moves there.
+  // The server re-applies the seating rules and broadcasts the new lobby.
   let dragActive = false;    // a seat is mid-drag; lobby rebuilds wait
   let pendingLobby = null;   // latest snapshot to apply once the drag settles
   let suppressClick = false; // swallow the click that trails a real drag
   (function setupSeatDrag() {
-    let reduceMotion = false;
-    try { reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
-    const EASE = 'transform 0.2s cubic-bezier(0.2,0.7,0.2,1)';
     let d = null;
 
-    function preview(on) {
-      if (d.swapped === on) return;
-      d.swapped = on;
-      d.other.style.transition = reduceMotion ? 'none' : EASE;
-      d.other.style.transform = on ? 'translateY(' + (d.fromTop - d.otherTop) + 'px)' : '';
-      d.other.classList.toggle('drop-target', on);
-      applySeat(d.el, on ? d.otherSeat : d.fromSeat);
-      applySeat(d.other, on ? d.fromSeat : d.otherSeat);
+    function targetAt(x, y) {
+      const hit = document.elementFromPoint(x, y);
+      const t = hit && hit.closest ? hit.closest('.seat') : null;
+      return t && t !== d.el && seatList.contains(t) ? t : null;
     }
-    function beginLift() {
-      d.active = true;
-      dragActive = true;
-      d.el.classList.add('dragging');
-      d.el.style.transition = 'none';
+    function setTarget(t) {
+      if (d.target === t) return;
+      if (d.target) d.target.classList.remove('drop-target');
+      d.target = t;
+      if (t) t.classList.add('drop-target');
     }
     function onMove(e) {
       if (!d) return;
@@ -421,18 +430,14 @@
       const dx = e.clientX - d.downX, dy = e.clientY - d.downY;
       if (!d.active) {
         if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return; // a tap, so far
-        beginLift();
+        d.active = true;
+        dragActive = true;
+        d.el.classList.add('dragging');
+        d.el.style.transition = 'none';
+        d.el.style.pointerEvents = 'none';
       }
       d.el.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(1.02)';
-      // Past halfway to the other player's tile = swap.
-      const span = d.otherCenter - d.fromCenter;
-      preview(span !== 0 && (e.clientY - d.fromCenter) / span > 0.5);
-    }
-    function settle(el, toY, done) {
-      if (reduceMotion) { el.style.transition = 'none'; el.style.transform = toY ? 'translateY(' + toY + 'px)' : ''; done(); return; }
-      el.style.transition = EASE;
-      el.style.transform = toY ? 'translateY(' + toY + 'px)' : '';
-      setTimeout(done, 220);
+      setTarget(targetAt(e.clientX, e.clientY));
     }
     function onUp() {
       if (!d) return;
@@ -444,35 +449,28 @@
       if (!cur.active) return;
       suppressClick = true;
       setTimeout(function () { suppressClick = false; }, 400);
-      if (cur.swapped) {
-        socket.emit('host:swap', {}, function (res) { if (res && !res.ok && !dragActive) renderLobby(lobby); });
+      const target = cur.target;
+      if (target) target.classList.remove('drop-target');
+      dragActive = false;
+      const next = pendingLobby;
+      pendingLobby = null;
+      if (target) {
+        // The tile stays where it was dropped until the server's new lobby lands.
+        socket.emit('host:move', {
+          playerId: cur.el.dataset.pid,
+          side: Number(target.dataset.side),
+          slot: Number(target.dataset.slot),
+        }, function (res) { if (res && !res.ok && !dragActive) renderLobby(lobby); });
+        return;
       }
-      settle(cur.el, cur.swapped ? cur.otherTop - cur.fromTop : 0, function () {
-        cur.el.classList.remove('dragging');
-        cur.other.classList.remove('drop-target');
-        dragActive = false;
-        const next = pendingLobby;
-        pendingLobby = null;
-        // A confirmed swap rebuilds from the server's lobby; until it lands the
-        // tiles already sit in their swapped places.
-        if (next) renderLobby(next);
-        else if (!cur.swapped) renderLobby(lobby);
-      });
+      renderLobby(next || lobby);
     }
     function onDown(e) {
       if (e.button != null && e.button !== 0) return; // primary button only
       if (!e.target || e.target.closest('.seat-kick')) return; // kick isn't a handle
       const el = e.target.closest('.seat.draggable');
       if (!el || d) return;
-      const other = Array.prototype.find.call(seatList.querySelectorAll('.seat.draggable'), function (c) { return c !== el; });
-      if (!other) return;
-      const a = el.getBoundingClientRect(), b = other.getBoundingClientRect();
-      d = {
-        el: el, other: other, downX: e.clientX, downY: e.clientY, active: false, swapped: false,
-        fromSeat: Number(el.dataset.seat), otherSeat: Number(other.dataset.seat),
-        fromTop: a.top, otherTop: b.top,
-        fromCenter: a.top + a.height / 2, otherCenter: b.top + b.height / 2,
-      };
+      d = { el: el, downX: e.clientX, downY: e.clientY, active: false, target: null };
       window.addEventListener('pointermove', onMove, { passive: false });
       window.addEventListener('pointerup', onUp);
       window.addEventListener('pointercancel', onUp);
@@ -484,6 +482,7 @@
   let world = null;
   let renderer = null;
   let roster = [];
+  let teams = false;
   let target = 7;
   let scores = {};
   let paused = false;
@@ -526,9 +525,33 @@
     parts.forEach(function (p) { el.appendChild(typeof p === 'string' ? document.createTextNode(p) : p); });
   }
 
-  function updateScoreboard(bumpId) {
+  // Sides of the net: one blob each in 1v1, up to two in team play. Teammates
+  // share a score (kept per player id, mirrored across the team).
+  function teamOf(side) { return roster.filter(function (r) { return r.seat === side; }); }
+  function sideScore(side) {
+    const t = teamOf(side);
+    return t.length ? (scores[t[0].id] || 0) : 0;
+  }
+  function teamColor(side) {
+    const t = teamOf(side);
+    return t.length ? t[0].color : '#ffffff';
+  }
+  // "Ann" or "Ann & Bob", each name in its own colour.
+  function teamNodes(side) {
+    const parts = [];
+    teamOf(side).forEach(function (r, i) {
+      if (i) parts.push(' & ');
+      parts.push(nameSpan(r));
+    });
+    return parts;
+  }
+  function verb(side, one, many) { return teamOf(side).length > 1 ? many : one; }
+
+  function updateScoreboard(bumpSide) {
     scoreboard.innerHTML = '';
-    roster.forEach(function (r, i) {
+    [0, 1].forEach(function (i) {
+      const team = teamOf(i);
+      if (!team.length) return;
       if (i === 1) {
         const g = document.createElement('div');
         g.className = 'sb-goal';
@@ -537,15 +560,23 @@
       }
       const card = document.createElement('div');
       card.className = 'sb-card' + (i === 1 ? ' right' : '');
-      card.style.setProperty('--seat', r.color);
+      card.style.setProperty('--seat', team[0].color);
       const main = document.createElement('div');
       main.className = 'sb-main';
       const name = document.createElement('div');
       name.className = 'sb-name';
-      name.textContent = displayName(r);
+      if (team.length > 1) {
+        // One teammate per line, so a long name never breaks across the other.
+        team.forEach(function (r, k) {
+          const line = document.createElement('div');
+          line.appendChild(nameSpan(r));
+          if (k < team.length - 1) line.appendChild(document.createTextNode(' &'));
+          name.appendChild(line);
+        });
+      } else setRich(name, teamNodes(i));
       const pips = document.createElement('div');
       pips.className = 'sb-pips';
-      const pts = scores[r.id] || 0;
+      const pts = sideScore(i);
       for (let k = 0; k < target; k++) {
         const pip = document.createElement('span');
         pip.className = 'sb-pip' + (k < pts ? ' on' : '');
@@ -554,7 +585,7 @@
       main.appendChild(name);
       main.appendChild(pips);
       const val = document.createElement('div');
-      val.className = 'sb-val' + (bumpId === r.id ? ' bump' : '');
+      val.className = 'sb-val' + (bumpSide === i ? ' bump' : '');
       val.textContent = String(pts);
       card.appendChild(main);
       card.appendChild(val);
@@ -564,10 +595,11 @@
 
   function startMatch(meta, resumed) {
     roster = (meta && meta.roster) || [];
+    teams = !!(meta && meta.teams);
     target = meta.target || 7;
     scores = Object.assign({}, meta.scores || {});
 
-    world = new BB.World({ roster: roster });
+    world = new BB.World({ roster: roster, teams: teams });
     renderer = new window.BlobBallRender.Renderer(canvas, world);
     paused = false;
     clearTimers();
@@ -630,7 +662,7 @@
       if (n <= 0) {
         after(350, function () {
           hideOverlay(countOverlay);
-          beginServe(world.serveSeat);
+          beginServe(world.serveSeat, true);
         });
         return;
       }
@@ -655,14 +687,16 @@
     return roster.some(function (r) { return (scores[r.id] || 0) === target - 1; });
   }
 
-  function beginServe(seat) {
+  // `again`: the same player serves (kick-off, or a whiffed serve); otherwise
+  // the serve passes to the team's next player.
+  function beginServe(seat, again) {
     if (!world) return;
     matchState = 'serve';
-    world.setupServe(seat);
+    world.setupServe(seat, again);
     deadBounces = 0;
     if (renderer) { renderer.clearMoods(); renderer.clearTrail(); }
     pointBanner.hidden = true;
-    const server = roster[seat];
+    const server = rosterById(world.server().id);
     if (server) {
       setRich(serveTag, [nameSpan(server), ' serves']);
       serveTag.style.animation = 'none';
@@ -702,7 +736,7 @@
   function onMissedServe(res) {
     matchState = 'point';
     updatePauseBtn();
-    const server = roster[res.serverSeat];
+    const server = rosterById(world.server().id);
     // REDO! takes the match-point bubble's spot; it comes back with the re-serve.
     setMatchPoint(false);
     showBanner('REDO!', '#ffffff', server ? [nameSpan(server), ' serves again'] : []);
@@ -710,36 +744,39 @@
     socket.emit('host:miss', { serverId: server ? server.id : null });
     after(MISS_MS, function () {
       pointBanner.hidden = true;
-      beginServe(res.serverSeat);
+      beginServe(res.serverSeat, true);
     });
   }
 
   // The ball landed. It plays on (dead) while the blobs stand still, then the
-  // player who lost the point serves.
+  // side that lost the point serves.
   function onPoint(res) {
     matchState = 'point';
     updatePauseBtn();
-    const scorer = roster[res.scorerSeat];
-    const loser = roster[res.loserSeat];
-    if (!scorer) return;
-    scores[scorer.id] = (scores[scorer.id] || 0) + 1;
-    const winner = scores[scorer.id] >= target ? scorer : null;
+    const side = res.scorerSeat;
+    const team = teamOf(side);
+    if (!team.length) return;
+    const pts = sideScore(side) + 1;
+    team.forEach(function (r) { scores[r.id] = pts; });
+    const won = pts >= target;
+    const color = teamColor(side);
     if (renderer) {
-      renderer.setMood(res.scorerSeat, 'happy');
+      renderer.setMood(side, 'happy');
       renderer.setMood(res.loserSeat, 'sad');
-      renderer.celebrate(res.scorerSeat, scorer.color);
+      renderer.celebrate(side, color);
     }
     setMatchPoint(false);
-    showBanner(winner ? 'GAME!' : 'POINT!', scorer.color, [nameSpan(scorer), winner ? ' wins it!' : ' scores']);
-    updateScoreboard(scorer.id);
+    showBanner(won ? 'GAME!' : 'POINT!', color,
+      teamNodes(side).concat([won ? verb(side, ' wins it!', ' win it!') : verb(side, ' scores', ' score')]));
+    updateScoreboard(side);
     playPoint();
 
-    socket.emit('host:point', { scorerId: scorer.id, scores: scores });
+    socket.emit('host:point', { scorerId: team[0].id, scores: scores });
 
-    after(POINT_MS + (winner ? WIN_EXTRA_MS : 0), function () {
+    after(POINT_MS + (won ? WIN_EXTRA_MS : 0), function () {
       pointBanner.hidden = true;
-      if (winner) { endMatch(winner.id, false); return; }
-      beginServe(loser ? res.loserSeat : 0);
+      if (won) { endMatch(team[0].id, false); return; }
+      beginServe(teamOf(res.loserSeat).length ? res.loserSeat : 0, false);
     });
   }
 
@@ -760,35 +797,31 @@
 
   function renderFinal(winnerId, quiet) {
     const winner = rosterById(winnerId);
+    const winSide = winner ? winner.seat : -1;
     finalTrophy.textContent = winner ? '🏆' : '🏁';
     finalHeading.innerHTML = '';
-    if (winner) {
-      finalHeading.appendChild(nameSpan(winner));
-      finalHeading.appendChild(document.createTextNode(' wins!'));
-    } else {
-      finalHeading.textContent = 'Game over';
-    }
-    const a = roster[0], b = roster[1];
-    finalSub.textContent = a && b ? ('Final score ' + (scores[a.id] || 0) + ' – ' + (scores[b.id] || 0)) : '';
+    if (winner) setRich(finalHeading, teamNodes(winSide).concat([verb(winSide, ' wins!', ' win!')]));
+    else finalHeading.textContent = 'Game over';
+    finalSub.textContent = teamOf(0).length && teamOf(1).length ? ('Final score ' + sideScore(0) + ' – ' + sideScore(1)) : '';
 
     standingsEl.innerHTML = '';
-    roster.slice().sort(function (x, y) {
-      if (x.id === winnerId) return -1;
-      if (y.id === winnerId) return 1;
-      return (scores[y.id] || 0) - (scores[x.id] || 0);
-    }).forEach(function (r, i) {
+    [0, 1].filter(function (side) { return teamOf(side).length; }).sort(function (x, y) {
+      if (x === winSide) return -1;
+      if (y === winSide) return 1;
+      return sideScore(y) - sideScore(x);
+    }).forEach(function (side, i) {
       const li = document.createElement('li');
       li.className = 'st-row' + (i === 0 ? ' first' : '');
-      li.style.setProperty('--seat', r.color);
+      li.style.setProperty('--seat', teamColor(side));
       const rank = document.createElement('div');
       rank.className = 'st-rank';
-      rank.textContent = r.id === winnerId ? 'Winner' : (winnerId ? 'Runner-up' : '');
+      rank.textContent = side === winSide ? 'Winner' : (winner ? 'Runner-up' : '');
       const name = document.createElement('div');
       name.className = 'st-name';
-      name.textContent = displayName(r);
+      setRich(name, teamNodes(side));
       const val = document.createElement('div');
       val.className = 'st-val';
-      const pts = scores[r.id] || 0;
+      const pts = sideScore(side);
       val.textContent = pts + (pts === 1 ? ' pt' : ' pts');
       li.appendChild(rank);
       li.appendChild(name);
@@ -798,8 +831,8 @@
 
     show('final');
     if (quiet) return;
-    const humanLost = winner && winner.isBot && roster.some(function (r) { return !r.isBot; });
-    if (winner && !humanLost) { playApplause(); confetti(winner.color); }
+    const humanLost = winner && teamOf(winSide).every(function (r) { return r.isBot; }) && roster.some(function (r) { return !r.isBot; });
+    if (winner && !humanLost) { playApplause(); confetti(teamColor(winSide)); }
     else playSad();
   }
 
@@ -1016,6 +1049,7 @@
         startMatch(res.match, true);
       } else if (res.phase === 'FINAL' && res.match) {
         roster = res.match.roster || [];
+        teams = !!res.match.teams;
         target = res.match.target;
         scores = Object.assign({}, res.match.scores || {});
         matchState = 'over';

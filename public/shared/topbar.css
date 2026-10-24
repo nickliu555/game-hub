@@ -252,3 +252,23 @@
 /* Needs `*` + !important to beat the per-element cursors above (.gtb-btn etc). */
 html.gtb-cursor-hidden,
 html.gtb-cursor-hidden * { cursor: none !important; }
+
+/* ───────────────────────────────────────────────
+ * Auto-hiding bar (fullscreen host screens)
+ * ─────────────────────────────────────────────── */
+/* The bar leaves the layout so the game gets the whole screen, and floats back
+   over it (no layout shift) while topbar.js sets .gtb-topbar-shown. Sits below
+   the help overlay (220) and modals. */
+html.gtb-fs-autohide body.host .game-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 210;
+  transform: translateY(-100%);
+  transition: transform 0.2s ease;
+}
+html.gtb-fs-autohide.gtb-topbar-shown body.host .game-topbar {
+  transform: none;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}

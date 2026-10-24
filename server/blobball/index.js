@@ -256,6 +256,15 @@ function mountBlobBall(app, httpServer, opts) {
       broadcastLobby();
     });
 
+    // Drag-and-drop seating: drop a player onto a spot to swap or move there.
+    socket.on('host:move', ({ playerId: pid, side, slot } = {}, ack) => {
+      if (!requireHost(ack)) return;
+      const res = game.movePlayer(pid, side, slot);
+      if (!res.ok) return ack && ack(res);
+      ack && ack({ ok: true });
+      broadcastLobby();
+    });
+
     socket.on('host:kick', ({ playerId: pid } = {}, ack) => {
       if (!requireHost(ack)) return;
       if (game.phase !== PHASES.LOBBY) return ack && ack({ ok: false, reason: 'not-lobby' });

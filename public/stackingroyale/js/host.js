@@ -41,6 +41,7 @@
   }
   ui.activate(el('resetBtn'), confirmReset);
   ui.activate(el('againBtn'), function () { command('host:reset'); });
+  ui.activate(el('playAgainBtn'), function () { ui.unlockAudio(); command('host:rematch'); });
   ui.activate(el('backBtn'), function () {
     window.showConfirm('Leave the host screen? Any match in progress will continue.', 'Leave game', { danger: true }).then(function (confirmed) { if (confirmed) command('host:leave', {}, function () {
       if (window.Iris && typeof window.Iris.transitionTo === 'function') window.Iris.transitionTo('/', null, window.Iris.HUB);

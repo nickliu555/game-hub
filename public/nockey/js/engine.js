@@ -60,12 +60,12 @@
   // Pitch size grows with the larger team, HaxBall Classic/Big/Huge style.
   // Mirrors TIERS in server/nockey/game.js. The net grows with the rink so a
   // bigger sheet doesn't mean a relatively smaller target — goalHalf stays at
-  // roughly a third of halfH across every tier.
+  // roughly 0.36 of halfH across every tier.
   var TIER_SPECS = {
-    small: { halfW: 315, halfH: 145, goalHalf: 50, circle: 62 },
-    classic: { halfW: 370, halfH: 170, goalHalf: 57, circle: 75 },
-    big: { halfW: 480, halfH: 220, goalHalf: 69, circle: 90 },
-    huge: { halfW: 575, halfH: 260, goalHalf: 80, circle: 100 },
+    small: { halfW: 315, halfH: 145, goalHalf: 56, circle: 62 },
+    classic: { halfW: 370, halfH: 170, goalHalf: 64, circle: 75 },
+    big: { halfW: 480, halfH: 220, goalHalf: 77, circle: 90 },
+    huge: { halfW: 575, halfH: 260, goalHalf: 90, circle: 100 },
   };
   var TIERS = ['small', 'classic', 'big', 'huge'];
   // How far off the centre spot a face-off puck sits, as a share of the centre

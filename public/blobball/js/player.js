@@ -84,6 +84,7 @@
   let hostPresent = true;
   let reactionsMuted = false;
   let roster = [];
+  let teams = false;
   let target = 7;
   let scores = {};
 
@@ -94,10 +95,16 @@
     for (let i = 0; i < roster.length; i++) if (roster[i].id === playerId) return roster[i];
     return null;
   }
+  // Anyone across the net (scores are shared within a team).
   function opponent() {
-    for (let i = 0; i < roster.length; i++) if (roster[i].id !== playerId) return roster[i];
+    const mine = me();
+    for (let i = 0; i < roster.length; i++) {
+      if (roster[i].id !== playerId && (!mine || roster[i].seat !== mine.seat)) return roster[i];
+    }
     return null;
   }
+  function teamOf(side) { return roster.filter(function (r) { return r.seat === side; }); }
+  function onMyTeam(r) { const mine = me(); return !!(r && mine && r.seat === mine.seat); }
   function rosterById(id) {
     for (let i = 0; i < roster.length; i++) if (roster[i].id === id) return roster[i];
     return null;
@@ -117,6 +124,15 @@
   function setRich(el, parts) {
     el.innerHTML = '';
     parts.forEach(function (p) { el.appendChild(typeof p === 'string' ? document.createTextNode(p) : p); });
+  }
+  // "Ann" or "Ann & Bob", each name in its own colour.
+  function teamNodes(side) {
+    const parts = [];
+    teamOf(side).forEach(function (r, i) {
+      if (i) parts.push(' & ');
+      parts.push(nameSpan(r));
+    });
+    return parts;
   }
 
   // ---------------- Views + downtime chrome ----------------
@@ -451,6 +467,7 @@
   function applyMatch(m) {
     if (!m) return;
     roster = m.roster || roster;
+    if (typeof m.teams === 'boolean') teams = m.teams;
     target = m.target || target;
     scores = Object.assign({}, m.scores || {});
     const mine = me();
@@ -500,19 +517,25 @@
     if (d.scores) scores = Object.assign({}, d.scores);
     renderStatus();
     const scorer = rosterById(d.scorerId);
-    if (d.scorerId === playerId) { setOverlay(['You scored! 🎉'], ''); vibrate([30, 50, 30]); }
-    else if (scorer) { setOverlay([nameSpan(scorer), ' scores'], ''); vibrate(90); }
+    if (onMyTeam(scorer)) { setOverlay([teams ? 'Your team scored! 🎉' : 'You scored! 🎉'], ''); vibrate([30, 50, 30]); }
+    else if (scorer) {
+      const many = teamOf(scorer.seat).length > 1;
+      setOverlay(teamNodes(scorer.seat).concat([many ? ' score' : ' scores']), '');
+      vibrate(90);
+    }
   });
   socket.on('m:pause', function () { setPaused(true); });
   socket.on('m:resume', function (d) { setPaused(false); if (d && d.live) setOverlay(null, ''); });
 
+  function didWin(winnerId) { return onMyTeam(rosterById(winnerId)); }
+
   function renderFinal(winnerId, finalScores) {
     if (finalScores) scores = Object.assign({}, finalScores);
-    const won = winnerId === playerId;
+    const won = didWin(winnerId);
     const winner = rosterById(winnerId);
     if (finalEmoji) finalEmoji.textContent = won ? '🏆' : '🏐';
-    if (won) setRich(finalTitle, ['You win!']);
-    else if (winner) setRich(finalTitle, [nameSpan(winner), ' wins!']);
+    if (won) setRich(finalTitle, [teams ? 'Your team wins!' : 'You win!']);
+    else if (winner) setRich(finalTitle, teamNodes(winner.seat).concat([teamOf(winner.seat).length > 1 ? ' win!' : ' wins!']));
     else setRich(finalTitle, ['Game over']);
     const opp = opponent();
     const mineScore = scores[playerId] || 0;
@@ -526,7 +549,7 @@
     setOverlay(null, '');
     renderFinal(d && d.winnerId, d && d.scores);
     showView('final');
-    vibrate(d && d.winnerId === playerId ? [40, 80, 40] : 120);
+    vibrate(d && didWin(d.winnerId) ? [40, 80, 40] : 120);
   });
 
   function applyLobby(l) {
