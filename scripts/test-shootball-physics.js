@@ -150,5 +150,55 @@ function settle(world, maxSec = 12) {
   ok(w.goalScored === null, 'kickoff clears the goal latch');
 }
 
+// 10) The back of the net is a solid wall for tokens: a token driven into it
+//     rebounds exactly as hard as off a side wall, so it can be banked out of
+//     the pocket. Only the ball (already a goal) is deadened by the netting.
+{
+  const f = new World().field;
+  const RIGHT_BACK = f.W + f.GOAL_DEPTH;
+
+  function firstBounce(setup) {
+    const w = new World();
+    w.ball.x = f.W / 2; w.ball.y = 60;
+    for (const b of w.bodies) if (b !== w.ball) { b.x = 200 + w.bodies.indexOf(b) * 40; b.y = f.H - 40; b.vx = 0; b.vy = 0; }
+    const body = setup(w);
+    for (let i = 0; i < Math.round(2 / DT); i++) {
+      const before = body.vx;
+      w.step(DT);
+      if (before > 0 && body.vx < 0) return { speedIn: before, speedOut: -body.vx, w, body };
+    }
+    return null;
+  }
+
+  // Into the back of the RIGHT net, straight down the middle of the mouth.
+  const net = firstBounce((w) => { const t = w.tokenAt('red', 0); t.x = f.W - 60; t.y = f.H / 2; t.vx = 900; t.vy = 0; return t; });
+  // Same token, same speed, into the plain end wall above the mouth.
+  const wall = firstBounce((w) => { const t = w.tokenAt('red', 0); t.x = f.W - 60; t.y = 120; t.vx = 900; t.vy = 0; return t; });
+  ok(!!net && !!wall, 'token bounced off both the net back and the end wall');
+  if (net && wall) {
+    const netRatio = net.speedOut / net.speedIn;
+    const wallRatio = wall.speedOut / wall.speedIn;
+    ok(Math.abs(netRatio - wallRatio) < 0.02, 'net back is as bouncy as a wall for a token (net ' + netRatio.toFixed(2) + ' vs wall ' + wallRatio.toFixed(2) + ')');
+    ok(net.body.x > RIGHT_BACK - 200, 'the rebound happened at the back of the net: x=' + net.body.x.toFixed(1));
+  }
+
+  // A token sitting deep in the net is knocked back out onto the pitch.
+  {
+    const w = new World();
+    w.ball.x = f.W / 2; w.ball.y = 60;
+    for (const b of w.bodies) if (b !== w.ball) { b.x = 200 + w.bodies.indexOf(b) * 40; b.y = f.H - 40; b.vx = 0; b.vy = 0; }
+    const t = w.tokenAt('red', 0);
+    t.x = f.W - 40; t.y = f.H / 2; t.vx = 1100; t.vy = 0;
+    let deepest = t.x;
+    for (let i = 0; i < Math.round(3 / DT); i++) { w.step(DT); deepest = Math.max(deepest, t.x); }
+    ok(deepest > f.W, 'token went into the net: deepest x=' + deepest.toFixed(1));
+    ok(t.x < f.W, 'token rebounded off the back of the net and out onto the pitch: x=' + t.x.toFixed(1));
+  }
+
+  // The ball is still swallowed by the netting.
+  const ball = firstBounce((w) => { w.ball.x = f.W - 60; w.ball.y = f.H / 2; w.ball.vx = 900; w.ball.vy = 0; return w.ball; });
+  ok(!ball || ball.speedOut / ball.speedIn < 0.2, 'the ball is still deadened by the net' + (ball ? ' (' + (ball.speedOut / ball.speedIn).toFixed(2) + ')' : ''));
+}
+
 console.log('\nShoot Ball physics: ' + pass + ' passed, ' + fail + ' failed.');
 process.exit(fail ? 1 : 0);

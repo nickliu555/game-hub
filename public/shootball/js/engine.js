@@ -38,7 +38,10 @@
   const STOP_SPEED = 26;             // below this a body is snapped to rest
   const REST = 1.0;                   // body-body restitution (fully elastic — lively deflections)
   const WALL_REST = 0.78;             // wall / post restitution
-  const NET_REST = 0.12;              // pocket walls: netting swallows a shot instead of spitting it back out
+  // Pocket walls deaden only the ball (it has already scored, so it settles in
+  // the net for the celebration). Tokens rebound off the net like any wall, so
+  // a token can be banked off the back of the net and out into play.
+  const NET_REST = 0.12;
   const MAX_SPEED = 3400;             // hard cap (keeps 1/120 step tunnel-free)
   const COLLISION_ITERS = 4;          // relaxation passes for stacked tokens
 
@@ -176,6 +179,7 @@
       // Cut the four sharp corners first so a body sliding into one is deflected
       // back toward play along a 45° face instead of wedging in a 90° pocket.
       this._chamferCorners(b);
+      const netRest = b.type === 'ball' ? NET_REST : WALL_REST;
       const inMouthY = (b.y > GOAL_TOP && b.y < GOAL_BOT);
       // Horizontal walls / pocket back wall.
       if (!inMouthY) {
@@ -183,8 +187,8 @@
         else if (b.x > W - r) { b.x = W - r; b.vx = -Math.abs(b.vx) * WALL_REST; }
       } else {
         // Open mouth: allow travel into the pocket, stopped by its back wall.
-        if (b.x < -GOAL_DEPTH + r) { b.x = -GOAL_DEPTH + r; b.vx = Math.abs(b.vx) * NET_REST; }
-        else if (b.x > W + GOAL_DEPTH - r) { b.x = W + GOAL_DEPTH - r; b.vx = -Math.abs(b.vx) * NET_REST; }
+        if (b.x < -GOAL_DEPTH + r) { b.x = -GOAL_DEPTH + r; b.vx = Math.abs(b.vx) * netRest; }
+        else if (b.x > W + GOAL_DEPTH - r) { b.x = W + GOAL_DEPTH - r; b.vx = -Math.abs(b.vx) * netRest; }
       }
       // Vertical walls. On the main pitch use the outer walls; once the CENTRE
       // is past a goal line the body is in that pocket, so confine it to the
@@ -196,8 +200,8 @@
         if (b.y < r) { b.y = r; b.vy = Math.abs(b.vy) * WALL_REST; }
         else if (b.y > H - r) { b.y = H - r; b.vy = -Math.abs(b.vy) * WALL_REST; }
       } else {
-        if (b.y < GOAL_TOP + r) { b.y = GOAL_TOP + r; b.vy = Math.abs(b.vy) * NET_REST; }
-        else if (b.y > GOAL_BOT - r) { b.y = GOAL_BOT - r; b.vy = -Math.abs(b.vy) * NET_REST; }
+        if (b.y < GOAL_TOP + r) { b.y = GOAL_TOP + r; b.vy = Math.abs(b.vy) * netRest; }
+        else if (b.y > GOAL_BOT - r) { b.y = GOAL_BOT - r; b.vy = -Math.abs(b.vy) * netRest; }
       }
     }
 
