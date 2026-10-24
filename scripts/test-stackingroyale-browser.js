@@ -1289,25 +1289,16 @@ async function presenceJoin(browser, name, server, issues) {
       } finally { await releaseHub(); }
       await host.waitForURL(`${server.base}/`);
       await blockedJoinPresence(phone, reference, `${label}-${phase}-absent`);
-      assert.equal(server.game.phase, phase);
-      if (phase === 'PLAYING') {
-        assert.equal(await phone.locator('#gateTitle').evaluate(element => {
-          const bounds = element.getBoundingClientRect();
-          return document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)?.closest('#hostAbsentOverlay') !== null;
-        }), true, 'No game in progress must cover the inline Match in progress gate');
-      }
+      assert.equal(server.game.phase, 'LOBBY', 'Hub must reset the game');
+      assert.equal(server.game.players.size, 0, 'Hub must reset the roster');
       stage = `reload-${phase}`;
       await phone.reload();
       await blockedJoinPresence(phone, reference, `${label}-${phase}-reload`);
       await host.goto(`${server.base}/stackingroyale/host`);
       await check(phone.locator('#hostAbsentOverlay')).toBeHidden();
-      if (phase === 'LOBBY') {
-        await check(phone.locator('#roundLockedOverlay')).toBeHidden();
-        await check(phone.locator('#nameInput')).toBeEnabled();
-        await check(phone.locator('#joinBtn')).toBeEnabled();
-      } else {
-        await blockedRoundJoin(phone, `${label}-${phase}-host-return`);
-      }
+      await check(phone.locator('#roundLockedOverlay')).toBeHidden();
+      await check(phone.locator('#nameInput')).toBeEnabled();
+      await check(phone.locator('#joinBtn')).toBeEnabled();
     }
   } catch (error) {
     await shot(phone, `${label}-${stage}-FAIL`).catch(() => {});
@@ -1416,6 +1407,20 @@ async function presenceLifecycle(browser, name, server, issues, kind) {
         assert.equal(server.ns.sockets.has(hostSocket.id), true, 'Overlay must appear before navigation disconnects the host socket');
       } finally { await releaseHub(); }
       await host.waitForURL(`${server.base}/`);
+      stage = 'hub-reset';
+      await phone.waitForURL('**/stackingroyale/join');
+      await check(phone.locator('#hostAbsentOverlay')).toBeVisible();
+      assert.equal(server.game.players.size, 0, 'Hub must reset the roster');
+      assert.equal(server.game.phase, 'LOBBY');
+      assert.notEqual(server.game.matchId, matchId);
+      stage = 'hub-return';
+      await host.goto(`${server.base}/stackingroyale/host`);
+      await check(phone.locator('#hostAbsentOverlay')).toBeHidden();
+      await check(phone.locator('#nameInput')).toBeEnabled();
+      await check(phone.locator('#joinBtn')).toBeEnabled();
+      assert.equal(server.game.players.size, 0);
+      await shot(phone, `${label}-returned`);
+      return;
     }
     await absentOverlay(phone, label);
     const sequence = await blockedPresenceInput(phone, player, label);
@@ -1428,19 +1433,6 @@ async function presenceLifecycle(browser, name, server, issues, kind) {
     }
     assert.deepEqual([...server.game.players.keys()], roster);
     assert.equal(server.game.matchId, matchId);
-    if (kind === 'lobby' || kind === 'intentional') {
-      stage = 'late-reload';
-      const releasePlayer = await holdResource(phone, '**/stackingroyale/js/player.js');
-      try {
-        await phone.reload({ waitUntil: 'commit' });
-        await check(phone.locator('#hostAbsentOverlay')).toBeVisible();
-        assert.equal(await phone.locator('#hostAbsentOverlay').evaluate(element => element.hidden), false, 'Unavailable overlay must be visible before player.js initializes');
-      } finally { await releasePlayer(); }
-      await phone.waitForLoadState('load');
-      await check.poll(() => player.connected).toBe(true);
-      await absentOverlay(phone, `${label}-reload`);
-      await blockedPresenceInput(phone, player, `${label}-reload`);
-    }
     stage = 'return';
     if (kind === 'network') await phone.evaluate(() => window.srPresenceSocket.connect());
     else await host.goto(`${server.base}/stackingroyale/host`);

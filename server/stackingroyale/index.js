@@ -211,6 +211,7 @@ function mountStackingRoyale(app, httpServer, opts = {}) {
       return { ok: true };
     });
     hostCommand('host:leave', () => {
+      reset();
       removeHost(socket, true);
       return { ok: true };
     });

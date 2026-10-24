@@ -397,18 +397,18 @@ async function run() {
     await lobbyUpdate;
     assert.equal((await request(players[29], 'player:join', { playerId: 'player-29', name: 'Player 29' })).ok, true);
 
+    const leaveReset = eventOnce(players[0], 'state:reset');
     const absent = eventOnce(players[0], 'state:hostPresence', state => !state.present);
     assert.equal((await request(host, 'host:leave')).ok, true);
+    const leftLobby = await leaveReset;
     await absent;
+    assert.equal(leftLobby.phase, 'LOBBY');
+    assert.deepEqual(leftLobby.players, []);
+    assert.equal(game.players.size, 0);
     assert.equal((await request(host, 'host:reset')).reason, 'not-host');
     assert.equal((await request(outsider, 'player:join', { playerId: 'absent', name: 'Absent' })).reason, 'host-absent');
-    const replacement = await client();
-    assert.equal((await request(replacement, 'player:reconnect', { playerId: 'player-0' })).ok, true);
-    players[0].disconnect();
-    await request(replacement, 'query:status');
-    assert.equal(player(0).connected, true);
-    players[0] = replacement;
     assert.equal((await request(host, 'host:auth')).ok, true);
+    await rejoinPlayers();
     console.log('PASS isolated routes, shared namespace, 30/31 capacity, names, kicks, no reaction handlers/state, lobby presence, ownership, solo start/top-out');
 
     try {
@@ -576,13 +576,18 @@ async function run() {
     assert.ok(afkRecovery.state.elapsedMs >= progressed.elapsedMs);
 
     const matchBeforeLeave = game.matchId;
-    const elapsedBeforeLeave = game.elapsedMs;
+    const matchLeaveReset = eventOnce(players[0], 'state:reset');
     assert.equal((await request(host, 'host:leave')).ok, true);
-    await eventOnce(players[0], 'state:match', state => !state.hostPresent && state.elapsedMs > elapsedBeforeLeave + 150);
-    assert.equal(game.matchId, matchBeforeLeave);
-    assert.equal(game.phase, 'PLAYING');
+    const leftMatch = await matchLeaveReset;
+    assert.equal(leftMatch.phase, 'LOBBY');
+    assert.deepEqual(leftMatch.players, []);
+    assert.notEqual(game.matchId, matchBeforeLeave);
+    assert.equal(game.hostPresent, false);
     assert.equal((await request(host, 'host:pause')).reason, 'not-host');
     assert.equal((await request(host, 'host:auth')).ok, true);
+    await rejoinPlayers();
+    matchId = await start(host);
+    await advanceToPlaying(host);
 
     const graceExpired = eventOnce(players[0], 'state:hostPresence', state => !state.present, 18000);
     host.disconnect();

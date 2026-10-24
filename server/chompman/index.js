@@ -434,6 +434,8 @@ function mountChompMan(app, httpServer, opts) {
       game.reset();
       hostLeftIntentionally = true;
       if (hostGraceTimer) { clearTimeout(hostGraceTimer); hostGraceTimer = null; }
+      // Phones drop their seat now (back to join) — the host-absent overlay covers it.
+      ns.except(HOST_ROOM).emit('state:reset');
       emitHostPresence(false);
       ack && ack({ ok: true });
     });

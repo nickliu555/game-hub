@@ -221,9 +221,10 @@
   let raceTimer = null;
   let raceLastBuzzSec = -1;
   function stopRaceCountdown() {
-    if (raceTimer) { clearInterval(raceTimer); raceTimer = null; }
+    if (raceTimer) { clearTimeout(raceTimer); raceTimer = null; }
   }
   function tickRaceCountdown() {
+    raceTimer = null;
     const ms = Math.max(0, raceEndsAt - serverNow());
     const totalSec = Math.ceil(ms / 1000);
     const m = Math.floor(totalSec / 60);
@@ -235,6 +236,7 @@
     pCountdown.classList.toggle('urgent', urgent);
     if (totalSec !== raceLastBuzzSec) {
       raceLastBuzzSec = totalSec;
+      if (warn || urgent) beatCountdown();
       if (navigator.vibrate) {
         if (totalSec === 10) navigator.vibrate(80);
         else if (totalSec === 5) navigator.vibrate([60, 40, 60]);
@@ -242,9 +244,10 @@
       }
     }
     if (ms <= 0) {
-      stopRaceCountdown();
-      pCountdown.classList.remove('warn', 'urgent');
+      pCountdown.classList.remove('warn', 'urgent', 'beat');
+      return;
     }
+    raceTimer = setTimeout(tickRaceCountdown, msToNextSecond(ms));
   }
   function applyRaceProblem(p) {
     if (!p) return;
@@ -263,15 +266,18 @@
     raceEndsAt = p.endsAt;
     raceLastBuzzSec = -1;
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
-    tickRaceCountdown();
     stopRaceCountdown();
-    raceTimer = setInterval(tickRaceCountdown, 250);
+    tickRaceCountdown();
   }
   function applyRaceReveal(r) {
     if (!r) return;
     raceMode = true;
     if (typeof r.serverNow === 'number') clockOffset = r.serverNow - Date.now();
     stopRaceCountdown();
+    if (!(r.winner && r.winner.name)) {
+      pCountdown.textContent = '0:00';
+      pCountdown.classList.remove('warn', 'urgent');
+    }
     engine.lock();
     if (r.leaderboard) {
       const me = r.leaderboard.find(function (x) { return x.id === playerId; });
@@ -431,11 +437,23 @@
     }
     roundEndsAt = round.roundEndsAt;
     lastBuzzSec = -1;
+    if (countdownTimer) { clearTimeout(countdownTimer); countdownTimer = null; }
     tickCountdown();
-    if (countdownTimer) clearInterval(countdownTimer);
-    countdownTimer = setInterval(tickCountdown, 250);
+  }
+  // Re-check just past the next whole-second boundary — the instant the
+  // digit flips and the host plays its tick — so the number and its pulse
+  // land on the beat instead of up to a poll interval late.
+  function msToNextSecond(ms) {
+    return (ms % 1000 || 1000) + 15;
+  }
+  // One pulse per second, restarted on the second boundary.
+  function beatCountdown() {
+    pCountdown.classList.remove('beat');
+    void pCountdown.offsetWidth;
+    pCountdown.classList.add('beat');
   }
   function tickCountdown() {
+    countdownTimer = null;
     const ms = Math.max(0, roundEndsAt - serverNow());
     const totalSec = Math.ceil(ms / 1000);
     const m = Math.floor(totalSec / 60);
@@ -449,17 +467,18 @@
     // the 5s urgent window. Guard with lastBuzzSec so we fire each only once.
     if (totalSec !== lastBuzzSec) {
       lastBuzzSec = totalSec;
+      if (warn || urgent) beatCountdown();
       if (navigator.vibrate) {
         if (totalSec === 10) navigator.vibrate(80);
         else if (totalSec === 5) navigator.vibrate([60, 40, 60]);
         else if (urgent) navigator.vibrate(40);
       }
     }
-    if (ms <= 0 && countdownTimer) {
-      clearInterval(countdownTimer);
-      countdownTimer = null;
-      pCountdown.classList.remove('warn', 'urgent');
+    if (ms <= 0) {
+      pCountdown.classList.remove('warn', 'urgent', 'beat');
+      return;
     }
+    countdownTimer = setTimeout(tickCountdown, msToNextSecond(ms));
   }
 
   // ---------------- Host presence ----------------
@@ -730,7 +749,7 @@
     raceMode = false;
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
     pCountdown.textContent = '0:00';
-    pCountdown.classList.remove('warn');
+    pCountdown.classList.remove('warn', 'urgent');
     // Race ends on a winner, not a clock — so don't flash "Time's up!" there.
     const finalWaitHint = document.getElementById('finalWaitHint');
     if (finalWaitHint) finalWaitHint.textContent = wasRace ? '🏁 We have a winner!' : '⏰ Time\'s up!';
@@ -746,7 +765,7 @@
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
     showView('final');
     pCountdown.textContent = '0:00';
-    pCountdown.classList.remove('warn');
+    pCountdown.classList.remove('warn', 'urgent');
     // Small buzz to pull attention back to the phone for the personal recap.
     if (navigator.vibrate) { try { navigator.vibrate(40); } catch (_) {} }
     // Pull our own row from the leaderboard so we can show real points,

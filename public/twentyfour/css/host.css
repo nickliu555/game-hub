@@ -849,7 +849,10 @@ body.host {
   margin: 0;
   font-size: 42px;
   font-weight: 900;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
+.rr-title .pname { color: var(--accent); }
 .rr-title.timeout { color: var(--accent); }
 .race-numbers.small {
   display: flex;

@@ -474,7 +474,7 @@
     if (mine) {
       setSeatColor(mine.color);
       body.classList.toggle('seat-right', mine.seat === 1);
-      if (hudSide) hudSide.textContent = mine.colorName + ' · ' + mine.side + ' · first to ' + target;
+      if (hudSide) hudSide.textContent = mine.colorName + ' · first to ' + target;
     }
     renderStatus();
   }

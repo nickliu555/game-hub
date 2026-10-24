@@ -108,23 +108,25 @@ body.player * { touch-action: manipulation; }
 .p-header .countdown.warn {
   color: var(--accent);
   border-color: var(--accent);
-  animation: countdown-pulse 1s ease-in-out infinite;
 }
 .p-header .countdown.urgent {
   color: #fff;
   background: var(--accent);
   border-color: var(--accent-deep);
   font-size: 22px;
-  animation: countdown-urgent 0.6s ease-in-out infinite;
   box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.55);
 }
+/* One beat per second, restarted by JS as the digit flips (= the host's tick). */
+.p-header .countdown.warn.beat { animation: countdown-pulse 1s ease-out; }
+.p-header .countdown.urgent.beat { animation: countdown-urgent 1s ease-out; }
 @keyframes countdown-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.06); }
+  0% { transform: scale(1.06); }
+  60%, 100% { transform: scale(1); }
 }
 @keyframes countdown-urgent {
-  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.55); }
-  50% { transform: scale(1.12); box-shadow: 0 0 0 10px rgba(234, 88, 12, 0); }
+  0% { transform: scale(1.12); box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.55); }
+  60% { transform: scale(1); box-shadow: 0 0 0 10px rgba(234, 88, 12, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(234, 88, 12, 0); }
 }
 
 /* Results phase: hide the score chip and timer so only the name remains

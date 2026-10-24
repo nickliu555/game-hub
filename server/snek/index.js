@@ -482,6 +482,9 @@ function mountSnek(app, httpServer, opts) {
       lastReactionAt.clear();
       hostLeftIntentionally = true;
       if (hostGraceTimer) { clearTimeout(hostGraceTimer); hostGraceTimer = null; }
+      reactionsMuted = false;
+      // Phones drop their seat now (back to join) — the host-absent overlay covers it.
+      ns.except(HOST_ROOM).emit('state:reset');
       emitHostPresence(false);
       ack && ack({ ok: true });
     });

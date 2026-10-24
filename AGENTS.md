@@ -32,6 +32,8 @@ Reuse these patterns verbatim:
 - **Host presence grace, inactivity auto-reset, reconnection snapshots** (`host:auth` /
   `player:reconnect` return full current-phase state), and the **6-emoji reactions** system
   (cooldown + host mute) — carry them over.
+- **Hub button = reset + host away:** `host:leave` resets to defaults, sends the phones
+  `state:reset`, then marks the host absent (see "Host → Hub" below).
 - Register the game in `games.js` and mount it in `server.js` alongside the others.
 - Add the new game to the **Games** list in `README.md` — a section with its emoji/name, a
   one-line pitch, and the numbered how-to-play steps, matching the format of the existing
@@ -58,6 +60,23 @@ Never strip anything from a player because they look inactive or disconnected:
   "everyone's done".
 - **Kicking is lobby-only.** After the game starts, the only way a player leaves is an explicit
   host reset.
+
+---
+
+## ✅ Host → Hub = reset the game, then "host has left"
+
+The Host's **← Hub** button (`host:leave`) is a full reset followed by the host going away —
+in every phase, lobby or mid-game. The server handler must, in this order:
+1. `game.reset()` with **default settings** (no `keepConfig`), and put any host-side toggles
+   (e.g. `reactionsMuted`) back to their defaults;
+2. tell the **phones** the game was reset — `ns.except(HOST_ROOM).emit('state:reset')` — so they
+   drop their seat (clear `<game>.playerId`, keep the name for rejoining) and go back to join;
+3. mark the host absent immediately (`hostLeftIntentionally = true`, `emitHostPresence(false)`),
+   so the phone's usual host-absent overlay covers the join screen.
+
+When the Host comes back, both screens are in a fresh lobby with no players and default
+settings, and the phones' join page unlocks with the name pre-filled. An *unexpected* host
+disconnect (closed tab, network) is different: it keeps the game and uses the grace window.
 
 ---
 

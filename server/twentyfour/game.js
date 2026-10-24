@@ -41,7 +41,7 @@ const MIN_PROBLEM_TIME_SEC = 30;
 const MAX_PROBLEM_TIME_SEC = 120;
 // When auto-advance is enabled, the reveal holds for this long before the
 // game automatically moves to the next problem (host can still advance early).
-const RACE_AUTO_ADVANCE_MS = 10 * 1000;
+const RACE_AUTO_ADVANCE_MS = 12 * 1000;
 
 function pointsForSolve(responseMs) {
   // Subtract the grace window first so solves inside it stay at full points,

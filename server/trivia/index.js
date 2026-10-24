@@ -401,14 +401,17 @@ function mountTrivia(app, httpServer, opts) {
     });
 
     // Host clicked the Hub button. Reset the game AND immediately mark host
-    // absent (skip grace window). We deliberately DO NOT emit state:reset to
-    // players — they should just see the host-absent overlay covering the
-    // page, not a "Game reset, rejoin?" screen first.
+    // absent (skip grace window). Players get state:reset so they drop their
+    // seat, and the host-absent overlay covers their screen until a host
+    // returns to a fresh lobby.
     socket.on('host:leave', (_p, ack) => {
       if (!requireHost(ack)) return;
       game.reset();
       hostLeftIntentionally = true;
       if (hostGraceTimer) { clearTimeout(hostGraceTimer); hostGraceTimer = null; }
+      reactionsMuted = false;
+      // Phones drop their seat now (back to join) — the host-absent overlay covers it.
+      ns.except(HOST_ROOM).emit('state:reset');
       emitHostPresence(false);
       ack && ack({ ok: true });
     });

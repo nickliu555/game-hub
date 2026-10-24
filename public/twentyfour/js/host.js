@@ -556,16 +556,30 @@
     osc.connect(gain).connect(ctx.destination);
     osc.start(t);
     osc.stop(t + dur + 0.02);
-    scheduledBeepNodes.push(osc);
+    scheduledBeepNodes.push({ osc: osc, at: t, final: isFinal });
   }
 
   // Pre-schedule the final 5->0 beeps for a given absolute end time on the
   // sample-accurate audio clock, so they land at perfectly even 1s intervals
   // regardless of setInterval jitter or audio cold-start latency.
-  function cancelFinalBeeps() {
+  function cancelFinalBeeps(letRing) {
     if (beepArmTimer) { clearTimeout(beepArmTimer); beepArmTimer = null; }
-    scheduledBeepNodes.forEach(function (o) { try { o.stop(0); o.disconnect(); } catch (_) {} });
+    const ctx = letRing ? getAudioCtx() : null;
+    const now = ctx ? ctx.currentTime : Infinity;
+    let finalPending = false;
+    scheduledBeepNodes.forEach(function (b) {
+      if (b.at <= now) return;
+      if (b.final) finalPending = true;
+      try { b.osc.stop(0); b.osc.disconnect(); } catch (_) {}
+    });
     scheduledBeepNodes = [];
+    return finalPending;
+  }
+  // Time ran out: let a ringing beep finish, and sound the buzzer now if clock
+  // drift means it hasn't gone off yet.
+  function finishFinalBeeps() {
+    const neverArmed = !!beepArmTimer;
+    if (cancelFinalBeeps(true) || neverArmed) playTick(0);
   }
   function scheduleFinalBeeps(endsAt) {
     cancelFinalBeeps();
@@ -723,12 +737,22 @@
     if (!r) return;
     if (typeof r.serverNow === 'number') clockOffset = r.serverNow - Date.now();
     stopRaceCountdown();
-    cancelFinalBeeps();
+    if (r.winner && r.winner.name) cancelFinalBeeps(true);
+    else {
+      finishFinalBeeps();
+      if (raceCountdownEl) {
+        raceCountdownEl.textContent = '0:00';
+        raceCountdownEl.classList.remove('warn');
+      }
+    }
     renderRaceLeaderboard(r.leaderboard);
     renderRaceNumbers(rrNumbers, r.numbers);
     if (rrTitle) {
       if (r.winner && r.winner.name) {
-        rrTitle.textContent = '🎉 ' + r.winner.name + ' got it!';
+        const nameEl = document.createElement('span');
+        nameEl.className = 'pname';
+        nameEl.textContent = r.winner.name;
+        rrTitle.replaceChildren('🎉 ', nameEl, ' got it!');
         rrTitle.classList.remove('timeout');
       } else {
         rrTitle.textContent = "⏱ Time's up — nobody solved it";
@@ -888,6 +912,10 @@
   // ---------------- Final ----------------
   socket.on('state:final', function (f) {
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+    if (activeMode === 'sprint' && countdownEl) {
+      countdownEl.textContent = '0:00';
+      countdownEl.classList.remove('warn');
+    }
     stopRaceCountdown();
     stopRaceAuto();
     if (raceRevealOverlay) raceRevealOverlay.hidden = true;
