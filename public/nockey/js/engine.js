@@ -19,14 +19,14 @@
     playerRadius: 13.5,
     playerInvMass: 0.5,
     playerBCoef: 0.5,
-    // HaxBall's defaults are damping 0.96 / accel 0.1 (kicking 0.07). A touch
-    // more friction makes skaters less icy on a phone — they settle and turn a
-    // little quicker — with accel raised so top speed is unchanged (2.4 u/tick,
-    // 1.68 while kicking).
-    playerDamping: 0.95,
-    playerAccel: 0.1263,
-    kickingAccel: 0.0884,
-    kickingDamping: 0.95,
+    // HaxBall's defaults are damping 0.96 / accel 0.1 (kicking 0.07). Much more
+    // friction makes skaters far less icy on a phone — they get up to speed,
+    // stop and turn in ~60% of the time — with accel raised so top speed is
+    // unchanged (2.4 u/tick, 1.68 while kicking).
+    playerDamping: 0.92,
+    playerAccel: 0.2087,
+    kickingAccel: 0.1461,
+    kickingDamping: 0.92,
     // HaxBall's default is 5. Phone controls are less precise than a keyboard,
     // so shots get a deliberate ~30% bump to feel punchy on the host screen.
     kickStrength: 6.5,
@@ -60,12 +60,12 @@
   // Pitch size grows with the larger team, HaxBall Classic/Big/Huge style.
   // Mirrors TIERS in server/nockey/game.js. The net grows with the rink so a
   // bigger sheet doesn't mean a relatively smaller target — goalHalf stays at
-  // roughly 0.36 of halfH across every tier.
+  // roughly 0.35 of halfH across every tier.
   var TIER_SPECS = {
-    small: { halfW: 315, halfH: 145, goalHalf: 56, circle: 62 },
-    classic: { halfW: 370, halfH: 170, goalHalf: 64, circle: 75 },
-    big: { halfW: 480, halfH: 220, goalHalf: 77, circle: 90 },
-    huge: { halfW: 575, halfH: 260, goalHalf: 90, circle: 100 },
+    small: { halfW: 315, halfH: 145, goalHalf: 55, circle: 62 },
+    classic: { halfW: 370, halfH: 170, goalHalf: 63, circle: 75 },
+    big: { halfW: 480, halfH: 220, goalHalf: 76, circle: 90 },
+    huge: { halfW: 575, halfH: 260, goalHalf: 88, circle: 100 },
   };
   var TIERS = ['small', 'classic', 'big', 'huge'];
   // How far off the centre spot a face-off puck sits, as a share of the centre
