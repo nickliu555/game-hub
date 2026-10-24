@@ -838,6 +838,64 @@ test('a whole CPU tournament plays to a single winner with every chip accounted 
   assert.deepStrictEqual(fin.standings.map((s) => s.place), [1, 2, 3, 4, 5, 6]);
 });
 
+test('rematch: only from FINAL; same seats and settings, everyone back in on fresh stacks', () => {
+  const { chooseAction: choose } = require(path.join('..', 'server', 'holdempoker', 'bot'));
+  const g = new Game(5);
+  g.manualTimers = true;
+  g.addPlayer({ playerId: 'h1', name: 'Hu', socketId: 's1' });
+  for (let i = 0; i < 3; i++) g.addBot();
+  g.reorderPlayer('h1', null);
+  g.setHandsPerLevel(2);
+  assert.strictEqual(g.rematch().reason, 'not-final', 'refused in the lobby');
+  g.start();
+  assert.strictEqual(g.rematch().reason, 'not-final', 'refused mid-game');
+  let steps = 0;
+  while (g.phase !== PHASES.FINAL) {
+    if (++steps > 200000) throw new Error('tournament never ended');
+    if (g.phase === PHASES.BETTING && g.turnId) {
+      const r = g.act(Object.assign({ playerId: g.turnId }, choose(g.botView(g.turnId), g.rng)));
+      assert.ok(r.ok);
+    } else assert.ok(g.tick(), 'stalled in ' + g.phase);
+  }
+  const seatsBefore = g.seatOrder().map((p) => p.id);
+  const eventSeq = g.lastEvent.seq;
+  assert.ok(g.seatOrder().filter((p) => p.busted).length === 3);
+  const res = g.rematch();
+  assert.ok(res.ok, JSON.stringify(res));
+  assert.deepStrictEqual(g.seatOrder().map((p) => p.id), seatsBefore, 'same seats');
+  assert.strictEqual(g.handsPerLevel, 2, 'same blind schedule');
+  assert.strictEqual(g.phase, PHASES.DEAL);
+  assert.strictEqual(g.handNumber, 1);
+  assert.strictEqual(g.level, 0);
+  assert.strictEqual(g.sb, 10); assert.strictEqual(g.bb, 20);
+  assert.strictEqual(g.winnerId, null);
+  assert.deepStrictEqual(g.board, []);
+  assert.ok(g.lastEvent.seq > eventSeq && g.lastEvent.type === 'deal', 'the event counter keeps climbing');
+  assert.strictEqual(stacksTotal(g) + g.sb + g.bb, START_STACK * 4);
+  for (const p of g.players.values()) {
+    assert.ok(!p.busted && p.place === null && p.bustHand === null && p.inHand, p.name + ' dealt back in');
+    assert.strictEqual(p.stack + p.bet, START_STACK, p.name + ' on a fresh stack');
+    assert.strictEqual(p.hole.length, 2);
+    assert.strictEqual(p.stats.hands, 1, p.name + "'s stats start over");
+  }
+  assert.strictEqual(g.rematch().reason, 'not-final', 'cannot fire twice');
+  g.tick();
+  assert.strictEqual(g.phase, PHASES.BETTING, 'the new game plays on');
+});
+
+test('rematch that cannot start stays on the final standings', () => {
+  const g = new Game(3);
+  g.manualTimers = true;
+  g.addBot(); g.addBot();
+  g.start();
+  g._enterFinal();
+  g.winnerId = 'bot-1';
+  g.players.delete('bot-2');
+  assert.strictEqual(g.rematch().reason, 'cannot-start');
+  assert.strictEqual(g.phase, PHASES.FINAL);
+  assert.strictEqual(g.winnerId, 'bot-1');
+});
+
 test('chip audit: every hand of many random tournaments pays out exactly right', () => {
   const { chooseAction: choose } = require(path.join('..', 'server', 'holdempoker', 'bot'));
   let hands = 0;

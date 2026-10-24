@@ -1018,8 +1018,9 @@ body.host {
 .sp-close svg { display: block; width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
 .sp-close:hover { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.3); color: #fff; transform: none; box-shadow: none; }
 .sp-close:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
-.final-foot { padding-top: 18px; }
+.final-foot { padding-top: 18px; display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 14px; }
 .final-foot .btn-accent { font-size: 19px; padding: 15px 38px; }
+.final-foot .btn-ghost { font-size: 17px; padding: 13px 26px; }
 
 /* ═══════════════════════ Overlays ═══════════════════════ */
 

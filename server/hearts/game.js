@@ -272,6 +272,22 @@ class Game {
 
   start() {
     if (!this.canStart()) return { ok: false, reason: 'cannot-start' };
+    this._beginGame();
+    return { ok: true };
+  }
+
+  /**
+   * Host "Play again" from the final scoreboard: same four seats, same
+   * settings, scores back to zero and straight into a fresh hand 1.
+   */
+  rematch() {
+    if (this.phase !== PHASES.FINAL) return { ok: false, reason: 'not-final' };
+    if (this.players.size !== PLAYER_COUNT) return { ok: false, reason: 'cannot-start' };
+    this._beginGame();
+    return { ok: true };
+  }
+
+  _beginGame() {
     for (const p of this.players.values()) {
       p.total = 0;
       p.lastDelta = 0;
@@ -279,7 +295,6 @@ class Game {
     this.handIndex = 0;
     this.winnerIds = [];
     this._enterDeal();
-    return { ok: true };
   }
 
   passDirection() { return PASS_DIRECTIONS[this.handIndex % PASS_DIRECTIONS.length]; }

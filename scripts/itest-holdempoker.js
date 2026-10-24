@@ -13,6 +13,16 @@
 const http = require('http');
 const express = require('express');
 const { io: Client } = require('socket.io-client');
+// The rematch section needs a quick finish, so it can switch the CPUs to shoving every hand.
+// Patched before the server module loads, since it takes chooseAction at mount time.
+const bot = require('../server/holdempoker/bot');
+const realChoose = bot.chooseAction;
+let cpuShove = false;
+bot.chooseAction = (view, rng) => {
+  if (!cpuShove) return realChoose(view, rng);
+  if (view.canRaise) return { type: 'raise', amount: view.maxRaiseTo };
+  return view.canCheck ? { type: 'check' } : { type: 'call' };
+};
 const mountHoldemPoker = require('../server/holdempoker');
 
 const app = express();
@@ -370,6 +380,97 @@ function setMode(name, mode) { humans[name].mode = mode; drive(name); }
     check(endSeen && endSeen.kind === 'float', 'the host floats the final-standings emote');
     const outReact = await emit(loser.sock, 'player:emote', { e: '😭' });
     check(outReact && outReact.reason === 'out', 'a busted player cannot emote');
+  }
+
+  // ═══════════ Play again ═══════════
+  section('Play again');
+  Object.keys(humans).forEach((n) => { humans[n].mode = 'stall'; });
+  await emit(host, 'host:reset', {});
+  gameNo++;
+  Object.keys(humans).forEach((n) => humans[n].sock.close());
+  Object.keys(humans).forEach((n) => delete humans[n]);
+  for (const name of ['Dan', 'Eva']) {
+    const s = await connect();
+    const pid = 'pid3_' + name;
+    const ack = await emit(s, 'player:join', { playerId: pid, name });
+    check(ack && ack.ok, name + ' joins the rematch table');
+    track(name, s, pid);
+  }
+  await emit(host, 'host:addBot', {});
+  await emit(host, 'host:reorder', { playerId: 'bot-1', beforeId: 'pid3_Eva' });
+  await emit(host, 'host:setHandsPerLevel', { handsPerLevel: 2 });
+  const lobbyRematch = await emit(host, 'host:rematch', {});
+  check(lobbyRematch && lobbyRematch.reason === 'not-final', 'play again is refused in the lobby');
+  const rmStart = once(host, 'state:table');
+  await emit(host, 'host:start', {});
+  const rmT0 = await rmStart;
+  const seatIds = rmT0.seats.map((s) => s.playerId);
+  check(seatIds.join(',') === 'pid3_Dan,bot-1,pid3_Eva', 'seated Dan, CPU, Eva');
+  const midRematch = await emit(host, 'host:rematch', {});
+  check(midRematch && midRematch.ok === false && midRematch.reason === 'not-final', 'play again is refused mid-game');
+  cpuShove = true;
+  setMode('Dan', 'shove');
+  setMode('Eva', 'shove');
+  const rmFin = await once(host, 'state:final', 240000).catch(() => null);
+  check(!!rmFin, 'the rematch table plays down to a winner');
+  if (rmFin) {
+    const notHostRm = await emit(humans.Dan.sock, 'host:rematch', {});
+    check(notHostRm && notHostRm.reason === 'not-host', 'a player cannot trigger play again');
+    Object.keys(humans).forEach((n) => { humans[n].mode = 'stall'; });
+    cpuShove = false;
+    const bustedBefore = rmFin.standings.filter((r) => r.place > 1).map((r) => r.playerId);
+    check(bustedBefore.length === 2, 'two seats finished busted');
+    await sleep(150);
+    const oldHoles = { Dan: humans.Dan.me.hole.join(','), Eva: humans.Eva.me.hole.join(',') };
+    const newPriv = {
+      Dan: until(humans.Dan.sock, 'you:state', (s) => s.phase !== 'FINAL', 8000).catch(() => null),
+      Eva: until(humans.Eva.sock, 'you:state', (s) => s.phase !== 'FINAL', 8000).catch(() => null),
+    };
+    const lobbyBeat = once(humans.Eva.sock, 'state:lobby', 8000).catch(() => null);
+    const newTable = once(host, 'state:table', 8000).catch(() => null);
+    gameNo++;
+    const [r1, r2] = await Promise.all([emit(host, 'host:rematch', {}), emit(host, 'host:rematch', {})]);
+    check([r1, r2].filter((r) => r && r.ok).length === 1 && [r1, r2].some((r) => r && r.reason === 'not-final'),
+      'play again fires once; a double click is refused');
+    const t = await newTable;
+    check(!!t && t.phase === 'DEAL' && t.handNumber === 1 && t.level === 1, 'straight into hand 1 of a new game');
+    if (t) {
+      check(t.seats.map((s) => s.playerId).join(',') === seatIds.join(','), 'same players in the same seats (CPU included)');
+      check(t.seats.every((s) => s.stack + s.bet === 1500 && !s.busted && s.inHand && s.place === null),
+        'every stack is back to 1,500 and the busted seats are dealt back in');
+      check(t.handsPerLevel === 2 && t.smallBlind === 10 && t.bigBlind === 20, 'same blind schedule, back at 10 / 20');
+      check(t.board.length === 0 && t.potTotal === 0 && t.seats.every((s) => s.cards === null), 'a clean board and pot, no cards public');
+      check(t.stats.every((r) => r.hands === 1 && r.handsWon === 0), 'stats start over');
+    }
+    const lb = await lobbyBeat;
+    check(!!lb && lb.phase === 'DEAL', 'phones get the same lobby beat as a normal start');
+    const pd = await newPriv.Dan;
+    const pe = await newPriv.Eva;
+    check(!!pd && !!pe && pd.handNumber === 1 && pe.handNumber === 1 && !pd.busted && !pe.busted,
+      'each phone is privately told it is in hand 1, nobody busted');
+    check(!!pd && !!pe && pd.hole.length === 2 && pe.hole.length === 2
+      && (pd.hole.join(',') !== oldHoles.Dan || pe.hole.join(',') !== oldHoles.Eva)
+      && pd.hole.every((c) => pe.hole.indexOf(c) < 0), 'fresh private hole cards are dealt');
+    const lateRm = await connect();
+    const lateAck = await emit(lateRm, 'player:join', { playerId: 'pid3_Late', name: 'Late' });
+    check(lateAck && lateAck.reason === 'game-in-progress', 'nobody new can join the rematch');
+    lateRm.close();
+
+    // Reconnect mid-rematch: both roles land in the new game.
+    const dan = humans.Dan;
+    dan.sock.close();
+    await sleep(200);
+    const dan2 = await connect();
+    const reRm = await emit(dan2, 'player:reconnect', { playerId: dan.pid });
+    check(reRm && reRm.ok && reRm.table && reRm.table.handNumber === 1 && reRm.me && reRm.me.handNumber === 1
+      && !reRm.me.busted && !reRm.final, 'a phone reconnecting mid-rematch lands in the new game');
+    track('Dan', dan2, dan.pid);
+    const host2 = await connect();
+    const h2Table = once(host2, 'state:table', 3000).catch(() => null);
+    const h2 = await emit(host2, 'host:auth', {});
+    const h2t = await h2Table;
+    check(h2 && h2.ok && h2.phase !== 'FINAL' && !!h2t && h2t.handNumber === 1, 'a host reconnecting mid-rematch gets the new table');
+    host2.close();
   }
 
   // ═══════════ Secrecy ═══════════

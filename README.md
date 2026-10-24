@@ -29,7 +29,7 @@ Race to 24 with four numbers and the four operations (`+`, `−`, `×`, `÷`).
 3. Tap a number, an operator, then another number to combine them — repeat until one tile is left
 4. When that final tile equals **24**, you score and the next puzzle appears
 5. The **faster** you solve, the **more points** you earn — stuck puzzles can be **Skipped** for a small penalty
-6. **Highest total score** when the timer hits zero wins
+6. **Highest total score** when the timer hits zero wins. Hit **▶ Play again** for an instant rematch with the same players and settings
 
 Also includes a **Solo Practice** mode — pick a difficulty and solve unlimited puzzles on your own, with a "Give Up" reveal that shows a worked solution.
 
@@ -53,7 +53,7 @@ The classic four-player trick-taking card game — dodge the Queen, chase the Ja
 6. Each **heart is +1**, the **Q♠ is +13**, and the **J♦ is −10** — points are bad, so duck them
 7. Win **all 13 hearts and the Q♠** to **shoot the moon**: you score 0 and everyone else takes 26
 8. Your hand stays **private on your phone**, and illegal cards can't even be tapped
-9. When anyone reaches the target score the game ends and the **lowest score wins!**
+9. When anyone reaches the target score the game ends and the **lowest score wins!** Hit **▶ Play again** for an instant rematch with the same players and settings
 
 ### ♠️ Spades
 The classic partnership trick-taking card game — bid it, make it, don't get bagged.
@@ -65,7 +65,7 @@ The classic partnership trick-taking card game — bid it, make it, don't get ba
 5. Follow the suit led if you can. **Spades are always trump**, but can't be **led** until one has been played
 6. Make your team's combined bid for **10 points per trick** plus **1 per extra trick** (a **bag**); miss it and **lose 10 per trick** bid
 7. **Nil is ±100**, **Blind Nil is ±200**, and every **10 bags costs 100** points
-8. Who bids and leads first moves one seat clockwise each hand. **First team to the target score wins** — a team that falls to **−200 loses**
+8. Who bids and leads first moves one seat clockwise each hand. **First team to the target score wins** — a team that falls to **−200 loses**. Hit **▶ Play again** for an instant rematch with the same players and settings
 
 ### ♣️ Hold'em Poker
 No-Limit Texas Hold'em, tournament style — the last stack standing takes it all.
@@ -77,7 +77,7 @@ No-Limit Texas Hold'em, tournament style — the last stack standing takes it al
 5. On your turn: **fold, check, call, or bet / raise** any amount up to your stack — a raise must **at least double** the current bet — with Min, ½ Pot, Pot and All-in shortcuts
 6. Queue **Check / Fold** or **Call Any** before your turn to keep the game moving
 7. Best five-card hand at showdown wins; an **all-in player can only win what they matched** — the rest goes to a side pot
-8. Lose all your chips and you're out — the **last player standing wins!**
+8. Lose all your chips and you're out — the **last player standing wins!** Hit **▶ Play again** for an instant rematch with the same players and settings
 
 ### 🎲 Liar's Dice
 The pirate's bluffing game — bid on everyone's hidden dice, then call BS.
@@ -89,7 +89,7 @@ The pirate's bluffing game — bid on everyone's hidden dice, then call BS.
 5. Each bid must go up: **more dice**, or the **same number of a higher face** — switching to 1s needs only **half** as many (rounded up), and switching back needs **double plus one**
 6. Instead of raising, **call BS**: every cup lifts one by one around the table — fewer than bid and the bidder loses a die, otherwise you do
 7. Or call **Spot On**: get the count **exactly right** and you win a die back (up to your starting count) — otherwise you lose one
-8. Whoever lost a die opens the next round. Lose all your dice and you're out — the **last player with dice wins!**
+8. Whoever lost a die opens the next round. Lose all your dice and you're out — the **last player with dice wins!** Hit **▶ Play again** for an instant rematch with the same players and settings
 
 ### � Category Clash
 One random letter, twelve categories, one timer — only answers nobody else thought of score.
@@ -126,7 +126,7 @@ A Boggle-style word hunt on a shared, randomly shaken letter grid.
 4. No reusing the same tile twice in one word, and words must be in the dictionary
 5. Longer words score more (`3–4 = 1`, `5 = 2`, `6 = 3`, `7 = 5`, `8+ = 11`); the **"Qu"** tile counts as two letters
 6. Minimum word length is **3** on 4×4 and **4** on the bigger boards
-7. **When the timer hits zero, scores are revealed podium-style — highest total wins!**
+7. **When the timer hits zero, scores are revealed podium-style — highest total wins!** Hit **▶ Play again** for an instant rematch on a freshly shaken board with the same players, board size and timer
 
 Also includes a **Solo Practice** mode — pick a board size and hunt for words on a freshly shaken grid with no time limit (a count-up timer tracks your run). Tap **See all words** to reveal everything on the board and see how many you found.
 

@@ -6,7 +6,8 @@
 // scripts/test-spades-engine.js, so this file is about the WIRE:
 // team lobby gating, hand secrecy (including face-down hands), bidding,
 // illegal-play rejection, the roster surviving a disconnect, reconnection
-// fidelity, scoring of a full hand and the roll into the next.
+// fidelity, scoring of a full hand, the roll into the next and the
+// play-again rematch from the final scoreboard.
 //
 //   node scripts/itest-spades.js   (or: npm run itest:spades)
 
@@ -14,8 +15,14 @@ const http = require('http');
 const express = require('express');
 const { io: Client } = require('socket.io-client');
 const mountSpades = require('../server/spades');
-const { PHASES } = require('../server/spades/game');
+const { Game, PHASES } = require('../server/spades/game');
 const { scoreTeam } = require('../server/spades/deck');
+
+// Test-only handle on the live table, so the rematch section can force a
+// decisive hand instead of playing a whole game to the target.
+let liveGame = null;
+const origStart = Game.prototype.start;
+Game.prototype.start = function () { liveGame = this; return origStart.apply(this, arguments); };
 
 const app = express();
 const server = http.createServer(app);
@@ -390,31 +397,156 @@ function collectCardStrings(node, out) {
   // ═══════════ Next hand ═══════════
   section('Next hand');
 
+  const earlyRematch = await emit(host, 'host:rematch', {});
+  check(earlyRematch && earlyRematch.ok === false && earlyRematch.reason === 'not-final',
+    'host:rematch is refused mid-game (hand end)');
+  const playerRematch = await emit(socks.Alice, 'host:rematch', {});
+  check(playerRematch && playerRematch.reason === 'not-host', 'a player cannot trigger a rematch');
+
   ['Alice', 'Bob'].forEach((n) => { socks[n].removeAllListeners('you:hand'); socks[n].on('you:hand', (h) => { priv[n] = h; }); });
-  const nextDeal = once(host, 'state:deal', 10000);
-  const nextAck = await emit(host, 'host:nextHand', {});
-  check(nextAck && nextAck.ok, 'host advances to the next hand');
-  const deal2 = await nextDeal;
-  check(deal2.handNumber === 2, 'hand 2 is dealt');
-  check(deal2.seats.every((s) => s.bid === null && s.tricks === 0), 'bids and tricks reset for the new hand');
-  check(deal2.teams.red.score === r.red.total && deal2.teams.blue.score === r.blue.total, 'team scores carry into hand 2');
+  let finalState = null;
+  if (handEnd.gameOver) {
+    // With a 200 target, Blind Nil's ±200 can decide the game in one hand.
+    console.log('  · (hand 1 decided the game — skipping the hand-2 checks)');
+    const fin = once(host, 'state:final', 10000);
+    const nextAck = await emit(host, 'host:nextHand', {});
+    check(nextAck && nextAck.ok && nextAck.phase === PHASES.FINAL, 'a decisive hand goes to the final scoreboard');
+    finalState = await fin;
+  } else {
+    const nextDeal = once(host, 'state:deal', 10000);
+    const nextAck = await emit(host, 'host:nextHand', {});
+    check(nextAck && nextAck.ok, 'host advances to the next hand');
+    const deal2 = await nextDeal;
+    check(deal2.handNumber === 2, 'hand 2 is dealt');
+    check(deal2.seats.every((s) => s.bid === null && s.tricks === 0), 'bids and tricks reset for the new hand');
+    check(deal2.teams.red.score === r.red.total && deal2.teams.blue.score === r.blue.total, 'team scores carry into hand 2');
 
-  const bid2 = await once(host, 'state:bid', 6000);
-  const first2 = bid2.seats.find((s) => s.playerId === bid2.bidTurnPlayerId);
-  check(first2 && first2.seat === order[(order.indexOf(firstBidder) + 1) % 4], 'the first bidder moves one seat clockwise');
-  await sleep(200);
-  const bubble = await emit(socks.Bob, 'player:emote', { e: '😎' });
-  check(bubble && bubble.ok && bubble.kind === 'bubble', 'an emote during bidding is a seat bubble');
+    const bid2 = await once(host, 'state:bid', 6000);
+    const first2 = bid2.seats.find((s) => s.playerId === bid2.bidTurnPlayerId);
+    check(first2 && first2.seat === order[(order.indexOf(firstBidder) + 1) % 4], 'the first bidder moves one seat clockwise');
+    await sleep(200);
+    const bubble = await emit(socks.Bob, 'player:emote', { e: '😎' });
+    check(bubble && bubble.ok && bubble.kind === 'bubble', 'an emote during bidding is a seat bubble');
 
-  // A face-down hand stays face down across a reconnect.
+    // A face-down hand stays face down across a reconnect.
+    socks.Bob.close();
+    await sleep(300);
+    const bob3 = await connect();
+    const re3 = await emit(bob3, 'player:reconnect', { playerId: players.Bob });
+    check(re3 && re3.ok && re3.phase === 'BID' && !!re3.bid, 'reconnecting mid-bid returns the bidding snapshot');
+    check(re3.myHand && re3.myHand.revealed === false && re3.myHand.hand.length === 0,
+      'a face-down hand stays withheld after a reconnect');
+    socks.Bob = bob3;
+
+    const midRematch = await emit(host, 'host:rematch', {});
+    check(midRematch && midRematch.reason === 'not-final', 'host:rematch is refused mid-hand (bidding)');
+
+    // Make hand 2 decisive (test hook — see liveGame), then play it out.
+    liveGame.teams.red.score = 5000;
+    liveGame.teams.red.bags = 7;
+    priv.Bob = re3.myHand;
+    ['Alice', 'Bob'].forEach((n) => {
+      socks[n].removeAllListeners('you:hand');
+      socks[n].on('you:hand', (h) => { priv[n] = h; drive(n); });
+    });
+    drive('Alice'); drive('Bob');
+    const handEnd2 = await once(host, 'state:handEnd', 240000);
+    check(handEnd2.gameOver === true && handEnd2.winnerTeam === 'red', 'hand 2 decides the game');
+    ['Alice', 'Bob'].forEach((n) => { socks[n].removeAllListeners('you:hand'); socks[n].on('you:hand', (h) => { priv[n] = h; }); });
+    const fin = once(host, 'state:final', 10000);
+    const finAck = await emit(host, 'host:nextHand', {});
+    check(finAck && finAck.ok && finAck.phase === PHASES.FINAL, 'host moves on to the final scoreboard');
+    finalState = await fin;
+  }
+
+  // ═══════════ Play again ═══════════
+  section('Play again (rematch)');
+
+  check(finalState && finalState.standings.length === 2, 'the final scoreboard is up');
+  const preStatus = await emit(host, 'query:status', {});
+  check(preStatus.phase === PHASES.FINAL, 'the table is on FINAL');
+  const finalScores = finalState.standings.map((t) => t.score + '/' + t.bags).join(',');
+  check(finalState.standings.some((t) => t.score !== 0 || t.bags !== 0), 'the finished game had scores on the board (' + finalScores + ')');
+  const seatSig = (seats) => seats.map((x) => x.seat + ':' + x.playerId + ':' + x.team + ':' + !!x.isBot).join('|');
+  const finalSeats = [];
+  finalState.standings.forEach((t) => t.players.forEach((p) => finalSeats.push({ seat: p.seat, playerId: p.playerId, team: t.team, isBot: p.isBot })));
+  finalSeats.sort((a, b) => order.indexOf(a.seat) - order.indexOf(b.seat));
+  const prevAliceHand = aHand.hand.slice();
+
+  const nonHostRematch = await emit(socks.Bob, 'host:rematch', {});
+  check(nonHostRematch && nonHostRematch.reason === 'not-host', 'a player cannot trigger a rematch on FINAL either');
+
+  const rmLobby = once(host, 'state:lobby', 5000);
+  const rmDeal = once(host, 'state:deal', 5000);
+  const aliceDeal = once(socks.Alice, 'state:deal', 5000);
+  const aliceHandEvt = once(socks.Alice, 'you:hand', 5000);
+  const bobHandEvt = once(socks.Bob, 'you:hand', 5000);
+  const rmBid = once(host, 'state:bid', 10000);
+  const [rmAck, rmAck2] = await Promise.all([emit(host, 'host:rematch', {}), emit(host, 'host:rematch', {})]);
+  check(rmAck && rmAck.ok, 'host:rematch from FINAL succeeds');
+  check(rmAck2 && rmAck2.ok === false && rmAck2.reason === 'not-final', 'a second, double-fired rematch is refused');
+
+  const lobbyAfter = await rmLobby;
+  check(lobbyAfter.phase === PHASES.DEAL, 'the rematch announces itself like a normal start (lobby snapshot, phase DEAL)');
+  check(lobbyAfter.total === 4 && lobbyAfter.targetScore === 200 && lobbyAfter.autoAdvance === true,
+    'all four players and the host settings (target 200, auto-advance) are kept');
+  const dealR = await rmDeal;
+  check(dealR.handNumber === 1, 'a fresh hand 1 is dealt');
+  check(seatSig(dealR.seats) === seatSig(finalSeats), 'same players in the same seats and teams (CPUs included)');
+  check(dealR.teams.red.score === 0 && dealR.teams.blue.score === 0, 'team scores reset to zero');
+  check(dealR.teams.red.bags === 0 && dealR.teams.blue.bags === 0, 'bags reset to zero');
+  check(dealR.seats.every((x) => x.bid === null && !x.nil && !x.blind && x.tricks === 0 && x.cardsLeft === 13),
+    'bids, nils and tricks are cleared and everyone holds 13 cards');
+  check(dealR.targetScore === 200, 'the target score carries over');
+  await aliceDeal;
+  check(true, 'phones receive the new deal broadcast');
+
+  const ah = await aliceHandEvt;
+  const bh = await bobHandEvt;
+  check(ah.phase === PHASES.DEAL && ah.handNumber === 1 && ah.cardCount === 13 && ah.revealed === false && ah.hand.length === 0,
+    'Alice gets a fresh, face-down private hand');
+  check(bh.handNumber === 1 && bh.bid === null && !bh.nil && !bh.blind && bh.tricks === 0,
+    'Bob\'s Blind Nil and tricks from the last game are gone');
+  check(ah.teamScore === 0 && ah.teamBags === 0 && ah.oppScore === 0 && bh.teamScore === 0,
+    'the phones see zeroed scores and bags');
+  check(ah.team === finalSeats.find((x) => x.playerId === players.Alice).team
+    && bh.team === finalSeats.find((x) => x.playerId === players.Bob).team, 'each phone keeps its team');
+
+  const lateJoin = await connect();
+  const lateAck = await emit(lateJoin, 'player:join', { playerId: 'pid_Late', name: 'Late' });
+  check(lateAck && lateAck.ok === false, 'a newcomer still cannot join the rematch');
+  lateJoin.close();
+  const lateRematch = await emit(host, 'host:rematch', {});
+  check(lateRematch && lateRematch.reason === 'not-final', 'host:rematch is refused once the new game is under way');
+
+  // Reconnects mid-rematch land on the new game.
   socks.Bob.close();
-  await sleep(300);
-  const bob3 = await connect();
-  const re3 = await emit(bob3, 'player:reconnect', { playerId: players.Bob });
-  check(re3 && re3.ok && re3.phase === 'BID' && !!re3.bid, 'reconnecting mid-bid returns the bidding snapshot');
-  check(re3.myHand && re3.myHand.revealed === false && re3.myHand.hand.length === 0,
-    'a face-down hand stays withheld after a reconnect');
-  socks.Bob = bob3;
+  await sleep(200);
+  const bob4 = await connect();
+  const re4 = await emit(bob4, 'player:reconnect', { playerId: players.Bob });
+  check(re4 && re4.ok && (re4.phase === PHASES.DEAL || re4.phase === PHASES.BID), 'Bob reconnects into the new deal');
+  check(re4.myHand && re4.myHand.handNumber === 1 && re4.myHand.teamScore === 0 && re4.myHand.bid === null,
+    'his reconnect snapshot is the fresh hand 1');
+  socks.Bob = bob4;
+
+  const host2 = await connect();
+  const host2Snap = new Promise((resolve) => {
+    host2.once('state:deal', resolve);
+    host2.once('state:bid', resolve);
+  });
+  const auth2 = await emit(host2, 'host:auth', {});
+  check(auth2 && auth2.ok && (auth2.phase === PHASES.DEAL || auth2.phase === PHASES.BID), 'a reconnecting host lands on the new game');
+  const h2 = await host2Snap;
+  check(h2.handNumber === 1 && h2.teams.red.score === 0 && h2.teams.blue.score === 0, 'its snapshot shows hand 1 at 0 – 0');
+  host2.close();
+
+  const bidR = await rmBid;
+  check(bidR.handNumber === 1 && bidR.bidsIn === 0, 'bidding opens on the new hand 1');
+  await emit(socks.Alice, 'player:reveal', {});
+  const revealBy = Date.now() + 3000;
+  while (!(priv.Alice && priv.Alice.revealed && priv.Alice.hand.length) && Date.now() < revealBy) await sleep(30);
+  const aliceNew = priv.Alice;
+  check(aliceNew.hand.length === 13 && aliceNew.hand.join() !== prevAliceHand.join(), 'Alice is dealt a new hand of 13');
 
   // ═══════════ Reset ═══════════
   section('Reset');

@@ -410,6 +410,17 @@ function mountHearts(app, httpServer, opts) {
       pushState();
     });
 
+    socket.on('host:rematch', (_p, ack) => {
+      if (!requireHost(ack)) return;
+      touchActivity();
+      const res = game.rematch();
+      if (!res.ok) return ack && ack(res);
+      clearBots();
+      ack && ack({ ok: true });
+      broadcastLobby();
+      pushState();
+    });
+
     socket.on('host:nextHand', (_p, ack) => {
       if (!requireHost(ack)) return;
       touchActivity();

@@ -147,6 +147,15 @@ class Game {
     return { ok: true };
   }
 
+  // Play again from the results screen: same players, board size and time
+  // limit, straight into a fresh "Get ready" countdown and a newly shaken board.
+  rematch() {
+    if (this.phase !== PHASES.FINAL) return { ok: false, reason: 'not-final' };
+    if (this.players.size === 0) return { ok: false, reason: 'no-players' };
+    this._enterIntro();
+    return { ok: true };
+  }
+
   _enterIntro() {
     if (this._introTimer) { clearTimeout(this._introTimer); this._introTimer = null; }
     this.phase = PHASES.INTRO;

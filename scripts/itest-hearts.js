@@ -14,7 +14,7 @@ const http = require('http');
 const express = require('express');
 const { io: Client } = require('socket.io-client');
 const mountHearts = require('../server/hearts');
-const { PHASES } = require('../server/hearts/game');
+const { Game, PHASES } = require('../server/hearts/game');
 
 const app = express();
 const server = http.createServer(app);
@@ -62,6 +62,155 @@ function collectCardStrings(node, out) {
   if (Array.isArray(node)) { node.forEach((n) => collectCardStrings(n, out)); return out; }
   if (node && typeof node === 'object') { Object.keys(node).forEach((k) => collectCardStrings(node[k], out)); }
   return out;
+}
+
+/**
+ * "Play again" from the final scoreboard. Runs on its own server with the
+ * engine's phase timers shortened (a test-side patch of Game#_arm — production
+ * code is untouched) so a whole game to 50 finishes in about a minute: three
+ * humans driven instantly here plus one CPU at its normal think speed.
+ */
+async function rematchSuite() {
+  section('Play again (rematch)');
+
+  const origArm = Game.prototype._arm;
+  Game.prototype._arm = function (key, ms, fn) { return origArm.call(this, key, Math.min(ms, 30), fn); };
+
+  const app2 = express();
+  const server2 = http.createServer(app2);
+  mountHearts(app2, server2, { getPublicBaseUrl: () => 'http://localhost' });
+  await new Promise((r) => server2.listen(0, r));
+  const connect2 = () => new Promise((resolve) => {
+    const s = Client('http://localhost:' + server2.address().port + '/hearts', { transports: ['websocket'], forceNew: true });
+    s.on('connect', () => resolve(s));
+  });
+
+  let host2 = await connect2();
+  await emit(host2, 'host:auth', {});
+  const names = ['Xia', 'Yan', 'Zed'];
+  const pids = {};
+  const sk = {};
+  const hands = {};
+  for (const n of names) {
+    sk[n] = await connect2();
+    pids[n] = 'rm_' + n;
+    await emit(sk[n], 'player:join', { playerId: pids[n], name: n });
+  }
+  await emit(host2, 'host:addBot', {});
+  await emit(host2, 'host:setTargetScore', { targetScore: 50 });
+  const lobbyBefore = await emit(host2, 'host:auth', {});
+  const seatsBefore = lobbyBefore.lobby.players.map((p) => p.id + '/' + p.name + '/' + p.seat + '/' + p.isBot).join('|');
+  check(lobbyBefore.lobby.players.filter((p) => p.isBot).length === 1, 'rematch table: 3 humans + 1 CPU');
+
+  const early = await emit(host2, 'host:rematch', {});
+  check(early && early.ok === false && early.reason === 'not-final', 'rematch is refused in the lobby (not-final)');
+
+  const busy2 = {};
+  async function drive2(n) {
+    if (busy2[n]) return;
+    busy2[n] = true;
+    try {
+      for (;;) {
+        const h = hands[n];
+        if (!h || !sk[n].connected) break;
+        if (h.phase === 'PASS' && !h.passed) {
+          const r = await emit(sk[n], 'player:pass', { cards: h.hand.slice(0, 3) });
+          if (!r.ok && hands[n] === h) break;
+          continue;
+        }
+        if (h.phase === 'TRICK' && h.yourTurn && h.legal.length) {
+          const r = await emit(sk[n], 'player:play', { card: h.legal[0] });
+          if (!r.ok && hands[n] === h) break;
+          continue;
+        }
+        break;
+      }
+    } finally { busy2[n] = false; }
+  }
+  const listen = (n) => sk[n].on('you:hand', (h) => { hands[n] = h; drive2(n); });
+  names.forEach(listen);
+
+  // Final hand → the host taps "See the results".
+  let finalPayload = null;
+  const onHandEnd = (s) => { if (s.gameOver) emit(host2, 'host:nextHand', {}); };
+  host2.on('state:handEnd', onHandEnd);
+  const gotFinal = once(host2, 'state:final', 300000);
+  const midTable = once(host2, 'state:table', 20000);
+  await emit(host2, 'host:start', {});
+  await midTable;
+  const mid = await emit(host2, 'host:rematch', {});
+  check(mid && mid.ok === false && mid.reason === 'not-final', 'rematch is refused mid-game (not-final)');
+  finalPayload = await gotFinal;
+  host2.off('state:handEnd', onHandEnd);
+  check(finalPayload && finalPayload.standings.length === 4, 'the game reaches FINAL with all 4 standings');
+  check(finalPayload.standings.some((s) => s.total >= 50), 'someone reached the target of 50');
+
+  const notHost = await emit(sk.Zed, 'host:rematch', {});
+  check(notHost && notHost.ok === false && notHost.reason === 'not-host', 'a phone cannot trigger a rematch (not-host)');
+  const stillFinal = await emit(host2, 'query:status', {});
+  check(stillFinal.phase === PHASES.FINAL, 'a refused rematch leaves the game on FINAL');
+
+  // Yan's phone drops on the scoreboard — the rematch must keep his seat.
+  sk.Yan.close();
+  await sleep(200);
+
+  const fresh = {};
+  ['Xia', 'Zed'].forEach((n) => sk[n].once('you:hand', (h) => { fresh[n] = h; }));
+  const lobbyEvt = once(host2, 'state:lobby', 5000);
+  const dealEvt = once(host2, 'state:deal', 5000);
+  const passEvt = once(host2, 'state:pass', 8000);
+  const [r1, r2] = await Promise.all([emit(host2, 'host:rematch', {}), emit(host2, 'host:rematch', {})]);
+  check(r1 && r1.ok === true, 'the host starts a rematch from FINAL');
+  check(r2 && r2.ok === false && r2.reason === 'not-final', 'a double-fired rematch is refused (not-final)');
+  const lobbyAfter = await lobbyEvt;
+  const deal = await dealEvt;
+  const seatsAfter = lobbyAfter.players.map((p) => p.id + '/' + p.name + '/' + p.seat + '/' + p.isBot).join('|');
+  check(seatsAfter === seatsBefore, 'same 4 players in the same seats, CPU included');
+  check(lobbyAfter.targetScore === 50 && lobbyAfter.autoAdvance === true, 'host settings (target 50, auto-advance) carry over');
+  check(lobbyAfter.phase === PHASES.DEAL, 'the rematch goes straight to the deal');
+  check(deal.handNumber === 1 && deal.passLabel === 'Clockwise', 'a fresh hand 1 is dealt, passing Clockwise again');
+  check(deal.seats.every((s) => s.total === 0 && s.handPoints === 0), 'every score is reset to zero');
+  check(deal.seats.length === 4 && deal.seats.find((s) => s.playerId === pids.Yan).connected === false,
+    'the dropped player keeps his seat (shown as away)');
+  await sleep(100);
+  check(['Xia', 'Zed'].every((n) => fresh[n] && fresh[n].handNumber === 1 && fresh[n].hand.length === 13
+    && fresh[n].total === 0 && fresh[n].passed === false && fresh[n].received.length === 0),
+  'each connected phone privately gets a fresh 13-card hand 1 with a zero score');
+  check(fresh.Xia && fresh.Zed && fresh.Xia.hand.every((c) => fresh.Zed.hand.indexOf(c) < 0), 'the fresh hands do not overlap');
+  const again = await emit(host2, 'host:rematch', {});
+  check(again && again.ok === false && again.reason === 'not-final', 'rematch is refused once the new game is running');
+
+  // The table waits on Yan's pass; he reconnects mid-rematch onto the new hand.
+  await passEvt;
+  await sleep(300);
+  const waiting = await emit(host2, 'query:status', {});
+  check(waiting.phase === PHASES.PASS, 'the new hand waits for the dropped player rather than skipping him');
+  sk.Yan = await connect2();
+  const re = await emit(sk.Yan, 'player:reconnect', { playerId: pids.Yan });
+  check(re && re.ok && re.phase === PHASES.PASS && !re.final, 'a phone reconnecting mid-rematch lands on the new pass');
+  check(re.myHand && re.myHand.handNumber === 1 && re.myHand.hand.length === 13 && re.myHand.total === 0,
+    'its private hand is the fresh hand 1');
+  check(re.pass && re.pass.handNumber === 1 && re.pass.seats.every((s) => s.total === 0), 'its pass snapshot is the new game');
+
+  host2.close();
+  host2 = await connect2();
+  const passSnap = once(host2, 'state:pass', 3000);
+  const hostRe = await emit(host2, 'host:auth', {});
+  const hostPass = await passSnap;
+  check(hostRe.phase === PHASES.PASS && hostPass.handNumber === 1 && hostPass.seats.every((s) => s.total === 0),
+    'a host reconnecting mid-rematch lands on the new hand 1');
+
+  hands.Yan = re.myHand;
+  listen('Yan');
+  const tableEvt = once(host2, 'state:table', 15000);
+  drive2('Yan');
+  const t1 = await tableEvt;
+  check(t1.handNumber === 1 && t1.trickNumber === 1, 'the rematch plays on into trick 1');
+
+  names.forEach((n) => sk[n].close());
+  host2.close();
+  server2.close();
+  Game.prototype._arm = origArm;
 }
 
 (async () => {
@@ -409,9 +558,12 @@ function collectCardStrings(node, out) {
   check(publicCards.length > 20, 'captured a meaningful number of public broadcasts (' + publicCards.length + ')');
   check(leaks === 0, 'no public broadcast ever exposed an unplayed card');
 
-  // ═══════════ Done ═══════════
   Object.keys(socks).forEach((n) => socks[n].close());
   host.close();
+
+  await rematchSuite();
+
+  // ═══════════ Done ═══════════
   server.close();
 
   console.log('\n' + (failed ? '✗ hearts integration: FAILURES above' : '✓ hearts integration: all checks passed'));

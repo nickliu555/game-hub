@@ -850,12 +850,22 @@
     publicPhase = phase;
     route();
   }
-  socket.on('state:lobby', function (l) {
+  /** Drop the last game's hand and anything staged on it — a rematch starts clean. */
+  function clearHandState() {
     hand = null;
+    armed = null; bidPick = null; busy = false;
+    clearBlindArm();
+  }
+  socket.on('state:lobby', function (l) {
+    clearHandState();
     adoptLobby(l);
-    setPhase('LOBBY');
+    // A start/rematch announces itself with a lobby snapshot already past LOBBY.
+    setPhase((l && l.phase) || 'LOBBY');
   });
-  socket.on('state:deal', function () { setPhase('DEAL'); });
+  socket.on('state:deal', function () {
+    if (publicPhase === 'FINAL') clearHandState();
+    setPhase('DEAL');
+  });
   socket.on('state:bid', function () { setPhase('BID'); });
   socket.on('state:table', function () { setPhase('TRICK'); });
   socket.on('state:trickEnd', function () { setPhase('TRICK_END'); });

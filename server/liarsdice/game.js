@@ -339,6 +339,23 @@ class Game {
 
   start() {
     if (!this.canStart()) return { ok: false, reason: 'cannot-start' };
+    return this._beginGame();
+  }
+
+  /** Play again from the final standings: same seats, same settings, straight into round 1. */
+  rematch() {
+    if (this.phase !== PHASES.FINAL) return { ok: false, reason: 'not-final' };
+    if (this.players.size < MIN_PLAYERS) return { ok: false, reason: 'cannot-start' };
+    return this._beginGame();
+  }
+
+  _beginGame() {
+    this._clearTimers();
+    this.reveal = null;
+    this.currentBid = null;
+    this.bids = [];
+    this.lastActed = null;
+    this.openerId = null;
     for (const p of this.players.values()) {
       p.diceCount = this.startDice;
       p.dice = [];

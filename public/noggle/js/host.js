@@ -304,10 +304,24 @@
   });
 
   // ---------------- Intro ----------------
+  const playAgainBtn = document.getElementById('playAgainBtn');
+  if (playAgainBtn) {
+    playAgainBtn.addEventListener('click', function () {
+      unlockAudio();
+      playAgainBtn.disabled = true;
+      socket.emit('host:rematch', {}, function (res) {
+        playAgainBtn.disabled = false;
+        if (!res || !res.ok) { showToast((res && res.reason) || 'Could not start'); return; }
+        playStartFanfare();
+      });
+    });
+  }
+
   let introTimer = null;
   function stopIntroTimer() { if (introTimer) { clearInterval(introTimer); introTimer = null; } }
   function renderIntro(payload) {
     stopIntroTimer();
+    if (revealOverlay) revealOverlay.hidden = true;
     show('intro');
     if (payload && typeof payload.serverNow === 'number') clockOffset = payload.serverNow - Date.now();
     const endsAt = (payload && payload.endsAt) || (Date.now() + 4000);

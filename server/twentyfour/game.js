@@ -221,6 +221,55 @@ class Game {
     return { ok: true };
   }
 
+  /**
+   * "Play again" from the results: same roster, same settings, straight back
+   * through the normal start flow (Get ready → first puzzle) with every score
+   * and stat zeroed. If starting fails we stay on the results screen.
+   */
+  rematch() {
+    if (this.phase !== PHASES.FINAL) return { ok: false, reason: 'not-final' };
+    if (this.players.size === 0) return { ok: false, reason: 'no-players' };
+    const settings = {
+      mode: this.mode,
+      difficulty: this.difficulty,
+      durationMin: this.durationMs / 60000,
+      targetScore: this.targetScore,
+      problemTimeLimitSec: this.problemTimeLimitMs / 1000,
+      autoAdvance: this.autoAdvanceMs > 0,
+    };
+    if (this._roundTimer) { clearTimeout(this._roundTimer); this._roundTimer = null; }
+    this._clearRaceTimers();
+    this.phase = PHASES.LOBBY;
+    let res;
+    try {
+      res = this.start(settings);
+    } catch (_) {
+      res = { ok: false, reason: 'start-failed' };
+    }
+    if (!res || !res.ok) {
+      if (this._introTimer) { clearTimeout(this._introTimer); this._introTimer = null; }
+      this.phase = PHASES.FINAL;
+      return res || { ok: false, reason: 'start-failed' };
+    }
+    // Zero everyone now so the intro, lobby list and any reconnect snapshot
+    // don't show last game's scores before the first puzzle is served.
+    for (const player of this.players.values()) this._initQueue(player);
+    this.sharedQueue = [];
+    this.roundStartTs = 0;
+    this.roundEndsAt = 0;
+    this.raceQueue = [];
+    this.raceIndex = -1;
+    this.raceRoundsPlayed = 0;
+    this.currentRacePuzzle = null;
+    this.problemStartTs = 0;
+    this.problemEndsAt = 0;
+    this.raceWinnerId = null;
+    this.raceWinningSolution = null;
+    this.raceRevealReason = null;
+    this.revealEndsAt = 0;
+    return { ok: true };
+  }
+
   _enterIntro() {
     if (this._introTimer) { clearTimeout(this._introTimer); this._introTimer = null; }
     this.phase = PHASES.INTRO;

@@ -8,7 +8,7 @@
 const { io } = require('socket.io-client');
 const { isWord } = require('../server/noggle/dictionary');
 
-const URL = 'http://localhost:3000/noggle';
+const URL = process.env.NOGGLE_URL || 'http://localhost:3000/noggle';
 
 function connect(label) {
   return io(URL, { transports: ['websocket'], forceNew: true });
@@ -107,6 +107,43 @@ function findWordPath(grid, minLen) {
   const alice = hostCounts && hostCounts.find((c) => c.name === 'Alice');
   assert(alice && alice.wordCount === 1, 'host counts show Alice: 1 word');
   assert(alice && typeof alice.score === 'number' && alice.score > 0, 'host counts carry live score (shown on host)');
+
+  // ---- Play again: same players, size and time; fresh board and scores ----
+  assert((await new Promise((r) => host.emit('host:rematch', {}, r))).reason === 'not-final', 'play again is refused mid-round');
+  assert((await new Promise((r) => p1.emit('host:rematch', {}, r))).reason === 'not-host', 'only the host can play again');
+  let p1Final = null;
+  p1.on('you:final', (d) => { p1Final = d; });
+  const firstGrid = JSON.stringify(boardFromRound.grid);
+  const finalWait = new Promise((r) => host.once('state:final', r));
+  console.log('  … waiting for the 60s round to end');
+  await finalWait;
+  await wait(200);
+  assert(p1Final && p1Final.score > 0, 'round 1 final recap carries Alice\'s score');
+
+  let introSeen = null;
+  p1.once('state:intro', (d) => { introSeen = d; });
+  boardFromRound = null;
+  hostCounts = null;
+  const again = await new Promise((r) => host.emit('host:rematch', {}, r));
+  assert(again && again.ok, 'host plays again from the results');
+  await wait(200);
+  assert(!!introSeen, 'players get a fresh Get ready countdown');
+  const status = await new Promise((r) => p2.emit('query:status', {}, r));
+  assert(status.phase === 'INTRO', 'game is back in the intro');
+  const j4 = await new Promise((r) => p3.emit('player:join', { playerId: 'p3b', name: 'Dave' }, r));
+  assert(!j4.ok && j4.reason === 'round-in-progress', 'nobody new can join a rematch');
+  assert((await new Promise((r) => host.emit('host:rematch', {}, r))).reason === 'not-final', 'play again cannot be double-fired');
+
+  await wait(5600);
+  assert(boardFromRound && boardFromRound.size === 4, 'rematch keeps the 4x4 board size');
+  assert(boardFromRound && JSON.stringify(boardFromRound.grid) !== firstGrid, 'rematch shakes a new board');
+  const roundState = await new Promise((r) => p2.emit('query:status', {}, r));
+  assert(roundState.phase === 'ROUND', 'rematch round is live');
+  const rec = await new Promise((r) => p1.emit('player:reconnect', { playerId: pid1 }, r));
+  assert(rec.ok && rec.you && rec.you.score === 0 && rec.you.words.length === 0, 'Alice starts the rematch at 0 with no words');
+  assert(rec.round && rec.round.durationMs === 60000, 'rematch keeps the 60s time limit');
+  await wait(200);
+  assert(hostCounts && hostCounts.length === 2 && hostCounts.every((c) => c.score === 0 && c.wordCount === 0), 'host sees both players reset to 0');
 
   host.close(); p1.close(); p2.close(); p3.close();
   await wait(150);

@@ -83,6 +83,7 @@
   const finalSub = document.getElementById('finalSub');
   const finalList = document.getElementById('finalList');
   const playAgainBtn = document.getElementById('playAgainBtn');
+  const backToLobbyBtn = document.getElementById('backToLobbyBtn');
 
   const standingsDock = document.getElementById('standingsDock');
   const standingsBtn = document.getElementById('standingsBtn');
@@ -739,6 +740,16 @@
   });
 
   playAgainBtn.addEventListener('click', function () {
+    unlockAudio();
+    playAgainBtn.disabled = true;
+    socket.emit('host:rematch', {}, function (res) {
+      playAgainBtn.disabled = false;
+      if (!res || !res.ok) { toast('Could not start a new game.'); return; }
+      playStartFanfare();
+    });
+  });
+
+  backToLobbyBtn.addEventListener('click', function () {
     showInlineConfirm('Back to the lobby? Everyone will need to rejoin.', function () {
       socket.emit('host:reset', {});
     }, { okLabel: 'Back to lobby' });
@@ -1671,21 +1682,15 @@
   socket.on('connect', function () { connOverlay.hidden = true; authenticate(); });
   socket.on('disconnect', function () { connOverlay.hidden = false; });
 
-  socket.on('state:lobby', function (l) { renderLobby(l); if (l.phase === 'LOBBY') show('lobby'); setStandings(null); setLastTrick(null); });
-  socket.on('state:deal', function (s) { syncClock(s); renderDeal(s); setStandings(s); setLastTrick(null); });
-  socket.on('state:pass', function (s) { syncClock(s); renderPass(s); setStandings(s); setLastTrick(null); });
-  socket.on('state:exchange', function (s) { syncClock(s); renderExchange(s); setStandings(s); setLastTrick(null); });
-  socket.on('state:table', function (s) { syncClock(s); renderTable(s); setStandings(s); setLastTrick(s); });
-  socket.on('state:trickEnd', function (s) { syncClock(s); renderTrickEnd(s); setStandings(s); setLastTrick(s); });
-  socket.on('state:handEnd', function (s) { syncClock(s); renderHandEnd(s); setStandings(null); setLastTrick(null); });
-  socket.on('state:final', function (s) { renderFinal(s); setStandings(null); setLastTrick(null); });
-
-  socket.on('state:reset', function () {
+  /** Forget everything keyed to the game that just ended, so hand 1 replays its set-pieces. */
+  function resetGameKeys() {
     if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
     dealKey = ''; passKey = ''; exchangeKey = ''; moonKey = '';
+    if (moonRainTimer) { clearTimeout(moonRainTimer); moonRainTimer = null; }
     moonSky.innerHTML = '';
     moonBanner.classList.remove('shot');
     flightMode = '';
+    passedSeen = -1;
     if (landTimer) { clearTimeout(landTimer); landTimer = null; }
     exFlights.innerHTML = '';
     exFlights.classList.remove('is-delivering');
@@ -1695,9 +1700,27 @@
     collectKey = null;
     if (collectTimer) { clearTimeout(collectTimer); collectTimer = null; }
     seenQueen = false; seenJack = false; heartsWereBroken = false;
-    lastHumanTotal = -1;
+    standingsKey = ''; lastTrickKey = '';
     setStandings(null);
     setLastTrick(null);
+  }
+  /** A game state arriving over the final scoreboard means a rematch began. */
+  function leavingFinal() {
+    if (currentView === 'final') resetGameKeys();
+  }
+
+  socket.on('state:lobby', function (l) { renderLobby(l); if (l.phase === 'LOBBY') show('lobby'); setStandings(null); setLastTrick(null); });
+  socket.on('state:deal', function (s) { leavingFinal(); syncClock(s); renderDeal(s); setStandings(s); setLastTrick(null); });
+  socket.on('state:pass', function (s) { leavingFinal(); syncClock(s); renderPass(s); setStandings(s); setLastTrick(null); });
+  socket.on('state:exchange', function (s) { leavingFinal(); syncClock(s); renderExchange(s); setStandings(s); setLastTrick(null); });
+  socket.on('state:table', function (s) { leavingFinal(); syncClock(s); renderTable(s); setStandings(s); setLastTrick(s); });
+  socket.on('state:trickEnd', function (s) { leavingFinal(); syncClock(s); renderTrickEnd(s); setStandings(s); setLastTrick(s); });
+  socket.on('state:handEnd', function (s) { leavingFinal(); syncClock(s); renderHandEnd(s); setStandings(null); setLastTrick(null); });
+  socket.on('state:final', function (s) { renderFinal(s); setStandings(null); setLastTrick(null); });
+
+  socket.on('state:reset', function () {
+    resetGameKeys();
+    lastHumanTotal = -1;
     show('lobby');
   });
 

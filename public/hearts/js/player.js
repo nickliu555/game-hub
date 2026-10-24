@@ -677,9 +677,16 @@
     // from the snapshot rather than trusting the one the join ack gave us.
     const me = l && l.players && l.players.filter(function (p) { return p.id === PID; })[0];
     if (me && me.seat) mySeat = me.seat;
+    // host:start / host:rematch send the roster ahead of the deal; that's not a lobby.
+    if (l && l.phase && l.phase !== 'LOBBY') return;
     setPhase('LOBBY');
   });
-  socket.on('state:deal', function () { setPhase('DEAL'); });
+  socket.on('state:deal', function () {
+    // Coming off the final scoreboard means a rematch: nothing from the old game survives.
+    if (publicPhase === 'FINAL') hand = null;
+    picks = []; armed = null; lastHandEnd = null;
+    setPhase('DEAL');
+  });
   socket.on('state:pass', function () { setPhase('PASS'); });
   socket.on('state:exchange', function () { setPhase('EXCHANGE'); });
   socket.on('state:table', function () { setPhase('TRICK'); });
@@ -692,6 +699,7 @@
   });
   socket.on('state:final', function (s) {
     publicPhase = 'FINAL';
+    armed = null; picks = [];
     renderTop();
     renderFinal(s);
   });

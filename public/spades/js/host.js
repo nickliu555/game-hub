@@ -79,6 +79,7 @@
   const finalSub = document.getElementById('finalSub');
   const finalList = document.getElementById('finalList');
   const playAgainBtn = document.getElementById('playAgainBtn');
+  const backToLobbyBtn = document.getElementById('backToLobbyBtn');
 
   const standingsDock = document.getElementById('standingsDock');
   const standingsBtn = document.getElementById('standingsBtn');
@@ -753,7 +754,17 @@
     });
   });
 
+  // Instant rematch: same seats, teams and settings, straight into a fresh hand 1.
   playAgainBtn.addEventListener('click', function () {
+    unlockAudio();
+    playAgainBtn.disabled = true;
+    socket.emit('host:rematch', {}, function (res) {
+      if (!res || !res.ok) { playAgainBtn.disabled = false; toast('Could not start a new game.'); return; }
+      playStartFanfare();
+    });
+  });
+
+  backToLobbyBtn.addEventListener('click', function () {
     showInlineConfirm('Back to the lobby? Everyone will need to rejoin.', function () {
       socket.emit('host:reset', {});
     }, { okLabel: 'Back to lobby' });
@@ -1315,6 +1326,7 @@
       finalList.appendChild(row);
     });
 
+    playAgainBtn.disabled = false;
     if (currentView !== 'final') {
       playApplause();
       confetti();
@@ -1498,11 +1510,11 @@
   socket.on('disconnect', function () { connOverlay.hidden = false; });
 
   socket.on('state:lobby', function (l) { renderLobby(l); if (l.phase === 'LOBBY') show('lobby'); setStandings(null); setLastTrick(null); });
-  socket.on('state:deal', function (s) { syncClock(s); renderDeal(s); setStandings(s); setLastTrick(null); });
-  socket.on('state:bid', function (s) { syncClock(s); renderBidTable(s); setStandings(s); setLastTrick(null); });
-  socket.on('state:table', function (s) { syncClock(s); renderTable(s); setStandings(s); setLastTrick(s); });
-  socket.on('state:trickEnd', function (s) { syncClock(s); renderTrickEnd(s); setStandings(s); setLastTrick(s); });
-  socket.on('state:handEnd', function (s) { syncClock(s); renderHandEnd(s); setStandings(null); setLastTrick(null); });
+  socket.on('state:deal', function (s) { leaveFinal(); syncClock(s); renderDeal(s); setStandings(s); setLastTrick(null); });
+  socket.on('state:bid', function (s) { leaveFinal(); syncClock(s); renderBidTable(s); setStandings(s); setLastTrick(null); });
+  socket.on('state:table', function (s) { leaveFinal(); syncClock(s); renderTable(s); setStandings(s); setLastTrick(s); });
+  socket.on('state:trickEnd', function (s) { leaveFinal(); syncClock(s); renderTrickEnd(s); setStandings(s); setLastTrick(s); });
+  socket.on('state:handEnd', function (s) { leaveFinal(); syncClock(s); renderHandEnd(s); setStandings(null); setLastTrick(null); });
   socket.on('state:final', function (s) { renderFinal(s); setStandings(null); setLastTrick(null); });
 
   // Each bid gets its own cue; Nil and Blind Nil get a flourish of their own.
@@ -1525,7 +1537,8 @@
     }
   });
 
-  socket.on('state:reset', function () {
+  /** Forget everything keyed by hand/trick number — a new game restarts those at 1. */
+  function resetGameKeys() {
     if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
     dealKey = '';
     lastTurnId = null; lastTrickNumber = 0; lastBidTurnId = null;
@@ -1533,9 +1546,18 @@
     collectKey = null; bustedKey = '';
     if (collectTimer) { clearTimeout(collectTimer); collectTimer = null; }
     spadesWereBroken = false;
-    lastHumanTotal = -1;
+    shatterLayer.innerHTML = '';
     setStandings(null);
     setLastTrick(null);
+  }
+  /** A hand arriving while the final scoreboard is up means a rematch began. */
+  function leaveFinal() {
+    if (currentView === 'final') resetGameKeys();
+  }
+
+  socket.on('state:reset', function () {
+    resetGameKeys();
+    lastHumanTotal = -1;
     show('lobby');
   });
 

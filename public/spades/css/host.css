@@ -925,7 +925,8 @@ body.host {
 .fr-name .pname[data-seat="E"], .fr-name .pname[data-seat="W"] { color: var(--team-blue); }
 .fr-total { font-size: clamp(20px, 2.1vw, 30px); font-weight: 800; white-space: nowrap; }
 
-.final-foot { padding-top: 18px; }
+.final-foot { padding-top: 18px; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; }
+.final-foot .btn-accent { font-size: 19px; padding: 15px 38px; }
 
 /* ═══════════════════════ Standings peek ═══════════════════════ */
 /* Sits on the stage, not the topbar, so it reads as part of the game screen. */

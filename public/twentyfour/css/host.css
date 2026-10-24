@@ -458,6 +458,26 @@ body.host {
 }
 .leaderboard-header .lb-rank,
 .leaderboard-header .lb-score { font-weight: 600; color: rgba(255,255,255,0.5); }
+.final-actions { flex-shrink: 0; display: flex; justify-content: center; }
+.final-actions .btn-start {
+  background: var(--gold);
+  color: var(--ink);
+  font-size: 22px;
+  padding: 14px 36px;
+}
+/* Short laptop screens: trim the podium and spacing so the leaderboard keeps
+   several readable rows above the Play again button. */
+@media (max-height: 820px) {
+  .final { padding: 16px 32px; gap: 12px; }
+  .final h1 { font-size: 44px; }
+  .podium { margin-top: 8px; }
+  .podium-spot { padding: 12px 16px; gap: 4px; }
+  .podium-spot.first  { height: 225px; }
+  .podium-spot.second { height: 200px; }
+  .podium-spot.third  { height: 180px; }
+  .podium-spot .medal { font-size: 44px; }
+  .final-actions .btn-start { font-size: 20px; padding: 10px 32px; }
+}
 
 /* Pre-results splash overlay shown for ~4s when the round ends, before
    the podium + leaderboard fade in. */

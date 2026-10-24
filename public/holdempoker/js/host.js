@@ -90,6 +90,7 @@
   const finalSub = document.getElementById('finalSub');
   const finalList = document.getElementById('finalList');
   const playAgainBtn = document.getElementById('playAgainBtn');
+  const rematchBtn = document.getElementById('rematchBtn');
 
   const connOverlay = document.getElementById('connOverlay');
   const fullscreenBtn = document.getElementById('fullscreenBtn');
@@ -783,6 +784,20 @@
     showInlineConfirm('Back to the lobby? Everyone will need to rejoin.', function () {
       socket.emit('host:reset', {});
     }, { okLabel: 'Back to lobby' });
+  });
+
+  // Same seats, same settings, fresh stacks — straight into hand one.
+  rematchBtn.addEventListener('click', function () {
+    if (rematchBtn.disabled) return;
+    unlockAudio();
+    rematchBtn.disabled = true;
+    socket.emit('host:rematch', {}, function (res) {
+      rematchBtn.disabled = false;
+      if (!res || !res.ok) { toast('Could not start a new game.'); return; }
+      resetTableState();
+      lastEventSeq = 0; lastActedSeq = 0; lastCollectSeq = 0;
+      playStartFanfare();
+    });
   });
 
   // ---------------- The table ----------------
@@ -1617,6 +1632,11 @@
   }
 
   function renderTable(s) {
+    // A rematch this screen didn't start (another host tab): clear the old game silently.
+    if (currentView === 'final' && lastHandSeen !== 0) {
+      resetTableState();
+      lastEventSeq = -1; lastActedSeq = -1; lastCollectSeq = -1;
+    }
     syncClock(s);
     clearAward();
     clearStackCounts();
@@ -1979,6 +1999,16 @@
   socket.on('state:final', renderFinal);
 
   socket.on('state:reset', function () {
+    resetTableState();
+    lastEventSeq = -1;
+    lastActedSeq = -1;
+    lastCollectSeq = -1;
+    lastHumanTotal = -1;
+    show('lobby');
+  });
+
+  /** Wipe everything the last game left on the felt, ready for a fresh one. */
+  function resetTableState() {
     clearAward();
     clearStackCounts();
     clearPotHold();
@@ -1991,14 +2021,10 @@
     seatEls = {};
     seatLayer.innerHTML = '';
     renderBoard([], null);
-    lastEventSeq = -1;
-    lastActedSeq = -1;
-    lastCollectSeq = -1;
+    lastHandEndState = null;
     lastTurnId = null;
     lastHandSeen = 0;
-    lastHumanTotal = -1;
-    show('lobby');
-  });
+  }
 
   // ---------------- Boot ----------------
   renderQR();

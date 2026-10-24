@@ -332,6 +332,17 @@ function mountLiarsDice(app, httpServer, opts) {
       pushState();
     });
 
+    socket.on('host:rematch', (_p, ack) => {
+      if (!requireHost(ack)) return;
+      touchActivity();
+      clearBots();
+      const res = game.rematch();
+      if (!res.ok) { syncBots(); return ack && ack(res); }
+      ack && ack({ ok: true });
+      broadcastLobby();
+      pushState();
+    });
+
     socket.on('host:setReactionsMuted', ({ muted } = {}, ack) => {
       if (!requireHost(ack)) return;
       reactionsMuted = !!muted;

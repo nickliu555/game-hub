@@ -612,10 +612,17 @@
   socket.on('state:lobby', function (l) {
     me = null;
     lastHandEnd = null;
+    // A fresh deal (start or rematch): nothing from the last game carries over.
+    raiseOpen = false;
+    raiseTo = 0;
+    decisionKey = '';
+    sending = false;
+    emoteUntil = 0;
+    emoteKind = null;
     // The host can drag players into new seats in the lobby.
     const mine = l && l.players && l.players.filter(function (p) { return p.id === PID; })[0];
     if (mine && mine.seat) mySeat = mine.seat;
-    publicPhase = 'LOBBY';
+    publicPhase = (l && l.phase) || 'LOBBY';
     route();
   });
   socket.on('state:table', function (s) { publicPhase = s.phase; updateEmoteState(); });

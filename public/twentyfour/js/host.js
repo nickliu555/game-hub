@@ -298,6 +298,7 @@
   });
   socket.on('state:reset', function () {
     stopIntroTimer();
+    clearFinalIntro();
     // Kill the round countdown too, otherwise it keeps ticking toward the
     // old roundEndsAt and fires the final-5s beeps after we're back in lobby.
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
@@ -604,6 +605,14 @@
   }
   function renderIntro(payload) {
     stopIntroTimer();
+    clearFinalIntro();
+    if (raceRevealOverlay) raceRevealOverlay.hidden = true;
+    if (views.final.classList.contains('active')) {
+      // Play again: drop last game's bars so they don't flash before the
+      // first all-zero score update.
+      barsEl.innerHTML = '';
+      prevScores.clear();
+    }
     show('intro');
     if (payload && typeof payload.serverNow === 'number') {
       clockOffset = payload.serverNow - Date.now();
@@ -618,6 +627,19 @@
     introTimer = setInterval(tick, 200);
   }
   socket.on('state:intro', function (p) { renderIntro(p); });
+
+  const playAgainBtn = document.getElementById('playAgainBtn');
+  if (playAgainBtn) {
+    playAgainBtn.addEventListener('click', function () {
+      unlockAudio();
+      playAgainBtn.disabled = true;
+      socket.emit('host:rematch', {}, function (res) {
+        playAgainBtn.disabled = false;
+        if (!res || !res.ok) { showToast((res && res.reason) || 'Could not start'); return; }
+        playStartFanfare();
+      });
+    });
+  }
 
   // ---------------- Race mode ----------------
   let raceCountdownTimer = null;
@@ -880,10 +902,19 @@
   // Splash before the podium. Race already announces "We have a winner!" so it
   // stays a single beat; sprint adds a "Now for the results…" beat after the
   // "Time's up!" line.
+  let finalIntroTimers = [];
+  function clearFinalIntro() {
+    finalIntroTimers.forEach(clearTimeout);
+    finalIntroTimers = [];
+    const ov = document.getElementById('finalIntroOverlay');
+    if (ov) { ov.classList.remove('visible'); ov.hidden = true; }
+  }
   function showFinalIntro(onDone) {
     const ov = document.getElementById('finalIntroOverlay');
     const txt = document.getElementById('finalIntroText');
     if (!ov || !txt) { onDone && onDone(); return; }
+    clearFinalIntro();
+    const later = function (fn, ms) { finalIntroTimers.push(setTimeout(fn, ms)); };
     txt.classList.remove('swap');
     ov.hidden = false;
     // Force reflow so the opacity transition runs from 0.
@@ -893,27 +924,27 @@
     if (activeMode === 'race') {
       // Single beat: hold "We have a winner!" then fade straight to the podium.
       txt.textContent = '🏆 We have a winner!';
-      setTimeout(function () {
+      later(function () {
         if (onDone) onDone();
         ov.classList.remove('visible');
       }, 2400);
-      setTimeout(function () { ov.hidden = true; }, 3000);
+      later(function () { ov.hidden = true; }, 3000);
       return;
     }
 
     txt.textContent = '⏰ Time\'s up!';
     // Halfway through, fade the text and swap it.
-    setTimeout(function () { txt.classList.add('swap'); }, 1800);
-    setTimeout(function () {
+    later(function () { txt.classList.add('swap'); }, 1800);
+    later(function () {
       txt.textContent = 'Now for the results…';
       txt.classList.remove('swap');
     }, 2100);
     // Reveal podium just as the overlay starts fading out so the transition feels continuous.
-    setTimeout(function () {
+    later(function () {
       if (onDone) onDone();
       ov.classList.remove('visible');
     }, 3800);
-    setTimeout(function () { ov.hidden = true; }, 4400);
+    later(function () { ov.hidden = true; }, 4400);
   }
 
   function renderFinal(podium, fullLb) {

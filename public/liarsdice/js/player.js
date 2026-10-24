@@ -655,8 +655,34 @@
     renderRound();
   }
 
+  /** A rematch (or a reset) starts from scratch: nothing from the last game may linger. */
+  function resetGame() {
+    if (armTimer) { clearTimeout(armTimer); armTimer = null; }
+    armed = null;
+    if (verdictTimer) { clearTimeout(verdictTimer); verdictTimer = null; }
+    me = null;
+    rolledRound = 0;
+    rolling = false;
+    covered = false;
+    sel = { face: null, qty: null };
+    decisionKey = '';
+    trayKey = '';
+    lastBuzzKey = '';
+    diceTray.innerHTML = '';
+    diceTray.classList.remove('covered');
+    bidBuilder.hidden = true;
+    callRow.hidden = true;
+    roundHint.textContent = '';
+    resultRows.innerHTML = '';
+    document.body.classList.remove('my-turn');
+  }
+  function leavingFinal(nextPhase) {
+    if (publicPhase === 'FINAL' && nextPhase && nextPhase !== 'FINAL') resetGame();
+  }
+
   /** A fresh round's dice: tumble them, unless this phone is just catching up (reconnect). */
   function adopt(s, fromReconnect) {
+    leavingFinal(s.phase);
     syncClock(s);
     me = s;
     if (s.seat) mySeat = s.seat;
@@ -695,6 +721,7 @@
       hostPresent = res.hostPresent !== false;
       reactionsMutedByHost = !!res.reactionsMuted;
       localStorage.setItem('liarsdice.playerName', myName);
+      leavingFinal(res.phase);
       publicPhase = res.phase;
       if (res.final) { me = res.me || null; renderTop(); renderFinal(res.final); return; }
       if (res.me) { adopt(res.me, true); return; }
@@ -712,16 +739,16 @@
   });
 
   socket.on('state:lobby', function (l) {
-    me = null;
-    rolledRound = 0;
-    trayKey = '';
+    resetGame();
     // The host can drag players into new seats in the lobby.
     const mine = l && l.players && l.players.filter(function (p) { return p.id === PID; })[0];
     if (mine && mine.seat) mySeat = mine.seat;
+    // A start or a rematch re-sends the lobby too; the table and this phone's dice follow it.
+    if (l && l.phase && l.phase !== 'LOBBY') return;
     publicPhase = 'LOBBY';
     route();
   });
-  socket.on('state:table', function (s) { publicPhase = s.phase; updateEmoteState(); });
+  socket.on('state:table', function (s) { leavingFinal(s.phase); publicPhase = s.phase; updateEmoteState(); });
   socket.on('state:final', function (s) {
     publicPhase = 'FINAL';
     renderTop();

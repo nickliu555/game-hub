@@ -114,6 +114,16 @@
   // ---------------- Intro ----------------
   let introTimer = null;
   function renderIntro(payload) {
+    // A new round is always preceded by the intro (including Play again from
+    // the results), so this is where last round's words and score are cleared.
+    if (currentPhase === 'FINAL') {
+      foundWords = new Set();
+      foundList.innerHTML = '';
+      foundCountEl.textContent = '0';
+      setScore(0);
+      pendingFinal = null;
+      finalRevealed = false;
+    }
     currentPhase = 'INTRO';
     cancelFinalWait();
     showView('intro');

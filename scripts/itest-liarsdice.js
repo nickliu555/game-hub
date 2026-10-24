@@ -5,8 +5,8 @@
 // socket traffic — the rules themselves are covered by
 // scripts/test-liarsdice-engine.js, so this file is about the WIRE:
 // lobby gating, dice secrecy, turn enforcement, the table waiting on a
-// dropped player, reconnection fidelity, the timed reveal, emote gating and
-// a game played to the final standings.
+// dropped player, reconnection fidelity, the timed reveal, emote gating,
+// a game played to the final standings and a rematch from there.
 //
 //   node scripts/itest-liarsdice.js   (or: npm run itest:liarsdice)
 
@@ -336,9 +336,14 @@ const byPid = (pid) => Object.keys(humans).find((n) => humans[n].pid === pid);
     check(ack && ack.ok, name + ' joins the new game');
     track(name, s, pid);
   }
+  const cpuAdd = await emit(host, 'host:addBot', {});
+  check(cpuAdd && cpuAdd.ok, 'a CPU takes a seat');
+  await emit(host, 'host:reorder', { playerId: 'bot-1', beforeId: 'pid2_Ann' });
   await emit(host, 'host:setStartDice', { startDice: 3 });
   await emit(host, 'host:start', {});
-  // Whoever is on turn makes an impossible bid; the other calls BS — the bidder loses every round.
+  const midRematch = await emit(host, 'host:rematch', {});
+  check(midRematch && midRematch.ok === false && midRematch.reason === 'not-final', 'a rematch is refused mid-game');
+  // Whoever is on turn makes an impossible bid; the next player calls BS — the bidder loses every human-driven round.
   let busy = false;
   const drive = async () => {
     if (busy || !lastTable || lastTable.phase !== 'BIDDING') return;
@@ -350,23 +355,96 @@ const byPid = (pid) => Object.keys(humans).find((n) => humans[n].pid === pid);
       else await emit(humans[turn].sock, 'player:action', { type: 'bs' });
     } finally { busy = false; }
   };
-  host.on('state:table', () => { setTimeout(drive, 50); });
-  const fin = await once(host, 'state:final', 120000).catch(() => null);
+  const onDrive = () => { setTimeout(drive, 50); };
+  host.on('state:table', onDrive);
+  // The CPU's own moves (and a Spot On winning a die back) can stretch the game; nudge the driver too.
+  const driveTimer = setInterval(drive, 1000);
+  const fin = await once(host, 'state:final', 600000).catch(() => null);
+  clearInterval(driveTimer);
+  host.off('state:table', onDrive);
   check(!!fin, 'the game plays down to a winner');
   if (fin) {
-    check(fin.standings.length === 2 && fin.standings[0].place === 1 && fin.standings[1].place === 2, 'final standings rank 1st and 2nd');
+    check(fin.standings.length === 3 && fin.standings.map((r) => r.place).join(',') === '1,2,3', 'final standings rank 1st, 2nd and 3rd');
     check(!!fin.winnerName && fin.standings[0].playerId === fin.winnerId, 'the winner is named');
     check(fin.standings[1].outRound >= 3, 'the loser went out after losing all 3 dice');
     check(Array.isArray(fin.stats) && fin.stats.every((r) => r.rounds === fin.rounds || r.busted),
       'the final screen carries per-player stats');
-    const champ = humans[byPid(fin.winnerId)];
-    const out = humans[byPid(fin.standings[1].playerId)];
+    // The CPU may win; the best-placed human stands in for the champion.
+    const humanRows = fin.standings.filter((r) => !r.isBot);
+    const champ = humans[byPid(humanRows[0].playerId)];
+    const out = humans[byPid(humanRows[1].playerId)];
     const endReact = await emit(champ.sock, 'player:emote', { e: '🎉' });
-    check(endReact && endReact.ok && endReact.kind === 'float', 'the champion can float an emote on the final standings');
+    check(endReact && endReact.ok && endReact.kind === 'float', 'the best-placed human can float an emote on the final standings');
     const outReact = await emit(out.sock, 'player:emote', { e: '😭' });
     check(outReact && outReact.ok && outReact.kind === 'float', 'a knocked-out player can float an emote on the final standings too');
-    const reFinal = await emit(await connect(), 'player:reconnect', { playerId: out.pid });
+    const outSock = await connect();
+    const reFinal = await emit(outSock, 'player:reconnect', { playerId: out.pid });
     check(reFinal && reFinal.ok && reFinal.final && reFinal.me && reFinal.me.busted, 'a reconnect on the final screen gets the standings');
+    track(byPid(out.pid), outSock, out.pid);
+  }
+
+  // ═══════════ Play again ═══════════
+  section('Rematch');
+  if (fin) {
+    const seatsBefore = fin.stats.map((r) => r.playerId);
+    check(seatsBefore.indexOf('bot-1') === 0 && seatsBefore.length === 3, 'the finished table was CPU, Ann, Ben');
+    const knocked = fin.stats.filter((r) => r.busted).map((r) => r.playerId);
+    const notHostRe = await emit(humans.Ann.sock, 'host:rematch', {});
+    check(notHostRe && notHostRe.reason === 'not-host', 'a player cannot start a rematch');
+    // One phone is away when the host hits Play again: it keeps its seat.
+    // The phone that stays connected belongs to a player knocked out last game.
+    const ranked = fin.standings.filter((r) => !r.isBot);
+    const hereName = byPid(ranked[1].playerId);
+    const awayName = byPid(ranked[0].playerId);
+    humans[awayName].sock.close();
+    await sleep(200);
+    const away = humans[awayName];
+    const here = humans[hereName];
+    const lobbyRe = once(host, 'state:lobby', 3000).catch(() => null);
+    const tableRe = until(host, 'state:table', (t) => t.round === 1 && t.phase === 'ROLL', 3000).catch(() => null);
+    const privRe = until(here.sock, 'you:state', (st) => st.phase === 'ROLL' && st.round === 1, 3000).catch(() => null);
+    const both = await Promise.all([emit(host, 'host:rematch', {}), emit(host, 'host:rematch', {})]);
+    check(both.filter((r) => r && r.ok).length === 1, 'Play again starts exactly one new game');
+    check(both.some((r) => r && r.reason === 'not-final'), 'a double-fired Play again is refused the second time');
+    const lr = await lobbyRe;
+    check(lr && lr.phase === 'ROLL' && lr.total === 3, 'the lobby broadcast goes out as on a normal start');
+    const t1 = await tableRe;
+    check(!!t1, 'everyone is sent straight to round 1');
+    if (t1) {
+      check(t1.seats.map((x) => x.playerId).join(',') === seatsBefore.join(','), 'same players in the same seats, CPU included');
+      check(t1.startDice === 3 && t1.seats.every((x) => x.diceCount === 3 && !x.busted && x.place === null) && t1.totalDice === 9,
+        'everyone is back to the starting 3 dice');
+      check(knocked.every((id) => t1.seats.some((x) => x.playerId === id && !x.busted)), 'players knocked out last game are back in');
+      check(t1.currentBid === null && t1.bidCount === 0 && t1.reveal === null && t1.lastActed === null && t1.seats.every((x) => x.lastAction === null),
+        'no bid, call or reveal carries over');
+      check(t1.stats.every((r) => r.rounds === 1 && r.bids === 0 && r.diceLost === 0 && r.outRound === null), 'stats start over');
+      check(seatsBefore.indexOf(t1.openerId) >= 0, 'an opener is chosen for the new game');
+      const awaySeat = t1.seats.find((x) => x.playerId === away.pid);
+      check(awaySeat && awaySeat.connected === false && awaySeat.diceCount === 3, 'the away player keeps their seat and gets dice');
+    }
+    const priv = await privRe;
+    check(priv && priv.dice.length === 3 && priv.diceCount === 3 && !priv.busted && priv.place === null && priv.reveal === null,
+      'the knocked-out player is back in and privately gets 3 fresh dice');
+    const again = await emit(host, 'host:rematch', {});
+    check(again && again.reason === 'not-final', 'Play again is refused once the new game is under way');
+    const lateSock2 = await connect();
+    const late2 = await emit(lateSock2, 'player:join', { playerId: 'pid_Late2', name: 'Late' });
+    check(late2 && late2.reason === 'game-in-progress', 'nobody new can join the rematch');
+    lateSock2.close();
+
+    const awaySock = await connect();
+    const reAway = await emit(awaySock, 'player:reconnect', { playerId: away.pid });
+    check(reAway && reAway.ok && reAway.table && reAway.table.round === 1 && !reAway.final, 'a phone reconnecting mid-rematch lands on the new table');
+    check(reAway && reAway.me && reAway.me.dice.length === 3 && !reAway.me.busted, 'and gets its fresh dice back');
+    track(awayName, awaySock, away.pid);
+
+    const host2 = await connect();
+    const tableForHost2 = once(host2, 'state:table', 3000).catch(() => null);
+    const auth2 = await emit(host2, 'host:auth', {});
+    const ht = await tableForHost2;
+    check(auth2 && auth2.ok && auth2.phase !== 'FINAL' && ht && ht.round === 1 && ht.seats.length === 3,
+      'a host reconnecting mid-rematch gets the new table');
+    host2.close();
   }
 
   // ═══════════ Secrecy ═══════════

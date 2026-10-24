@@ -372,7 +372,25 @@
     stopIntroTimer();
     stopRaceCountdown();
     stopRaceAuto();
+    cancelFinalWait();
+    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
     raceMode = false;
+    // A new game always opens with this intro (including Play again from the
+    // results), so wipe everything left over from the previous game here.
+    currentPuzzleId = null;
+    currentRacePuzzleId = null;
+    servedAt = 0;
+    skipEligibleAt = 0;
+    roundEndsAt = 0;
+    raceEndsAt = 0;
+    engine.lock();
+    setScoreDisplay(0);
+    if (scoreFloat) scoreFloat.innerHTML = '';
+    if (finalPoints) finalPoints.textContent = '0';
+    if (finalSolves) finalSolves.textContent = '0';
+    if (finalSkips) finalSkips.textContent = '0';
+    if (finalRankLine) { finalRankLine.className = 'rank-line'; finalRankLine.textContent = 'Calculating…'; }
+    if (prStatus) prStatus.textContent = '';
     if (payload && typeof payload.serverNow === 'number') {
       clockOffset = payload.serverNow - Date.now();
     }

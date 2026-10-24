@@ -91,6 +91,7 @@
   const finalSub = document.getElementById('finalSub');
   const finalList = document.getElementById('finalList');
   const playAgainBtn = document.getElementById('playAgainBtn');
+  const backToLobbyBtn = document.getElementById('backToLobbyBtn');
 
   const connOverlay = document.getElementById('connOverlay');
   const fullscreenBtn = document.getElementById('fullscreenBtn');
@@ -774,7 +775,26 @@
     });
   });
 
+  // Rematch: same seats, same settings, straight into round 1.
+  let rematchPending = false;
   playAgainBtn.addEventListener('click', function () {
+    if (rematchPending) return;
+    unlockAudio();
+    applausePending = false;
+    rematchPending = true;
+    playAgainBtn.disabled = true;
+    socket.emit('host:rematch', {}, function (res) {
+      rematchPending = false;
+      playAgainBtn.disabled = false;
+      if (!res || !res.ok) { toast('Could not start a new game.'); return; }
+      clearTableState();
+      lastEventSeq = 0;
+      lastActedSeq = 0;
+      playStartFanfare();
+    });
+  });
+
+  backToLobbyBtn.addEventListener('click', function () {
     showInlineConfirm('Back to the lobby? Everyone will need to rejoin.', function () {
       socket.emit('host:reset', {});
     }, { okLabel: 'Back to lobby' });
@@ -1295,6 +1315,8 @@
 
   // ---------------- Render the table ----------------
   function renderTable(s) {
+    // A new game straight off the final standings (a rematch from another tab, or a reconnect).
+    if (currentView === 'final' && lastTable) { clearTableState(); lastEventSeq = 0; lastActedSeq = 0; }
     syncClock(s);
     lastTable = s;
     seatLayer.style.setProperty('--n', s.startDice || 6);
@@ -1515,7 +1537,8 @@
   socket.on('state:table', renderTable);
   socket.on('state:final', renderFinal);
 
-  socket.on('state:reset', function () {
+  /** Forget everything the table remembered about the last game. */
+  function clearTableState() {
     stopRevealRun();
     hideStatsDock();
     seatOrderIds = [];
@@ -1523,11 +1546,20 @@
     seatEls = {};
     seatLayer.innerHTML = '';
     announceLayer.innerHTML = '';
+    tcVerdict.hidden = true;
+    tcVerdict.innerHTML = '';
+    delete tcVerdict.dataset.key;
+    cupEl = null;
+    cupRound = -1;
     lastEventSeq = -1;
     lastActedSeq = -1;
     lastTurnId = null;
     lastRoundSeen = 0;
     lastTable = null;
+  }
+
+  socket.on('state:reset', function () {
+    clearTableState();
     lastHumanTotal = -1;
     show('lobby');
   });

@@ -229,6 +229,70 @@ test('the last player with dice wins', () => {
   assert.deepStrictEqual(fin.standings.map((s) => [s.playerId, s.place]), [['p1', 1], ['p0', 2]]);
 });
 
+test('a rematch only works from the final standings', () => {
+  const g = new Game(5);
+  g.manualTimers = true;
+  g.addPlayer({ playerId: 'p0', name: 'P0', socketId: 's0' });
+  g.addPlayer({ playerId: 'p1', name: 'P1', socketId: 's1' });
+  assert.strictEqual(g.rematch().reason, 'not-final', 'not from the lobby');
+  g.start();
+  assert.strictEqual(g.rematch().reason, 'not-final', 'not mid-roll');
+  g.tick();
+  assert.strictEqual(g.phase, PHASES.BIDDING);
+  assert.strictEqual(g.rematch().reason, 'not-final', 'not mid-bidding');
+  assert.strictEqual(g.round, 1);
+});
+
+test('a rematch reseats everyone with full dice and a fresh round 1', () => {
+  const g = new Game(21);
+  g.manualTimers = true;
+  g.addPlayer({ playerId: 'h0', name: 'Ann', socketId: 's0' });
+  g.addBot();
+  g.addPlayer({ playerId: 'h1', name: 'Ben', socketId: 's1' });
+  g.reorderPlayer('h1', 'h0');
+  g.setStartDice(3);
+  g.start();
+  const order = g.seatOrder().map((p) => p.id);
+  let guard = 0;
+  while (g.phase !== PHASES.FINAL && guard++ < 3000) {
+    if (g.phase !== PHASES.BIDDING || g.turnLocked) { g.tick(); continue; }
+    if (!g.currentBid) g.act({ playerId: g.turnId, type: 'bid', qty: g.totalDice(), face: 6 });
+    else g.act({ playerId: g.turnId, type: 'bs' });
+  }
+  assert.strictEqual(g.phase, PHASES.FINAL);
+  assert.ok(g.seatOrder().filter((p) => p.busted).length === 2);
+  g.markDisconnected('s1');
+  const lastRound = g.round;
+  const res = g.rematch();
+  assert.ok(res.ok, 'rematch from FINAL');
+  assert.strictEqual(g.phase, PHASES.ROLL);
+  assert.strictEqual(g.round, 1);
+  assert.strictEqual(g.startDice, 3, 'the host settings carry over');
+  assert.deepStrictEqual(g.seatOrder().map((p) => p.id), order, 'same players, same seats');
+  assert.ok(g.players.get('bot-1').isBot, 'the CPU keeps its seat');
+  assert.ok(g.players.has('h1'), 'a disconnected player keeps their seat');
+  g.seatOrder().forEach((p) => {
+    assert.ok(!p.busted && p.place === null && p.outRound === null && p.lastAction === null);
+    assert.strictEqual(p.diceCount, 3);
+    assert.strictEqual(p.dice.length, 3);
+    assert.strictEqual(p.stats.rounds, 1);
+    assert.strictEqual(p.stats.diceLost, 0);
+  });
+  assert.strictEqual(g.winnerId, null);
+  assert.strictEqual(g.currentBid, null);
+  assert.strictEqual(g.bids.length, 0);
+  assert.strictEqual(g.reveal, null);
+  assert.strictEqual(g.lastActed, null);
+  assert.ok(order.indexOf(g.openerId) >= 0);
+  assert.strictEqual(g.getPrivate('h0').dice.length, 3);
+  assert.strictEqual(g.rematch().reason, 'not-final', 'a second rematch is refused');
+  assert.ok(lastRound > 1);
+  g.tick();
+  assert.strictEqual(g.phase, PHASES.BIDDING);
+  assert.strictEqual(g.turnId, g.openerId);
+  assert.strictEqual(g.addPlayer({ playerId: 'late', name: 'Late', socketId: 'sx' }).reason, 'game-in-progress');
+});
+
 // ─────────────────────────── Secrecy ───────────────────────────
 
 test('no die is public outside a reveal', () => {

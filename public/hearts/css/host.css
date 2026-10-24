@@ -1215,7 +1215,16 @@ body.host {
 .final-row[data-seat="W"] .fr-name { color: var(--seat-w); }
 .fr-total { font-size: clamp(20px, 2.1vw, 30px); font-weight: 800; white-space: nowrap; }
 
-.final-foot { padding-top: 18px; }
+.final-foot {
+  padding-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+}
+.final-foot .btn-accent { font-size: 19px; padding: 15px 38px; }
+.final-foot .btn-ghost { font-size: 17px; }
 
 /* ═══════════════════════ Standings peek ═══════════════════════ */
 /* Sits on the stage, not the topbar, so it reads as part of the game screen. */

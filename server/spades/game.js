@@ -332,13 +332,30 @@ class Game {
 
   start() {
     if (!this.canStart()) return { ok: false, reason: 'cannot-start' };
+    this._beginGame();
+    return { ok: true };
+  }
+
+  /**
+   * Host "Play again" from the final scoreboard: same four seats, same teams,
+   * same settings — straight into a fresh hand 1 with scores and bags at zero.
+   */
+  rematch() {
+    if (this.phase !== PHASES.FINAL) return { ok: false, reason: 'not-final' };
+    if (this.teamCount('red') !== PER_TEAM || this.teamCount('blue') !== PER_TEAM) {
+      return { ok: false, reason: 'cannot-start' };
+    }
+    this._beginGame();
+    return { ok: true };
+  }
+
+  _beginGame() {
     this.teams = { red: { score: 0, bags: 0 }, blue: { score: 0, bags: 0 } };
     this.handIndex = 0;
     this.firstDealer = Math.floor(this.rng() * PLAYER_COUNT);
     this.winnerTeam = null;
     this.endReason = null;
     this._enterDeal();
-    return { ok: true };
   }
 
   /** The deal passes one seat clockwise every hand. */

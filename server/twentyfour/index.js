@@ -436,6 +436,18 @@ function mountTwentyFour(app, httpServer, opts) {
       broadcastIntro();
     });
 
+    // "Play again" from the results: same players + settings, fresh scores,
+    // through the same Get ready countdown as a normal start.
+    socket.on('host:rematch', (_p, ack) => {
+      if (!requireHost(ack)) return;
+      touchActivity();
+      const res = game.rematch();
+      if (!res.ok) return ack && ack(res);
+      ack && ack({ ok: true });
+      broadcastLobby();
+      broadcastIntro();
+    });
+
     // Race: first correct solve to the current problem wins the point.
     socket.on('player:raceSolve', ({ puzzleId, steps } = {}, ack) => {
       touchActivity();

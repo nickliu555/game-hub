@@ -324,6 +324,15 @@ function mountBoggle(app, httpServer, opts) {
       broadcastIntro();
     });
 
+    socket.on('host:rematch', (_p, ack) => {
+      if (!requireHost(ack)) return;
+      touchActivity();
+      const res = game.rematch();
+      if (!res.ok) return ack && ack(res);
+      ack && ack({ ok: true });
+      broadcastIntro();
+    });
+
     socket.on('host:kick', ({ playerId: pid } = {}, ack) => {
       if (!requireHost(ack)) return;
       const p = game.removePlayer(pid);

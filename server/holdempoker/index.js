@@ -348,6 +348,18 @@ function mountHoldemPoker(app, httpServer, opts) {
       pushState();
     });
 
+    socket.on('host:rematch', (_p, ack) => {
+      if (!requireHost(ack)) return;
+      touchActivity();
+      clearBots();
+      const res = game.rematch();
+      if (!res.ok) return ack && ack(res);
+      nextEmoteAt.clear();
+      ack && ack({ ok: true });
+      broadcastLobby();
+      pushState();
+    });
+
     socket.on('host:setReactionsMuted', ({ muted } = {}, ack) => {
       if (!requireHost(ack)) return;
       reactionsMuted = !!muted;

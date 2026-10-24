@@ -382,6 +382,28 @@ class Game {
     return { ok: true };
   }
 
+  /** Play again from the final standings: same seats, same settings, fresh stacks. */
+  rematch() {
+    if (this.phase !== PHASES.FINAL) return { ok: false, reason: 'not-final' };
+    if (this.players.size < MIN_PLAYERS) return { ok: false, reason: 'cannot-start' };
+    // Event/collect counters stay monotonic so clients never mistake a new event for a replay.
+    const eventSeq = this._eventSeq;
+    const collectSeq = this._collectSeq;
+    const seq = this._seq;
+    const winnerId = this.winnerId;
+    this._resetGameState();
+    this._eventSeq = eventSeq;
+    this._collectSeq = collectSeq;
+    this._seq = seq + 1;
+    const res = this.start();
+    if (!res.ok) {
+      this.phase = PHASES.FINAL;
+      this.winnerId = winnerId;
+      return res;
+    }
+    return { ok: true };
+  }
+
   _startHand() {
     this._seq++;
     this._clearTimers();

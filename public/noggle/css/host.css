@@ -363,6 +363,7 @@ body.host {
   flex: 1;
   min-height: 0;
 }
+.final-actions { flex-shrink: 0; display: flex; justify-content: center; }
 .leaderboard-full, .board-recap {
   background: rgba(255,255,255,0.96);
   color: var(--ink);
