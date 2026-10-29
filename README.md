@@ -243,7 +243,7 @@ Bouncy blob volleyball on the Host screen, **1v1 or 2v2** — a tribute to the c
    - A **Bluetooth controller** paired with the phone works too: **left stick / D-pad** moves, **A** jumps
 4. You can only move on **your own side** of the net
 5. Knock the ball with your blob **as many times as you like** — where it meets your dome sets its direction, and **moving or jumping into it** hits it harder
-6. The ball bounces off the **walls**, the **ceiling** and the **net**
+6. The ball bounces off the **walls** and the **net** — there's no ceiling
 7. Land the ball on your **opponent's sand** to score a point — it keeps bouncing after it lands, then **whoever lost the point serves** next (the ball drops from above the server)
    - In **teams**, teammates **bump** into each other and **take turns serving**: the server starts at the back with their teammate up by the net, so a team swaps front/back each time it gets the serve
 8. **First to the target score wins!** Hit **▶ Play again** for an instant rematch with the same players, or go back to the lobby
@@ -259,6 +259,23 @@ The host can **Pause** at any time.
 4. Attacks go to a random surviving opponent while the host follows live boards and eliminations.
 5. Avoid topping out. With multiple players, the last survivor wins and eliminated players can spectate. A one-player host match continues until that player tops out. Disconnected players continue as AFK and restore their current board when they return. Hit **▶ Play again** for an instant rematch with the same players, or **New Game** to start over with a fresh lobby.
 6. Choose **Practice solo** from the Strategy section to play endless falling blocks without a host, opponents, or garbage. Pause, resume, restart, or restore a paused session after refreshing.
+
+### 🥊 Ragdoll Rumble
+A wobbly ragdoll brawl for up to **6 fighters** on the Host screen — punch, grab and throw everyone off the stage.
+
+1. Players scan the QR code to join (**2–6 fighters**); the host can **Add CPU** fighters to fill in and **drag the roster** to change colors and spawn spots
+2. The host sets the **round wins** needed, the **round length**, **items** on/off, the **stage set** (**Mixed** rotates through all six stages, **Classic** is the plain Rooftop) and **CPU difficulty**, then hits **Start**
+3. Each phone is a **thumbstick + JUMP + ACTION** pad (it works held either way up); a **Bluetooth controller** paired with the phone works too — **left stick / D-pad** moves, **A** jumps, the other buttons are ACTION
+4. **JUMP** jumps — tap again in the air for a **double and a triple jump**; hold for a full jump, tap for a short hop. Press the stick **down** to drop through a floating platform — on solid ground it **ducks** instead: you can't move, but straight punches, bat swings and flat throws sail over you (down-aimed punches and smashes still get you)
+5. **Tap ACTION** to punch the way you're holding the stick — **three quick taps** make a combo that ends in a big hit. **Hold ACTION** to charge a **smash** and let go to launch it — it's locked to the direction you started charging in (you can still shuffle, but not turn it round); once it's fully charged you can hold it for about a second (it blinks just before it fires on its own). Holding a **🏏 bat**, ACTION is a two-handed swing that hits whatever the bat sweeps through
+6. Tap ACTION next to someone **reeling from a hit**, or who just **swung a smash** (longer if it missed), to **grab** them — **dizzy stars** spin over their head and their eyes turn to spirals while they're grabbable. You keep facing the same way while carrying them; tap ACTION again to swing them round and **throw**: toward your facing (**forward**), away from it (**back** — the strongest), **up**, or hold **down** to **slam** them into the floor. Grabbed? **Mash ACTION** to break free
+7. Every hit raises your **damage %** — the higher it is, the further you fly. Hold the stick while you're flying to steer back toward the stage. Slammed into the **side of the stage**? Hold into the wall to **cling**, then press **JUMP** to **wall-kick** up and away — up to three full-strength kicks per trip through the air, and they don't use up your air jumps
+8. Items pop up around the stage — tap ACTION over one to pick it up: the **🏏 bat** swings, the **💣 bomb** and **🪨 rock** are thrown, and the **🥊 boxing glove** powers up your punches for a while (while they're on you can't pick up anything else)
+9. Every stage has a twist: a **rocking pirate ship**, a **bridge that cracks** under hard landings, **gusts of wind**, a **spiked roller**, or a **lava pit** that bounces you sky-high
+10. Fly past the edge of the screen and you're **out for the round**. When the clock runs out, **sudden death** closes the edges in
+11. **Last ragdoll standing wins the round** — **first to the target number of round wins takes the game!** Hit **▶ Play again** for an instant rematch with the same players, or go back to the lobby
+
+The host can **Pause** at any time.
 
 ## How It Works
 

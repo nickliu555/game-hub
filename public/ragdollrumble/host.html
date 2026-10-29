@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ragdoll Rumble · Host</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="/shared/iris-preload.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/topbar.css" />
+  <link rel="stylesheet" href="/shared/modal.css" />
+  <link rel="stylesheet" href="/shared/iris.css" />
+  <link rel="stylesheet" href="/ragdollrumble/css/base.css" />
+  <link rel="stylesheet" href="/ragdollrumble/css/host.css" />
+  <script src="/shared/topbar.js" defer></script>
+  <script src="/shared/modal.js" defer></script>
+  <script src="/shared/iris.js" defer></script>
+</head>
+<body class="host">
+  <div class="host-container">
+    <div class="game-topbar">
+      <span class="gtb-brand"><span class="brand-bg">🥊</span> Ragdoll Rumble</span>
+      <div class="gtb-controls">
+        <a href="/" id="hubBtn" class="gtb-btn" title="Back to hub (resets game)">← Hub</a>
+        <button id="fullscreenBtn" class="gtb-btn" type="button" title="Toggle fullscreen">⛶ Fullscreen</button>
+        <div class="gtb-settings-wrapper">
+          <button class="gtb-btn" type="button" data-gtb-settings-toggle aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️ Settings</button>
+          <div class="gtb-settings-panel" id="settingsPanel" hidden>
+            <button class="gtb-btn" type="button" data-gtb-help-open="helpOverlay" title="How to play">? Help</button>
+            <button id="muteReactionsBtn" class="gtb-btn" type="button" data-gtb-settings-keep-open title="Mute player reactions">🔔 Reactions: On</button>
+            <div class="gtb-divider"></div>
+            <button id="resetBtn" class="gtb-btn gtb-btn-danger" type="button" title="Reset the whole game">Reset game</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ LOBBY ============ -->
+    <section class="view active lobby" id="view-lobby">
+      <div class="lobby-grid">
+        <div class="lobby-left">
+          <div class="qr-card">
+            <div class="qr-title">Scan to join</div>
+            <div class="qr-sub">Or type the URL below on your phone</div>
+            <div id="qrSlot"><svg viewBox="0 0 1 1"></svg></div>
+            <div class="qr-url" id="joinUrl"></div>
+          </div>
+        </div>
+
+        <div class="lobby-right">
+          <div class="lobby-header">
+            <div class="brand"><span class="brand-bg">🥊</span> Ragdoll Rumble</div>
+            <div class="player-count"><span id="playerCount">0</span> / <span id="playerCap">6</span></div>
+          </div>
+
+          <div class="config-block">
+            <div class="config-row">
+              <label for="roundsRange">Rounds to win</label>
+              <div class="dur-wrap">
+                <input type="range" id="roundsRange" min="1" max="7" step="1" value="3" />
+                <span class="dur-val" id="roundsVal">3</span>
+              </div>
+            </div>
+            <div class="config-row">
+              <label for="durRange">Round length</label>
+              <div class="dur-wrap">
+                <input type="range" id="durRange" min="60" max="180" step="15" value="90" />
+                <span class="dur-val" id="durVal">1:30</span>
+              </div>
+            </div>
+            <div class="config-row">
+              <label>Items</label>
+              <div class="seg" id="itemSeg" role="group" aria-label="Items">
+                <button type="button" class="seg-btn" data-items="1">On</button>
+                <button type="button" class="seg-btn" data-items="0">Off</button>
+              </div>
+            </div>
+            <div class="config-row">
+              <label>Stages</label>
+              <div class="seg" id="stageSeg" role="group" aria-label="Stages">
+                <button type="button" class="seg-btn" data-stage="mixed" title="Rotate through all six stages">Mixed</button>
+                <button type="button" class="seg-btn" data-stage="classic" title="The plain Rooftop every round">Classic</button>
+              </div>
+            </div>
+            <div class="config-row">
+              <label>CPU difficulty</label>
+              <div class="seg" id="diffSeg" role="group" aria-label="CPU difficulty">
+                <button type="button" class="seg-btn" data-diff="easy">Easy</button>
+                <button type="button" class="seg-btn" data-diff="normal">Normal</button>
+                <button type="button" class="seg-btn" data-diff="hard">Hard</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="players-panel">
+            <div class="players-head">Fighters <span class="players-hint">drag to change color &amp; spawn</span></div>
+            <div class="slot-list" id="slotList"></div>
+          </div>
+
+          <div class="lobby-foot">
+            <button id="addBotBtn" class="btn-ghost-bot" type="button">🤖 Add CPU</button>
+            <div class="config-hint" id="configHint"></div>
+            <button id="startBtn" class="btn-start" disabled>Start!</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ MATCH ============ -->
+    <section class="view match" id="view-match">
+      <div class="match-top">
+        <div class="mt-left">
+          <span class="mt-round" id="sbRound">Round 1</span>
+          <span class="mt-stage" id="sbStage">Rooftop</span>
+        </div>
+        <div class="mt-clock" id="sbClock">1:30</div>
+        <div class="mt-right">
+          <span class="mt-target" id="sbTarget">First to 3</span>
+          <button type="button" id="pauseBtn" class="pause-btn" hidden title="Pause the game">⏸ Pause</button>
+        </div>
+      </div>
+      <div class="arena-wrap">
+        <canvas id="arena"></canvas>
+        <div class="match-overlay" id="countOverlay" hidden>
+          <div class="co-note" id="coNote">Round 1</div>
+          <div class="co-num" id="coNum">3</div>
+        </div>
+        <div class="round-overlay" id="roundOverlay" hidden>
+          <div class="ro-badge" id="roBadge">🏆</div>
+          <div class="ro-title" id="roTitle">Round over</div>
+          <div class="ro-sub" id="roSub"></div>
+          <div class="ro-list" id="roList"></div>
+        </div>
+        <div class="pause-overlay" id="pauseOverlay" hidden>
+          <div class="po-icon">⏸</div>
+          <div class="po-title">Paused</div>
+          <div class="po-sub">Press Resume to continue.</div>
+        </div>
+      </div>
+      <div class="score-strip" id="scoreStrip"></div>
+    </section>
+
+    <!-- ============ FINAL ============ -->
+    <section class="view final" id="view-final">
+      <div class="final-inner">
+        <div class="trophy" id="finalTrophy">🏆</div>
+        <h1 class="final-heading" id="finalHeading">Winner!</h1>
+        <div class="final-scroll">
+          <div class="final-section-title">Rounds won</div>
+          <div class="final-list" id="finalList"></div>
+        </div>
+        <div class="final-actions">
+          <button type="button" id="playAgainBtn" class="btn-start">▶ Play again</button>
+          <button type="button" id="backToLobbyBtn" class="btn-ghost-bot">Back to lobby</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Floating reaction emojis from players -->
+  <div class="reaction-layer" id="reactionLayer" aria-hidden="true"></div>
+  <!-- Recorded applause shared with Trivia's results screen (id contains "applause" so the shared cleanup stops it). -->
+  <audio id="sfx-applause" src="/trivia/assets/sounds/applause.mp3" preload="auto"></audio>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/ragdollrumble/vendor/planck.min.js"></script>
+  <script src="/ragdollrumble/js/engine.js"></script>
+  <script src="/ragdollrumble/js/render.js"></script>
+  <script src="/ragdollrumble/js/bot.js"></script>
+  <script src="/ragdollrumble/js/host.js"></script>
+
+  <!-- Help modal -->
+  <div class="gtb-help-overlay" id="helpOverlay">
+    <div class="gtb-help-modal">
+      <button class="gtb-help-modal-close" type="button" data-gtb-help-close aria-label="Close help">&times;</button>
+      <h2><span class="brand-bg">🥊</span> Ragdoll Rumble</h2>
+      <p>A wobbly ragdoll brawl. The fight plays out on <strong>this screen</strong> while each player steers their ragdoll from their phone.</p>
+      <ol>
+        <li>Players scan the QR code to join from their phone (2–6 fighters)</li>
+        <li>Short on players? Hit <strong>🤖 Add CPU</strong> and pick a difficulty. Drag the list to change colors and spawn spots</li>
+        <li>Set <strong>rounds to win</strong>, <strong>round length</strong>, <strong>items</strong> and the <strong>stage set</strong>, then hit <strong>Start!</strong></li>
+        <li>On their phones: the <strong>thumbstick</strong> moves and aims, <strong>JUMP</strong> jumps (again in the air for a double and a triple jump) and <strong>ACTION</strong> does everything else</li>
+        <li><strong>Tap ACTION</strong> to punch (three quick taps make a combo); <strong>hold ACTION</strong> to charge a smash and let go to launch it — it fires the way you started charging, and a full charge holds for about a second before it fires itself</li>
+        <li>Tap ACTION next to someone reeling from a hit or who just swung a smash to <strong>grab</strong> them (dizzy stars spin over their head and their eyes turn to spirals), then tap again to <strong>throw</strong> them forward, <strong>back</strong> (strongest), up, or hold down to <strong>slam</strong> them. Grabbed? Mash ACTION to break free</li>
+        <li>Every hit raises your <strong>damage %</strong> — the higher it is, the further you fly. Hold the stick while flying to steer back. Stuck against the side of the stage? Hold into the wall to cling, then press <strong>JUMP</strong> to <strong>wall-kick</strong> back up</li>
+        <li>Items pop up around the stage: <strong>🏏 bat</strong>, <strong>💣 bomb</strong> and <strong>🪨 rock</strong> (tap ACTION to swing or throw) and a <strong>🥊 glove</strong> that powers up your punches (no other items while they're on)</li>
+        <li>Press the stick <strong>down</strong> to drop through a floating platform — on solid ground it <strong>ducks</strong> under straight punches, bat swings and flat throws (down-aimed punches and smashes still land). Each stage has its own twist — watch out!</li>
+        <li>Fly past the edge of the screen and you're out. When the clock runs out, <strong>sudden death</strong> closes the edges in. <strong>Last ragdoll standing wins the round</strong> — first to the target round wins takes the game</li>
+      </ol>
+    </div>
+  </div>
+</body>
+</html>

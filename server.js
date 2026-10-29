@@ -24,6 +24,7 @@ const mountNong = require('./server/nong');
 const mountSnek = require('./server/snek');
 const mountBlobBall = require('./server/blobball');
 const mountStackingRoyale = require('./server/stackingroyale');
+const mountRagdollRumble = require('./server/ragdollrumble');
 const app = express();
 
 app.set('trust proxy', 1);
@@ -141,6 +142,9 @@ mountSnek(app, httpServer, { getPublicBaseUrl });
 // Mount the Blob Ball 1v1 blob volleyball game (Socket.IO namespace + REST + page routes).
 mountBlobBall(app, httpServer, { getPublicBaseUrl });
 mountStackingRoyale(app, httpServer, { getPublicBaseUrl });
+
+// Mount the Ragdoll Rumble ragdoll brawler (Socket.IO namespace + REST + page routes).
+mountRagdollRumble(app, httpServer, { getPublicBaseUrl });
 
 httpServer.listen(PORT, '0.0.0.0', () => {
     console.log('');

@@ -8,7 +8,7 @@
   // render-only and never touch the physics.
 
   var BB = window.BlobBall;
-  var SKY_H = BB.CEIL / 2;          // 400 — the ceiling, in iso units
+  var SKY_H = BB.CEIL / 2;          // 400 — sky framed above the sand, in iso units
   var SAND_H = 64;                  // sand band drawn under the ground line
   var R = BB.BLOB_R / 2;            // 50
   var BR = BB.BALL_R / 2;           // 12.5
@@ -193,7 +193,7 @@
     g.fillRect(ox + (this.NET_X - 2) * S, oy, 4 * S, SAND_H * 0.55 * S);
 
     // Court edges: if the screen is wider/taller than the court, mark the
-    // walls and ceiling the ball bounces off.
+    // walls the ball bounces off. There's no ceiling: the sky runs to the top.
     if (ox > 2) {
       g.fillStyle = 'rgba(10,8,30,0.28)';
       g.fillRect(0, 0, ox, bg.height);
@@ -201,13 +201,6 @@
       g.fillStyle = 'rgba(255,255,255,0.45)';
       g.fillRect(ox - 2 * S, 0, 2 * S, oy);
       g.fillRect(ox + COURT_W * S, 0, 2 * S, oy);
-    }
-    var ceilPx = yOf(SKY_H);
-    if (ceilPx > 2) {
-      g.fillStyle = 'rgba(10,8,30,0.28)';
-      g.fillRect(0, 0, bg.width, ceilPx);
-      g.fillStyle = 'rgba(255,255,255,0.4)';
-      g.fillRect(ox, ceilPx - 2 * S, COURT_W * S, 2 * S);
     }
     this.bg = bg;
   };
@@ -228,7 +221,7 @@
       this.fx[e.i].sv -= 0.9;
       this.ring(e.x, e.y / 2, '#ffffff', 0.35);
       this.sparks(e.x, e.y / 2, '#ffffff', 5);
-    } else if (e.t === 'wall' || e.t === 'net' || e.t === 'ceil') {
+    } else if (e.t === 'wall' || e.t === 'net') {
       this.ring(e.x, e.y / 2, '#ffffff', 0.25);
     } else if (e.t === 'ground') {
       this.sand(e.x, Math.min(26, 6 + (e.v || 0)), e.point);

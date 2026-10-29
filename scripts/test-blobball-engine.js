@@ -105,7 +105,7 @@ function park(w) { Object.assign(w.ball, { x: 980, y: 700, vx: 0, vy: 0 }); w.ba
   check('release: the ball drops and a held button acts at once', w.ball.y < BB.SERVE_Y && w.blobs[0].x === BB.HOME[0] + 8);
 }
 
-// ---- Walls, ceiling, net ----
+// ---- Walls, net (no ceiling) ----
 {
   const w = liveCourt();
   Object.assign(w.ball, { x: 25, y: 400, vx: -15, vy: 0 });
@@ -116,7 +116,7 @@ function park(w) { Object.assign(w.ball, { x: 980, y: 700, vx: 0, vy: 0 }); w.ba
   check('right wall bounces the ball back', w.ball.vx < 0 && w.ball.x <= BB.WALL_MAX);
   Object.assign(w.ball, { x: 300, y: BB.CEIL - 30, vx: 0, vy: 20 });
   w.step();
-  check('ceiling bounces the ball down', w.ball.vy < 0 && w.ball.y <= BB.CEIL - BB.BALL_R);
+  check('no ceiling: a ball going up keeps rising', w.ball.vy > 0 && w.ball.y > BB.CEIL - BB.BALL_R && !w.events.some((e) => e.t === 'ceil'));
   Object.assign(w.ball, { x: 497, y: 150, vx: 2, vy: -15 });
   let up = false;
   for (let t = 0; t < 3; t++) { w.step(); if (w.ball.vy > 0) up = true; }

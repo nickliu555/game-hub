@@ -30,7 +30,11 @@
     "test:bombbrawl-bot": "node scripts/test-bombbrawl-bot.js",
     "itest:bombbrawl": "node scripts/itest-bombbrawl.js",
     "gen:camo": "node scripts/gen-camo-topics.js",
-    "itest:camo": "node scripts/itest-camo.js"
+    "itest:camo": "node scripts/itest-camo.js",
+    "vendor:ragdollrumble": "node -e \"require('fs').copyFileSync('node_modules/planck/dist/planck.min.js','public/ragdollrumble/vendor/planck.min.js')\"",
+    "test:ragdollrumble": "node scripts/test-ragdollrumble-engine.js",
+    "test:ragdollrumble-bot": "node scripts/test-ragdollrumble-bot.js",
+    "itest:ragdollrumble": "node scripts/itest-ragdollrumble.js"
   },
   "dependencies": {
     "dotenv": "^17.3.1",
@@ -38,6 +42,7 @@
     "express-rate-limit": "^8.2.1",
     "lucide": "1.45.0",
     "nanoid": "^3.3.7",
+    "planck": "^1.5.1",
     "qrcode": "^1.5.3",
     "socket.io": "^4.7.5",
     "tetris-fumen": "1.1.3"

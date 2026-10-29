@@ -42,7 +42,9 @@
 
   var WALL_MIN = 15;
   var WALL_MAX = 985;
-  var CEIL = 800;              // the top of the court, in y-units
+  // No ceiling: the ball's speed cap tops it out near y ≈ 600, so it never
+  // leaves the screen. CEIL is only the height of sky the renderer frames.
+  var CEIL = 800;
 
   // The net: a ball centre inside x ∈ (480, 520) below y = 140 hits the post.
   var NET_X = 500;
@@ -55,7 +57,7 @@
   var HOME = [200, 800];
   var SERVE_Y = 356;
 
-  // Team play (3–4 blobs) uses a court 1.5× wider; the net, ceiling, jump and
+  // Team play (3–4 blobs) uses a court 1.5× wider; the net, jump and
   // ball physics are unchanged. Each side spawns one blob near the net and one
   // at the back (a lone blob stands mid-court).
   var TEAM_W = 1500;
@@ -376,18 +378,17 @@
     return true;
   }
 
-  // Walls, ceiling and net. Shared by the live ball and the CPU's prediction.
+  // Walls and net. Shared by the live ball and the CPU's prediction.
   // (px, py) is where the ball was before this tick's move. The net post is
   // solid: a ball found inside it is resolved by where it came FROM — onto the
   // top if it was above the post, otherwise back out the side it started on —
   // so neither a fast drop nor a blob shoving it sideways can ever carry it
-  // through to the other half. Returns a bitmask: 1 wall, 2 ceiling, 4 net.
+  // through to the other half. Returns a bitmask: 1 wall, 4 net.
   function bounceStatic(b, rng, px, py, geo) {
     var NET_X = geo.NET_X;
     var hit = 0;
     if (b.x < WALL_MIN) { b.x = WALL_MIN; b.vx = -b.vx; hit |= 1; }
     else if (b.x > geo.WALL_MAX) { b.x = geo.WALL_MAX; b.vx = -b.vx; hit |= 1; }
-    if (b.y > CEIL - BALL_R) { b.y = CEIL - BALL_R; if (b.vy > 0) b.vy = -b.vy; hit |= 2; }
     // The post's faces are checked along the ball's whole path this tick, not
     // just where it ends: a ball shoved up a face can't clip the top corner.
     var L = NET_X - NET_BAND, R = NET_X + NET_BAND;
@@ -449,7 +450,6 @@
       }
     }
     if (hit & 1) this.events.push({ t: 'wall', x: b.x, y: b.y });
-    if (hit & 2) this.events.push({ t: 'ceil', x: b.x, y: b.y });
     if (hit & 4) this.events.push({ t: 'net', x: b.x, y: b.y, speed: Math.sqrt(b.vx * b.vx + b.vy * b.vy) });
 
     b.spin += b.vx * 0.012;
@@ -497,7 +497,7 @@
   };
 
   // ---------------- CPU ----------------
-  // Plans off a forward simulation of the ball (walls, ceiling and net, no
+  // Plans off a forward simulation of the ball (walls and net, no
   // blobs), gets behind where it will come down so the dome knocks it toward
   // the net, and jumps when a leap would meet the ball high on its own side.
   // To be beatable from a phone its feet are slow and it hesitates whenever it

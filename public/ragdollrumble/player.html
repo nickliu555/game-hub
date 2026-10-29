@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ragdoll Rumble · Controller</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#22133A">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/ragdollrumble/css/base.css" />
+  <link rel="stylesheet" href="/ragdollrumble/css/player.css" />
+</head>
+<body class="player">
+  <div class="p-shell">
+    <header class="p-head">
+      <span class="p-seat" id="pSeat" aria-hidden="true"></span>
+      <span class="p-name" id="pName">Player</span>
+      <span class="p-score" id="pScore"></span>
+    </header>
+    <div class="net-pill" id="netPill" hidden><span class="net-dot"></span>Reconnecting…</div>
+
+    <!-- ============ WAITING / LOBBY ============ -->
+    <section class="p-view active" id="view-wait">
+      <div class="wait-inner">
+        <div class="wait-emoji">🥊</div>
+        <div class="wait-title" id="waitTitle">You're in!</div>
+        <div class="wait-sub" id="waitSub"><span class="pulse-dot"></span>Waiting for the host to start…</div>
+      </div>
+    </section>
+
+    <!-- ============ CONTROLLER ============ -->
+    <section class="p-view" id="view-play">
+      <div class="hud-pill" id="hudPill">
+        <span class="hud-dot"></span>
+        <span class="hud-dmg" id="hudDmg">0%</span>
+        <span class="hud-item" id="hudItem"></span>
+      </div>
+
+      <div class="pad-area">
+        <div class="stick-zone" id="stickZone">
+          <div class="stick-base" id="stickBase">
+            <div class="stick-ring"></div>
+            <div class="stick-knob" id="stickKnob"></div>
+          </div>
+        </div>
+        <div class="btn-zone">
+          <button type="button" class="pad-btn act-btn" id="actBtn" aria-label="Action: tap to punch, hold to charge">
+            <span class="pb-face">
+              <svg class="pb-charge" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46" pathLength="100" id="chargeRing"></circle></svg>
+              <span class="pb-icon" id="actIcon">👊</span>
+              <span class="pb-label">ACTION</span>
+            </span>
+          </button>
+          <button type="button" class="pad-btn jump-btn" id="jumpBtn" aria-label="Jump">
+            <span class="pb-face">
+              <span class="pb-icon">⤒</span>
+              <span class="pb-label">JUMP</span>
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <div class="p-overlay" id="countOverlay" hidden>
+        <div class="pc-note" id="pcNote">Get ready</div>
+        <div class="pc-num" id="pcNum">3</div>
+      </div>
+      <div class="p-overlay" id="pausedOverlay" hidden>
+        <div class="pc-note">⏸ Paused</div>
+        <div class="pc-sub">The host paused the game.</div>
+      </div>
+    </section>
+
+    <!-- ============ KNOCKED OUT ============ -->
+    <section class="p-view" id="view-out">
+      <div class="out-inner">
+        <div class="out-emoji">💫</div>
+        <div class="out-title">You're out!</div>
+        <div class="out-sub" id="outSub">Watch the big screen — the round's still going.</div>
+      </div>
+    </section>
+
+    <!-- ============ FINAL ============ -->
+    <section class="p-view" id="view-final">
+      <div class="out-inner">
+        <div class="out-emoji" id="finalEmoji">🏆</div>
+        <div class="out-title" id="finalTitle">Game over</div>
+        <div class="out-list" id="finalList"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="gamepad-badge" id="gamepadBadge" hidden>🎮 Controller connected</div>
+
+  <!-- Reactions: lobby, between-round results and final only -->
+  <div class="reaction-bar" id="reactionBar" hidden>
+    <button type="button" class="reaction-btn" data-reaction="0" aria-label="laugh">😂</button>
+    <button type="button" class="reaction-btn" data-reaction="1" aria-label="fire">🔥</button>
+    <button type="button" class="reaction-btn" data-reaction="2" aria-label="party">🎉</button>
+    <button type="button" class="reaction-btn" data-reaction="3" aria-label="shock">😱</button>
+    <button type="button" class="reaction-btn" data-reaction="4" aria-label="cry">😭</button>
+    <button type="button" class="reaction-btn" data-reaction="5" aria-label="angry">😡</button>
+    <div class="reaction-cooldown" id="reactionCooldown" hidden></div>
+  </div>
+
+  <!-- Credit: lobby wait only (see showView/enterWaiting in js/player.js). -->
+  <div class="player-attribution" id="playerAttribution" hidden>Developed by Nick Liu (with help from Claude)</div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/ragdollrumble/js/player.js"></script>
+</body>
+</html>
