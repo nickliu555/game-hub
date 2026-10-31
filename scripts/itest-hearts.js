@@ -448,15 +448,15 @@ async function rematchSuite() {
 
   const gotEmote = once(host, 'host:emote', 3000);
   const emote1 = await emit(socks.Alice, 'player:emote', { e: '🎉' });
-  check(emote1 && emote1.ok && emote1.kind === 'float' && emote1.cooldownMs === 10000,
-    'an emote on the scoreboard floats, with the 10s cooldown');
+  check(emote1 && emote1.ok && emote1.kind === 'float' && emote1.cooldownMs === 5000,
+    'an emote on the scoreboard floats, with the 5s cooldown');
   const seenEmote = await gotEmote;
   check(seenEmote && seenEmote.e === '🎉' && seenEmote.id === players.Alice && seenEmote.kind === 'float',
     'the host receives who sent which emote, and that it floats');
 
   const emote2 = await emit(socks.Alice, 'player:emote', { e: '😂' });
   check(emote2 && emote2.ok === false && emote2.reason === 'cooldown' && emote2.retryInMs > 2500,
-    'a second floating emote inside 10s is refused with a retry hint');
+    'a second floating emote inside 5s is refused with a retry hint');
   const badEmote = await emit(socks.Bob, 'player:emote', { e: '⚽' });
   check(badEmote && badEmote.reason === 'bad-emote', 'an emoji outside the set is rejected');
   const stranger = await connect();
@@ -494,7 +494,7 @@ async function rematchSuite() {
   await once(host, 'state:table', 30000);
   const bobBubble = await emit(socks.Bob, 'player:emote', { e: '😎' });
   check(bobBubble && bobBubble.ok && bobBubble.kind === 'bubble',
-    "a float's 10s cooldown does not hold back the first bubble once play starts");
+    "a float's 5s cooldown does not hold back the first bubble once play starts");
   const aliceWait = await emit(socks.Alice, 'player:emote', { e: '😎' });
   let midTrick = aliceWait;
   if (aliceWait && aliceWait.reason === 'cooldown') {

@@ -1091,7 +1091,7 @@ body.host {
   .strip-value { font-size: clamp(17px, 1.5vw, 24px); }
 }
 
-/* ---- Emote speech bubbles, coming off a player's name ---- */
+/* ---- Emote speech bubbles, coming off a player's seat box ---- */
 .emote-bubble {
   position: relative;
   flex: 0 0 auto;

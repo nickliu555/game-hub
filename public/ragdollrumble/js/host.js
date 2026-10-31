@@ -253,6 +253,13 @@
   function playThrow() { sweep(260, 820, 0.32, 'triangle', 0.09); noise(0.35, 700, 4200, 0.11, 'bandpass'); }
   // A slam is a body hitting the floor: a dull, low thump with a dusty tail.
   function playSlam() { sweep(120, 42, 0.32, 'sine', 0.32); noise(0.28, 500, 70, 0.22); }
+  // A spike: a sharp crack, then a falling whistle as they plummet.
+  function playSpike() {
+    const c = getAudioCtx(); if (!c) return; const b = c.currentTime;
+    noise(0.12, 4200, 900, 0.32, 'highpass');
+    sweep(220, 70, 0.18, 'sine', 0.3);
+    sweep(1400, 260, 0.55, 'triangle', 0.08, b + 0.06);
+  }
   function playPickup() { const c = getAudioCtx(); if (!c) return; const b = c.currentTime; [784, 988, 1319].forEach(function (f, i) { blip(f, 0.11, 'square', 0.1, b + i * 0.055); }); }
   function playExplosion() { noise(0.7, 1400, 50, 0.5); sweep(150, 35, 0.4, 'sine', 0.32); }
   function playCrack() { noise(0.12, 3000, 800, 0.14, 'highpass'); }
@@ -825,6 +832,7 @@
         case 'hit':
           if (ev.kind === 'throw') break;   // the 'throw' event plays the fling
           if (ev.kind === 'slam') { playSlam(); break; }
+          if (ev.spike) { playSpike(); break; }
           playHit(ev.kb || 0); if (ev.kind === 'lava') playSizzle(); break;
         case 'swing': if (ev.kind === 'smash' || ev.kind === 'bat') playWhoosh(); else playSwish(); break;
         case 'throwStart': playWhoosh(); break;
@@ -833,6 +841,7 @@
           socket.emit('host:eliminated', { id: ev.id, by: ev.by });
           break;
         case 'grab': playGrab(); break;
+        case 'spikeBounce': playSlam(); break;
         case 'throw': case 'toss': playThrow(); break;
         case 'pickup': playPickup(); break;
         case 'explode': playExplosion(); break;
@@ -1025,19 +1034,73 @@
   }
 
   // ---------------- Confetti ----------------
+  /**
+   * Two cannon bursts from the bottom corners, then a staggered shower from
+   * the top. Each piece is simulated up front (launch, gravity, air drag that
+   * depends on its shape, side-to-side flutter) and played back with the Web
+   * Animations API, so no two pieces fall the same way.
+   */
   function launchConfetti(tint) {
     if (reduceMotion) return;
-    const colors = [tint || '#FFC93C', '#FF4757', '#FFFFFF', '#3DDC84', '#3DA5FF'];
-    for (let i = 0; i < 90; i++) {
-      const d = document.createElement('div');
-      d.className = 'confetti';
-      d.style.left = (Math.random() * 100) + 'vw';
-      d.style.background = colors[(Math.random() * colors.length) | 0];
-      d.style.animationDelay = (Math.random() * 0.6) + 's';
-      d.style.transform = 'rotate(' + (Math.random() * 360) + 'deg)';
-      document.body.appendChild(d);
-      setTimeout(function () { d.remove(); }, 3400);
+    const W = window.innerWidth, H = window.innerHeight;
+    const colors = [tint || '#FFC93C', tint || '#FFC93C', '#FFC93C', '#FF4757', '#FFFFFF', '#3DDC84', '#3DA5FF', '#B388FF'];
+    const scale = Math.max(0.8, Math.min(1.6, H / 800));
+    const pieces = [];
+    for (let side = 0; side < 2; side++) {
+      for (let i = 0; i < 70; i++) {
+        const dir = side === 0 ? 1 : -1;
+        const ang = (-90 + dir * (18 + Math.random() * 30)) * Math.PI / 180;
+        const sp = (0.95 + Math.random() * 0.75) * H * 1.55;
+        pieces.push({ x: side === 0 ? -10 : W + 10, y: H + 10, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, delay: Math.random() * 0.25 + side * 0.08 });
+      }
     }
+    for (let i = 0; i < 80; i++) {
+      pieces.push({ x: Math.random() * W, y: -20 - Math.random() * 40, vx: (Math.random() - 0.5) * 120, vy: Math.random() * 80, delay: 0.35 + Math.random() * 2.4 });
+    }
+    pieces.forEach(function (p) { flyConfetti(p, colors[(Math.random() * colors.length) | 0], scale, W, H); });
+  }
+
+  function flyConfetti(p, color, scale, W, H) {
+    const el = document.createElement('div');
+    el.className = 'confetti';
+    const shape = Math.random();
+    let w, h;
+    if (shape < 0.55) { w = 7 + Math.random() * 5; h = w * (1.6 + Math.random() * 0.8); }          // strip
+    else if (shape < 0.85) { w = h = 7 + Math.random() * 4; }                                         // square
+    else { w = h = 6 + Math.random() * 4; el.style.borderRadius = '50%'; }                            // dot
+    el.style.width = (w * scale).toFixed(1) + 'px';
+    el.style.height = (h * scale).toFixed(1) + 'px';
+    el.style.background = color;
+    document.body.appendChild(el);
+
+    // Light, flat pieces catch more air: lower terminal speed, more flutter.
+    const drag = 1.6 + Math.random() * 1.4;
+    const g = H * 1.35;
+    const term = H * (0.16 + Math.random() * 0.1);
+    const swayAmp = (18 + Math.random() * 34) * scale, swayHz = 0.6 + Math.random() * 0.9, swayPh = Math.random() * 6.28;
+    const spin = (Math.random() < 0.5 ? -1 : 1) * (180 + Math.random() * 540);
+    const flipHz = 1.2 + Math.random() * 2.4, flipAxis = Math.random() < 0.5 ? 'X' : 'Y';
+    const rot0 = Math.random() * 360;
+    const dt = 1 / 30, frames = [];
+    let x = p.x, y = p.y, vx = p.vx, vy = p.vy, t = 0;
+    while (t < 7) {
+      const fluttering = vy > 0 ? Math.min(1, vy / term) : 0;
+      const sx = Math.sin(t * swayHz * 6.283 + swayPh) * swayAmp * fluttering;
+      frames.push({
+        transform: 'translate(' + (x + sx).toFixed(1) + 'px,' + y.toFixed(1) + 'px) rotate(' + (rot0 + spin * t).toFixed(0) + 'deg) rotate' + flipAxis + '(' + (t * flipHz * 360).toFixed(0) + 'deg)',
+        opacity: 1,
+      });
+      vy += g * dt;
+      vx -= vx * drag * dt;
+      if (vy > term) vy -= (vy - term) * Math.min(1, drag * 2 * dt);
+      x += vx * dt; y += vy * dt; t += dt;
+      if (y > H + 40) break;
+    }
+    if (frames.length < 2) { el.remove(); return; }
+    frames[frames.length - 1].opacity = 0.9;
+    const anim = el.animate(frames, { duration: t * 1000, delay: p.delay * 1000, easing: 'linear', fill: 'both' });
+    anim.onfinish = function () { el.remove(); };
+    setTimeout(function () { el.remove(); }, (t + p.delay) * 1000 + 500);
   }
 
   // ---------------- Input + presence relays ----------------

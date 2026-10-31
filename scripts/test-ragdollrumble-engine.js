@@ -97,6 +97,26 @@ section('Movement');
   check('air jumps refresh on landing', p.grounded && p.airJumps === NM.AIR_JUMPS);
 }
 
+section('Spawns');
+for (const sid of NM.STAGE_IDS) {
+  let ok = true, why = '';
+  for (let n = 2; n <= 6; n++) {
+    const w = world(sid, n);
+    run(w, 0.5);
+    const xs = w.players.map((p) => pos(w, p).x);
+    const sorted = xs.slice().sort((a, b) => a - b);
+    const gaps = sorted.slice(1).map((x, i) => x - sorted[i]);
+    if (!w.players.every((p) => p.alive && p.grounded)) { ok = false; why = n + 'p: not all standing'; }
+    if (Math.abs(sorted[0] + sorted[n - 1]) > 0.8) { ok = false; why = n + 'p: not symmetric ' + sorted; }
+    if (Math.min(...gaps) < 1.8) { ok = false; why = n + 'p: crowded ' + gaps.map((g) => g.toFixed(1)); }
+  }
+  check(sid + ': 2–6 fighters spawn spread end to end, all standing', ok, why);
+}
+{
+  const w = world('rooftop', 2); run(w, 0.3);
+  check('1v1 spawns stay at the far spots, facing each other', Math.abs(pos(w, w.players[0]).x + 9) < 0.5 && Math.abs(pos(w, w.players[1]).x - 9) < 0.5 && w.players[0].facing === 1 && w.players[1].facing === -1);
+}
+
 section('One-way platforms');
 {
   const w = world('rooftop', 1);
@@ -167,16 +187,9 @@ section('Wall jumps');
     return pos(w, p).vy;
   };
   const vs = [];
-  for (let k = 0; k < NM.WALL_JUMPS; k++) vs.push(kickVy());
-  check(NM.WALL_JUMPS + ' wall kicks in one trip through the air', p.wallJumps === NM.WALL_JUMPS, p.wallJumps);
+  for (let k = 0; k < 8; k++) vs.push(kickVy());
+  check('unlimited wall kicks in one trip through the air (8 in a row)', p.wallJumps === 8, p.wallJumps);
   check('…all at full strength (no decay)', vs.every((v) => Math.abs(v - vs[0]) < 0.6 && v < -8), vs.map((v) => +v.toFixed(1)));
-  const ev = (() => {
-    place(p, 12.5, 2.0); p.airJumps = 0;
-    P.stick(w, 'p0', -1, 0); run(w, 0.1);
-    P.press(w, 'p0', 'jump', -1, 0); P.release(w, 'p0', -1, 0);
-    return run(w, 0.05);
-  })();
-  check('…then no more until you land', !ev.some((e) => e.type === 'walljump'));
 }
 {
   const w = world('rooftop', 1);
@@ -274,6 +287,56 @@ section('Punches');
   const hit = run(w, 0.25).find((e) => e.type === 'hit');
   check('aiming up launches upward', hit && hit.dy < -0.9, hit);
   void a; void b;
+}
+
+section('Down-air spike');
+{
+  // Two fighters high over the middle of the stage: a, right on top of v.
+  const sky = () => {
+    const w = world('rooftop', 2);
+    const [a, v] = w.players;
+    place(a, 0, -7.2); place(v, 0, -6); a.facing = 1;
+    run(w, 1 / 60);
+    return { w, a, v, P: pad() };
+  };
+  {
+    const { w, a, v, P } = sky();
+    P.press(w, 'p0', 'act', 0, 1); P.release(w, 'p0', 0, 1);
+    const ev = run(w, 0.2);
+    const h = ev.find((e) => e.type === 'hit' && e.id === v.id);
+    check('a down-air punch from right on top spikes (SPIKE event)', h && h.spike === true, h);
+    check('…sending them straight down, knocked limp', v.tumble && pos(w, v).vy > 15 && Math.abs(pos(w, v).vx) < 2, pos(w, v));
+    const ev2 = run(w, 1.2);
+    const b = ev2.find((e) => e.type === 'spikeBounce' && e.id === v.id);
+    check('over the stage they bounce off the floor (and survive)', b && v.alive, ev2.filter((e) => e.type === 'spikeBounce'));
+  }
+  {
+    const w = world('rooftop', 2);
+    const [a, v] = w.players;
+    const spec = NM.HITS.jab, mid = spec.t0 + 0.3 * (spec.t1 - spec.t0);
+    const atk = (t, aim, type) => ({ type: type || 'jab', spec: NM.HITS[type || 'jab'], t, aim: aim || { x: 0, y: 1 } });
+    a.grounded = false; v.grounded = false;
+    check('_isSpike: early in the strike, straight down, both airborne', w._isSpike(a, v, atk(mid)) === true);
+    check('…not late in the strike (full-reach connection = normal down hit)', w._isSpike(a, v, atk(spec.t1)) === false);
+    check('…not aimed diagonally', w._isSpike(a, v, atk(mid, { x: 0.707, y: 0.707 })) === false);
+    check('…not with a bat', w._isSpike(a, v, atk(NM.HITS.bat.t0, { x: 0, y: 1 }, 'bat')) === false);
+    a.grounded = true;
+    check('…not from the ground', w._isSpike(a, v, atk(mid)) === false);
+    a.grounded = false; v.grounded = true;
+    check('…not on a grounded victim', w._isSpike(a, v, atk(mid)) === false);
+  }
+  {
+    // Off the side of the stage at mid damage, a spike is a KO.
+    const w = world('rooftop', 2);
+    const [a, v] = w.players;
+    const main = w.groundSpans().filter((s) => !s.oneWay).reduce((m, s) => (s.x1 - s.x0 > m.x1 - m.x0 ? s : m));
+    place(v, main.x1 + 1.2, main.y - 2.2); place(a, main.x1 + 1.2, main.y - 3.4); v.dmg = 75;
+    run(w, 1 / 60);
+    const P = pad();
+    P.press(w, 'p0', 'act', 0, 1); P.release(w, 'p0', 0, 1);
+    const ev = run(w, 3);
+    check('a spike off the ledge at 75% is a KO', ev.some((e) => e.type === 'hit' && e.spike) && ev.some((e) => e.type === 'ko' && e.id === v.id));
+  }
 }
 
 section('Duck');
@@ -421,6 +484,45 @@ section('Grabs & throws');
   check('…and the smash fires that way even if the stick swings forward', a.attack && a.attack.aim.x < 0);
 }
 {
+  // Charging protects even when an older opening hasn't run out.
+  const { w, a, b, P } = duel();
+  b.hitAt = w.time; b.lastHitKind = 'smash'; b.lastHitBy = 'x';
+  P.press(w, 'p1', 'act'); run(w, 0.3);
+  check('charging right after being hit is not grabbable', b.charge >= 0 && (w.time - b.hitAt) < NM.REEL_SEC && !w.grabbableIds()[b.id] && w._grabCandidate(a) !== b);
+  P.press(w, 'p0', 'act'); P.release(w, 'p0'); run(w, 0.05);
+  check('…a tap from the rival does not grab them', b.grabbedBy !== a);
+}
+{
+  const { w, a, b, P } = duel();
+  b.smashOpen = { t0: w.time, c: 1, hit: false };
+  P.press(w, 'p1', 'act'); run(w, 0.3);
+  check('charging again during a post-smash opening is not grabbable', b.charge >= 0 && !w.grabbableIds()[b.id] && w._grabCandidate(a) !== b);
+  P.release(w, 'p1'); run(w, 0.02);
+  check('…the new smash opens them up again', w.grabbableIds()[b.id] === true);
+}
+{
+  // Stars mean the same to everyone: a jab alone never opens anyone.
+  const w = world('rooftop', 3);
+  const [a, b, c] = w.players;
+  place(a, -0.6); place(b, 0.55); place(c, 1.6); a.facing = 1; c.facing = -1; run(w, 0.3);
+  b.hitAt = w.time; b.stun = 0.1; b.lastHitKind = 'jab'; b.lastHitBy = a.id;
+  check('a jabbed fighter shows no stars', !w.grabbableIds()[b.id]);
+  check('…and no one (not even a third player) can grab them', w._grabCandidate(a) !== b && w._grabCandidate(c) !== b);
+  b.lastHitKind = 'finisher';
+  check('a finisher opens them to everyone (stars + grab)', w.grabbableIds()[b.id] === true && w._grabCandidate(c) === b);
+}
+{
+  // Input-latency grace, reach behind, diagonal stick.
+  const { w, a, b, P } = duel();
+  b.hitAt = w.time - NM.REEL_SEC - 0.05; b.lastHitKind = 'smash'; b.stun = 0; b.openAt = w.time - 0.05;
+  check('a press just after the stars vanish still grabs (latency grace)', !w.grabbableIds()[b.id] && w._grabCandidate(a) === b);
+  b.openAt = w.time - 0.3;
+  check('…but not long after', w._grabCandidate(a) !== b);
+  a.facing = -1; b.hitAt = w.time; b.lastHitKind = 'smash';
+  P.press(w, 'p0', 'act', 0.6, 0.6); P.release(w, 'p0', 0.6, 0.6); run(w, 0.05);
+  check('grabbing someone right behind you (diagonal-down stick) works and turns you round', b.grabbedBy === a && a.facing === 1);
+}
+{
   // Charging is safe from grabs — a tap jabs them out of the charge instead.
   const { w, a, b, P } = duel();
   P.press(w, 'p1', 'act'); run(w, 0.5);
@@ -561,6 +663,49 @@ section('Items');
 }
 
 {
+  // A rock is good for two throws.
+  const w = world('rooftop', 1, { items: true });
+  const p = w.players[0];
+  place(p, -2); run(w, 0.3);
+  w._spawnItem('rock', w.posOf(p).x + 0.6, -0.33, 0, 0, 'ground', null);
+  run(w, 0.2);
+  const P = pad();
+  P.press(w, 'p0', 'act'); P.release(w, 'p0');
+  run(w, 0.05);
+  check('picking up a rock holds it', p.item && p.item.type === 'rock' && p.item.uses === NM.ROCK_USES);
+  P.press(w, 'p0', 'act', 1, 0); P.release(w, 'p0', 1, 0);
+  const e1 = run(w, 0.5);
+  check('the first throw leaves a rock in hand', e1.filter((e) => e.type === 'toss').length === 1 && p.item && p.item.type === 'rock');
+  P.press(w, 'p0', 'act', 1, 0); P.release(w, 'p0', 1, 0);
+  const e2 = run(w, 0.5);
+  check('…the second throw uses it up', e2.filter((e) => e.type === 'toss').length === 1 && !p.item);
+  const thrown = w.itemList.filter((it) => it.type === 'rock');
+  check('…and each thrown rock is a single throw if picked back up', thrown.length > 0 && thrown.every((it) => it.uses === 1));
+}
+
+{
+  // A rock lobbed straight up is still a live throw on the way back down.
+  const { w, a, b } = duel();
+  const bp = w.posOf(b);
+  w._spawnItem('rock', bp.x, bp.y - 2.5, 0, -12, 'thrown', a);
+  const ev = run(w, 2);
+  check('a rock thrown straight up hits whoever it lands on', ev.some((e) => e.type === 'hit' && e.id === b.id && e.kind === 'rock'));
+}
+{
+  const w = world('rooftop', 1, { items: true });
+  const p = w.players[0];
+  place(p, -10.5); run(w, 0.3);   // open sky overhead (no planks to land on)
+  p.item = { type: 'rock', uses: 1 };
+  const P = pad();
+  P.press(w, 'p0', 'act', 0, -1); P.release(w, 'p0', 0, -1);
+  let midAirGround = false;
+  const ev = run(w, 2.5, () => { const r = w.itemList.find((it) => it.type === 'rock'); if (r && r.state === 'ground' && r.body && r.body.getPosition().y < -1.5) midAirGround = true; });
+  check('…it never turns into a pickup at the top of its arc', !midAirGround);
+  check('…your own throw never hits you', !ev.some((e) => e.type === 'hit' && e.id === p.id));
+  check('…and once it comes to rest it is a pickup again', w.itemList.some((it) => it.type === 'rock' && it.state === 'ground'));
+}
+
+{
   // One thing at a time: gloves on means no bat, bomb or rock.
   const w = world('rooftop', 1, { items: true });
   const p = w.players[0];
@@ -578,6 +723,28 @@ section('Items');
   P.press(w, 'p0', 'act'); P.release(w, 'p0');
   run(w, 0.05);
   check('…but another glove tops the gloves back up', p.gloveT > 5);
+}
+{
+  // Gloves get no special treatment: knocked limp or grabbed, they fall off.
+  const { w, a, b, P } = duel();
+  b.gloveT = 6;
+  w._hit(a, b, { d: 10, base: 20, growth: 0 }, 1, 1, 0, [], {});
+  const g = w.itemList.find((it) => it.type === 'glove');
+  check('a big hit (knocked limp) knocks the gloves off', b.tumble && b.gloveT === 0 && g && g.state === 'ground');
+  check('…and the dropped gloves keep their remaining time', g && Math.abs(g.gloveT - 6) < 0.1, g && g.gloveT);
+  w._pickup(a, g, []);
+  check('…for whoever picks them up', Math.abs(a.gloveT - 6) < 0.1, a.gloveT);
+  a.gloveT = 0; b.gloveT = 5;
+  b.hitAt = w.time; b.lastHitKind = 'smash';
+  P.press(w, 'p0', 'act'); P.release(w, 'p0');
+  run(w, 0.05);
+  check('being grabbed knocks the gloves off too', b.grabbedBy === a && b.gloveT === 0 && w.itemList.some((it) => it.type === 'glove'));
+}
+{
+  const { w, a, b } = duel();
+  b.gloveT = 6;
+  w._hit(a, b, NM.HITS.jab, 1, 1, 0, [], { kind: 'jab' });
+  check('a light hit leaves the gloves on', b.gloveT > 5 && !w.itemList.some((it) => it.type === 'glove'));
 }
 
 section('Item spawns are safe');

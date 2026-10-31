@@ -12,9 +12,9 @@
   var NM = global.RagdollRumble;
 
   var DIFF = {
-    easy:   { react: 0.38, aggro: 0.45, recover: 0.75, charge: 0.08, dodge: 0.15, duck: 0,    items: 0.4, range: 1.15 },
-    normal: { react: 0.22, aggro: 0.75, recover: 0.85, charge: 0.22, dodge: 0.45, duck: 0.3,  items: 0.7, range: 1.25 },
-    hard:   { react: 0.12, aggro: 0.95, recover: 1.0,  charge: 0.35, dodge: 0.8,  duck: 0.55, items: 0.9, range: 1.3 },
+    easy:   { react: 0.38, aggro: 0.45, recover: 0.75, charge: 0.08, dodge: 0.15, duck: 0,    items: 0.4, range: 1.15, spike: 0.1 },
+    normal: { react: 0.22, aggro: 0.75, recover: 0.85, charge: 0.22, dodge: 0.45, duck: 0.3,  items: 0.7, range: 1.25, spike: 0.4 },
+    hard:   { react: 0.12, aggro: 0.95, recover: 1.0,  charge: 0.35, dodge: 0.8,  duck: 0.55, items: 0.9, range: 1.3,  spike: 0.8 },
   };
 
   function sign(v) { return v < 0 ? -1 : 1; }
@@ -32,6 +32,8 @@
     this.targetId = null;
     this.retarget = 0;
     this.wander = 0;
+    this.guardId = null; this.guardT = 0;
+    this.egId = null; this.egT = 0; this.egGo = false;   // edge-guard decision (sticky)
   }
 
   Bot.prototype._pressJump = function (hold) {
@@ -52,6 +54,8 @@
     if (this.actHold > 0) { this.actHold -= dt; if (this.actHold <= 0) this.actHeld = false; }
     this.think -= dt;
     this.retarget -= dt;
+    this.guardT = Math.max(0, this.guardT - dt);
+    this.egT = Math.max(0, this.egT - dt);
     if (this.think <= 0) {
       this.think = this.cfg.react * (0.7 + this.rnd() * 0.6);
       this._decide(world, p);
@@ -82,6 +86,65 @@
     return best || { x: 0, y: 0 };
   }
   function nearestSpanX(spans, x, footY) { return nearestSpan(spans, x, footY).x; }
+
+  /** In the air with a rival just below: stick straight down + punch = spike. */
+  Bot.prototype._trySpike = function (world, p, me) {
+    if (p.attack || p.charge >= 0 || p.pending || (p.item && p.item.type)) return false;
+    for (var i = 0; i < world.players.length; i++) {
+      var q = world.players[i];
+      if (q === p || !q.alive || !q.parts || q.grounded || q.grabbedBy) continue;
+      var qp = world.posOf(q);
+      // Where they'll be when the fist arrives, relative to us.
+      var rx = (qp.x + qp.vx * 0.08) - (me.x + me.vx * 0.08), dy = qp.y - me.y;
+      if (Math.abs(rx) < 0.6 && dy > 0.6 && dy < 2.0) {
+        if (this.rnd() >= this.cfg.spike) return false;
+        // A small sideways nudge still aims straight down (stick within ±22°).
+        this.x = Math.max(-0.35, Math.min(0.35, rx)); this.y = 1;
+        this._pressAction(0.04);
+        this.think = 0.18;
+        return true;
+      }
+    }
+    return false;
+  };
+
+  /**
+   * Standing near a ledge while a rival recovers below it: walk to the edge,
+   * then hop out over them so _trySpike can drive them down.
+   */
+  Bot.prototype._edgeGuard = function (world, p, me, spans, foot) {
+    if (!p.grounded || (p.item && p.item.type) || p.charge >= 0) return false;
+    var s = groundBelow(spans, me.x, foot, 0);
+    if (!s || s.oneWay) return false;
+    for (var i = 0; i < world.players.length; i++) {
+      var q = world.players[i];
+      if (q === p || !q.alive || !q.parts || q.grounded || q.grabbedBy) continue;
+      var qp = world.posOf(q), qfoot = qp.y + NM.STAND_H;
+      // (No margin: someone clinging to the side of the stage is off it.)
+      if (groundBelow(spans, qp.x, qfoot, 0)) continue;
+      var side = qp.x > s.x1 ? 1 : qp.x < s.x0 ? -1 : 0;
+      if (!side) continue;
+      var edge = side > 0 ? s.x1 : s.x0;
+      var beyond = (qp.x - edge) * side, below = qfoot - s.y, dist = (edge - me.x) * side;
+      if (beyond > 3.5 || below < 0.3 || below > 11 || dist < 0 || dist > 5) continue;
+      // Decide once per recovery whether to go for it, rather than dithering.
+      if (this.egId !== q.id || this.egT <= 0) { this.egId = q.id; this.egT = 1.5; this.egGo = this.rnd() < this.cfg.spike; }
+      if (!this.egGo) return false;
+      // (_decide stops a walk about 1.3m short of the ledge.)
+      if (dist > 1.6) { this.x = side; return true; }
+      // Hold the ledge until they climb within reach, then go.
+      if (beyond < 2 && below > 0.8 && below < 3.5) {
+        this.x = side;
+        this._pressJump(0.02);   // a tiny hop off the ledge, then drop onto them
+        this.guardId = q.id; this.guardT = 0.8;
+        this.think = 0.06;
+        return true;
+      }
+      this.x = 0;
+      return true;
+    }
+    return false;
+  };
 
   /** Decide, then refuse to walk off a ledge unless the move includes a jump. */
   Bot.prototype._decide = function (world, p) {
@@ -117,6 +180,21 @@
       this.y = upThrow ? -1 : 0;
       if (p.grabbing.t < 1.4 || this.rnd() < 0.35) { this._pressAction(0.05); }
       return;
+    }
+
+    // ---- Spike anyone right underneath (only with a jump left to get back) ----
+    if (!p.grounded && (groundBelow(spans, me.x, foot, 0.3) || p.airJumps > 0) && this._trySpike(world, p, me)) return;
+    // Just hopped off to edge-guard: drift over the victim (recovery resumes after).
+    if (this.guardT > 0 && !p.grounded && p.airJumps > 0) {
+      var gq = world.playerById(this.guardId);
+      if (gq && gq.alive && gq.parts && !gq.grounded) {
+        var gp = world.posOf(gq);
+        // Close the gap, damped by our own drift so we settle over them.
+        this.x = Math.max(-1, Math.min(1, (gp.x - me.x) * 2 - me.vx * 0.12));
+        this.think = 0.04;
+        return;
+      }
+      this.guardT = 0;
     }
 
     // ---- Off stage: get back ----
@@ -163,6 +241,9 @@
       this.x = sign(nearestSpanX(spans, me.x, foot) - me.x);
       return;
     }
+
+    // ---- Edge-guard: hop off over someone recovering below the ledge ----
+    if (this._edgeGuard(world, p, me, spans, foot)) return;
 
     // ---- Pick a target ----
     var target = this.targetId ? world.playerById(this.targetId) : null;

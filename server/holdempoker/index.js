@@ -23,7 +23,7 @@ const TABLE_PHASES = new Set([PHASES.DEAL, PHASES.BETTING, PHASES.RUNOUT]);
 // The showdown/payout plays out on the felt too, so it bubbles like live betting.
 const BUBBLE_PHASES = new Set([PHASES.DEAL, PHASES.BETTING, PHASES.RUNOUT, PHASES.HAND_END]);
 const EMOTE_BUBBLE_COOLDOWN_MS = 2500;
-const EMOTE_FLOAT_COOLDOWN_MS = 10 * 1000;
+const EMOTE_FLOAT_COOLDOWN_MS = 5 * 1000;
 
 /**
  * Mount Hold'em Poker onto the hub's Express app and HTTP server.

@@ -24,7 +24,7 @@ const ALLOWED_EMOTES = new Set(['😀', '😂', '😎', '😭', '😡', '👍', 
 // A trick on the felt shows emotes as seat bubbles; every other screen floats them.
 const BUBBLE_PHASES = new Set([PHASES.TRICK, PHASES.TRICK_END]);
 const EMOTE_BUBBLE_COOLDOWN_MS = 2500;
-const EMOTE_FLOAT_COOLDOWN_MS = 10 * 1000;
+const EMOTE_FLOAT_COOLDOWN_MS = 5 * 1000;
 
 /**
  * Mount the Hearts game onto the hub's Express app and HTTP server.

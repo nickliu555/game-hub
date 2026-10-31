@@ -175,14 +175,14 @@ function setMode(name, mode) { humans[name].mode = mode; drive(name); }
 
   const lobbyEmote = once(host, 'host:emote', 3000);
   const lobbyReact = await emit(humans.Bob.sock, 'player:emote', { e: '😀' });
-  check(lobbyReact && lobbyReact.ok && lobbyReact.kind === 'float' && lobbyReact.cooldownMs === 10000,
-    'a lobby emote floats, with the 10s cooldown');
+  check(lobbyReact && lobbyReact.ok && lobbyReact.kind === 'float' && lobbyReact.cooldownMs === 5000,
+    'a lobby emote floats, with the 5s cooldown');
   const lobbySeen = await lobbyEmote.catch(() => null);
   check(lobbySeen && lobbySeen.id === 'pid_Bob' && lobbySeen.e === '😀' && lobbySeen.kind === 'float',
     'the host learns who emoted, which emoji, and that it floats');
   const lobbyAgain = await emit(humans.Bob.sock, 'player:emote', { e: '😂' });
   check(lobbyAgain && lobbyAgain.reason === 'cooldown' && lobbyAgain.retryInMs > 2500,
-    'a second floating emote inside 10s is refused');
+    'a second floating emote inside 5s is refused');
 
   // ═══════════ Start & deal ═══════════
   section('Deal');
@@ -196,7 +196,7 @@ function setMode(name, mode) { humans[name].mode = mode; drive(name); }
   check(t0.seats.every((s) => s.cards === null), 'no hole card is public');
   const bobAtDeal = await emit(humans.Bob.sock, 'player:emote', { e: '👍' });
   check(bobAtDeal && bobAtDeal.ok && bobAtDeal.kind === 'bubble',
-    "a lobby float's 10s cooldown does not hold back a bubble once the cards are out");
+    "a lobby float's 5s cooldown does not hold back a bubble once the cards are out");
   await sleep(200);
   const holes = ['Alice', 'Bob', 'Carol'].map((n) => humans[n].me && humans[n].me.hole);
   check(holes.every((h) => h && h.length === 2), 'every human privately receives two cards');

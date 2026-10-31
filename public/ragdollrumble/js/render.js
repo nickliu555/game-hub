@@ -155,6 +155,18 @@
           this.addShake(0.35);
           break;
         }
+        if (ev.spike) {
+          // Spike: a sharp downward crack, a streak trailing the victim down.
+          this._burst(ev.x, ev.y, 16, '#b388ff', 9, 0.4, 0.13, 18);
+          this._ring(ev.x, ev.y, 0.2, 1.6, '#ffffff', 0.25, 0.14);
+          this._ring(ev.x, ev.y, 0.2, 2.4, '#b388ff', 0.35, 0.1);
+          this.flings = this.flings || {};
+          this.flings[ev.id] = { until: this.t + 0.6, pts: [] };
+          this.hitStop = Math.max(this.hitStop, this.reduced ? 0 : HITSTOP_HUGE);
+          this.addShake(0.7);
+          this._label(ev.x, ev.y - 1, 'SPIKE!', '#c9a6ff', true);
+          break;
+        }
         var c = ev.kind === 'lava' ? '#ffb23f' : '#fff6c2';
         this._burst(ev.x, ev.y, 6 + Math.min(18, kb * 0.5), c, 4 + kb * 0.25, 0.35, 0.12, 0);
         this._ring(ev.x, ev.y, 0.2, 0.6 + kb * 0.04, c, 0.25, 0.1);
@@ -199,6 +211,11 @@
       }
       case 'itemSpawn': this._burst(ev.x, ev.y, 14, '#fff6c2', 3, 0.5, 0.1, 0); this._ring(ev.x, ev.y, 0.1, 1.2, '#ffe14f', 0.4, 0.08); break;
       case 'pickup': this._burst(ev.x, ev.y, 12, '#ffe14f', 4, 0.5, 0.1, 0); this._ring(ev.x, ev.y, 0.2, 1, '#ffe14f', 0.3, 0.08); break;
+      case 'spikeBounce':
+        this._burst(ev.x, ev.y, 20, 'rgba(230,215,190,0.85)', 6, 0.6, 0.2, -3);
+        this._ring(ev.x, ev.y, 0.2, 1.8, 'rgba(255,255,255,0.8)', 0.3, 0.1);
+        this.addShake(0.5);
+        break;
       case 'land': if (ev.v > 13) this._burst(ev.x, ev.y, 8, 'rgba(255,255,255,0.7)', 3, 0.35, 0.16, -2); break;
       case 'jump': this._burst(ev.x, ev.y, 5, 'rgba(255,255,255,0.6)', 2.5, 0.3, 0.14, -2); break;
       case 'walljump': this._burst(ev.x, ev.y, 8, 'rgba(255,255,255,0.75)', 3, 0.3, 0.13, -1); this._ring(ev.x, ev.y, 0.15, 0.8, 'rgba(255,255,255,0.8)', 0.25, 0.08); break;

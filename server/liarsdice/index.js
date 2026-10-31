@@ -22,7 +22,7 @@ const TABLE_PHASES = new Set([PHASES.ROLL, PHASES.BIDDING, PHASES.REVEAL]);
 // Reactions are open the whole match. On the table they bubble from the seat; lobby and final float.
 const BUBBLE_PHASES = new Set([PHASES.ROLL, PHASES.BIDDING, PHASES.REVEAL]);
 const EMOTE_BUBBLE_COOLDOWN_MS = 2500;
-const EMOTE_FLOAT_COOLDOWN_MS = 10 * 1000;
+const EMOTE_FLOAT_COOLDOWN_MS = 5 * 1000;
 
 /**
  * Mount Liar's Dice onto the hub's Express app and HTTP server.

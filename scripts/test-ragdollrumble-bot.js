@@ -121,6 +121,34 @@ console.log('\nRecovery');
   check('a hard CPU gets back to the stage after a throw (≥5/6)', back >= 5, back + '/' + tries);
 }
 
+console.log('\nEdge-guarding');
+{
+  let spiked = 0, botLost = 0;
+  for (const side of [-1, 1]) for (let seed = 1; seed <= 8; seed++) {
+    const w = new NM.World({ stage: 'rooftop', items: false });
+    w.reset(seed, [{ id: 'bot', seat: 0, isBot: true }, { id: 'v', seat: 1, isBot: true }]);
+    const B = w.byId.bot, V = w.byId.v;
+    const bot = new NB.Bot('bot', 'hard', NM.mulberry32(seed * 7919 + side));
+    const rec = new NB.Bot('v', 'normal', NM.mulberry32(seed + 190));
+    const main = w.groundSpans().filter((s) => !s.oneWay).reduce((m, s) => (s.x1 - s.x0 > m.x1 - m.x0 ? s : m));
+    const edge = side > 0 ? main.x1 : main.x0;
+    const place = (p, x, y) => { const t = p.parts.torso.getPosition(), dx = x - t.x, dy = y - t.y; p.partList.forEach((q) => { const r = q.getPosition(); q.setTransform(planck.Vec2(r.x + dx, r.y + dy), q.getAngle()); q.setLinearVelocity(planck.Vec2(0, 0)); }); };
+    place(B, edge - side * 1.5, main.y - NM.STAND_H - 0.05);
+    for (let i = 0; i < 30; i++) w.step(DT);
+    // Knock the victim out past the ledge, below stage level, recovering.
+    place(V, edge + side * 2.2, main.y + 2.5); V.airJumps = 0;
+    let t = 0, got = false;
+    while (t < 4 && V.alive && B.alive) {
+      bot.update(w, DT); rec.update(w, DT);
+      w.step(DT).forEach((e) => { if (e.type === 'hit' && e.spike && e.id === 'v') got = true; });
+      t += DT;
+    }
+    if (got) spiked++;
+    if (!B.alive) botLost++;
+  }
+  check('a hard CPU edge-guards with spikes (≥6/16) without dying doing it', spiked >= 6 && botLost === 0, { spiked, botLost });
+}
+
 console.log('\nDifficulty matters');
 {
   let hardWins = 0, games = 0;

@@ -449,6 +449,7 @@
   }
 
   const EMOTE_SHOW_MS = 3500;
+  const BUBBLE_GAP = 22;
   const seatBubbles = {};   // playerId → { el, timer }
 
   function makeBubble(e) {
@@ -458,19 +459,18 @@
     return b;
   }
 
-  /** Park the bubble beside the seat's name, on the side facing the middle of the table. */
+  /** Park the bubble beside the seat's box, vertically centred on it, on the side facing the middle of the table. */
   function placeBubble(pid) {
     const rec = seatBubbles[pid];
     const e = seatEls[pid];
     if (!rec || !e) return;
     const root = e.root;
     const box = e.box;
-    const label = box.firstElementChild;
     const boxLeft = root.offsetLeft - root.offsetWidth / 2 + box.offsetLeft;
-    const y = root.offsetTop - root.offsetHeight / 2 + box.offsetTop + label.offsetTop + label.offsetHeight / 2;
+    const y = root.offsetTop - root.offsetHeight / 2 + box.offsetTop + box.offsetHeight / 2;
     const onRight = root.offsetLeft > felt.offsetLeft + felt.offsetWidth * 0.58;
     rec.el.classList.toggle('eb-left', onRight);
-    rec.el.style.left = Math.round(onRight ? boxLeft - 10 : boxLeft + box.offsetWidth + 10) + 'px';
+    rec.el.style.left = Math.round(onRight ? boxLeft - BUBBLE_GAP : boxLeft + box.offsetWidth + BUBBLE_GAP) + 'px';
     rec.el.style.top = Math.round(y) + 'px';
   }
   function placeBubbles() { Object.keys(seatBubbles).forEach(placeBubble); }

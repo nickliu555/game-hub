@@ -650,7 +650,7 @@
   const EMOTES = ['😀', '😂', '😎', '😭', '😡', '👍', '🔥', '💪', '🎉', '😱'];
   // On the felt it's a seat bubble; lobby and final float it. The server's ack has the final word.
   const EMOTE_BUBBLE_COOLDOWN_MS = 2500;
-  const EMOTE_FLOAT_COOLDOWN_MS = 10 * 1000;
+  const EMOTE_FLOAT_COOLDOWN_MS = 5 * 1000;
   let emoteUntil = 0;
   let emoteKind = null;     // the kind the running cooldown belongs to
   let emoteCoolTimer = null;

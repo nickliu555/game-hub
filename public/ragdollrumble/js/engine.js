@@ -40,7 +40,7 @@
   var MAX_FALL = 16, FAST_FALL_ACCEL = 30, FAST_FALL_MAX = 26;
   var COYOTE = 0.09;
   var AIR_JUMPS = 2;              // double AND triple jump
-  var WALL_JUMPS = 3;             // full-strength wall kicks allowed per trip through the air
+  var WALL_JUMPS = Infinity;      // wall kicks per trip through the air (unlimited, all full strength)
   var WALL_KICK_X = 9, WALL_KICK_Y = 14;
   var WALL_SLIDE = 3;             // fall speed cap while holding into a wall
   var WALL_LOCK = 0.2;            // after a kick, ignore stick-into-the-wall this long
@@ -68,6 +68,15 @@
   // longer for a bigger charge, and longer still if it misses.
   var SMASH_OPEN_MISS = [0.6, 1.0];   // [tap-charge, full charge] seconds
   var SMASH_OPEN_HIT = [0.35, 0.6];
+  // A press that arrives just after an opening closes still grabs — covers the
+  // phone → server → host trip so the stars you saw are the grab you get.
+  var GRAB_GRACE = 0.15;
+  // Down-air spike: an air punch aimed straight down that connects early in
+  // its strike (you're right on top of them) drives an airborne victim
+  // straight down. Off the stage that's usually a KO; over it they bounce.
+  var SPIKE_EARLY = 0.6;            // fraction of the strike (t0→t1) that spikes
+  var SPIKE_V = 18, SPIKE_GROWTH = 7;   // launch speed (m/s) at 0%, + per 100%
+  var SPIKE_BOUNCE = [8, 13];       // floor-bounce speed range (m/s)
   var GRAB_K = 220, GRAB_C = 30;
   var MASH_STEP = 0.16;
 
@@ -91,6 +100,7 @@
   var ITEM_LIFE = 14;
   var ITEM_TYPES = ['bat', 'bomb', 'glove', 'rock'];
   var BAT_USES = 4;
+  var ROCK_USES = 2;               // throws per rock picked up
   var GLOVE_TIME = 10;
   var GLOVE_MULT = 1.5;
   var BOMB_FUSE = 1.3, BOMB_R = 3.2;
@@ -122,12 +132,14 @@
   // ---------------- Stages ----------------
   // y is the floor surface; solids are boxes [x0,x1]×[y0,y1]; platforms are
   // one-way planks you can jump up through and drop down through.
+  // spawnLine: left-to-right walkable [x0, x1, floorY] runs fighters are spread
+  // evenly along (gaps between runs are skipped); the ends are the 1v1 spots.
   var STAGES = {
     rooftop: {
       name: 'Rooftop',
       solids: [{ x0: -12, x1: 12, y0: 0, y1: 3.2 }],
       platforms: [{ x0: -8.5, x1: -3.5, y: -3.8 }, { x0: 3.5, x1: 8.5, y: -3.8 }, { x0: -2.5, x1: 2.5, y: -7.4 }],
-      spawns: [[-9, 0], [9, 0], [-4.5, 0], [4.5, 0], [-6, -3.8], [6, -3.8], [-1.5, 0], [1.5, 0]],
+      spawnLine: [[-9, 9, 0]],
       view: { x0: -21, x1: 21, y0: -16, y1: 6 },
       blast: { x0: -27, x1: 27, y0: -23, y1: 17 },
       sdBlast: { x0: -14.5, x1: 14.5, y0: -12, y1: 6 },
@@ -137,7 +149,7 @@
       deck: { x0: -13, x1: 13, thick: 1.2, amp: 0.11, period: 9 },
       deckPlatforms: [{ x0: -10, x1: -6, y: -3.6 }, { x0: 6, x1: 10, y: -3.6 }],
       platforms: [{ x0: -2.2, x1: 2.2, y: -7 }],
-      spawns: [[-10, 0], [10, 0], [-5, 0], [5, 0], [-8, -3.6], [8, -3.6], [-1.5, 0], [1.5, 0]],
+      spawnLine: [[-10, 10, 0]],
       view: { x0: -22, x1: 22, y0: -16, y1: 7 },
       blast: { x0: -28, x1: 28, y0: -23, y1: 17 },
       sdBlast: { x0: -15, x1: 15, y0: -12, y1: 6 },
@@ -147,7 +159,7 @@
       solids: [{ x0: -15, x1: -11, y0: 0, y1: 4 }, { x0: 11, x1: 15, y0: 0, y1: 4 }],
       tiles: { x0: -11, x1: 11, n: 11, y0: 0, y1: 0.9 },
       platforms: [{ x0: -3, x1: 3, y: -4.4 }],
-      spawns: [[-13.5, 0], [13.5, 0], [-12, 0], [12, 0], [-6, 0], [6, 0], [-1.5, -4.4], [1.5, -4.4]],
+      spawnLine: [[-13.5, 13.5, 0]],   // across the bridge too
       view: { x0: -24, x1: 24, y0: -16, y1: 7 },
       blast: { x0: -30, x1: 30, y0: -23, y1: 19 },
       sdBlast: { x0: -17, x1: 17, y0: -12, y1: 7 },
@@ -156,7 +168,7 @@
       name: 'Windy Peak',
       solids: [{ x0: -11, x1: 11, y0: 0, y1: 3.4 }],
       platforms: [{ x0: -7, x1: -2, y: -4.2 }, { x0: 2, x1: 7, y: -4.2 }],
-      spawns: [[-9, 0], [9, 0], [-5, 0], [5, 0], [-4.5, -4.2], [4.5, -4.2], [-1.5, 0], [1.5, 0]],
+      spawnLine: [[-9, 9, 0]],
       view: { x0: -21, x1: 21, y0: -15, y1: 6 },
       blast: { x0: -26, x1: 26, y0: -22, y1: 17 },
       sdBlast: { x0: -14, x1: 14, y0: -11, y1: 6 },
@@ -166,7 +178,7 @@
       name: 'Spike Factory',
       solids: [{ x0: -12, x1: 12, y0: 0, y1: 3.2 }],
       platforms: [{ x0: -9, x1: -4.5, y: -4 }, { x0: 4.5, x1: 9, y: -4 }, { x0: -2, x1: 2, y: -7.8 }],
-      spawns: [[-9, 0], [9, 0], [-5, 0], [5, 0], [-6.5, -4], [6.5, -4], [-1.5, 0], [1.5, 0]],
+      spawnLine: [[-9, 9, 0]],
       view: { x0: -21, x1: 21, y0: -16, y1: 6 },
       blast: { x0: -27, x1: 27, y0: -23, y1: 17 },
       sdBlast: { x0: -14.5, x1: 14.5, y0: -12, y1: 6 },
@@ -176,7 +188,7 @@
       name: 'Volcano',
       solids: [{ x0: -14, x1: -6.5, y0: 0, y1: 2 }, { x0: -3.2, x1: 3.2, y0: -1.4, y1: 0.6 }, { x0: 6.5, x1: 14, y0: 0, y1: 2 }],
       platforms: [{ x0: -2.5, x1: 2.5, y: -6 }],
-      spawns: [[-12, 0], [12, 0], [-8.5, 0], [8.5, 0], [-1.8, -1.4], [1.8, -1.4], [-10.2, 0], [10.2, 0]],
+      spawnLine: [[-12, -7.5, 0], [-2.4, 2.4, -1.4], [7.5, 12, 0]],   // skips the lava gaps
       view: { x0: -22, x1: 22, y0: -16, y1: 6 },
       blast: { x0: -28, x1: 28, y0: -23, y1: 17 },
       sdBlast: { x0: -16, x1: 16, y0: -12, y1: 8 },
@@ -187,6 +199,19 @@
 
   // ---------------- Helpers ----------------
   function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+  /** Fighter i of n, spread evenly (end to end) along a stage's spawn line. */
+  function spawnPoint(line, i, n) {
+    var total = 0, k;
+    for (k = 0; k < line.length; k++) total += line[k][1] - line[k][0];
+    var d = n > 1 ? total * i / (n - 1) : total / 2;
+    for (k = 0; k < line.length; k++) {
+      var len = line[k][1] - line[k][0];
+      if (d <= len + 1e-9 || k === line.length - 1) return [line[k][0] + Math.min(d, len), line[k][2]];
+      d -= len;
+    }
+    return [0, 0];
+  }
   function lerp(a, b, t) { return a + (b - a) * t; }
   function wrapPi(a) { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; }
   function sign(v) { return v < 0 ? -1 : 1; }
@@ -287,6 +312,8 @@
     this.grabbedBy = null;
     this.grabImmune = 0;
     this.smashOpen = null;
+    this.openAt = -99;
+    this.spiked = false;
     this.item = null;
     this.gloveT = 0;
     this.hazardCd = 0;
@@ -350,8 +377,8 @@
     var list = roster || [];
     for (var i = 0; i < list.length; i++) {
       var p = new Fighter(list[i], typeof list[i].seat === 'number' ? list[i].seat : i);
-      var sp = this.stage.spawns[i % this.stage.spawns.length];
-      p.facing = sp[0] <= 0 ? 1 : -1;
+      var sp = spawnPoint(this.stage.spawnLine, i, list.length);
+      p.facing = sp[0] < 0 || (sp[0] === 0 && i < list.length / 2) ? 1 : -1;
       this._buildRagdoll(p, sp[0], sp[1] - STAND_H - 0.05);
       this.players.push(p);
       this.byId[p.id] = p;
@@ -614,7 +641,11 @@
     this._updateStage(dt, ev);
     if (this.items) this._updateItemSpawns(dt, ev);
     var i;
-    for (i = 0; i < this.players.length; i++) this._probeGround(this.players[i], dt);
+    for (i = 0; i < this.players.length; i++) {
+      var pl = this.players[i];
+      if (pl.alive && pl.parts && pl.charge < 0 && this._openNow(pl)) pl.openAt = this.time;
+      this._probeGround(pl, dt);
+    }
     for (i = 0; i < this.players.length; i++) this._control(this.players[i], dt, ev);
     this._separate();
     this.pw.step(dt, VEL_ITERS, POS_ITERS);
@@ -735,6 +766,16 @@
       if (hit && (!best || hit.y < best.y)) best = hit;
     }
     p.ground = best;
+    // A spiked ragdoll that reaches the floor bounces back up, still limp.
+    if (p.spiked && p.tumble && best && vel.y > 3 && best.y - pos.y < STAND_H + 0.25) {
+      p.spiked = false;
+      var bv = clamp(vel.y * 0.55, SPIKE_BOUNCE[0], SPIKE_BOUNCE[1]);
+      this._setVel(p, vel.x * 0.4, -bv);
+      p.tumbleT = Math.max(p.tumbleT, 0.4);
+      if (best.tile) best.tile.load += 0.7;
+      this.events.push({ type: 'spikeBounce', id: p.id, x: pos.x, y: best.y });
+      return;
+    }
     var was = p.grounded;
     p.grounded = !!best && !p.tumble && !p.grabbedBy && p.jumpLock <= 0 && vel.y > -3;
     if (p.grounded) {
@@ -998,8 +1039,8 @@
       if (p.grabbing) { this._throwVictim(p, ev); return; }
       if (p.item && p.item.type === 'bat') { this._startAttack(p, 'bat', ev); return; }
       if (p.item) { this._toss(p, ev); return; }
-      // Holding the stick down always means a down-punch, never a grab.
-      var victim = inp.y > 0.5 ? null : this._grabCandidate(p);
+      // Holding the stick (mostly straight) down means a down-punch, never a grab.
+      var victim = (inp.y > 0.5 && Math.abs(inp.x) < 0.5) ? null : this._grabCandidate(p);
       if (victim) { this._startGrab(p, victim, ev); return; }
       // One thing at a time: in boxing gloves you can't hold a bat, bomb or
       // rock (another glove just tops the gloves up).
@@ -1023,6 +1064,8 @@
         p.pending = false;
         p.charge = 0;
         p.combo = 0;
+        p.smashOpen = null;
+        p.openAt = -99;
         // The smash is locked to the way the stick pointed when the charge
         // began: you can still shuffle while charging, but the blow can't be
         // re-aimed or turned round.
@@ -1228,12 +1271,29 @@
         spec2 = { d: spec.d + 8 * a.charge, base: spec.base + SMASH_BASE_BONUS * a.charge, growth: spec.growth + SMASH_GROWTH_BONUS * a.charge };
       }
       if (p.gloveT > 0 && a.type !== 'bat') { mult = GLOVE_MULT; spec2 = { d: spec2.d + 2, base: spec2.base, growth: spec2.growth, up: spec2.up }; }
+      if (this._isSpike(p, v, a)) {
+        var sb = SPIKE_V + (a.type === 'smash' ? 5 * a.charge : a.type === 'finisher' ? 1 : 0);
+        this._hit(p, v, { d: spec2.d + 3, base: sb, growth: SPIKE_GROWTH }, mult, 0, 1, ev,
+          { kind: a.type, spike: true, fixedDir: { x: 0, y: 1 }, x: hitAt.x, y: hitAt.y, charge: a.charge });
+        continue;
+      }
       this._hit(p, v, spec2, mult, a.aim.x, a.aim.y, ev, { kind: a.type, x: hitAt.x, y: hitAt.y, charge: a.charge });
       if (a.type === 'bat' && p.item && p.item.type === 'bat') {
         p.item.uses--;
         if (p.item.uses <= 0) { p.item = null; ev.push({ type: 'break', id: p.id, x: hitAt.x, y: hitAt.y }); }
       }
     }
+  };
+
+  /**
+   * A spike: a punch thrown in the air, aimed straight down, that lands on an
+   * airborne victim early in its strike — i.e. from right on top of them. A
+   * late, full-reach connection is just a normal down hit.
+   */
+  World.prototype._isSpike = function (p, v, a) {
+    if (a.type !== 'jab' && a.type !== 'finisher' && a.type !== 'smash') return false;
+    if (p.grounded || v.grounded || a.aim.y < 0.9) return false;
+    return a.t <= a.spec.t0 + SPIKE_EARLY * (a.spec.t1 - a.spec.t0);
   };
 
   /** Distance from a point to a fighter's hurtbox (torso capsule + head). */
@@ -1275,15 +1335,22 @@
     v.hitAt = this.time;
     v.lastHitKind = opts.kind || 'hit';
     v.flash = 0.12;
+    v.spiked = false;
+    if (opts.spike) {
+      // Knocked limp long enough that recovering from below the ledge is hard.
+      v.spiked = true;
+      this._startTumble(v, clamp(0.5 + v.dmg * 0.004, 0.5, 1.0));
+      if (v.item || v.gloveT > 0) this._dropItem(v);
+    }
     if (kb >= TUMBLE_KB) this._startTumble(v, v.stun);
-    if (kb >= TUMBLE_KB && v.item) this._dropItem(v);
+    if (kb >= TUMBLE_KB && (v.item || v.gloveT > 0)) this._dropItem(v);
     if (attacker && attacker !== v) { v.lastHitBy = attacker.id; v.lastHitAt = this.time; v.landedSinceHit = false; }
     else v.lastHitBy = this._creditFor(v);
     var vp = v.parts.torso.getPosition();
     ev.push({
       type: 'hit', id: v.id, by: attacker ? attacker.id : null, kind: opts.kind || 'hit',
       x: opts.x !== undefined ? opts.x : vp.x, y: opts.y !== undefined ? opts.y : vp.y,
-      kb: kb, d: spec.d, dmg: v.dmg, dx: d.x, dy: d.y, charge: opts.charge || 0,
+      kb: kb, d: spec.d, dmg: v.dmg, dx: d.x, dy: d.y, charge: opts.charge || 0, spike: !!opts.spike,
     });
   };
 
@@ -1312,6 +1379,7 @@
 
   World.prototype._endTumble = function (p) {
     p.tumble = false;
+    p.spiked = false;
     p.tumbleT = 0;
     p.stun = Math.max(p.stun, 0.12);
     p.airJumps = Math.max(p.airJumps, 1);
@@ -1319,14 +1387,25 @@
   };
 
   // ---------------- Grabs ----------------
-  /** Grab beats a charge, and catches anyone reeling from a hit. */
-  /** Can grabber p grab v right now (ignoring distance)? */
-  World.prototype._vulnerableTo = function (v, p) {
-    if (!v.alive || !v.parts || v.grabbedBy || v.grabbing || v.grabImmune > 0) return false;
-    // Reeling from your OWN jab keeps the punch chain going (jab, jab,
-    // finisher) — any other hit leaves them open to a grab.
-    var reeling = (v.stun > 0 || (this.time - v.hitAt) < REEL_SEC) && !(v.lastHitBy === p.id && v.lastHitKind === 'jab');
+  /**
+   * The opening itself: reeling from a hit (jabs excepted, so a jab-jab-
+   * finisher chain flows), knocked limp, or just after firing a smash.
+   * The same for every grabber, so the dizzy stars mean the same to everyone.
+   */
+  World.prototype._openNow = function (v) {
+    var reeling = (v.stun > 0 || (this.time - v.hitAt) < REEL_SEC) && v.lastHitKind !== 'jab';
     return !!(reeling || v.tumble || this._smashOpen(v));
+  };
+
+  /**
+   * Can v be grabbed right now (ignoring distance)? Charging always protects —
+   * even if an older opening hasn't run out yet. With `grace`, an opening
+   * that closed a moment ago still counts (input latency).
+   */
+  World.prototype._vulnerable = function (v, grace) {
+    if (!v.alive || !v.parts || v.grabbedBy || v.grabbing || v.grabImmune > 0 || v.charge >= 0) return false;
+    if (this._openNow(v)) return true;
+    return !!grace && (this.time - v.openAt) < GRAB_GRACE;
   };
 
   /** Is v still in the opening after firing a smash? */
@@ -1344,11 +1423,12 @@
     var best = null, bestD = 1e9;
     for (var i = 0; i < this.players.length; i++) {
       var v = this.players[i];
-      if (v === p || !this._vulnerableTo(v, p)) continue;
+      if (v === p || !this._vulnerable(v, true)) continue;
       var vp = v.parts.torso.getPosition();
+      // Reach well in front, and a little behind (you spin round to grab).
       var fx = (vp.x - pos.x) * p.facing;
-      if (fx < -0.5 || fx > 1.8 || Math.abs(vp.y - pos.y) > 1.8) continue;
-      var d = Math.hypot(vp.x - pos.x, vp.y - pos.y);
+      if (fx < -1.0 || fx > 1.8 || Math.abs(vp.y - pos.y) > 1.8) continue;
+      var d = Math.hypot(vp.x - pos.x, vp.y - pos.y) + (fx < 0 ? 0.6 : 0);
       if (d < bestD) { bestD = d; best = v; }
     }
     return best;
@@ -1359,10 +1439,13 @@
     v.attack = null;
     v.charge = -1;
     v.smashOpen = null;
+    v.openAt = -99;
     v.pending = false;
     v.crouch = false;
     v.stun = 0;
-    if (v.item) this._dropItem(v);
+    if (v.item || v.gloveT > 0) this._dropItem(v);
+    var dxv = v.parts.torso.getPosition().x - p.parts.torso.getPosition().x;
+    if (Math.abs(dxv) > 0.05) p.facing = dxv > 0 ? 1 : -1;
     p.attack = null;
     p.pending = false;
     p.grabbing = { victim: v, t: GRAB_TIME };
@@ -1457,18 +1540,13 @@
   };
 
   /**
-   * Ids of fighters who are open to a grab right now (for the on-screen cue):
-   * vulnerable to at least one other fighter, wherever they are on the stage.
+   * Ids of fighters who are open to a grab right now (for the on-screen cue),
+   * wherever they are on the stage.
    */
   World.prototype.grabbableIds = function () {
     var out = {};
     for (var i = 0; i < this.players.length; i++) {
-      var v = this.players[i];
-      for (var j = 0; j < this.players.length; j++) {
-        var p = this.players[j];
-        if (p === v || !p.alive || !p.parts) continue;
-        if (this._vulnerableTo(v, p)) { out[v.id] = true; break; }
-      }
+      if (this._vulnerable(this.players[i], false)) out[this.players[i].id] = true;
     }
     return out;
   };
@@ -1533,7 +1611,7 @@
     // An item lying around doesn't roll (so it stays put on the rocking deck);
     // a thrown one tumbles through the air.
     var body = this.pw.createBody({ type: 'dynamic', position: Vec2(x, y), bullet: true, angularDamping: 0.6, fixedRotation: state === 'ground' });
-    var it = { type: type, body: body, state: state, owner: owner, age: 0, thrownT: 0, fuse: BOMB_FUSE, uses: type === 'bat' ? BAT_USES : 1 };
+    var it = { type: type, body: body, state: state, owner: owner, age: 0, thrownT: 0, fuse: BOMB_FUSE, uses: type === 'bat' ? BAT_USES : type === 'rock' ? ROCK_USES : 1 };
     body.createFixture(planck.Circle(ITEM_R), {
       density: type === 'rock' ? 4 : 1, friction: 0.6, restitution: type === 'bomb' ? 0.45 : 0.25,
       filterCategoryBits: CAT_ITEM, filterMaskBits: CAT_GROUND, userData: { item: it },
@@ -1568,7 +1646,7 @@
     var ip = it.body.getPosition();
     ev.push({ type: 'pickup', id: p.id, item: it.type, x: ip.x, y: ip.y });
     this._removeItem(it);
-    if (it.type === 'glove') { p.gloveT = GLOVE_TIME; return; }
+    if (it.type === 'glove') { p.gloveT = Math.max(p.gloveT, it.gloveT || GLOVE_TIME); return; }
     p.item = { type: it.type, uses: it.uses };
   };
 
@@ -1577,12 +1655,24 @@
     return { x: sh.x + p.facing * 0.7, y: sh.y + 0.25 };
   };
 
+  /**
+   * Knocked limp or grabbed: whatever you're holding falls out of your hands —
+   * boxing gloves included (they keep their remaining time for whoever picks
+   * them up next).
+   */
   World.prototype._dropItem = function (p) {
-    if (!p.item || !p.parts) { p.item = null; return; }
+    if (!p.parts) { p.item = null; p.gloveT = 0; return; }
     var h = this.handPoint(p);
-    var it = this._spawnItem(p.item.type, h.x, h.y, 0, -3, 'ground', null);
-    it.uses = p.item.uses;
+    if (p.item) {
+      var it = this._spawnItem(p.item.type, h.x, h.y, 0, -3, 'ground', null);
+      it.uses = p.item.uses;
+    }
+    if (p.gloveT > 0.5) {
+      var g = this._spawnItem('glove', h.x - p.facing * 0.3, h.y, -p.facing * 1.5, -3, 'ground', null);
+      g.gloveT = p.gloveT;
+    }
     p.item = null;
+    p.gloveT = 0;
   };
 
   World.prototype._toss = function (p, ev) {
@@ -1594,8 +1684,11 @@
     var vx = aim.x * speed + v.x * 0.4;
     var vy = aim.y * speed - (aim.y > 0.5 ? 0 : 4);
     var it = this._spawnItem(p.item.type, h.x, h.y, vx, vy, 'thrown', p);
-    it.uses = p.item.uses;
-    p.item = null;
+    // Each throw spends one charge; a rock with charges left stays in hand.
+    // (A thrown rock that misses lands as a one-throw rock.)
+    it.uses = 1;
+    if (p.item.uses > 1) p.item.uses--;
+    else p.item = null;
     p.attack = { type: 'toss', spec: HITS.toss, t: 0, aim: aim, hit: {}, connected: true, charge: 0 };
     ev.push({ type: 'toss', id: p.id, item: it.type });
   };
@@ -1630,7 +1723,7 @@
       for (var k = 0; k < this.players.length; k++) {
         var v = this.players[k];
         if (!v.alive || !v.parts) continue;
-        if (v === it.owner && it.thrownT < 0.35) continue;
+        if (v === it.owner) continue;   // your own throw never hits you
         // Flat throws fly over a duck; lobbed or falling ones still land.
         if (v.crouch && Math.abs(vel.y) < Math.abs(vel.x)) continue;
         if (this._hurtDist(v, pos.x, pos.y) < ITEM_R + 0.05) { hitV = v; break; }
@@ -1647,8 +1740,17 @@
           continue;
         }
       }
-      if (it.thrownT > 0.4 && sp < 3) { it.state = 'ground'; it.owner = null; it.age = 0; it.body.setFixedRotation(true); it.body.setAngularVelocity(0); }
+      // It only settles once it's come to rest on something — the slow
+      // top of a high lob is still a live throw.
+      if (it.thrownT > 0.4 && sp < 3 && this._itemTouching(it)) { it.state = 'ground'; it.owner = null; it.age = 0; it.body.setFixedRotation(true); it.body.setAngularVelocity(0); }
     }
+  };
+
+  World.prototype._itemTouching = function (it) {
+    for (var ce = it.body.getContactList(); ce; ce = ce.next) {
+      if (ce.contact.isTouching()) return true;
+    }
+    return false;
   };
 
   World.prototype._explode = function (it, ev) {
@@ -1862,7 +1964,7 @@
   // ---------------- Exports ----------------
   global.RagdollRumble = {
     World: World,
-    STAGES: STAGES,
+    STAGES: STAGES, spawnPoint: spawnPoint,
     STAGE_IDS: STAGE_IDS,
     HITS: HITS,
     ITEM_TYPES: ITEM_TYPES,
@@ -1871,8 +1973,8 @@
     UA_HH: UA_HH, FA_HH: FA_HH, TH_HH: TH_HH, SH_HH: SH_HH,
     LEG_GAP: LEG_GAP, STAND_H: STAND_H, CROUCH_DROP: CROUCH_DROP, FIGHTER_H: FIGHTER_H,
     MOVE_SPEED: MOVE_SPEED, JUMP_V: JUMP_V, AIR_JUMP_V: AIR_JUMP_V, AIR_JUMPS: AIR_JUMPS, WALL_JUMPS: WALL_JUMPS, WALL_KICK_Y: WALL_KICK_Y, WALL_SLIDE: WALL_SLIDE, G: G,
-    TUMBLE_KB: TUMBLE_KB, CHARGE_JUMP: CHARGE_JUMP, SMASH_OPEN_MISS: SMASH_OPEN_MISS, SMASH_OPEN_HIT: SMASH_OPEN_HIT, CHARGE_FULL: CHARGE_FULL, CHARGE_START: CHARGE_START, CHARGE_AUTO: CHARGE_AUTO, BAT_LEN: BAT_LEN,
-    GRAB_TIME: GRAB_TIME, GLOVE_TIME: GLOVE_TIME, BOMB_R: BOMB_R, ITEM_R: ITEM_R,
+    TUMBLE_KB: TUMBLE_KB, SPIKE_EARLY: SPIKE_EARLY, SPIKE_V: SPIKE_V, REEL_SEC: REEL_SEC, GRAB_GRACE: GRAB_GRACE, CHARGE_JUMP: CHARGE_JUMP, SMASH_OPEN_MISS: SMASH_OPEN_MISS, SMASH_OPEN_HIT: SMASH_OPEN_HIT, CHARGE_FULL: CHARGE_FULL, CHARGE_START: CHARGE_START, CHARGE_AUTO: CHARGE_AUTO, BAT_LEN: BAT_LEN,
+    GRAB_TIME: GRAB_TIME, GLOVE_TIME: GLOVE_TIME, ROCK_USES: ROCK_USES, BOMB_R: BOMB_R, ITEM_R: ITEM_R,
     SD_SHRINK_SEC: SD_SHRINK_SEC,
     aimFrom: aimFrom,
     mulberry32: mulberry32,
