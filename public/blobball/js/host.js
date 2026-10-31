@@ -836,24 +836,11 @@
     else playSad();
   }
 
-  let confettiEls = [];
   function confetti(color) {
-    const colors = [color || '#FFC857', '#5BE06B', '#FF5C8D', '#FFC857', '#38C9FF', '#ffffff'];
-    for (let i = 0; i < 80; i++) {
-      const el = document.createElement('div');
-      el.className = 'confetti-piece';
-      el.style.left = Math.random() * 100 + 'vw';
-      el.style.background = colors[i % colors.length];
-      el.style.animationDelay = (Math.random() * 0.9) + 's';
-      el.style.animationDuration = (2.4 + Math.random() * 1.6) + 's';
-      document.body.appendChild(el);
-      confettiEls.push(el);
-      setTimeout(function () { el.remove(); }, 5000);
-    }
+    if (window.Confetti) window.Confetti.burst([color || '#FFC857', '#5BE06B', '#FF5C8D', '#FFC857', '#38C9FF', '#ffffff']);
   }
   function clearConfetti() {
-    confettiEls.forEach(function (el) { el.remove(); });
-    confettiEls = [];
+    if (window.clearConfetti) window.clearConfetti();
   }
 
   // ---------------- Pause ----------------

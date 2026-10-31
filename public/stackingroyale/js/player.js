@@ -75,17 +75,7 @@
     replay(el('results'), 'is-swapping');
   }
   function launchConfetti(tint) {
-    if (reduceMotion) return;
-    const colors = [tint || '#E6A93A', '#E6A93A', '#FFFFFF', '#3DDC84', '#57C8FF'];
-    for (let i = 0; i < 50; i++) {
-      const bit = document.createElement('div');
-      bit.className = 'confetti';
-      bit.style.left = (Math.random() * 100) + 'vw';
-      bit.style.background = colors[(Math.random() * colors.length) | 0];
-      bit.style.animationDelay = (Math.random() * 0.8) + 's';
-      document.body.appendChild(bit);
-      setTimeout(function () { bit.remove(); }, 4400);
-    }
+    if (window.Confetti) window.Confetti.burst([tint || '#E6A93A', '#E6A93A', '#FFFFFF', '#3DDC84', '#57C8FF'], { amount: 0.4 });
   }
   function row(player, rank) {
     const item = document.createElement('div'); item.className = 'roster-row';

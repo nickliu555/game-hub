@@ -480,23 +480,6 @@ body.host {
 }
 .inline-toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-/* Confetti on the winning screen. */
-.confetti-piece {
-  position: fixed;
-  top: -20px;
-  width: 10px;
-  height: 16px;
-  border-radius: 2px;
-  opacity: 0.95;
-  pointer-events: none;
-  z-index: 1500;
-  animation: confettiFall linear forwards;
-}
-@keyframes confettiFall {
-  0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
-  100% { transform: translateY(105vh) rotate(720deg); opacity: 0.9; }
-}
-
 /* Resume countdown: the pause overlay turns into a big 3-2-1. */
 .pause-overlay.resuming .po-icon { display: none; }
 .pause-overlay.resuming .po-title { font-size: 120px; line-height: 1; animation: resumepop 0.4s ease; }

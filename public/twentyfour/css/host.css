@@ -575,22 +575,6 @@ body.host {
   to   { opacity: 1; }
 }
 
-/* Confetti */
-.confetti {
-  position: fixed;
-  top: -20px;
-  width: 10px;
-  height: 16px;
-  opacity: 0.9;
-  pointer-events: none;
-  border-radius: 2px;
-  animation: fall linear forwards;
-  z-index: 60;
-}
-@keyframes fall {
-  to { transform: translateY(110vh) rotate(720deg); }
-}
-
 /* Inline toast (created by host.js as a fallback if shared modal isn't loaded). */
 .inline-toast {
   position: fixed;

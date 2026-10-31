@@ -830,16 +830,6 @@ body.host {
   pointer-events: auto;
 }
 
-/* Confetti */
-.confetti {
-  position: fixed; top: -20px; width: 10px; height: 16px;
-  opacity: 0.9; pointer-events: none; border-radius: 2px;
-  animation: fall linear forwards;
-}
-@keyframes fall {
-  to { transform: translateY(110vh) rotate(720deg); }
-}
-
 /* Floating reaction emojis */
 .reaction-layer {
   position: fixed;

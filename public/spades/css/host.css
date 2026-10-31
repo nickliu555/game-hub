@@ -1203,20 +1203,6 @@ body.host {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* Confetti on a win */
-.confetti-piece {
-  position: fixed;
-  top: -20px;
-  width: 10px;
-  height: 16px;
-  z-index: 150;
-  pointer-events: none;
-  animation: confettiFall linear forwards;
-}
-@keyframes confettiFall {
-  to { transform: translateY(108vh) rotate(760deg); opacity: 0.15; }
-}
-
 /* ─────────────── Narrower / shorter host windows ─────────────── */
 @media (max-width: 1060px), (max-height: 680px) {
   /* Side-by-side panels can't both fit, so stack them and let the page scroll

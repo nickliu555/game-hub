@@ -401,19 +401,7 @@
 
   // ---------------- Confetti ----------------
   function confetti() {
-    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const colors = ['#E8B83A', '#C62B45', '#4FA9D8', '#E8734A', '#A97BD8', '#86E6A4', '#ffffff'];
-    for (let i = 0; i < 110; i++) {
-      const p = document.createElement('div');
-      p.className = 'confetti-piece';
-      p.style.left = Math.random() * 100 + 'vw';
-      p.style.background = colors[Math.floor(Math.random() * colors.length)];
-      p.style.animationDuration = (2.4 + Math.random() * 2.2) + 's';
-      p.style.animationDelay = (Math.random() * 0.7) + 's';
-      p.style.transform = 'rotate(' + (Math.random() * 360) + 'deg)';
-      document.body.appendChild(p);
-      setTimeout(function () { p.remove(); }, 5600);
-    }
+    if (window.Confetti) window.Confetti.burst(['#E8B83A', '#C62B45', '#4FA9D8', '#E8734A', '#A97BD8', '#86E6A4', '#ffffff']);
   }
 
   // ---------------- Topbar chrome ----------------

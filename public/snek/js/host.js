@@ -1274,17 +1274,7 @@
 
   // ---------------- Confetti ----------------
   function launchConfetti() {
-    const colors = ['#A3E635', '#4ADE80', '#FACC15', '#60A5FA', '#F472B6', '#EF4444'];
-    for (let i = 0; i < 80; i++) {
-      const d = document.createElement('div');
-      d.className = 'confetti';
-      d.style.left = (Math.random() * 100) + 'vw';
-      d.style.background = colors[(Math.random() * colors.length) | 0];
-      d.style.animationDelay = (Math.random() * 0.6) + 's';
-      d.style.transform = 'rotate(' + (Math.random() * 360) + 'deg)';
-      document.body.appendChild(d);
-      setTimeout(function () { d.remove(); }, 3200);
-    }
+    if (window.Confetti) window.Confetti.burst(['#A3E635', '#4ADE80', '#FACC15', '#60A5FA', '#F472B6', '#EF4444']);
   }
 
   // ---------------- Reactions ----------------

@@ -1114,18 +1114,7 @@
     });
   }
   function confettiBurst() {
-    const colors = ['#F97316', '#FFD200', '#FFFFFF', '#9A3412', '#FDBA74'];
-    for (let i = 0; i < 120; i++) {
-      const el = document.createElement('div');
-      el.className = 'confetti';
-      el.style.left = Math.random() * 100 + 'vw';
-      el.style.background = colors[i % colors.length];
-      el.style.animationDuration = (2.5 + Math.random() * 2) + 's';
-      el.style.animationDelay = (Math.random() * 0.8) + 's';
-      el.style.transform = 'rotate(' + (Math.random() * 360) + 'deg)';
-      document.body.appendChild(el);
-      setTimeout(function () { el.remove(); }, 6000);
-    }
+    if (window.Confetti) window.Confetti.burst(['#F97316', '#FFD200', '#FFFFFF', '#9A3412', '#FDBA74']);
   }
 
   function escapeHtml(s) {

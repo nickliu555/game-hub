@@ -1051,17 +1051,7 @@
   }
   // ---------------- Confetti ----------------
   function launchConfetti() {
-    const colors = ['#FFE100', '#3DDC84', '#A96BFF', '#34C6FF', '#FF3B30'];
-    for (let i = 0; i < 80; i++) {
-      const d = document.createElement('div');
-      d.className = 'confetti';
-      d.style.left = (Math.random() * 100) + 'vw';
-      d.style.background = colors[(Math.random() * colors.length) | 0];
-      d.style.animationDelay = (Math.random() * 0.6) + 's';
-      d.style.transform = 'rotate(' + (Math.random() * 360) + 'deg)';
-      document.body.appendChild(d);
-      setTimeout(function () { d.remove(); }, 3200);
-    }
+    if (window.Confetti) window.Confetti.burst(['#FFE100', '#3DDC84', '#A96BFF', '#34C6FF', '#FF3B30']);
   }
 
   // ---------------- Input + presence relays ----------------

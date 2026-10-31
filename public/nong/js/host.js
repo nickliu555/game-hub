@@ -888,17 +888,7 @@
   }
 
   function confetti(color) {
-    const colors = [color || '#C9A6FF', '#FF4D8D', '#38E1FF', '#FFD23F', '#7CFF6B', '#ffffff'];
-    for (let i = 0; i < 70; i++) {
-      const el = document.createElement('div');
-      el.className = 'confetti-piece';
-      el.style.left = Math.random() * 100 + 'vw';
-      el.style.background = colors[i % colors.length];
-      el.style.animationDelay = (Math.random() * 0.9) + 's';
-      el.style.animationDuration = (2.4 + Math.random() * 1.6) + 's';
-      document.body.appendChild(el);
-      setTimeout(function () { el.remove(); }, 5000);
-    }
+    if (window.Confetti) window.Confetti.burst([color || '#C9A6FF', '#FF4D8D', '#38E1FF', '#FFD23F', '#7CFF6B', '#ffffff']);
   }
 
   // ---------------- Pause ----------------

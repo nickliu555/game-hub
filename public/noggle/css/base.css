@@ -187,19 +187,6 @@ button:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
   100% { transform: translateY(-105vh) rotate(0deg)  scale(0.85); opacity: 0; }
 }
 
-/* Confetti (final). */
-.confetti {
-  position: fixed;
-  top: -12px;
-  width: 10px;
-  height: 16px;
-  z-index: 70;
-  animation: confettiFall linear forwards;
-}
-@keyframes confettiFall {
-  to { transform: translateY(105vh) rotate(720deg); opacity: 0.9; }
-}
-
 /* Inline toast fallback. */
 .inline-toast {
   position: fixed;

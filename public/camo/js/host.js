@@ -474,22 +474,8 @@
   }
 
   // ---- Confetti ----
-  var confettiLayer = document.getElementById('confettiLayer');
   function burstConfetti() {
-    if (!confettiLayer) return;
-    var colors = ['#A3E635', '#5B2A86', '#F0A83A', '#FFFFFF', '#8B5FBF'];
-    confettiLayer.innerHTML = '';
-    for (var i = 0; i < 110; i++) {
-      var bit = document.createElement('div');
-      bit.className = 'confetti-bit';
-      bit.style.left = (Math.random() * 100) + '%';
-      bit.style.background = colors[i % colors.length];
-      bit.style.animationDuration = (2.6 + Math.random() * 2.2) + 's';
-      bit.style.animationDelay = (Math.random() * 0.9) + 's';
-      bit.style.opacity = String(0.75 + Math.random() * 0.25);
-      confettiLayer.appendChild(bit);
-    }
-    setTimeout(function () { if (confettiLayer) confettiLayer.innerHTML = ''; }, 6500);
+    if (window.Confetti) window.Confetti.burst(['#A3E635', '#5B2A86', '#F0A83A', '#FFFFFF', '#8B5FBF']);
   }
 
   // ---- Socket state ----

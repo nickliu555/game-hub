@@ -123,13 +123,10 @@ body[data-controls='gestures'] .rotation { width: 100%; justify-content: center;
 }
 .results.is-swapping #resultEyebrow, .results.is-swapping #resultTitle { animation: srSwap 380ms ease both; }
 @keyframes srSwap { from { opacity: .25; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-.confetti { position: fixed; top: -14px; width: 9px; height: 13px; border-radius: 2px; z-index: 2000; pointer-events: none; animation: srConfettiFall 3.4s linear forwards; }
-@keyframes srConfettiFall { 0% { transform: translateY(-20px) rotate(0deg); opacity: 1; } 100% { transform: translateY(105vh) rotate(720deg); opacity: .9; } }
 @media (prefers-reduced-motion: reduce) {
   #playSurface.is-topout .board-frame, #playSurface.is-winout .board-frame,
   .results.is-entering, .results.is-win #resultTitle,
   .results.is-swapping #resultEyebrow, .results.is-swapping #resultTitle { animation: none; }
-  .confetti { display: none; }
 }
 .confirm-strip { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: #fff0c5; color: #332b17; padding: 8px 10px; border-radius: 8px; margin-bottom: 8px; font-size: 13px; }
 .confirm-strip .secondary { background: #155e50; }

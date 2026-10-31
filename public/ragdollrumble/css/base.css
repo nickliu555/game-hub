@@ -165,20 +165,8 @@ body.player .player-attribution, body.join .player-attribution {
   50% { transform: scale(1.08); }
 }
 
-/* Confetti (host final). */
-.confetti {
-  position: fixed;
-  left: 0; top: 0;
-  z-index: 2000;
-  pointer-events: none;
-  border-radius: 2px;
-  will-change: transform;
-  backface-visibility: visible;
-}
-
 /* Respect a reduced-motion preference: keep the information, drop the flourish. */
 @media (prefers-reduced-motion: reduce) {
-  .confetti { display: none; }
   .pulse-dot { animation: none; }
   * { animation-duration: 0.001s !important; animation-iteration-count: 1 !important; }
 }

@@ -281,7 +281,7 @@
    leave their results screen, so a quick "Play again" doesn't carry falling
    confetti into the next game. Covers each game's confetti class names. */
 (function () {
-  var SEL = '.confetti, .confetti-piece, .confetti-bit';
+  var SEL = '.confetti, .confetti-piece, .confetti-bit, .hub-confetti';
   window.clearConfetti = function () {
     var bits = document.querySelectorAll(SEL);
     for (var i = 0; i < bits.length; i++) if (bits[i].parentNode) bits[i].parentNode.removeChild(bits[i]);

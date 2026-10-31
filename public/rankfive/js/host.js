@@ -647,23 +647,8 @@
   }
 
   // ---- Confetti (group win) ----
-  var confettiLayer = document.getElementById('confettiLayer');
   function launchConfetti() {
-    if (!confettiLayer) return;
-    var colors = ['#E0A21A', '#2FA37A', '#E15C4B', '#4E9E5B', '#F0C860', '#7be0b8', '#ffffff'];
-    for (var i = 0; i < 150; i++) {
-      var el = document.createElement('div');
-      el.className = 'confetti-piece';
-      el.style.left = (Math.random() * 100) + '%';
-      el.style.background = colors[i % colors.length];
-      el.style.setProperty('--dx', ((Math.random() * 2 - 1) * 180).toFixed(0) + 'px');
-      el.style.setProperty('--rot', (720 + Math.random() * 720).toFixed(0) + 'deg');
-      el.style.animationDuration = (2.6 + Math.random() * 1.9).toFixed(2) + 's';
-      el.style.animationDelay = (Math.random() * 0.6).toFixed(2) + 's';
-      if (Math.random() < 0.5) el.style.borderRadius = '50%';
-      el.addEventListener('animationend', function () { if (this.parentNode) this.parentNode.removeChild(this); });
-      confettiLayer.appendChild(el);
-    }
+    if (window.Confetti) window.Confetti.burst(['#E0A21A', '#2FA37A', '#E15C4B', '#4E9E5B', '#F0C860', '#7be0b8', '#ffffff']);
   }
 
   ['click', 'keydown', 'touchstart'].forEach(function (ev) {

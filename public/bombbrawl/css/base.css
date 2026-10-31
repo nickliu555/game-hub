@@ -182,24 +182,8 @@ button:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
   50% { transform: scale(1.08); }
 }
 
-/* Confetti (host final). */
-.confetti {
-  position: fixed;
-  top: -12px;
-  width: 10px; height: 14px;
-  border-radius: 2px;
-  z-index: 2000;
-  pointer-events: none;
-  animation: confetti-fall 3s linear forwards;
-}
-@keyframes confetti-fall {
-  0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
-  100% { transform: translateY(105vh) rotate(720deg); opacity: 0.9; }
-}
-
 /* Respect a reduced-motion preference: keep the information, drop the flourish. */
 @media (prefers-reduced-motion: reduce) {
-  .confetti { display: none; }
   .pulse-dot { animation: none; }
   * { animation-duration: 0.001s !important; animation-iteration-count: 1 !important; }
 }

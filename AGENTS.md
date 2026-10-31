@@ -157,8 +157,10 @@ changes so they look up.** Every game must play sounds on notable transitions, e
 Use the existing Web Audio pattern (see any host.js): `getAudioCtx()` + `unlockAudio()`
 (called on the Start click and first user gesture), then small oscillator helpers
 (`playDing`, a rising arpeggio for new rounds, `playChime`, `playApplause`, `playSad`).
-Call them from the host's render/transition functions. Confetti or similar visual flourish
-on a big win is a plus.
+Call them from the host's render/transition functions. For the win celebration, load
+`<script src="/shared/confetti.js" defer></script>` after `topbar.js` and call
+`window.Confetti.burst([...your palette])` — a natural cannon-burst + shower. Don't hand-roll
+confetti that just drops straight down.
 Please reference the existing games as examples.
 
 ---
@@ -185,8 +187,9 @@ function show(name) {
   heading **into** the final results, so the win fanfare isn't chopped. Sounds started in
   the last ~0.5 s are spared, so the new screen's start jingle survives.
 - Keep floating reactions on the shared class names (`.reaction-emoji` / `.reaction-float`
-  / `.emote-bubble`) and confetti on `.confetti` / `.confetti-piece` / `.confetti-bit`, and
-  register recorded applause with `trackApplause()`, so the shared cleanup finds them.
+  / `.emote-bubble`), make confetti with the shared `window.Confetti.burst()` (its
+  `.hub-confetti` pieces are cleared for you), and register recorded applause with
+  `trackApplause()`, so the shared cleanup finds them.
 - Every view switch must go through this — including shortcuts like a reconnect jumping
   straight to the lobby.
 
