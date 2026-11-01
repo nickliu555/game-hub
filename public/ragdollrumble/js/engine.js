@@ -617,7 +617,7 @@
       out.push({ x0: s.deck.x0, x1: s.deck.x1, y: 0, oneWay: false });
       (s.deckPlatforms || []).forEach(function (b) { out.push({ x0: b.x0, x1: b.x1, y: b.y, oneWay: true }); });
     }
-    this.tiles.forEach(function (t) { if (t.state !== 'fallen') out.push({ x0: t.x0, x1: t.x1, y: t.y0, oneWay: true, crumbly: true }); });
+    this.tiles.forEach(function (t) { if (t.state !== 'fallen') out.push({ x0: t.x0, x1: t.x1, y: t.y0, oneWay: true, crumbly: true, shaky: t.state === 'shake' }); });
     return out;
   };
 

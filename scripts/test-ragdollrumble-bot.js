@@ -149,6 +149,69 @@ console.log('\nEdge-guarding');
   check('a hard CPU edge-guards with spikes (≥6/16) without dying doing it', spiked >= 6 && botLost === 0, { spiked, botLost });
 }
 
+console.log('\nPlatform navigation');
+{
+  const place = (p, x, floorY) => { const t = p.parts.torso.getPosition(), dx = x - t.x, dy = (floorY - NM.STAND_H - 0.05) - t.y; p.partList.forEach((q) => { const r = q.getPosition(); q.setTransform(planck.Vec2(r.x + dx, r.y + dy), q.getAngle()); q.setLinearVelocity(planck.Vec2(0, 0)); }); };
+  const CASES = [
+    ['volcano', 'center rock to a side ledge', 0, -1.4, 12, 0],
+    ['volcano', 'one side ledge to the other', -12, 0, 12, 0],
+    ['volcano', 'top plank down to a side ledge', 0, -6, -11, 0],
+    ['crumble', 'across a broken bridge', -13, 0, 13, 0, [3, 4, 5, 6, 7]],
+    ['rooftop', 'side plank to the far ground', -6, -3.8, 10, 0],
+  ];
+  for (const [stage, name, bx, by, tx, ty, broken] of CASES) {
+    let ok = 0;
+    for (let seed = 1; seed <= 4; seed++) {
+      const w = new NM.World({ stage, items: false });
+      w.reset(seed, [{ id: 'bot', seat: 0, isBot: true }, { id: 't', seat: 1 }]);
+      (broken || []).forEach((k) => { const tl = w.tiles[k]; tl.state = 'fallen'; tl.timer = 999; tl.fallY = 0; tl.fallV = 0; w._kill.push({ body: tl.body }); tl.body = null; });
+      w._flushKills();
+      const B = w.byId.bot, T = w.byId.t;
+      place(B, bx, by); place(T, tx, ty);
+      for (let i = 0; i < 30; i++) w.step(DT);
+      const bot = new NB.Bot('bot', 'hard', NM.mulberry32(seed * 31));
+      let t = 0, hit = false;
+      while (t < 10 && B.alive && !hit) {
+        bot.update(w, DT); w.setInput('t', 0, 0, 0, 0, 0);
+        w.step(DT).forEach((e) => { if (e.type === 'hit' && e.id === 't') hit = true; });
+        t += DT;
+      }
+      if (hit && B.alive) ok++;
+    }
+    check(`a CPU crosses to reach an idle opponent: ${stage}, ${name} (4/4)`, ok === 4, ok + '/4');
+  }
+}
+
+console.log('\nChasing down a recovery');
+{
+  const place = (p, x) => { const t = p.parts.torso.getPosition(), dx = x - t.x, dy = -NM.STAND_H - 0.05 - t.y; p.partList.forEach((q) => { const r = q.getPosition(); q.setTransform(planck.Vec2(r.x + dx, r.y + dy), q.getAngle()); q.setLinearVelocity(planck.Vec2(0, 0)); }); };
+  let held = 0, contested = 0, botLost = 0, runs = 0;
+  for (const stage of ['rooftop', 'peak']) for (const side of [1, -1]) for (let seed = 1; seed <= 6; seed++) {
+    const w = new NM.World({ stage, items: false });
+    w.reset(seed, [{ id: 'bot', seat: 0, isBot: true }, { id: 'v', seat: 1, isBot: true }]);
+    const B = w.byId.bot, V = w.byId.v;
+    const main = w.groundSpans().filter((s) => !s.oneWay).reduce((m, s) => (s.x1 - s.x0 > m.x1 - m.x0 ? s : m));
+    const edge = side > 0 ? main.x1 : main.x0;
+    place(B, edge - side * 2.6); place(V, edge - side * 1.3);
+    for (let i = 0; i < 30; i++) w.step(DT);
+    B.facing = side; V.dmg = 30 + seed * 10;
+    w._hit(B, V, NM.HITS.smash, 1, side, 0, [], { kind: 'smash' });
+    const bot = new NB.Bot('bot', 'hard', NM.mulberry32(seed * 977 + side));
+    const rec = new NB.Bot('v', 'normal', NM.mulberry32(seed * 131));
+    let t = 0, hit = false, nearT = 0;
+    while (t < 7 && V.alive && B.alive) {
+      bot.update(w, DT); rec.update(w, DT);
+      w.step(DT).forEach((e) => { if (e.type === 'hit' && e.id === 'v') hit = true; });
+      if (!V.grounded && Math.abs(w.posOf(B).x - edge) < 3) nearT += DT;
+      if (V.grounded && t > 0.4) break;
+      t += DT;
+    }
+    runs++; if (nearT > 0.6) held++; if (hit) contested++; if (!B.alive) botLost++;
+  }
+  check('after knocking someone off, a hard CPU holds the ledge they are recovering to (≥22/24)', held >= 22, held + '/' + runs);
+  check('…and hits them again before they get back (≥5/24), without falling off itself', contested >= 5 && botLost === 0, { contested, botLost });
+}
+
 console.log('\nDifficulty matters');
 {
   let hardWins = 0, games = 0;
