@@ -500,6 +500,24 @@ section('Grabs & throws');
   P.release(w, 'p1'); run(w, 0.02);
   check('…the new smash opens them up again', w.grabbableIds()[b.id] === true);
 }
+for (const [dir, sx, sy] of [['f', 0, 0], ['d', 0, 1]]) {
+  // Thrown or slammed: the opening that got them grabbed is used up.
+  const { w, a, b, P } = duel();
+  b.dmg = 40; b.hitAt = w.time; b.lastHitKind = 'smash';
+  P.press(w, 'p0', 'act'); P.release(w, 'p0'); run(w, 0.05);
+  const grabbed = b.grabbedBy === a;
+  P.press(w, 'p0', 'act', sx, sy); P.release(w, 'p0', sx, sy);
+  let starred = false, regrabbed = false, thrown = false;
+  run(w, 2, () => {
+    if (!b.grabbedBy && !a.grabbing) thrown = true;
+    if (thrown && w.grabbableIds()[b.id]) starred = true;
+    if (thrown && w._grabCandidate(a) === b) regrabbed = true;
+  });
+  const name = dir === 'd' ? 'slammed' : 'thrown';
+  check('a ' + name + ' fighter shows no stars and can\'t be re-grabbed', grabbed && thrown && !starred && !regrabbed, { grabbed, thrown, starred, regrabbed });
+  b.hitAt = w.time; b.lastHitKind = 'finisher'; b.lastHitBy = a.id; b.grabImmune = 0;
+  check('…until a fresh hit opens them again', w.grabbableIds()[b.id] === true);
+}
 {
   // Stars mean the same to everyone: a jab alone never opens anyone.
   const w = world('rooftop', 3);

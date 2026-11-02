@@ -1388,12 +1388,16 @@
 
   // ---------------- Grabs ----------------
   /**
-   * The opening itself: reeling from a hit (jabs excepted, so a jab-jab-
-   * finisher chain flows), knocked limp, or just after firing a smash.
+   * The opening itself: reeling from a hit, knocked limp, or just after
+   * firing a smash. Jabs don't open you (so a jab-jab-finisher chain flows),
+   * and neither does being thrown or slammed — the throw was the payoff, so
+   * it can't set up another grab. Only a fresh hit (or smash) opens you again.
    * The same for every grabber, so the dizzy stars mean the same to everyone.
    */
   World.prototype._openNow = function (v) {
-    var reeling = (v.stun > 0 || (this.time - v.hitAt) < REEL_SEC) && v.lastHitKind !== 'jab';
+    var k = v.lastHitKind;
+    if (k === 'throw' || k === 'slam') return this._smashOpen(v);
+    var reeling = (v.stun > 0 || (this.time - v.hitAt) < REEL_SEC) && k !== 'jab';
     return !!(reeling || v.tumble || this._smashOpen(v));
   };
 
@@ -1525,6 +1529,8 @@
     var pv = p.parts.torso.getLinearVelocity();
     this._releaseGrab(p, false);
     v.grabImmune = 0.5;
+    v.openAt = -99;      // the opening that got them grabbed is used up
+    v.smashOpen = null;
     var spec = dir === 'b' ? HITS.throwB : dir === 'u' ? HITS.throwU : dir === 'd' ? HITS.slam : HITS.throwF;
     var ang = 40 * Math.PI / 180, fd;
     if (dir === 'u') fd = { x: 0.08 * f, y: -1 };
