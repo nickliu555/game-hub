@@ -959,9 +959,15 @@
     }
   };
 
-  /** Sparks sucked into the charging fist, and a flash the moment it's full. */
+  /** Where a charging fighter's power gathers: the fist — or the foot, for a kick. */
+  function chargeTip(p) {
+    var kick = p.chargeAim && p.chargeAim.y > 0.5;
+    return kick ? p.parts.shF.getWorldPoint(global.planck.Vec2(0, NM.SH_HH)) : p.parts.faF.getWorldPoint(global.planck.Vec2(0, NM.FA_HH));
+  }
+
+  /** Sparks sucked into the charging fist (or foot), and a flash the moment it's full. */
   Renderer.prototype._chargeFx = function (p, k) {
-    var f = p.parts.faF.getWorldPoint(global.planck.Vec2(0, NM.FA_HH));
+    var f = chargeTip(p);
     var dt = this._frameDt || 1 / 60;
     var rate = (this.reduced ? 6 : 26) + 40 * k;
     var n = Math.floor(rate * dt + Math.random());
@@ -1122,7 +1128,8 @@
       });
       ctx.beginPath(); ctx.arc(hc.x, hc.y, headR + spread, 0, Math.PI * 2); ctx.fillStyle = hot; ctx.fill();
       ctx.globalAlpha = 0.45 + 0.4 * pulse;
-      ctx.beginPath(); ctx.arc(faF[2], faF[3], 0.22 + 0.45 * c + 0.08 * pulse, 0, Math.PI * 2); ctx.fill();
+      var tip = chargeTip(p);
+      ctx.beginPath(); ctx.arc(tip.x, tip.y, 0.22 + 0.45 * c + 0.08 * pulse, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
 

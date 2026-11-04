@@ -306,9 +306,18 @@
       var q = world.players[i];
       if (q === p || !q.alive || !q.parts || q.grounded || q.grabbedBy) continue;
       var qp = world.posOf(q);
-      // Where they'll be when the fist arrives, relative to us.
-      var rx = (qp.x + qp.vx * 0.08) - (me.x + me.vx * 0.08), dy = qp.y - me.y;
-      if (Math.abs(rx) < 0.6 && dy > 0.6 && dy < 2.0) {
+      // It has to land with the foot — them a leg's length below — to spike.
+      // Closing fast, that window flies by, so check where they'll be over
+      // the whole time the stomp might land.
+      var hit = false, rx = 0;
+      for (var lead = 0.06; lead <= 0.221 && !hit; lead += 0.02) {
+        rx = (qp.x + qp.vx * lead) - (me.x + me.vx * lead);
+        var dy = (qp.y + qp.vy * lead) - (me.y + me.vy * lead);
+        hit = Math.abs(rx) < 0.6 && dy > 1.9 && dy < 2.6;
+      }
+      var gap = qp.y - me.y;
+      if (!hit && gap > 1 && gap < 4.5 && Math.abs(qp.x - me.x) < 1.5) this.think = Math.min(this.think, 0.03);
+      if (hit) {
         if (this.rnd() >= this.cfg.spike) return false;
         // A small sideways nudge still aims straight down (stick within ±22°).
         this.x = Math.max(-0.35, Math.min(0.35, rx)); this.y = 1;
@@ -344,8 +353,9 @@
       if (!this.egGo) return false;
       // (_decide stops a walk about 1.3m short of the ledge.)
       if (dist > 1.6) { this.x = side; return true; }
-      // Hold the ledge until they climb within reach, then go.
-      if (beyond < 2 && below > 0.8 && below < 3.5) {
+      // Hold the ledge until they're a stomp's distance below, then go —
+      // dropping onto them as they rise, the foot meets them.
+      if (beyond < 2 && below > 2.3 && below < 6) {
         this.x = side;
         this._pressJump(0.02);   // a tiny hop off the ledge, then drop onto them
         this.guardId = q.id; this.guardT = 0.8;

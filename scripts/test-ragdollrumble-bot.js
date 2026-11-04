@@ -146,7 +146,8 @@ console.log('\nEdge-guarding');
     if (got) spiked++;
     if (!B.alive) botLost++;
   }
-  check('a hard CPU edge-guards with spikes (≥6/16) without dying doing it', spiked >= 6 && botLost === 0, { spiked, botLost });
+  // (A spike needs the foot to land, a leg's length above them — deliberately hard.)
+  check('a hard CPU edge-guards with spikes (≥3/16) without dying doing it', spiked >= 3 && botLost === 0, { spiked, botLost });
 }
 
 console.log('\nPlatform navigation');

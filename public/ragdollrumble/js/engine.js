@@ -71,10 +71,11 @@
   // A press that arrives just after an opening closes still grabs — covers the
   // phone → server → host trip so the stars you saw are the grab you get.
   var GRAB_GRACE = 0.15;
-  // Down-air spike: an air punch aimed straight down that connects early in
-  // its strike (you're right on top of them) drives an airborne victim
-  // straight down. Off the stage that's usually a KO; over it they bounce.
-  var SPIKE_EARLY = 0.6;            // fraction of the strike (t0→t1) that spikes
+  // Down-air spike: an air stomp aimed straight down that lands with the
+  // foot — the tip of the kick, with them a leg's length below your hips —
+  // drives an airborne victim straight down. Closer than that it's a normal
+  // down hit. Off the stage a spike is usually a KO; over it they bounce.
+  var SPIKE_SPACING = 0.75;         // min gap (m) from your hip to their body
   var SPIKE_V = 18, SPIKE_GROWTH = 7;   // launch speed (m/s) at 0%, + per 100%
   var SPIKE_BOUNCE = [8, 13];       // floor-bounce speed range (m/s)
   var GRAB_K = 220, GRAB_C = 30;
@@ -83,7 +84,10 @@
   // Attack animation: arm lengths (for the fist hitbox) and how stiff the
   // arm motors get mid-attack so the visible arm keeps up with the hit.
   var UA_LEN = 2 * 0.21, FA_LEN = 2 * 0.2, ARM_LEN = UA_LEN + FA_LEN;
+  var TH_LEN = 2 * 0.24, SH_LEN = 2 * 0.24;
+  var SHOULDER_Y = TORSO_HH - 0.14, HIP_Y = TORSO_HH - 0.06;   // up / down from the torso's center
   var ATK_ARM_TORQUE = 22, ATK_ARM_SPEED = 70;
+  var KICK_TORQUE = 90, KICK_SPEED = 95;   // a leg is heavier than an arm
   var BAT_LEN = 1.45;               // grip → tip
   var BAT_HIT_R = 0.42;
   var ATK = {
@@ -238,6 +242,8 @@
   function easeIn(t) { t = clamp(t, 0, 1); return t * t; }
   /** Unit vector of a limb at world angle a (0 = hanging straight down). */
   function limbDir(a) { return { x: -Math.sin(a), y: Math.cos(a) }; }
+  /** Bare-handed attacks aimed down (straight or diagonally) are kicks. */
+  function isKick(a) { return (a.type === 'jab' || a.type === 'finisher' || a.type === 'smash') && a.aim.y > 0.5; }
   /**
    * Two-link reach from shoulder s to target g (elbow bends downward).
    * Returns world angles for the upper arm and forearm.
@@ -1123,6 +1129,8 @@
 
     if (a.type === 'bat') return this._batAnim(p, a, sh, out);
 
+    if (isKick(a)) return this._kickAnim(p, a, out, W, L);
+
     if (a.type === 'toss') {
       k = easeOut(t / 0.12);
       out.uaF = lerp(W(-0.9), aimW, k); out.faF = lerp(W(-0.4), aimW, k);
@@ -1171,6 +1179,64 @@
       var reach = sp.reach * (a.type === 'smash' ? 1 + (a.charge || 0) * 0.1 : 1);
       var extra = Math.max(0, reach - ARM_LEN) * ext;
       out.hitPts = [fist, { x: fist.x + a.aim.x * extra, y: fist.y + a.aim.y * extra }];
+    }
+    return out;
+  };
+
+  /**
+   * Down attacks are kicks: the front knee chambers up, then the leg snaps
+   * out straight along the aim — a stomp just in front of you on the ground,
+   * straight down in the air (the spike) — and draws back. Same timing,
+   * damage and knockback as the punch it replaces; the hitbox is the foot.
+   */
+  World.prototype._kickAnim = function (p, a, out, W, L) {
+    var sp = a.spec, t = a.t, k;
+    var hip = p.parts.torso.getWorldPoint(Vec2(0, TORSO_HH - 0.06));
+    var ground = p.grounded;
+    var strike = a.aim.x === 0 ? (ground ? 0.75 : 0.12) : (ground ? 1.0 : 0.75);
+    var restT = ground ? 0.22 : 0.55, restS = ground ? 0.06 : 0.2;
+    var cockT = a.type === 'smash' ? 1.85 : 1.5, cockS = a.type === 'smash' ? -0.25 : 0.1;
+    var startT = a.type === 'smash' ? cockT : restT, startS = a.type === 'smash' ? cockS : restS;
+    var hold = 0.05, th, sh, ext = 0;
+    if (t < sp.t0) {
+      k = easeOut(t / sp.t0);
+      th = lerp(startT, cockT, k); sh = lerp(startS, cockS, k);
+    } else if (t < sp.t1) {
+      k = easeOut((t - sp.t0) / (sp.t1 - sp.t0));
+      th = lerp(cockT, strike, k); sh = lerp(cockS, strike, k); ext = k;
+    } else if (t < sp.t1 + hold) {
+      th = strike; sh = strike; ext = 1;
+    } else {
+      k = easeInOut((t - sp.t1 - hold) / Math.max(0.01, sp.dur - sp.t1 - hold));
+      th = lerp(strike, restT, k); sh = lerp(strike, restS, k); ext = 1 - k;
+    }
+    out.kick = true;
+    out.thF = W(th); out.shF = W(sh);
+    out.thB = W(ground ? -0.25 : -0.3); out.shB = W(ground ? -0.15 : -0.6);
+    // Arms fling out for balance; the body leans back from the kick.
+    out.uaF = W(1.1); out.faF = W(1.6);
+    out.uaB = W(-0.9); out.faB = W(-0.5);
+    out.armF = false; out.armB = false;
+    out.lean = ground ? -0.6 * L * ext : 0;
+    var dt = limbDir(W(th)), ds = limbDir(W(sh));
+    var knee = { x: hip.x + dt.x * TH_LEN, y: hip.y + dt.y * TH_LEN };
+    var foot = { x: knee.x + ds.x * SH_LEN, y: knee.y + ds.y * SH_LEN };
+    out.fist = foot;   // the strike point (motion smear, hit sparks)
+    out.hip = hip;
+    out.ext = ext;
+    out.active = t >= sp.t0 && t <= sp.t1 + 0.03 && ext > 0.35;
+    if (out.active) {
+      // Same range as the mirror-image punch (a down kick ↔ an up punch, a
+      // diagonal-down kick ↔ a diagonal-up punch): the kick's tip ends exactly
+      // as far from the body's center as that punch's fist would. The punch
+      // reaches from the shoulder (above center), the kick from the hip
+      // (below it, along its own strike angle) — solve for the leg's reach.
+      var reach = sp.reach * (a.type === 'smash' ? 1 + (a.charge || 0) * 0.1 : 1);
+      var px = Math.abs(a.aim.x) * reach, py = SHOULDER_Y + Math.abs(a.aim.y) * reach;
+      var D2 = px * px + py * py, hu = HIP_Y * Math.cos(strike);
+      var legReach = -hu + Math.sqrt(Math.max(0, hu * hu - HIP_Y * HIP_Y + D2));
+      var extra = Math.max(0, legReach - TH_LEN - SH_LEN) * ext;
+      out.hitPts = [knee, foot, { x: foot.x + ds.x * extra, y: foot.y + ds.y * extra }];
     }
     return out;
   };
@@ -1258,11 +1324,15 @@
       // A duck lets straight jabs, finishers and bat swings sail overhead;
       // anything aimed downward (and every smash) still connects.
       if (v.crouch && a.type !== 'smash' && a.aim.y < 0.5) continue;
-      var hitAt = null;
-      for (var k = 0; k < pts.length && !hitAt; k++) {
-        if (this._hurtDist(v, pts[k].x, pts[k].y) < fistR) hitAt = pts[k];
+      var hitAt = null, touch = [];
+      for (var k = 0; k < pts.length; k++) {
+        touch[k] = this._hurtDist(v, pts[k].x, pts[k].y) < fistR;
+        if (touch[k] && !hitAt) hitAt = pts[k];
       }
       if (!hitAt) continue;
+      // A kick's tip (foot / just past it) connecting, at a leg's length.
+      var tipHit = !!anim.kick && (touch[1] || touch[2]) && this._hurtDist(v, anim.hip.x, anim.hip.y) > SPIKE_SPACING;
+      if (tipHit) hitAt = touch[2] ? pts[2] : pts[1];
       a.hit[v.id] = true;
       a.connected = true;
       if (a.type === 'smash' && p.smashOpen) p.smashOpen.hit = true;
@@ -1271,7 +1341,7 @@
         spec2 = { d: spec.d + 8 * a.charge, base: spec.base + SMASH_BASE_BONUS * a.charge, growth: spec.growth + SMASH_GROWTH_BONUS * a.charge };
       }
       if (p.gloveT > 0 && a.type !== 'bat') { mult = GLOVE_MULT; spec2 = { d: spec2.d + 2, base: spec2.base, growth: spec2.growth, up: spec2.up }; }
-      if (this._isSpike(p, v, a)) {
+      if (this._isSpike(p, v, a, tipHit)) {
         var sb = SPIKE_V + (a.type === 'smash' ? 5 * a.charge : a.type === 'finisher' ? 1 : 0);
         this._hit(p, v, { d: spec2.d + 3, base: sb, growth: SPIKE_GROWTH }, mult, 0, 1, ev,
           { kind: a.type, spike: true, fixedDir: { x: 0, y: 1 }, x: hitAt.x, y: hitAt.y, charge: a.charge });
@@ -1286,14 +1356,14 @@
   };
 
   /**
-   * A spike: a punch thrown in the air, aimed straight down, that lands on an
-   * airborne victim early in its strike — i.e. from right on top of them. A
-   * late, full-reach connection is just a normal down hit.
+   * A spike: an air stomp aimed straight down whose tip — the foot — lands on
+   * an airborne victim a leg's length below. Too close (on top of them) it's
+   * just a normal down hit.
    */
-  World.prototype._isSpike = function (p, v, a) {
+  World.prototype._isSpike = function (p, v, a, tipHit) {
     if (a.type !== 'jab' && a.type !== 'finisher' && a.type !== 'smash') return false;
     if (p.grounded || v.grounded || a.aim.y < 0.9) return false;
-    return a.t <= a.spec.t0 + SPIKE_EARLY * (a.spec.t1 - a.spec.t0);
+    return !!tipHit;
   };
 
   /** Distance from a point to a fighter's hurtbox (torso capsule + head). */
@@ -1920,7 +1990,7 @@
     }
 
     var a2 = p.attack;
-    var stiffF = false, stiffB = false;
+    var stiffF = false, stiffB = false, kickLeg = false;
     var sh = this._shoulder(p);
     p.bat = null;
     if (a2 && p.anim) {
@@ -1929,6 +1999,14 @@
       uaF = p.anim.uaF; faF = p.anim.faF; uaB = p.anim.uaB; faB = p.anim.faB;
       stiffF = p.anim.armF; stiffB = p.anim.armB;
       if (p.anim.bat) p.bat = p.anim.bat;
+      if (p.anim.kick) { thF = p.anim.thF; shF = p.anim.shF; thB = p.anim.thB; shB = p.anim.shB; kickLeg = true; }
+    } else if (p.charge >= 0 && p.chargeAim && p.chargeAim.y > 0.5) {
+      // Charging a kick: knee drawn right up, arms out for balance.
+      var wobK = Math.sin(this.time * 40) * 0.06 * clamp(p.charge, 0, 1);
+      thF = W(1.85 + wobK); shF = W(-0.25 + wobK);
+      if (mode === 'ground') { thB = W(-0.15); shB = W(-0.1); }
+      uaF = W(1.1); faF = W(1.6); uaB = W(-0.9); faB = W(-0.5);
+      kickLeg = true;
     } else if (p.charge >= 0) {
       // Charging: lead fist cocked way back, other hand up in guard.
       var wob = Math.sin(this.time * 40) * 0.06 * clamp(p.charge, 0, 1);
@@ -1962,7 +2040,8 @@
     var sF = stiffF ? ATK_ARM_SPEED : 0, sB = stiffB ? ATK_ARM_SPEED : 0;
     drive(j.shF, uaF - torsoA, tF, sF); drive(j.elF, faF - uaF, tF * 0.8, sF);
     drive(j.shB, uaB - torsoA, tB, sB); drive(j.elB, faB - uaB, tB * 0.8, sB);
-    drive(j.hipF, thF - torsoA, LEG * tq); drive(j.knF, shF - thF, LEG * 0.8 * tq);
+    if (kickLeg) { drive(j.hipF, thF - torsoA, KICK_TORQUE, KICK_SPEED); drive(j.knF, shF - thF, KICK_TORQUE * 0.8, KICK_SPEED); }
+    else { drive(j.hipF, thF - torsoA, LEG * tq); drive(j.knF, shF - thF, LEG * 0.8 * tq); }
     drive(j.hipB, thB - torsoA, LEG * tq); drive(j.knB, shB - thB, LEG * 0.8 * tq);
     drive(j.neck, 0, 1.2);
   };
@@ -1979,7 +2058,7 @@
     UA_HH: UA_HH, FA_HH: FA_HH, TH_HH: TH_HH, SH_HH: SH_HH,
     LEG_GAP: LEG_GAP, STAND_H: STAND_H, CROUCH_DROP: CROUCH_DROP, FIGHTER_H: FIGHTER_H,
     MOVE_SPEED: MOVE_SPEED, JUMP_V: JUMP_V, AIR_JUMP_V: AIR_JUMP_V, AIR_JUMPS: AIR_JUMPS, WALL_JUMPS: WALL_JUMPS, WALL_KICK_Y: WALL_KICK_Y, WALL_SLIDE: WALL_SLIDE, G: G,
-    TUMBLE_KB: TUMBLE_KB, SPIKE_EARLY: SPIKE_EARLY, SPIKE_V: SPIKE_V, REEL_SEC: REEL_SEC, GRAB_GRACE: GRAB_GRACE, CHARGE_JUMP: CHARGE_JUMP, SMASH_OPEN_MISS: SMASH_OPEN_MISS, SMASH_OPEN_HIT: SMASH_OPEN_HIT, CHARGE_FULL: CHARGE_FULL, CHARGE_START: CHARGE_START, CHARGE_AUTO: CHARGE_AUTO, BAT_LEN: BAT_LEN,
+    TUMBLE_KB: TUMBLE_KB, SPIKE_V: SPIKE_V, SPIKE_SPACING: SPIKE_SPACING, REEL_SEC: REEL_SEC, GRAB_GRACE: GRAB_GRACE, CHARGE_JUMP: CHARGE_JUMP, SMASH_OPEN_MISS: SMASH_OPEN_MISS, SMASH_OPEN_HIT: SMASH_OPEN_HIT, CHARGE_FULL: CHARGE_FULL, CHARGE_START: CHARGE_START, CHARGE_AUTO: CHARGE_AUTO, BAT_LEN: BAT_LEN,
     GRAB_TIME: GRAB_TIME, GLOVE_TIME: GLOVE_TIME, ROCK_USES: ROCK_USES, BOMB_R: BOMB_R, ITEM_R: ITEM_R,
     SD_SHRINK_SEC: SD_SHRINK_SEC,
     aimFrom: aimFrom,

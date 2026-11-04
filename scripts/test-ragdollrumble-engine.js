@@ -291,11 +291,59 @@ section('Punches');
 
 section('Down-air spike');
 {
+  // Down attacks are kicks: the front leg snaps out and the foot is the hitbox.
+  const { w, a, P } = duel();
+  P.press(w, 'p0', 'act', 0, 1); P.release(w, 'p0', 0, 1);
+  let kicked = false, footLow = false, legOut = 0;
+  run(w, 0.3, () => {
+    if (a.attack && a.anim && a.anim.kick) kicked = true;
+    if (a.anim && a.anim.active && a.anim.kick) {
+      const hip = a.parts.torso.getWorldPoint(planck.Vec2(0, NM.TORSO_HH - 0.06));
+      const foot = a.anim.hitPts[1];
+      if (foot.y > hip.y + 0.6 && (foot.x - hip.x) * a.facing > 0.2) footLow = true;
+      const shin = a.parts.shF.getWorldPoint(planck.Vec2(0, NM.SH_HH));
+      legOut = Math.max(legOut, (shin.x - hip.x) * a.facing);
+    }
+  });
+  check('a down attack on the ground is a kick', kicked);
+  check('…its hitbox is the foot, low and in front', footLow);
+  check('…and the leg really swings out in front (not just the hitbox)', legOut > 0.35, legOut.toFixed(2));
+  {
+    const w2 = world('rooftop', 1), k = w2.players[0];
+    place(k, 0, -6); run(w2, 0.2, () => k.partList.forEach((b) => b.setLinearVelocity(planck.Vec2(0, 0))));
+    const P2 = pad();
+    P2.press(w2, 'p0', 'act', 0, 1); P2.release(w2, 'p0', 0, 1);
+    let gap = 0, stomp = false;
+    run(w2, 0.3, () => {
+      k.partList.forEach((b) => { const v = b.getLinearVelocity(); b.setLinearVelocity(planck.Vec2(v.x, Math.min(v.y, 0.5))); });
+      if (k.attack && k.anim && k.anim.kick && k.attack.t > k.attack.spec.t1 && k.attack.t < k.attack.spec.t1 + 0.05) {
+        stomp = true;
+        const sh = k.parts.shF.getWorldPoint(planck.Vec2(0, NM.SH_HH));
+        gap = Math.max(gap, Math.hypot(sh.x - k.anim.fist.x, sh.y - k.anim.fist.y));
+      }
+    });
+    check('in the air the down attack is a straight-down stomp, and the visible foot keeps up with it', stomp && gap < 0.15, gap.toFixed(2));
+  }
+  P.press(w, 'p0', 'act', 1, 0); P.release(w, 'p0', 1, 0);
+  let punch = false;
+  run(w, 0.15, () => { if (a.anim && a.attack && !a.anim.kick && a.attack.type === 'jab') punch = true; });
+  check('a straight attack is still a punch', punch);
+}
+{
+  const { w, a, P } = duel();
+  P.press(w, 'p0', 'act', 0, 1); run(w, 0.5);
+  const hip = a.parts.torso.getWorldPoint(planck.Vec2(0, NM.TORSO_HH - 0.06));
+  const knee = a.parts.thF.getWorldPoint(planck.Vec2(0, NM.TH_HH));
+  check('charging a down smash draws the knee up', a.charge >= 0 && knee.y < hip.y + 0.25, (knee.y - hip.y).toFixed(2));
+  P.release(w, 'p0', 0, 1);
+}
+{
   // Two fighters high over the middle of the stage: a, right on top of v.
   const sky = () => {
     const w = world('rooftop', 2);
     const [a, v] = w.players;
-    place(a, 0, -7.2); place(v, 0, -6); a.facing = 1;
+    // A leg's length apart: the stomp lands with the foot.
+    place(a, 10, -11); place(v, 10, -11 + 2.3); a.facing = 1;   // open sky (no planks)
     run(w, 1 / 60);
     return { w, a, v, P: pad() };
   };
@@ -304,33 +352,61 @@ section('Down-air spike');
     P.press(w, 'p0', 'act', 0, 1); P.release(w, 'p0', 0, 1);
     const ev = run(w, 0.2);
     const h = ev.find((e) => e.type === 'hit' && e.id === v.id);
-    check('a down-air punch from right on top spikes (SPIKE event)', h && h.spike === true, h);
+    check('a down-air stomp that lands with the foot spikes (SPIKE event)', h && h.spike === true, h);
     check('…sending them straight down, knocked limp', v.tumble && pos(w, v).vy > 15 && Math.abs(pos(w, v).vx) < 2, pos(w, v));
-    const ev2 = run(w, 1.2);
+    const ev2 = run(w, 1.8);
     const b = ev2.find((e) => e.type === 'spikeBounce' && e.id === v.id);
     check('over the stage they bounce off the floor (and survive)', b && v.alive, ev2.filter((e) => e.type === 'spikeBounce'));
   }
   {
+    // Too close (on top of them): the knee/shin lands it — a normal down hit.
     const w = world('rooftop', 2);
     const [a, v] = w.players;
-    const spec = NM.HITS.jab, mid = spec.t0 + 0.3 * (spec.t1 - spec.t0);
-    const atk = (t, aim, type) => ({ type: type || 'jab', spec: NM.HITS[type || 'jab'], t, aim: aim || { x: 0, y: 1 } });
+    place(a, 10, -11); place(v, 10, -11 + 1.3); a.facing = 1;
+    run(w, 1 / 60);
+    const P = pad();
+    P.press(w, 'p0', 'act', 0, 1); P.release(w, 'p0', 0, 1);
+    const h = run(w, 0.2, () => [a, v].forEach((p) => p.partList.forEach((b) => b.setLinearVelocity(planck.Vec2(0, 0))))).find((e) => e.type === 'hit' && e.id === v.id);
+    check('a stomp from right on top (not the foot) is a normal hit, not a spike', h && !h.spike, h);
+  }
+  {
+    const w = world('rooftop', 2);
+    const [a, v] = w.players;
+    const atk = (aim, type) => ({ type: type || 'jab', spec: NM.HITS[type || 'jab'], t: 0.1, aim: aim || { x: 0, y: 1 } });
     a.grounded = false; v.grounded = false;
-    check('_isSpike: early in the strike, straight down, both airborne', w._isSpike(a, v, atk(mid)) === true);
-    check('…not late in the strike (full-reach connection = normal down hit)', w._isSpike(a, v, atk(spec.t1)) === false);
-    check('…not aimed diagonally', w._isSpike(a, v, atk(mid, { x: 0.707, y: 0.707 })) === false);
-    check('…not with a bat', w._isSpike(a, v, atk(NM.HITS.bat.t0, { x: 0, y: 1 }, 'bat')) === false);
+    check('_isSpike: the tip lands, straight down, both airborne', w._isSpike(a, v, atk(), true) === true);
+    check('…not when the tip didn\'t land it', w._isSpike(a, v, atk(), false) === false);
+    check('…not aimed diagonally', w._isSpike(a, v, atk({ x: 0.707, y: 0.707 }), true) === false);
+    check('…not with a bat', w._isSpike(a, v, atk({ x: 0, y: 1 }, 'bat'), true) === false);
     a.grounded = true;
-    check('…not from the ground', w._isSpike(a, v, atk(mid)) === false);
+    check('…not from the ground', w._isSpike(a, v, atk(), true) === false);
     a.grounded = false; v.grounded = true;
-    check('…not on a grounded victim', w._isSpike(a, v, atk(mid)) === false);
+    check('…not on a grounded victim', w._isSpike(a, v, atk(), true) === false);
+  }
+  {
+    // Kicks reach exactly as far as the mirror-image punch.
+    const w = world('rooftop', 1), a = w.players[0];
+    place(a, 0, -11); a.grounded = false; a.facing = 1;
+    a.partList.forEach((b) => b.setTransform(b.getPosition(), 0));
+    const tipDist = (type, ax, ay) => {
+      a.attack = { type, spec: NM.HITS[type], t: NM.HITS[type].t1, aim: { x: ax, y: ay }, hit: {}, connected: false, charge: 0 };
+      const an = w._attackAnim(a), c = a.parts.torso.getPosition(), tp = an.hitPts[an.hitPts.length - 1];
+      return Math.hypot(tp.x - c.x, tp.y - c.y);
+    };
+    let worst = 0;
+    for (const type of ['jab', 'finisher', 'smash']) {
+      worst = Math.max(worst, Math.abs(tipDist(type, 0, 1) - tipDist(type, 0, -1)));
+      worst = Math.max(worst, Math.abs(tipDist(type, Math.SQRT1_2, Math.SQRT1_2) - tipDist(type, Math.SQRT1_2, -Math.SQRT1_2)));
+    }
+    a.attack = null;
+    check('a down kick reaches as far as an up punch (and diagonals match too)', worst < 0.03, worst.toFixed(3));
   }
   {
     // Off the side of the stage at mid damage, a spike is a KO.
     const w = world('rooftop', 2);
     const [a, v] = w.players;
     const main = w.groundSpans().filter((s) => !s.oneWay).reduce((m, s) => (s.x1 - s.x0 > m.x1 - m.x0 ? s : m));
-    place(v, main.x1 + 1.2, main.y - 2.2); place(a, main.x1 + 1.2, main.y - 3.4); v.dmg = 75;
+    place(v, main.x1 + 1.2, main.y - 2.2); place(a, main.x1 + 1.2, main.y - 4.5); v.dmg = 75;
     run(w, 1 / 60);
     const P = pad();
     P.press(w, 'p0', 'act', 0, 1); P.release(w, 'p0', 0, 1);
