@@ -58,7 +58,7 @@
   var CHARGE_FULL = 1.0;
   var CHARGE_AUTO = CHARGE_FULL + 1.0;   // a full charge can be held for a second before it fires itself
   var COMBO_WINDOW = 0.5;
-  var SMASH_BASE_BONUS = 3.5, SMASH_GROWTH_BONUS = 8;   // added at full charge
+  var SMASH_BASE_BONUS = 2, SMASH_GROWTH_BONUS = 5;   // added at full charge
 
   var GRAB_TIME = 2.0;
   var THROW_R = 1.05;               // how far in front a held ragdoll dangles
@@ -76,7 +76,7 @@
   // drives an airborne victim straight down. Closer than that it's a normal
   // down hit. Off the stage a spike is usually a KO; over it they bounce.
   var SPIKE_SPACING = 0.75;         // min gap (m) from your hip to their body
-  var SPIKE_V = 18, SPIKE_GROWTH = 7;   // launch speed (m/s) at 0%, + per 100%
+  var SPIKE_V = 8, SPIKE_GROWTH = 16;   // launch speed (m/s) at 0%, + per 100% (scales like other KO moves)
   var SPIKE_BOUNCE = [8, 13];       // floor-bounce speed range (m/s)
   var GRAB_K = 220, GRAB_C = 30;
   var MASH_STEP = 0.16;
@@ -106,7 +106,7 @@
   var BAT_USES = 4;
   var ROCK_USES = 2;               // throws per rock picked up
   var GLOVE_TIME = 10;
-  var GLOVE_MULT = 1.5;
+  var GLOVE_MULT = 1.25;
   var BOMB_FUSE = 1.3, BOMB_R = 3.2;
 
   // Bridge tiles crack from impacts (hard landings, bodies slammed into them),
@@ -772,18 +772,21 @@
       if (hit && (!best || hit.y < best.y)) best = hit;
     }
     p.ground = best;
-    // A spiked ragdoll that reaches the floor bounces back up, still limp.
-    if (p.spiked && p.tumble && best && vel.y > 3 && best.y - pos.y < STAND_H + 0.25) {
+    // A spiked ragdoll that reaches the floor bounces back up, limp — even if
+    // the limp wore off on the way down, unless they jumped out of it.
+    if (p.spiked && !p.grabbedBy && best && vel.y > 3 && best.y - pos.y < STAND_H + 0.25) {
       p.spiked = false;
       var bv = clamp(vel.y * 0.55, SPIKE_BOUNCE[0], SPIKE_BOUNCE[1]);
       this._setVel(p, vel.x * 0.4, -bv);
-      p.tumbleT = Math.max(p.tumbleT, 0.4);
+      if (p.tumble) p.tumbleT = Math.max(p.tumbleT, 0.4);
+      else this._startTumble(p, 0.4);
       if (best.tile) best.tile.load += 0.7;
       this.events.push({ type: 'spikeBounce', id: p.id, x: pos.x, y: best.y });
       return;
     }
     var was = p.grounded;
-    p.grounded = !!best && !p.tumble && !p.grabbedBy && p.jumpLock <= 0 && vel.y > -3;
+    p.grounded = !!best && !p.tumble && !p.grabbedBy && p.jumpLock <= 0 && vel.y > -3 && !(p.spiked && vel.y > 3);
+    if (p.grounded) p.spiked = false;
     if (p.grounded) {
       var gb = best.fix.getBody();
       var gv = gb.getLinearVelocityFromWorldPoint(Vec2(pos.x, best.y));
@@ -886,6 +889,7 @@
         // Wall kick: up and away from the wall at full strength, and it doesn't
         // cost an air jump. A few per trip through the air; landing resets them.
         p.wallJumps++;
+        p.spiked = false;
         this._setVel(p, -p.wallDir * WALL_KICK_X * jk, -WALL_KICK_Y * jk);
         if (p.charge < 0) p.facing = -p.wallDir;   // a charge keeps its direction
         p.wallLock = WALL_LOCK;
@@ -1029,6 +1033,7 @@
     var gvy = (p.grounded && p.ground && p.ground.vy) ? Math.min(0, p.ground.vy) : 0;
     this._addVel(p, 0, (-v + gvy) - cur.y);
     p.grounded = false;
+    p.spiked = false;   // jumped out of a spike: no floor bounce
     p.coyote = 0;
     p.jumpLock = 0.14;
     p.jumpCut = false;
@@ -1407,9 +1412,10 @@
     v.flash = 0.12;
     v.spiked = false;
     if (opts.spike) {
-      // Knocked limp long enough that recovering from below the ledge is hard.
+      // Knocked limp for a beat (longer the more battered they are), so a
+      // spike at high damage below the ledge is hard to recover from.
       v.spiked = true;
-      this._startTumble(v, clamp(0.5 + v.dmg * 0.004, 0.5, 1.0));
+      this._startTumble(v, clamp(0.25 + v.dmg * 0.004, 0.25, 0.8));
       if (v.item || v.gloveT > 0) this._dropItem(v);
     }
     if (kb >= TUMBLE_KB) this._startTumble(v, v.stun);
@@ -1449,7 +1455,6 @@
 
   World.prototype._endTumble = function (p) {
     p.tumble = false;
-    p.spiked = false;
     p.tumbleT = 0;
     p.stun = Math.max(p.stun, 0.12);
     p.airJumps = Math.max(p.airJumps, 1);
@@ -2059,7 +2064,7 @@
     LEG_GAP: LEG_GAP, STAND_H: STAND_H, CROUCH_DROP: CROUCH_DROP, FIGHTER_H: FIGHTER_H,
     MOVE_SPEED: MOVE_SPEED, JUMP_V: JUMP_V, AIR_JUMP_V: AIR_JUMP_V, AIR_JUMPS: AIR_JUMPS, WALL_JUMPS: WALL_JUMPS, WALL_KICK_Y: WALL_KICK_Y, WALL_SLIDE: WALL_SLIDE, G: G,
     TUMBLE_KB: TUMBLE_KB, SPIKE_V: SPIKE_V, SPIKE_SPACING: SPIKE_SPACING, REEL_SEC: REEL_SEC, GRAB_GRACE: GRAB_GRACE, CHARGE_JUMP: CHARGE_JUMP, SMASH_OPEN_MISS: SMASH_OPEN_MISS, SMASH_OPEN_HIT: SMASH_OPEN_HIT, CHARGE_FULL: CHARGE_FULL, CHARGE_START: CHARGE_START, CHARGE_AUTO: CHARGE_AUTO, BAT_LEN: BAT_LEN,
-    GRAB_TIME: GRAB_TIME, GLOVE_TIME: GLOVE_TIME, ROCK_USES: ROCK_USES, BOMB_R: BOMB_R, ITEM_R: ITEM_R,
+    GRAB_TIME: GRAB_TIME, GLOVE_TIME: GLOVE_TIME, GLOVE_MULT: GLOVE_MULT, SMASH_BASE_BONUS: SMASH_BASE_BONUS, SMASH_GROWTH_BONUS: SMASH_GROWTH_BONUS, ROCK_USES: ROCK_USES, BOMB_R: BOMB_R, ITEM_R: ITEM_R,
     SD_SHRINK_SEC: SD_SHRINK_SEC,
     aimFrom: aimFrom,
     mulberry32: mulberry32,

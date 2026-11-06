@@ -353,10 +353,23 @@ section('Down-air spike');
     const ev = run(w, 0.2);
     const h = ev.find((e) => e.type === 'hit' && e.id === v.id);
     check('a down-air stomp that lands with the foot spikes (SPIKE event)', h && h.spike === true, h);
-    check('…sending them straight down, knocked limp', v.tumble && pos(w, v).vy > 15 && Math.abs(pos(w, v).vx) < 2, pos(w, v));
+    check('…sending them straight down, knocked limp', v.tumble && pos(w, v).vy > 10 && Math.abs(pos(w, v).vx) < 2, pos(w, v));
     const ev2 = run(w, 1.8);
     const b = ev2.find((e) => e.type === 'spikeBounce' && e.id === v.id);
     check('over the stage they bounce off the floor (and survive)', b && v.alive, ev2.filter((e) => e.type === 'spikeBounce'));
+  }
+  {
+    // …unless they jump out of it once the limp wears off.
+    const w = world('rooftop', 2);
+    const [a, v] = w.players;
+    place(a, 10, -11); place(v, 10, -11 + 2.3); a.facing = 1;
+    run(w, 1 / 60);
+    const P = pad();
+    P.press(w, 'p0', 'act', 0, 1); P.release(w, 'p0', 0, 1);
+    run(w, 0.2);
+    let jumped = false;
+    const ev = run(w, 2, () => { if (!jumped && v.spiked && !v.tumble && v.stun <= 0 && v.airJumps > 0) { jumped = true; P.press(w, 'p1', 'jump'); P.release(w, 'p1'); } });
+    check('a spiked fighter who jumps out of it lands normally (no bounce)', jumped && !ev.some((e) => e.type === 'spikeBounce'));
   }
   {
     // Too close (on top of them): the knee/shin lands it — a normal down hit.
@@ -411,7 +424,7 @@ section('Down-air spike');
     const P = pad();
     P.press(w, 'p0', 'act', 0, 1); P.release(w, 'p0', 0, 1);
     const ev = run(w, 3);
-    check('a spike off the ledge at 75% is a KO', ev.some((e) => e.type === 'hit' && e.spike) && ev.some((e) => e.type === 'ko' && e.id === v.id));
+    check('a spike off the ledge at 75% (no recovery attempt) is a KO', ev.some((e) => e.type === 'hit' && e.spike) && ev.some((e) => e.type === 'ko' && e.id === v.id));
   }
 }
 
@@ -744,7 +757,7 @@ section('Items');
   a.gloveT = NM.GLOVE_TIME;
   P.press(w, 'p0', 'act'); run(w, 0.03); P.release(w, 'p0');
   const hit = run(w, 0.25).find((e) => e.type === 'hit');
-  check('the glove powers up punches', hit && hit.d === 5 && hit.kb > NM.HITS.jab.base * 1.4, hit);
+  check('the glove powers up punches', hit && hit.d === 5 && hit.kb > NM.HITS.jab.base * 1.2, hit);
   void b;
 }
 {

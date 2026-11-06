@@ -583,8 +583,14 @@
     const r = stickBase.getBoundingClientRect();
     if (r.width) radius = r.width * 0.42;
   }
-  window.addEventListener('resize', measureRadius);
-  window.addEventListener('orientationchange', measureRadius);
+  /** Layout changed (e.g. the browser bar slid): keep the drawn base on the held origin. */
+  function relayoutStick() {
+    measureRadius();
+    if (stickId === null) return;
+    placeBase(originX, originY);
+  }
+  window.addEventListener('resize', relayoutStick);
+  window.addEventListener('orientationchange', relayoutStick);
   measureRadius();
 
   function setKnob(px, py) {
@@ -616,8 +622,7 @@
    * finger and the origin is pinned to it, so the stick always starts exactly
    * where the thumb landed.
    */
-  function anchorStick(id, x, y) {
-    stickId = id;
+  function placeBase(x, y) {
     const zone = stickZone.getBoundingClientRect();
     const half = stickBase.getBoundingClientRect().width / 2;
     const bx = Math.min(Math.max(x, zone.left + half), zone.right - half);
@@ -625,39 +630,96 @@
     stickBase.style.position = 'absolute';
     stickBase.style.left = (bx - zone.left - half) + 'px';
     stickBase.style.top = (by - zone.top - half) + 'px';
+  }
+  function anchorStick(id, x, y) {
+    stickId = id;
+    placeBase(x, y);
     originX = x; originY = y;
     stickBase.classList.add('active');
     measureRadius();
     updateVector(x, y);
   }
 
-  function grabStick(e) {
-    if (!canSteer()) return;
-    zonePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    // The NEWEST finger takes the stick, so a resting palm can't lock it out.
-    anchorStick(e.pointerId, e.clientX, e.clientY);
-    e.preventDefault();
-  }
+  // Once a thumb holds the stick, it owns it until that thumb lifts: no other
+  // finger can steal it and nothing re-centres it. On touch screens the stick
+  // follows Touch events (by touch identifier) rather than Pointer events —
+  // browsers fire `pointercancel` mid-hold (multi-touch, gesture heuristics)
+  // and then stop reporting that finger, which used to kill or re-centre the
+  // stick under a thumb that never left the glass. A mouse/pen uses pointers.
+  function stickFree() { return stickId === null; }
 
-  function moveStick(e) {
-    const tracked = zonePointers.get(e.pointerId);
-    if (tracked) { tracked.x = e.clientX; tracked.y = e.clientY; }
-    if (stickId !== e.pointerId) return;
-    updateVector(e.clientX, e.clientY);
-    e.preventDefault();
+  /** Start steering with a new contact at (x, y) — only if the stick is free. */
+  function takeStick(id, x, y) {
+    zonePointers.set(id, { x: x, y: y });
+    if (!canSteer() || !stickFree()) return false;
+    anchorStick(id, x, y);
+    return true;
   }
-
-  function endStickPointer(e) {
-    zonePointers.delete(e.pointerId);
-    if (stickId !== e.pointerId) return;
+  /** A contact moved: steer if it's the one holding the stick. */
+  function dragStick(id, x, y) {
+    const tracked = zonePointers.get(id);
+    if (tracked) { tracked.x = x; tracked.y = y; }
+    if (stickId !== id) return false;
+    updateVector(x, y);
+    return true;
+  }
+  /** A contact lifted: if it held the stick, hand it to a finger still resting in the zone. */
+  function dropStick(id) {
+    zonePointers.delete(id);
+    if (stickId !== id) return;
     const next = zonePointers.entries().next();
     if (!next.done && canSteer()) {
-      const [id, pos] = next.value;
-      anchorStick(id, pos.x, pos.y);
+      const [nid, pos] = next.value;
+      anchorStick(nid, pos.x, pos.y);
       return;
     }
     releaseStick(true);
   }
+
+  // ---- Touch screens: Touch events ----
+  const TOUCH = 't';   // touch ids are namespaced so they can't collide with pointer ids
+  stickZone.addEventListener('touchstart', function (e) {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i];
+      takeStick(TOUCH + t.identifier, t.clientX, t.clientY);
+    }
+    if (e.cancelable) e.preventDefault();
+  }, { passive: false });
+  window.addEventListener('touchmove', function (e) {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i];
+      dragStick(TOUCH + t.identifier, t.clientX, t.clientY);
+    }
+  }, { passive: true });
+  function touchGone(e) {
+    for (let i = 0; i < e.changedTouches.length; i++) dropStick(TOUCH + e.changedTouches[i].identifier);
+    reconcileTouches(e);
+  }
+  /** Every touch event lists all fingers still down: drop any we lost track of. */
+  function reconcileTouches(e) {
+    if (!e.touches) return;
+    const live = {};
+    for (let i = 0; i < e.touches.length; i++) live[TOUCH + e.touches[i].identifier] = true;
+    zonePointers.forEach(function (_, id) { if (String(id).charAt(0) === TOUCH && !live[id]) dropStick(id); });
+  }
+  window.addEventListener('touchend', touchGone);
+  window.addEventListener('touchcancel', touchGone);
+  window.addEventListener('touchstart', reconcileTouches, { passive: true });
+
+  // ---- Mouse / pen: Pointer events ----
+  function isTouchPointer(e) { return e.pointerType === 'touch'; }
+  stickZone.addEventListener('pointerdown', function (e) {
+    if (isTouchPointer(e)) return;
+    if (takeStick(e.pointerId, e.clientX, e.clientY)) e.preventDefault();
+  });
+  // Move/end listeners live on WINDOW: a pointer at full deflection routinely
+  // leaves the stick zone, and its pointerup must still release the stick.
+  window.addEventListener('pointermove', function (e) {
+    if (isTouchPointer(e)) return;
+    if (dragStick(e.pointerId, e.clientX, e.clientY)) e.preventDefault();
+  }, { passive: false });
+  window.addEventListener('pointerup', function (e) { if (!isTouchPointer(e)) dropStick(e.pointerId); endButtonPointer(e); });
+  window.addEventListener('pointercancel', function (e) { if (!isTouchPointer(e)) dropStick(e.pointerId); endButtonPointer(e); });
 
   function releaseStick(force, e) {
     if (!force && (!e || stickId !== e.pointerId)) return;
@@ -674,21 +736,21 @@
     }
   }
 
-  // Move/end listeners live on WINDOW: a thumb at full deflection routinely
-  // leaves the stick zone, and its pointerup must still release the stick.
-  stickZone.addEventListener('pointerdown', grabStick);
-  window.addEventListener('pointermove', moveStick, { passive: false });
-  window.addEventListener('pointerup', function (e) { endStickPointer(e); endButtonPointer(e); });
-  window.addEventListener('pointercancel', function (e) { endStickPointer(e); endButtonPointer(e); });
-  // Backstop for browsers that drop a pointerup under multi-touch: when the
-  // last finger leaves the glass nothing can still be held.
+  // Backstop for browsers that drop the end of a touch under multi-touch: when
+  // the last finger leaves the glass nothing can still be held.
   window.addEventListener('touchend', function (e) {
     if (e.touches && e.touches.length === 0) { if (stickId !== null) releaseStick(true); releaseButtons(); }
   });
   window.addEventListener('touchcancel', function (e) {
     if (e.touches && e.touches.length === 0) { if (stickId !== null) releaseStick(true); releaseButtons(); }
   });
-  window.addEventListener('blur', function () { releaseStick(true); releaseButtons(); });
+  // Losing focus (a notification, a system sheet) doesn't lift a thumb, so a
+  // touch-held stick keeps going — its touchend/touchcancel still arrives. Only
+  // a mouse-held stick (whose button-up could be missed) lets go on blur.
+  window.addEventListener('blur', function () {
+    if (stickId !== null && String(stickId).charAt(0) !== TOUCH) releaseStick(true);
+    releaseButtons();
+  });
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState !== 'visible') { releaseStick(true); releaseButtons(); }
   });

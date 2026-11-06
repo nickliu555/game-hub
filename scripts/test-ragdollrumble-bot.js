@@ -213,6 +213,68 @@ console.log('\nChasing down a recovery');
   check('…and hits them again before they get back (≥5/24), without falling off itself', contested >= 5 && botLost === 0, { contested, botLost });
 }
 
+console.log('\nSpike balance');
+{
+  // A spike scales with damage like any other KO move: a recovering hard CPU
+  // gets back from a low-damage spike below the ledge, but not a high one.
+  const place = (p, x, y) => { const t = p.parts.torso.getPosition(), dx = x - t.x, dy = y - t.y; p.partList.forEach((q) => { const r = q.getPosition(); q.setTransform(planck.Vec2(r.x + dx, r.y + dy), q.getAngle()); q.setLinearVelocity(planck.Vec2(0, 0)); }); };
+  const trial = (dmg) => {
+    let ko = 0, n = 0;
+    for (const side of [1, -1]) for (let seed = 1; seed <= 3; seed++) {
+      const w = new NM.World({ stage: 'rooftop', items: false });
+      w.reset(seed, [{ id: 'a', seat: 0 }, { id: 'v', seat: 1, isBot: true }]);
+      const [a, v] = w.players;
+      const main = w.groundSpans().filter((s) => !s.oneWay).reduce((m, s) => (s.x1 - s.x0 > m.x1 - m.x0 ? s : m));
+      const vx = (side > 0 ? main.x1 : main.x0) + side * 1.6, vy = main.y + 1.0;
+      place(v, vx, vy); place(a, vx, vy - 2.3); v.dmg = dmg; v.airJumps = 1;
+      w.step(DT);
+      w.setInput('a', 0, 1, 2, 0, 1);
+      const bot = new NB.Bot('v', 'hard', NM.mulberry32(seed * 13 + dmg + side));
+      let spiked = false, t = 0;
+      while (t < 6 && v.alive) {
+        if (Math.round(t / DT) === 2) w.setInput('a', 0, 1, 0, 0, 1);
+        if (!spiked) [a, v].forEach((p) => p.partList.forEach((b) => b.setLinearVelocity(planck.Vec2(0, 0))));
+        else bot.update(w, DT);
+        w.step(DT).forEach((e) => { if (e.type === 'hit' && e.id === 'v' && e.spike) spiked = true; });
+        if ((t > 0.5 && !spiked) || (spiked && v.grounded)) break;
+        t += DT;
+      }
+      if (spiked) { n++; if (!v.alive) ko++; }
+    }
+    return { ko, n };
+  };
+  const low = trial(30), high = trial(110);
+  check('a hard CPU recovers from a spike below the ledge at 30% (6/6)', low.n === 6 && low.ko === 0, low);
+  check('…but not at 110% (6/6 KO)', high.n === 6 && high.ko === 6, high);
+}
+
+console.log('\nSmash balance');
+{
+  // A full-charge smash near the edge: survivable at mid damage (even with
+  // boxing gloves on), a KO once they're battered.
+  const place = (p, x) => { const t = p.parts.torso.getPosition(), dx = x - t.x; p.partList.forEach((q) => { const r = q.getPosition(); q.setTransform(planck.Vec2(r.x + dx, r.y), q.getAngle()); q.setLinearVelocity(planck.Vec2(0, 0)); }); };
+  const H = NM.HITS, full = { d: H.smash.d + 8, base: H.smash.base + NM.SMASH_BASE_BONUS, growth: H.smash.growth + NM.SMASH_GROWTH_BONUS };
+  const kos = (dmg, gloves) => {
+    let ko = 0;
+    for (let seed = 1; seed <= 4; seed++) {
+      const w = new NM.World({ stage: 'rooftop', items: false });
+      w.reset(seed, [{ id: 'a', seat: 0 }, { id: 'v', seat: 1, isBot: true }]);
+      const [a, v] = w.players;
+      place(a, 8.5); place(v, 9.5);
+      for (let i = 0; i < 20; i++) w.step(DT);
+      v.dmg = dmg;
+      w._hit(a, v, full, gloves ? NM.GLOVE_MULT : 1, 1, 0, [], { kind: 'smash' });
+      const bot = new NB.Bot('v', 'hard', NM.mulberry32(seed * 31 + dmg));
+      let t = 0;
+      while (t < 7 && v.alive) { bot.update(w, DT); w.step(DT); if (v.grounded && t > 0.6) break; t += DT; }
+      if (!v.alive) ko++;
+    }
+    return ko;
+  };
+  check('a full-charge smash near the edge does not KO a recovering hard CPU at 40% (even in gloves)', kos(40, false) === 0 && kos(20, true) === 0);
+  check('…but does at 110%', kos(110, false) === 4);
+}
+
 console.log('\nDifficulty matters');
 {
   let hardWins = 0, games = 0;
