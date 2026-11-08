@@ -886,9 +886,11 @@
           ev.push({ type: 'jump', id: p.id, x: pos.x, y: pos.y + STAND_H });
         }
       } else if (p.wallDir && p.wallJumps < WALL_JUMPS) {
-        // Wall kick: up and away from the wall at full strength, and it doesn't
-        // cost an air jump. A few per trip through the air; landing resets them.
+        // Wall kick: up and away from the wall at full strength. It works like
+        // pushing off the ground — the kick is your jump, and your double and
+        // triple jumps come back.
         p.wallJumps++;
+        p.airJumps = AIR_JUMPS;
         p.spiked = false;
         this._setVel(p, -p.wallDir * WALL_KICK_X * jk, -WALL_KICK_Y * jk);
         if (p.charge < 0) p.facing = -p.wallDir;   // a charge keeps its direction

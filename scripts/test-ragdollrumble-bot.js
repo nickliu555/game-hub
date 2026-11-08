@@ -59,7 +59,8 @@ for (const diff of ['easy', 'normal', 'hard']) {
   for (const stage of NM.STAGE_IDS) {
     const r = brawl(stage, EIGHT(diff), 5);
     const moves = Object.keys(r.kinds).length;
-    const maxSelf = diff === 'easy' ? 3 : 2;
+    // (Easy CPUs on the Crumble Bridge lose their footing a fair bit — tiles give way.)
+    const maxSelf = diff === 'easy' ? 4 : 2;
     check(`${diff} @ ${stage}: finishes by fighting (${r.t.toFixed(0)}s, ${r.kos} KOs, ${r.credited} credited, ${r.selfKOs} self-KOs, ${moves} move types)`,
       !r.bad && r.w.alivePlayers().length <= 1 && r.t < 200 && r.selfKOs <= maxSelf && moves >= 3,
       { t: r.t, kos: r.kos, selfKOs: r.selfKOs, kinds: r.kinds });
@@ -129,6 +130,8 @@ console.log('\nEdge-guarding');
     w.reset(seed, [{ id: 'bot', seat: 0, isBot: true }, { id: 'v', seat: 1, isBot: true }]);
     const B = w.byId.bot, V = w.byId.v;
     const bot = new NB.Bot('bot', 'hard', NM.mulberry32(seed * 7919 + side));
+    // Skill check: a CPU that always goes for it, with perfect timing.
+    bot.cfg = Object.assign({}, bot.cfg, { spike: 1, spikeErr: 0 });
     const rec = new NB.Bot('v', 'normal', NM.mulberry32(seed + 190));
     const main = w.groundSpans().filter((s) => !s.oneWay).reduce((m, s) => (s.x1 - s.x0 > m.x1 - m.x0 ? s : m));
     const edge = side > 0 ? main.x1 : main.x0;
@@ -147,7 +150,7 @@ console.log('\nEdge-guarding');
     if (!B.alive) botLost++;
   }
   // (A spike needs the foot to land, a leg's length above them — deliberately hard.)
-  check('a hard CPU edge-guards with spikes (≥3/16) without dying doing it', spiked >= 3 && botLost === 0, { spiked, botLost });
+  check('a CPU that goes for it can edge-guard with spikes (≥3/16) without dying doing it', spiked >= 3 && botLost === 0, { spiked, botLost });
 }
 
 console.log('\nPlatform navigation');
@@ -211,6 +214,59 @@ console.log('\nChasing down a recovery');
   }
   check('after knocking someone off, a hard CPU holds the ledge they are recovering to (≥22/24)', held >= 22, held + '/' + runs);
   check('…and hits them again before they get back (≥5/24), without falling off itself', contested >= 5 && botLost === 0, { contested, botLost });
+}
+
+console.log('\nCPUs spike like people, not machines');
+{
+  let spikes = 0, rounds = 0;
+  for (const stage of ['rooftop', 'factory', 'peak']) for (let seed = 1; seed <= 3; seed++) {
+    const w = new NM.World({ stage, items: true });
+    w.reset(seed, [0, 1, 2, 3].map((i) => ({ id: 'h' + i, seat: i, isBot: true })));
+    const bots = w.players.map((p, i) => new NB.Bot(p.id, 'hard', NM.mulberry32(seed * 7 + i)));
+    let t = 0;
+    while (w.alivePlayers().length > 1 && t < 150) {
+      bots.forEach((b) => b.update(w, DT));
+      w.step(DT).forEach((e) => { if (e.type === 'hit' && e.spike) spikes++; });
+      t += DT;
+    }
+    rounds++;
+  }
+  check('hard CPUs land spikes rarely (under 1.5 a round on average)', spikes / rounds < 1.5, (spikes / rounds).toFixed(2));
+}
+
+console.log('\nDodging a charged smash');
+{
+  // A player charges at a hard CPU coming in from a distance and lets go as it
+  // walks into range (a beat of reaction time, lunge closing the gap).
+  const place = (p, x) => { const t = p.parts.torso.getPosition(), dx = x - t.x; p.partList.forEach((q) => { const r = q.getPosition(); q.setTransform(planck.Vec2(r.x + dx, r.y), q.getAngle()); q.setLinearVelocity(planck.Vec2(0, 0)); }); };
+  let smashed = 0, punished = 0, n = 0;
+  for (const stage of ['rooftop', 'factory']) for (const d of [4.5, 6]) for (const side of [1, -1]) for (let seed = 1; seed <= 3; seed++) {
+    const w = new NM.World({ stage, items: false });
+    w.reset(seed, [{ id: 'c', seat: 0 }, { id: 'b', seat: 1, isBot: true }]);
+    const C = w.byId.c, B = w.byId.b;
+    place(C, -side * 2); place(B, -side * 2 + side * d);
+    for (let i = 0; i < 30; i++) w.step(DT);
+    const bot = new NB.Bot('b', 'hard', NM.mulberry32(seed * 97 + d * 10 + side));
+    w.setInput('c', side, 0, 2, 0, 1);
+    let t = 0, hit = false, pun = false, released = false, seenAt = null;
+    while (t < 3.6 && B.alive) {
+      if (!released) {
+        const ahead = (w.posOf(B).x - w.posOf(C).x) * side, inRange = ahead > -0.3 && ahead < 3.0 && Math.abs(w.posOf(B).y - w.posOf(C).y) < 1.4;
+        if (inRange && seenAt === null && t > 0.3) seenAt = t;
+        if (!inRange) seenAt = null;
+        if ((seenAt !== null && t - seenAt >= 0.1) || (C.charge < 0 && t > 0.4)) { released = true; w.setInput('c', 0, 0, 0, 0, 1); }
+      }
+      bot.update(w, DT);
+      w.step(DT).forEach((e) => {
+        if (e.type === 'hit' && e.id === 'b' && e.kind === 'smash') hit = true;
+        if (released && ((e.type === 'hit' && e.id === 'c') || (e.type === 'grab' && e.victim === 'c'))) pun = true;
+      });
+      t += DT;
+    }
+    n++; if (hit) smashed++; if (pun && !hit) punished++;
+  }
+  check('a hard CPU rarely walks into a charged smash (≤ 20%)', smashed / n <= 0.2, smashed + '/' + n);
+  check('…and punishes the charger once the smash is spent (≥ 60%)', punished / n >= 0.6, punished + '/' + n);
 }
 
 console.log('\nSpike balance');

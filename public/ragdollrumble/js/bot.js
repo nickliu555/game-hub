@@ -12,9 +12,12 @@
   var NM = global.RagdollRumble;
 
   var DIFF = {
-    easy:   { react: 0.38, aggro: 0.45, recover: 0.75, charge: 0.08, dodge: 0.15, duck: 0,    items: 0.4, range: 1.15, spike: 0.1, guard: 0.3 },
-    normal: { react: 0.22, aggro: 0.75, recover: 0.85, charge: 0.22, dodge: 0.45, duck: 0.3,  items: 0.7, range: 1.25, spike: 0.4, guard: 0.65 },
-    hard:   { react: 0.12, aggro: 0.95, recover: 1.0,  charge: 0.35, dodge: 0.8,  duck: 0.55, items: 0.9, range: 1.3,  spike: 0.8, guard: 0.95 },
+    // dodge: chance to respect someone's charged smash (decided once per charge);
+    // spike: chance to go for a spike when the chance comes up (once per chance);
+    // spikeErr: how far off (m) the stomp's timing can be — a human-ish miss.
+    easy:   { react: 0.38, aggro: 0.45, recover: 0.75, charge: 0.08, dodge: 0.25, duck: 0,    items: 0.4, range: 1.15, spike: 0.05, spikeErr: 0.7,  guard: 0.3 },
+    normal: { react: 0.22, aggro: 0.75, recover: 0.85, charge: 0.22, dodge: 0.6,  duck: 0.3,  items: 0.7, range: 1.25, spike: 0.15, spikeErr: 0.5,  guard: 0.65 },
+    hard:   { react: 0.12, aggro: 0.95, recover: 1.0,  charge: 0.35, dodge: 0.9,  duck: 0.55, items: 0.9, range: 1.3,  spike: 0.35, spikeErr: 0.35, guard: 0.95 },
   };
 
   function sign(v) { return v < 0 ? -1 : 1; }
@@ -35,6 +38,8 @@
     this.guardId = null; this.guardT = 0;
     this.egId = null; this.egT = 0; this.egGo = false;   // edge-guard decision (sticky)
     this.hop = null;        // a platform hop in flight: { span, dir, t }
+    this.spk = null;        // spike decision for the current chance: { id, go, err, until }
+    this.dg = null;         // dodging someone's charge: { id, go, plan, landX }
     this.guardOn = null;    // chasing down someone we knocked off: { id, go, until }
   }
 
@@ -306,19 +311,27 @@
       var q = world.players[i];
       if (q === p || !q.alive || !q.parts || q.grounded || q.grabbedBy) continue;
       var qp = world.posOf(q);
+      var gap = qp.y - me.y;
+      if (gap < 1 || gap > 4.5 || Math.abs(qp.x - me.x) > 1.5) continue;
+      // Decide once per chance (not every frame) whether to go for it, and how
+      // well it'll be timed — like a person, sometimes too early or too late.
+      var s = this.spk;
+      if (!s || s.id !== q.id || world.time > s.until) {
+        s = this.spk = { id: q.id, go: this.rnd() < this.cfg.spike, err: (this.rnd() * 2 - 1) * this.cfg.spikeErr, until: world.time + 1.2 };
+      }
+      if (!s.go) continue;
+      this.think = Math.min(this.think, 0.03);
       // It has to land with the foot — them a leg's length below — to spike.
       // Closing fast, that window flies by, so check where they'll be over
-      // the whole time the stomp might land.
+      // the whole time the stomp might land (offset by this chance's error).
       var hit = false, rx = 0;
       for (var lead = 0.06; lead <= 0.221 && !hit; lead += 0.02) {
         rx = (qp.x + qp.vx * lead) - (me.x + me.vx * lead);
-        var dy = (qp.y + qp.vy * lead) - (me.y + me.vy * lead);
+        var dy = (qp.y + qp.vy * lead) - (me.y + me.vy * lead) - s.err;
         hit = Math.abs(rx) < 0.6 && dy > 1.9 && dy < 2.6;
       }
-      var gap = qp.y - me.y;
-      if (!hit && gap > 1 && gap < 4.5 && Math.abs(qp.x - me.x) < 1.5) this.think = Math.min(this.think, 0.03);
       if (hit) {
-        if (this.rnd() >= this.cfg.spike) return false;
+        s.go = false;   // one stomp per chance
         // A small sideways nudge still aims straight down (stick within ±22°).
         this.x = Math.max(-0.35, Math.min(0.35, rx)); this.y = 1;
         this._pressAction(0.04);
@@ -327,6 +340,95 @@
       }
     }
     return false;
+  };
+
+  /**
+   * Someone is charging a smash. Its direction is locked the moment the charge
+   * starts, so what matters is whether we're in its line. In front of it: back
+   * off out of reach (smash + lunge) and wait, or hop over to their back;
+   * right on top of them: jab them out of it. A straight-up or straight-down
+   * charge: step sideways out of its line. Behind it we're safe. Once the
+   * smash fires we stop dodging — and a whiffed smash leaves them open to a
+   * grab, which the normal fight code then takes.
+   */
+  var CHARGE_REACH = 3.6;   // smash reach + its lunge, with a little to spare
+  Bot.prototype._avoidCharge = function (world, p, me, spans, foot) {
+    if (p.grabbedBy || p.grabbing || p.tumble) return false;
+    var best = null, bd = 1e9, geo = null;
+    for (var i = 0; i < world.players.length; i++) {
+      var q = world.players[i];
+      if (q === p || !q.alive || !q.parts) continue;
+      // Charging — or already swinging it (keep clear until the swing is over).
+      var aim = q.charge >= 0 ? q.chargeAim : (q.attack && q.attack.type === 'smash' && q.attack.t <= q.attack.spec.t1 + 0.05 ? q.attack.aim : null);
+      if (!aim) continue;
+      var qp = world.posOf(q), ax = aim.x, ay = aim.y;
+      var dx = me.x - qp.x, dy = me.y - qp.y;
+      var along = dx * ax + dy * ay, perp = Math.abs(dx * ay - dy * ax);
+      if (along < -0.4 || along > CHARGE_REACH + 1.5 || perp > 1.9) continue;
+      var d = Math.hypot(dx, dy);
+      if (d < bd) { bd = d; best = q; geo = { qp: qp, ax: ax, ay: ay, dx: dx, dy: dy, along: along, perp: perp, swinging: q.charge < 0 }; }
+    }
+    if (this.dg && (!best || this.dg.id !== best.id)) {
+      var old = world.playerById(this.dg.id);
+      if (!old || (old.charge < 0 && !(old.attack && old.attack.type === 'smash'))) this.dg = null;
+    }
+    if (!best) return false;
+    var g = this.dg;
+    if (!g || g.id !== best.id) {
+      g = this.dg = { id: best.id, go: this.rnd() < this.cfg.dodge, plan: null, landX: 0 };
+      this.think = Math.min(this.think, 0.06);
+    }
+    if (!g.go) return false;
+    var vertical = Math.abs(geo.ax) < 0.5;
+    var away = vertical ? (geo.dx >= 0 ? 1 : -1) : (geo.ax > 0 ? 1 : -1);
+    var floorOK = function (x) { return !!groundBelow(spans, x, foot, 0); };
+
+    // Mid-hop over them: steer to land behind.
+    if (g.plan === 'over') {
+      if (p.grounded && Math.abs(me.x - g.landX) < 1.6) { g.plan = null; }
+      else {
+        if (p.grounded) { this.x = sign(g.landX - me.x); this._pressJump(0.35); }
+        else this.x = Math.max(-1, Math.min(1, (g.landX - me.x) * 1.2 - me.vx * 0.12));
+        this.think = 0.05;
+        return true;
+      }
+    }
+    // Close enough to hit them before they let go: jab them out of it.
+    if (!geo.swinging && !vertical && geo.along < 1.3 && Math.abs(geo.dy) < 1.2) {
+      this.x = -away * 0.3;
+      this._pressAction(0.04);
+      this.think = 0.12;
+      return true;
+    }
+    if (vertical) {
+      // Out of the line: step sideways until clear.
+      if (geo.perp < 1.9) {
+        if (p.grounded && !floorOK(me.x + away * 1.3)) away = -away;
+        this.x = away;
+        return true;
+      }
+      this.x = 0;
+      return true;
+    }
+    // In front of a sideways charge. Out of reach: hold here and wait for it.
+    if (geo.along >= CHARGE_REACH) { this.x = 0; this.edgeOk = true; return true; }
+    // Too close: back off — or, with no room behind us (or on a whim), hop
+    // over to their back where the locked smash can't reach.
+    var roomBehind = p.grounded && floorOK(me.x + away * 1.3);
+    var landX = geo.qp.x - away * 1.5;
+    var canOver = p.grounded && best.grounded && geo.along < 3.0 && floorOK(landX) && Math.abs(geo.dy) < 1.2;
+    if (canOver && (!roomBehind || this.rnd() < 0.35)) {
+      g.plan = 'over'; g.landX = landX;
+      this.x = -away;
+      this._pressJump(0.35);
+      this.think = 0.05;
+      return true;
+    }
+    if (roomBehind || !p.grounded) { this.x = away; return true; }
+    // Cornered with nowhere to go: jump straight up out of the strike's line.
+    this.x = 0;
+    this._pressJump(0.35);
+    return true;
   };
 
   /**
@@ -469,6 +571,9 @@
       return;
     }
 
+    // ---- Someone's charging a smash at us: get out of its line ----
+    if (this._avoidCharge(world, p, me, spans, foot)) return;
+
     // ---- Edge-guard: hop off over someone recovering below the ledge ----
     if (this._edgeGuard(world, p, me, spans, foot)) return;
     // ---- …and chase down anyone we knocked off, rather than forget them ----
@@ -523,15 +628,6 @@
         target.attack.aim.y < 0.5 && target.attack.t < target.attack.spec.t1)) && this.rnd() < cfg.duck) {
       this.x = 0; this.y = 1;
       this.think = 0.3;
-      return;
-    }
-
-    // ---- Dodge a charging smash ----
-    if (target.charge >= 0 && adx < 2.6 && this.rnd() < cfg.dodge) {
-      // A jab knocks them out of the charge — punish it if close enough, otherwise hop away.
-      if (adx < 1.6 && Math.abs(dy) < 1.2 && this.rnd() < cfg.aggro) { this.x = sign(dx) * 0.3; this._pressAction(0.04); return; }
-      this.x = -sign(dx);
-      if (p.grounded) this._pressJump(0.25);
       return;
     }
 

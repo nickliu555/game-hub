@@ -168,10 +168,24 @@ section('Wall jumps');
   P.press(w, 'p0', 'jump', -1, 0); P.release(w, 'p0', -1, 0);
   const ev = run(w, 0.05);
   check('JUMP on the wall kicks up and away', ev.some((e) => e.type === 'walljump') && pos(w, p).vy < -8 && pos(w, p).vx > 4);
-  check('a wall kick does not use an air jump', p.airJumps === 0 && p.wallJumps === 1);
+  check('a wall kick refreshes your air jumps, like landing (double + triple jump back)', p.airJumps === NM.AIR_JUMPS && p.wallJumps === 1, p.airJumps);
   run(w, 1.6, () => P.stick(w, 'p0', -1, 0));
   check('two kicks get a fighter with no air jumps back onto the stage', p.alive && p.grounded && pos(w, p).x < 12);
   check('landing resets wall kicks and air jumps', p.wallJumps === 0 && p.airJumps === NM.AIR_JUMPS);
+}
+{
+  // After a wall kick you get your double and triple jump back (no more).
+  const w = world('rooftop', 1);
+  const p = w.players[0];
+  place(p, 12.5, 2.0);
+  p.airJumps = 0;
+  const P = pad();
+  P.stick(w, 'p0', -1, 0); run(w, 0.45);
+  P.press(w, 'p0', 'jump', -1, 0); P.release(w, 'p0', -1, 0);
+  run(w, 0.3);
+  let airJumps = 0;
+  for (let k = 0; k < 3; k++) { P.press(w, 'p0', 'jump', 1, 0); P.release(w, 'p0', 1, 0); airJumps += run(w, 0.2).filter((e) => e.type === 'airjump').length; }
+  check('…and you can use both of them after the kick (not a third)', airJumps === NM.AIR_JUMPS, airJumps);
 }
 {
   const w = world('rooftop', 1);
