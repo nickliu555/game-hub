@@ -57,6 +57,30 @@
   el('diffSeg').querySelectorAll('button').forEach(function (button) {
     ui.activate(button, function () { command('host:setBotDifficulty', { level: button.dataset.diff }); });
   });
+  const REACTION_EMOJIS = ['😂', '🔥', '🎉', '😱', '😭', '😡'];
+  const REACTION_MAX = 30;
+  function spawnReaction(index) {
+    const emoji = REACTION_EMOJIS[index];
+    const layer = el('reactionLayer');
+    if (!emoji || !layer) return;
+    while (layer.children.length >= REACTION_MAX) layer.removeChild(layer.firstChild);
+    const item = document.createElement('div');
+    item.className = 'reaction-emoji';
+    item.textContent = emoji;
+    item.style.left = (5 + Math.random() * 90) + '%';
+    item.style.fontSize = (44 * (0.85 + Math.random() * 0.5)) + 'px';
+    item.style.animationDuration = (3.0 + Math.random() * 1.2) + 's';
+    item.addEventListener('animationend', function () { item.remove(); });
+    layer.append(item);
+  }
+  function updateMuteBtn() {
+    const muted = !!(state && state.reactionsMuted);
+    el('muteReactionsBtn').textContent = muted ? '🔕 Reactions: Off' : '🔔 Reactions: On';
+    el('muteReactionsBtn').classList.toggle('is-muted', muted);
+  }
+  ui.activate(el('muteReactionsBtn'), function () { if (state) command('host:setReactionsMuted', { muted: !state.reactionsMuted }); });
+  socket.on('host:reaction', function (event) { if (event && typeof event.index === 'number') spawnReaction(event.index); });
+  socket.on('state:reactionsMuted', function (event) { if (state) { state.reactionsMuted = !!(event && event.muted); updateMuteBtn(); } });
   ui.activate(el('pauseBtn'), function () { if (state) command(state.paused ? 'host:resume' : 'host:pause'); });
   function lobbyRoster() {
     el('lobbyRoster').replaceChildren();
@@ -139,6 +163,7 @@
       button.setAttribute('aria-pressed', String(button.dataset.diff === state.botDifficulty));
     });
     el('playerCount').textContent = state.players.length; el('playerCap').textContent = maximum;
+    updateMuteBtn();
     fillSelection();
     const signature = JSON.stringify(state.players.map(function (player) { return [player.id, player.name, player.color, player.connected, player.alive, player.placement, player.lines, player.sent]; })) + state.phase + selected.join('|');
     if (signature !== rosterSignature) { rosterSignature = signature; if (lobby) lobbyRoster(); else if (final) finalRoster(); else battleRoster(); }

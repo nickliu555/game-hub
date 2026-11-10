@@ -1,6 +1,6 @@
 /* Chomp-Man — host canvas renderer. Draws the maze, pellets, fruit,
  * chompers (with mouth animation, power growth + end-of-power flash) and ghosts
- * (frightened / eyes states), plus per-player name tags and reaction bubbles.
+ * (frightened / eyes states), plus per-player name tags.
  * Purely presentational — never mutates the world.
  */
 (function (global) {
@@ -135,8 +135,9 @@
       let body = g.color;
       const frightened = (g.state === 'frightened');
       if (frightened) {
-        // Flash white/blue in the final ~2s.
-        body = (frightLeft < 2 && Math.floor(ac * 6) % 2 === 0) ? FRIGHT_WHITE : FRIGHT_BLUE;
+        // Flash white/blue in the final flash window (2s; solo follows the arcade per level).
+        const flashWin = (typeof w.flashSec === 'function') ? w.flashSec() : 2;
+        body = (frightLeft < flashWin && Math.floor(ac * 6) % 2 === 0) ? FRIGHT_WHITE : FRIGHT_BLUE;
       }
       this._ghostBody(ctx, cx, cy, r, body);
       if (frightened) this._frightFace(ctx, cx, cy, r, body === FRIGHT_WHITE ? '#ff2f45' : '#ffffff');
@@ -209,7 +210,7 @@
       // End-of-power blink: only in the final POWER_FLASH_SEC, ramping up.
       let alpha = 1, ending = false;
       if (p.powered) {
-        const flash = (window.ChompMan && window.ChompMan.POWER_FLASH_SEC) || 2;
+        const flash = (typeof this.world.flashSec === 'function') ? this.world.flashSec() : ((window.ChompMan && window.ChompMan.POWER_FLASH_SEC) || 2);
         const remain = p.poweredEnd - ac;
         if (remain < flash) {
           ending = true;
@@ -238,8 +239,6 @@
 
       // Name tag.
       this._nameTag(ctx, p, cx, cy - r - ts * 0.32, ts);
-      // Reaction bubble.
-      if (p.emote && (performance.now() < p.emote.until)) this._emote(ctx, p, cx, cy - r - ts * 0.9, ts);
     }
   };
 
@@ -320,18 +319,6 @@
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(label, cx, cy - h / 2);
-    ctx.textAlign = 'left';
-  };
-
-  Renderer.prototype._emote = function (ctx, p, cx, cy, ts) {
-    const size = Math.max(16, Math.floor(ts * 1.1));
-    ctx.font = size + 'px serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgba(255,255,255,0.92)';
-    roundRect(ctx, cx - size * 0.7, cy - size * 0.85, size * 1.4, size * 1.3, size * 0.35);
-    ctx.fill();
-    ctx.fillText(p.emote.char, cx, cy - size * 0.18);
     ctx.textAlign = 'left';
   };
 

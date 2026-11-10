@@ -158,7 +158,7 @@ By default, **Custom Words** mode is on: before the first round everyone secretl
 A multiplayer maze showdown played out on the Host screen — 1–4 players each steer their own chomper from their phone.
 
 1. Players scan the QR code to join (1–4 players); the host can **Add CPU** chompers to fill in
-   - **A single chomper** (one player, or a lone CPU) plays **solo**: one life and no timer. Clear the maze to reach the next level — it refills and the ghosts get faster each time (they match your speed by level 4). Score as much as you can to beat the **session best**
+   - **A single chomper** (one player, or a lone CPU) plays **solo**: one life and no timer. Clear the maze to reach the next level — it refills and the ghosts get faster each time (they match your speed by level 4). Power pellets follow the arcade: only the **4 corner pellets** per maze (they come back with each new level), and their power **shrinks level by level** until, from level 19, the ghosts no longer turn blue. Score as much as you can to beat the **session best**
 2. The host sets the **round length** and how many **round wins** take the game, then hits **Start**
 3. Each phone is a **D-pad** — up / down / left / right steer your chomper; the maze edges **wrap** to the other side
 4. **Gobble pellets** (and the occasional **cherry**) for points while dodging the four ghosts

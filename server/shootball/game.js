@@ -267,6 +267,11 @@ class Game {
     this.match.currentTeam = null;
   }
 
+  /** Reactions are a downtime-only thing: lobby and final results. */
+  reactionsOpen() {
+    return this.phase === PHASES.LOBBY || this.phase === PHASES.FINAL;
+  }
+
   reset(keepConfig) {
     this.phase = PHASES.LOBBY;
     this.players = new Map();

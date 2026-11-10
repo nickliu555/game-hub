@@ -19,6 +19,7 @@
     kicked: document.getElementById('view-kicked'),
   };
   const playerAttribution = document.getElementById('playerAttribution');
+  const reactionBar = document.getElementById('reactionBar');
   const lobbyTeamBadge = document.getElementById('lobbyTeamBadge');
   const lobbyName = document.getElementById('lobbyName');
   const scoreRed = document.getElementById('scoreRed');
@@ -52,15 +53,33 @@
   let lastMoveAt = 0;
   let lastPower = 0;
   let kicked = false;
+  let currentView = 'lobby';
+  let hostPresent = true;
+  let reactionsMuted = false;
+
+  // Reactions are gated on the PHASE, never just the view: lobby and final only.
+  function reactionsOpen() {
+    if (kicked) return false;
+    if (currentPhase === 'LOBBY') return currentView === 'lobby';
+    if (currentPhase === 'FINAL') return currentView === 'final';
+    return false;
+  }
+  function updateChrome() {
+    const on = reactionsOpen() && !reactionsMuted && hostPresent;
+    if (reactionBar) reactionBar.hidden = !on;
+    body.classList.toggle('reactions-on', on);
+    // Credit belongs on the lobby wait only — never mid-match or on the final.
+    if (playerAttribution) playerAttribution.hidden = !(currentPhase === 'LOBBY' && currentView === 'lobby' && !kicked);
+  }
 
   function showView(name) {
     if (kicked && name !== 'kicked') return;
+    currentView = name;
     Object.keys(views).forEach(function (k) {
       if (views[k]) views[k].style.display = (k === name) ? '' : 'none';
     });
     body.classList.toggle('playing', name === 'controller');
-    // Credit belongs on the lobby wait only — never mid-match or on the final.
-    if (playerAttribution) playerAttribution.hidden = (name !== 'lobby');
+    updateChrome();
   }
 
   function setTeam(team) {
@@ -75,9 +94,12 @@
 
   // ---------------- Host presence ----------------
   function setHostPresent(present) {
-    if (hostAbsentOverlay) hostAbsentOverlay.hidden = !!present;
+    hostPresent = !!present;
+    if (hostAbsentOverlay) hostAbsentOverlay.hidden = hostPresent;
+    updateChrome();
   }
   socket.on('state:hostPresence', function (p) { setHostPresent(!(p && p.present === false)); });
+  socket.on('state:reactionsMuted', function (p) { reactionsMuted = !!(p && p.muted); updateChrome(); });
 
   // ---------------- Boot / reconnect ----------------
   socket.on('connect', function () {
@@ -88,6 +110,7 @@
         window.location.replace('/shootball/join');
         return;
       }
+      reactionsMuted = !!res.reactionsMuted;
       setHostPresent(res.hostPresent !== false);
       if (res.player && res.player.team) setTeam(res.player.team);
       applyPhase(res);
@@ -134,6 +157,7 @@
       localStorage.removeItem('shootball.playerId');
       cancelAim(true);
       showView('kicked');
+      updateChrome();
     }
   });
 
@@ -419,6 +443,45 @@
     localStorage.setItem('shootball.rejoinName', playerName);
     window.location.replace('/shootball/join');
   });
+
+  // ---------------- Reactions ----------------
+  const REACTION_COOLDOWN_MS = 5000;
+  const reactionCooldown = document.getElementById('reactionCooldown');
+  const reactionBtns = reactionBar ? Array.prototype.slice.call(reactionBar.querySelectorAll('.reaction-btn')) : [];
+  let reactionUntil = 0, cooldownRaf = null;
+  function startCooldown() {
+    if (cooldownRaf) cancelAnimationFrame(cooldownRaf);
+    function tick() {
+      const left = reactionUntil - Date.now();
+      if (left <= 0) {
+        reactionBtns.forEach(function (b) { b.disabled = false; });
+        if (reactionCooldown) reactionCooldown.hidden = true;
+        cooldownRaf = null;
+        return;
+      }
+      reactionBtns.forEach(function (b) { b.disabled = true; });
+      if (reactionCooldown) { reactionCooldown.hidden = false; reactionCooldown.textContent = Math.ceil(left / 1000) + 's'; }
+      cooldownRaf = requestAnimationFrame(tick);
+    }
+    tick();
+  }
+  if (reactionBar) {
+    reactionBar.addEventListener('pointerdown', function (e) {
+      const btn = e.target.closest('.reaction-btn');
+      if (!btn || btn.disabled) return;
+      e.preventDefault();
+      const idx = parseInt(btn.dataset.reaction, 10);
+      if (isNaN(idx)) return;
+      reactionUntil = Date.now() + REACTION_COOLDOWN_MS;
+      startCooldown();
+      socket.emit('player:reaction', { index: idx }, function (res) {
+        if (res && !res.ok && res.reason === 'cooldown' && res.retryInMs) {
+          reactionUntil = Date.now() + res.retryInMs;
+          startCooldown();
+        }
+      });
+    });
+  }
 
   // Cancel aim if the tab is hidden (finger-lift may never arrive).
   document.addEventListener('visibilitychange', function () { if (document.hidden) { cancelAim(false); resetSling(); } });

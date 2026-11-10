@@ -134,3 +134,30 @@ body[data-controls='gestures'] .rotation { width: 100%; justify-content: center;
 .practice .results { margin-bottom: 15px; }
 @media (max-width: 380px) { .control-pad { gap: 4px; } .movement, .rotation { gap: 3px; } .control-pad .icon-btn { width: 39px; flex-basis: 39px; padding: 7px; } .stats { gap: 10px; } .stats > div { gap: 3px; } .session-heading { margin-block: 7px; } .session-heading h1 { font-size: 21px; } }
 @media (max-height: 580px) { .session-heading { margin-block: 5px; } .session-tools .icon-btn { width: 36px; height: 36px; flex-basis: 36px; padding: 8px; } .stats { min-height: 30px; } .controller { padding-top: 12px; gap: 6px; } }
+
+/* Reactions: an in-flow row between the content and the footer (lobby, game over
+   and final only), so it can never sit on top of the Practice link/attribution. */
+.reaction-bar {
+  position: relative; flex: 0 0 auto;
+  width: min(440px, 100%); margin: 10px auto 0;
+  padding: 8px 6px;
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 999px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+  display: flex; align-items: center; justify-content: space-around; gap: 2px;
+}
+.reaction-bar[hidden] { display: none; }
+.reaction-btn {
+  appearance: none; -webkit-appearance: none; background: transparent; border: none;
+  font-size: 30px; line-height: 1; padding: 8px 4px; border-radius: 999px;
+  flex: 1 1 0; min-width: 0; min-height: 44px; color: inherit;
+  transition: transform 0.08s ease, opacity 0.2s ease;
+}
+.reaction-btn:not(:disabled):active { transform: scale(1.25); }
+.reaction-btn:disabled { opacity: 0.3; pointer-events: none; }
+.reaction-cooldown {
+  position: absolute; top: -22px; right: 14px; font-size: 11px; color: #fff;
+  background: rgba(0, 0, 0, 0.55); padding: 2px 8px; border-radius: 999px; font-variant-numeric: tabular-nums;
+}
+.reaction-cooldown[hidden] { display: none; }
+@media (max-height: 600px) { .reaction-bar { padding: 4px 6px; } .reaction-btn { font-size: 26px; padding: 6px 4px; } }

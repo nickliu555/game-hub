@@ -80,3 +80,17 @@ body.host { height: 100vh; height: 100dvh; overflow: hidden; display: flex; flex
 .final-actions { padding-top: 20px; display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
 @media (max-width: 1000px) { .battle-layout { grid-template-columns: minmax(0, 1fr) 220px; gap: 14px; } .battle-sidebar { padding-left: 12px; } .lobby-header { flex-wrap: wrap; } .lobby-header .brand { font-size: 28px; } }
 @media (max-width: 700px) { body.host { height: auto; overflow: auto; } .host-shell { min-height: 100dvh; } .host-main { overflow: visible; } .lobby-view { padding: 20px 16px 40px; } .lobby-grid { display: flex; flex-direction: column; gap: 20px; } .qr-slot { flex: none; height: 190px; width: 190px; } .player-grid { max-height: 300px; flex: none; } .battle-layout { display: flex; flex-direction: column; } .featured-stage { height: 480px; flex: 0 0 480px; } .battle-sidebar { border-left: 0; padding-left: 0; } .battle-roster { flex: none; max-height: 320px; } .match-view { padding-inline: 16px; } .match-heading { flex-wrap: wrap; gap: 10px; } .match-heading h1 { font-size: 23px; } .match-clock { font-size: 24px; } .match-tools { gap: 7px; } .final-roster { max-height: 55vh; flex: none; } .final-header h1 { font-size: 30px; } }
+
+/* Floating reaction emojis */
+.reaction-layer { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 30; }
+.reaction-emoji {
+  position: absolute; bottom: -60px; font-size: 56px; line-height: 1;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35)); will-change: transform, opacity;
+  animation: reactionFloat 3.5s ease-out forwards; user-select: none;
+}
+@keyframes reactionFloat {
+  0%   { transform: translateY(0)      rotate(0deg)  scale(0.4);  opacity: 0; }
+  15%  { transform: translateY(-15vh)  rotate(-6deg) scale(1);    opacity: 1; }
+  85%  { transform: translateY(-90vh)  rotate(6deg)  scale(1);    opacity: 1; }
+  100% { transform: translateY(-105vh) rotate(0deg)  scale(0.85); opacity: 0; }
+}

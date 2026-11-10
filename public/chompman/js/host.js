@@ -12,7 +12,7 @@
   const CLOCK_EMIT_MS = 250;
   const ROUNDOVER_MS = 7000;
   const ROUND_END_HOLD_MS = 2000;   // freeze the board this long before the scoreboard
-  const EMOTE_MS = 3000;
+  const WIN_HOLD_MS = 3000;         // …longer when a winner is crowned (matches Snek's hold)
   const POWER_FLASH_SEC = (window.ChompMan && window.ChompMan.POWER_FLASH_SEC) || 3;
 
   // ---------------- Element refs ----------------
@@ -21,8 +21,16 @@
     match: document.getElementById('view-match'),
     final: document.getElementById('view-final'),
   };
+  // The round-results overlay is its own "screen" for cleanup purposes, so
+  // reactions and its jingle don't carry over into the next round.
+  const DOWNTIME = ['lobby', 'roundEnd', 'final'];
+  let currentScreen = 'lobby';
+  function screenTo(name) {
+    if (window.screenChange) window.screenChange(currentScreen, name, DOWNTIME);
+    currentScreen = name;
+  }
   function show(name) {
-    if (window.screenChange) window.screenChange(Object.keys(views).find(function (k) { return views[k].classList.contains('active'); }), name);
+    screenTo(name);
     if (name !== 'final') {
       if (window.clearConfetti) window.clearConfetti();
       if (window.stopApplause) window.stopApplause();
@@ -76,6 +84,10 @@
   const resetBtn = document.getElementById('resetBtn');
   const pauseBtn = document.getElementById('pauseBtn');
   const pauseOverlay = document.getElementById('pauseOverlay');
+  const muteBtn = document.getElementById('muteReactionsBtn');
+  const reactionLayer = document.getElementById('reactionLayer');
+  const REACTION_EMOJIS = ['😂', '🔥', '🎉', '😱', '😭', '😡'];
+  const REACTION_MAX = 30;
 
   // ---------------- Modal helpers ----------------
   function showInlineConfirm(message, onYes, opts) {
@@ -416,6 +428,7 @@
   let lastTickSec = -1;  // last whole second announced, so a beep fires once
   let gamePoints = {}; // id -> rounds won
   let roundEndAt = null; // performance.now() when the round was decided (start of the freeze)
+  let roundEndHoldMs = ROUND_END_HOLD_MS;
   let countdownTimer = null, roundOverTimer = null;
   let botIds = [];
   let prevPowered = {}; // id -> bool
@@ -572,7 +585,7 @@
   function beginRound(r) {
     round = r;
     mazeIndex = mazeOrder[(r - 1) % mazeOrder.length];
-    world = new window.ChompMan.World({ mazes: window.ChompManMazes, parse: window.ChompManMazes.parse });
+    world = new window.ChompMan.World({ mazes: window.ChompManMazes, parse: window.ChompManMazes.parse, classicPower: mode === 'solo' });
     world.setRoster(roster);
     world.reset(mazeIndex);
     world.frozen = true;
@@ -590,6 +603,7 @@
     paused = false; pClearAll();
     if (pauseOverlay) pauseOverlay.hidden = true;
     if (roundOverlay) roundOverlay.hidden = true;
+    if (currentScreen === 'roundEnd') screenTo('match');
     if (sbMaze) sbMaze.textContent = world.board.name;
     updateScoreStrip();
     requestAnimationFrame(function () { renderer.resize(); });
@@ -706,9 +720,11 @@
         // read the final board before the scoreboard slides in.
         roundEndAt = now;
         world.settleFreeze = true;
-        showEndReason(world.aliveCount() === 0 ? 'down' : (clinched ? 'clinch' : 'time'));
+        const reason = world.aliveCount() === 0 ? 'down' : (clinched ? 'clinch' : 'time');
+        roundEndHoldMs = reason === 'clinch' ? WIN_HOLD_MS : ROUND_END_HOLD_MS;
+        showEndReason(reason);
       }
-      if (roundEndAt !== null && (now - roundEndAt) >= ROUND_END_HOLD_MS && !world.anyDying()) {
+      if (roundEndAt !== null && (now - roundEndAt) >= roundEndHoldMs && !world.anyDying()) {
         // Held long enough AND any final death animation has finished.
         endRound();
       }
@@ -736,6 +752,7 @@
 
   function levelUp() {
     level++;
+    world.level = level;
     world.ghostSpeedMul = ghostMulFor(level);
     socket.emit('host:level', { level: level });
     playLevelUp();
@@ -833,7 +850,18 @@
       const p = world.players.find(function (q) { return q.alive; });
       if (p) {
         const m = renderer._metrics();
-        spot = { x: m.ox + p.x * m.ts + m.ts / 2, y: m.oy + p.y * m.ts + m.ts / 2 };
+        // The crown sits on the head — the side the eye is drawn on (render.js):
+        // the top when facing left/right, the left when facing up, the right
+        // when facing down. Its "up" is turned that way and it's lifted to the
+        // body's edge (bigger while powered).
+        const face = (p.facing != null) ? p.facing : (p.dirIdx >= 0 ? p.dirIdx : 3);
+        const rot = face === 0 ? -90 : face === 1 ? 90 : 0;
+        const r = m.ts * (p.powered ? 0.66 : 0.44);
+        const size = Math.max(18, Math.round(m.ts * (p.powered ? 1.2 : 0.9)));
+        spot = {
+          x: m.ox + p.x * m.ts + m.ts / 2, y: m.oy + p.y * m.ts + m.ts / 2,
+          rot: rot, lift: -Math.round(r + size * 0.3) + 'px', size: size,
+        };
         color = colorOf(p.id);
       }
     }
@@ -1012,6 +1040,7 @@
       roList.appendChild(row);
     });
     roundOverlay.hidden = false;
+    screenTo('roundEnd');
   }
 
   function renderFinal(champs) {
@@ -1056,11 +1085,6 @@
 
   // ---------------- Input + presence relays ----------------
   socket.on('in', function (d) { if (d && world) inputQueue.push(d); });
-  socket.on('emote', function (d) {
-    if (!world || !d || !d.id || !d.e) return;
-    const p = world.byId.get(d.id); if (!p) return;
-    p.emote = { char: String(d.e), until: performance.now() + EMOTE_MS };
-  });
   socket.on('player:dropped', function (d) { if (world && d) { const p = world.byId.get(d.id); if (p) { p.connected = false; world.clearInputs(d.id); } } });
   socket.on('player:rejoined', function (d) { if (world && d) { const p = world.byId.get(d.id); if (p) p.connected = true; } });
 
@@ -1166,10 +1190,41 @@
     return firstDir;
   }
 
+  // ---------------- Reactions ----------------
+  function spawnReaction(index) {
+    const emoji = REACTION_EMOJIS[index];
+    if (!emoji || !reactionLayer) return;
+    while (reactionLayer.children.length >= REACTION_MAX) reactionLayer.removeChild(reactionLayer.firstChild);
+    const el = document.createElement('div');
+    el.className = 'reaction-emoji';
+    el.textContent = emoji;
+    el.style.left = (5 + Math.random() * 90) + '%';
+    const scale = 0.85 + Math.random() * 0.5;
+    el.style.fontSize = (44 * scale) + 'px';
+    el.style.animationDuration = (3.0 + Math.random() * 1.2) + 's';
+    el.addEventListener('animationend', function () { if (el.parentNode) el.parentNode.removeChild(el); });
+    reactionLayer.appendChild(el);
+  }
+  socket.on('host:reaction', function (p) { if (p && typeof p.index === 'number') spawnReaction(p.index); });
+
+  let reactionsMuted = false;
+  function updateMuteBtn() {
+    if (!muteBtn) return;
+    muteBtn.textContent = reactionsMuted ? '🔕 Reactions: Off' : '🔔 Reactions: On';
+    muteBtn.classList.toggle('is-muted', reactionsMuted);
+  }
+  muteBtn && muteBtn.addEventListener('click', function () {
+    socket.emit('host:setReactionsMuted', { muted: !reactionsMuted }, function (res) {
+      if (res && res.ok) { reactionsMuted = !!res.reactionsMuted; updateMuteBtn(); }
+    });
+  });
+  socket.on('state:reactionsMuted', function (p) { reactionsMuted = !!(p && p.muted); updateMuteBtn(); });
+
   // ---------------- Boot ----------------
   socket.on('connect', function () {
     socket.emit('host:auth', {}, function (res) {
       if (!res || !res.ok) return;
+      reactionsMuted = !!res.reactionsMuted; updateMuteBtn();
       renderQR();
       renderLobby(res.lobby);
       roundsToWin = res.lobby.roundsToWin; roundLengthSec = res.lobby.roundLengthSec;

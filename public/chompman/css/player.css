@@ -243,18 +243,41 @@ body.player.mode-stick .swipe-dir { display: none; }
   box-shadow: 0 0 0 4px rgba(255,225,0,0.28), 0 8px 22px rgba(0,0,0,0.5);
 }
 
-/* Reactions */
-.emote-bar { flex: 0 0 auto; padding: 8px 12px max(10px, env(safe-area-inset-bottom)); }
-.emote-grid { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
-.emote-btn {
-  background: rgba(255,255,255,0.1);
-  border: 1px solid rgba(255,255,255,0.14);
-  border-radius: 12px;
-  padding: 8px 10px;
-  font-size: 22px;
-  line-height: 1;
+/* ---------------- Reactions ---------------- */
+/* Page-level bar, pinned above the attribution footer: lobby, round results and
+   final only. While it shows, the views keep their content clear of it. */
+.reaction-bar {
+  position: fixed;
+  left: 50%; transform: translateX(-50%);
+  width: min(440px, calc(100% - 24px));
+  bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+  padding: 8px 6px;
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 999px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+  display: flex; align-items: center; justify-content: space-around; gap: 2px;
+  z-index: 7;
 }
-.emote-btn:active { background: rgba(255,255,255,0.24); }
+.reaction-bar[hidden] { display: none; }
+.reaction-btn {
+  appearance: none; -webkit-appearance: none; background: transparent; border: none;
+  font-size: 30px; line-height: 1; padding: 8px 4px; border-radius: 999px;
+  flex: 1 1 0; min-width: 0; color: inherit;
+  transition: transform 0.08s ease, opacity 0.2s ease;
+}
+.reaction-btn:not(:disabled):active { transform: scale(1.25); }
+.reaction-btn:disabled { opacity: 0.3; pointer-events: none; }
+.reaction-cooldown {
+  position: absolute; top: -22px; right: 14px; font-size: 11px; color: #fff;
+  background: rgba(0, 0, 0, 0.55); padding: 2px 8px; border-radius: 999px; font-variant-numeric: tabular-nums;
+}
+.reaction-cooldown[hidden] { display: none; }
+body.reactions-on .view-wait { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+body.reactions-on .ctrl-settings,
+body.reactions-on .gamepad-badge { bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+@media (max-width: 360px) {
+  .reaction-btn { font-size: 25px; padding: 8px 0; }
+}
 
 /* Overlays */
 .ctrl-overlay {

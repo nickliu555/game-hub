@@ -188,5 +188,36 @@ body.player[data-team="blue"] { --me: var(--blue); --me-deep: var(--blue-deep); 
 }
 @keyframes goalPop { 0% { transform: scale(0.2) rotate(-8deg); opacity: 0; } 60% { transform: scale(1.15) rotate(3deg); } 100% { transform: scale(1) rotate(0); opacity: 1; } }
 
-.player-attribution { color: rgba(255,255,255,0.45); }
-.player-attribution[hidden] { display: none; }
+/* ---------------- Reactions ---------------- */
+/* Page-level bar, pinned above the attribution footer: lobby and final only.
+   While it shows, the views keep their content clear of it. */
+.reaction-bar {
+  position: fixed;
+  left: 50%; transform: translateX(-50%);
+  width: min(440px, calc(100% - 24px));
+  bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+  padding: 8px 6px;
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 999px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+  display: flex; align-items: center; justify-content: space-around; gap: 2px;
+  z-index: 7;
+}
+.reaction-bar[hidden] { display: none; }
+.reaction-btn {
+  appearance: none; -webkit-appearance: none; background: transparent; border: none;
+  font-size: 30px; line-height: 1; padding: 8px 4px; border-radius: 999px;
+  flex: 1 1 0; min-width: 0; color: inherit;
+  transition: transform 0.08s ease, opacity 0.2s ease;
+}
+.reaction-btn:not(:disabled):active { transform: scale(1.25); }
+.reaction-btn:disabled { opacity: 0.3; pointer-events: none; }
+.reaction-cooldown {
+  position: absolute; top: -22px; right: 14px; font-size: 11px; color: #fff;
+  background: rgba(0, 0, 0, 0.55); padding: 2px 8px; border-radius: 999px; font-variant-numeric: tabular-nums;
+}
+.reaction-cooldown[hidden] { display: none; }
+body.reactions-on .view-wait { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+@media (max-width: 360px) {
+  .reaction-btn { font-size: 25px; padding: 8px 0; }
+}

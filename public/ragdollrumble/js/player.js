@@ -675,10 +675,30 @@
     }
     releaseStick(true);
   }
+  function inStickZone(x, y) {
+    const r = stickZone.getBoundingClientRect();
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  }
 
   // ---- Touch screens: Touch events ----
   const TOUCH = 't';   // touch ids are namespaced so they can't collide with pointer ids
+  /**
+   * Every touch event carries the full list of fingers on the glass. Check it
+   * FIRST, before acting on the event: a finger whose end we never heard about
+   * (a cancelled gesture, a dropped event) must not keep the stick "held" —
+   * that would refuse the very thumb that just landed.
+   */
+  function syncTouches(e) {
+    if (!e.touches) return;
+    const live = {};
+    for (let i = 0; i < e.touches.length; i++) live[TOUCH + e.touches[i].identifier] = true;
+    const gone = [];
+    zonePointers.forEach(function (_, id) { if (String(id).charAt(0) === TOUCH && !live[id]) gone.push(id); });
+    for (let i = 0; i < gone.length; i++) zonePointers.delete(gone[i]);
+    if (stickId !== null && String(stickId).charAt(0) === TOUCH && !live[stickId]) dropStick(stickId);
+  }
   stickZone.addEventListener('touchstart', function (e) {
+    syncTouches(e);
     for (let i = 0; i < e.changedTouches.length; i++) {
       const t = e.changedTouches[i];
       takeStick(TOUCH + t.identifier, t.clientX, t.clientY);
@@ -686,25 +706,24 @@
     if (e.cancelable) e.preventDefault();
   }, { passive: false });
   window.addEventListener('touchmove', function (e) {
+    syncTouches(e);
     for (let i = 0; i < e.changedTouches.length; i++) {
-      const t = e.changedTouches[i];
-      dragStick(TOUCH + t.identifier, t.clientX, t.clientY);
+      const t = e.changedTouches[i], id = TOUCH + t.identifier;
+      if (dragStick(id, t.clientX, t.clientY)) continue;
+      // Nobody holds the stick and a finger is moving over it — one already
+      // down when play started, or held through a pause: it takes the stick.
+      if (stickFree() && canSteer() && inStickZone(t.clientX, t.clientY)) {
+        zonePointers.set(id, { x: t.clientX, y: t.clientY });
+        anchorStick(id, t.clientX, t.clientY);
+      }
     }
   }, { passive: true });
   function touchGone(e) {
+    syncTouches(e);
     for (let i = 0; i < e.changedTouches.length; i++) dropStick(TOUCH + e.changedTouches[i].identifier);
-    reconcileTouches(e);
-  }
-  /** Every touch event lists all fingers still down: drop any we lost track of. */
-  function reconcileTouches(e) {
-    if (!e.touches) return;
-    const live = {};
-    for (let i = 0; i < e.touches.length; i++) live[TOUCH + e.touches[i].identifier] = true;
-    zonePointers.forEach(function (_, id) { if (String(id).charAt(0) === TOUCH && !live[id]) dropStick(id); });
   }
   window.addEventListener('touchend', touchGone);
   window.addEventListener('touchcancel', touchGone);
-  window.addEventListener('touchstart', reconcileTouches, { passive: true });
 
   // ---- Mouse / pen: Pointer events ----
   function isTouchPointer(e) { return e.pointerType === 'touch'; }
@@ -724,7 +743,6 @@
   function releaseStick(force, e) {
     if (!force && (!e || stickId !== e.pointerId)) return;
     stickId = null;
-    zonePointers.clear();
     stickBase.classList.remove('active');
     stickBase.style.position = '';
     stickBase.style.left = '';
@@ -739,10 +757,10 @@
   // Backstop for browsers that drop the end of a touch under multi-touch: when
   // the last finger leaves the glass nothing can still be held.
   window.addEventListener('touchend', function (e) {
-    if (e.touches && e.touches.length === 0) { if (stickId !== null) releaseStick(true); releaseButtons(); }
+    if (e.touches && e.touches.length === 0) { zonePointers.clear(); if (stickId !== null) releaseStick(true); releaseButtons(); }
   });
   window.addEventListener('touchcancel', function (e) {
-    if (e.touches && e.touches.length === 0) { if (stickId !== null) releaseStick(true); releaseButtons(); }
+    if (e.touches && e.touches.length === 0) { zonePointers.clear(); if (stickId !== null) releaseStick(true); releaseButtons(); }
   });
   // Losing focus (a notification, a system sheet) doesn't lift a thumb, so a
   // touch-held stick keeps going — its touchend/touchcancel still arrives. Only
@@ -752,7 +770,7 @@
     releaseButtons();
   });
   document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState !== 'visible') { releaseStick(true); releaseButtons(); }
+    if (document.visibilityState !== 'visible') { zonePointers.clear(); releaseStick(true); releaseButtons(); }
   });
 
   // ============================================================

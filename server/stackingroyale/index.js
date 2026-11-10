@@ -9,6 +9,9 @@ const { Game, PHASES, MIN_PLAYERS, MAX_PLAYERS, STEP_MS, validId } = require('./
 const HOST_ROOM = 'hosts';
 const HOST_GRACE_MS = 15000;
 const INACTIVITY_MS = 60 * 60 * 1000;
+// 6-emoji reactions (index into REACTION_EMOJIS on the host + player pages).
+const REACTION_COUNT = 6;
+const REACTION_COOLDOWN_MS = 5000;
 
 function mountStackingRoyale(app, httpServer, opts = {}) {
   const game = new Game();
@@ -22,6 +25,7 @@ function mountStackingRoyale(app, httpServer, opts = {}) {
   let previousTime = lastActivity;
   let accumulator = 0;
   let ticks = 0;
+  const lastReactionAt = new Map();
 
   app.get('/stackingroyale/vendor/lucide.js', (_req, res) => {
     res.sendFile(require.resolve('lucide/dist/umd/lucide.js'));
@@ -118,6 +122,7 @@ function mountStackingRoyale(app, httpServer, opts = {}) {
 
   function reset() {
     game.reset();
+    lastReactionAt.clear();
     for (const socket of ns.sockets.values()) {
       if (socket.data.role !== 'player') continue;
       socket.data.role = null;
@@ -211,6 +216,7 @@ function mountStackingRoyale(app, httpServer, opts = {}) {
       return { ok: true };
     });
     hostCommand('host:leave', () => {
+      game.reactionsMuted = false;
       reset();
       removeHost(socket, true);
       return { ok: true };
@@ -226,6 +232,29 @@ function mountStackingRoyale(app, httpServer, opts = {}) {
         }
       }
       return result;
+    });
+    hostCommand('host:setReactionsMuted', payload => {
+      game.reactionsMuted = !!payload.muted;
+      ns.emit('state:reactionsMuted', { muted: game.reactionsMuted });
+      return { ok: true };
+    });
+    // Reactions: downtime only (lobby, game over, final), cooldown-throttled,
+    // and silenced entirely while the host has them muted.
+    on('player:reaction', (payload, ack) => {
+      const player = playerForSocket();
+      if (!player) return ack({ ok: false, reason: 'not-joined' });
+      if (!game.hostPresent) return ack({ ok: false, reason: 'host-absent' });
+      const index = payload.index;
+      if (!Number.isInteger(index) || index < 0 || index >= REACTION_COUNT) return ack({ ok: false, reason: 'bad-index' });
+      if (!game.reactionsOpen()) return ack({ ok: false, reason: 'phase-closed' });
+      if (game.reactionsMuted) return ack({ ok: false, reason: 'muted' });
+      const now = Date.now();
+      const last = lastReactionAt.get(player.id) || 0;
+      if (now - last < REACTION_COOLDOWN_MS) return ack({ ok: false, reason: 'cooldown', retryInMs: REACTION_COOLDOWN_MS - (now - last) });
+      lastReactionAt.set(player.id, now);
+      touchActivity();
+      ack({ ok: true });
+      ns.to(HOST_ROOM).emit('host:reaction', { index, id: player.id });
     });
     on('player:action', (payload, ack) => {
       game.enqueueAction(playerForSocket(), socket.id, payload, performance.now(), result => {

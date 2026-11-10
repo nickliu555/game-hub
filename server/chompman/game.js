@@ -64,6 +64,7 @@ class Game {
       clockMs: this.roundLengthSec * 1000,
       live: false,        // true only while controls are active (host:play)
       paused: false,      // true while the host has the game paused
+      roundOver: false,   // true between a round's result and the next round's start
       scores: {},         // playerId -> current-round score
       gamePoints: {},     // playerId -> rounds won so far
       alive: {},          // playerId -> bool (alive this round)
@@ -250,6 +251,13 @@ class Game {
   // Host pushes live meta as rounds run. These keep the cache fresh.
   setLive(live) { this.match.live = !!live; }
   setPaused(on) { this.match.paused = !!on; }
+  setRoundOver(on) { this.match.roundOver = !!on; }
+
+  /** Reactions are a downtime-only thing: lobby, between-round results, final. */
+  reactionsOpen() {
+    if (this.phase === PHASES.LOBBY || this.phase === PHASES.FINAL) return true;
+    return this.phase === PHASES.PLAYING && this.match.roundOver;
+  }
   setRound(round, mazeIndex) {
     if (Number.isFinite(round)) this.match.round = round | 0;
     if (Number.isFinite(mazeIndex)) this.match.mazeIndex = mazeIndex | 0;
@@ -284,6 +292,7 @@ class Game {
     this.phase = PHASES.FINAL;
     this.match.live = false;
     this.match.paused = false;
+    this.match.roundOver = false;
     if (gamePoints) this.setGamePoints(gamePoints);
     this.match.winnerIds = Array.isArray(winnerIds) ? winnerIds.filter((id) => this.players.has(id)) : [];
     this.match.awards = Array.isArray(awards) ? awards : [];
@@ -354,6 +363,7 @@ class Game {
       clockMs: this.match.clockMs,
       live: this.match.live,
       paused: this.match.paused,
+      roundOver: this.match.roundOver,
       scores: this.match.scores,
       gamePoints: this.match.gamePoints,
       alive: this.match.alive,

@@ -80,7 +80,7 @@ async function renderedCanvas(page, selector) {
 }
 
 async function sharedGameShell(page) {
-  await noReactions(page);
+  await reactionsGated(page);
   if (await page.locator('body[data-role="player"]').count()) {
     await check(page.locator('#targeting, [data-target]')).toHaveCount(0);
     await check(page.locator('#settingsBtn, #settingsPanel, #topbar, .game-topbar, #helpBtn, #helpOverlay, #backBtn, #backConfirm, #confirmStrip')).toHaveCount(0);
@@ -138,8 +138,9 @@ async function sharedGameShell(page) {
       await check(page.locator('#settingsPanel')).toBeHidden();
       await page.locator('#settingsBtn').click();
       await check(page.locator('#settingsPanel')).toBeVisible();
-      await check(page.locator('#settingsPanel > .gtb-btn')).toHaveCount(2);
+      await check(page.locator('#settingsPanel > .gtb-btn')).toHaveCount(3);
       await check(page.locator('#settingsPanel > #helpBtn.gtb-btn')).toHaveText('Help');
+      await check(page.locator('#settingsPanel > #helpBtn + #muteReactionsBtn.gtb-btn')).toHaveText(/Reactions: (On|Off)/);
       await check(page.locator('#settingsPanel > .gtb-divider')).toHaveCount(1);
       await check(page.locator('#settingsPanel > #resetBtn.gtb-btn')).toHaveText('Reset game');
       await check(page.locator('#soundSeg')).toHaveCount(0);
@@ -161,8 +162,12 @@ async function sharedGameShell(page) {
   assert.equal(theme.button, 'rgb(26, 26, 26)', 'Gold primary actions need dark text');
 }
 
-async function noReactions(page) {
-  await check(page.locator('#reactions, #reactionLayer, #reactionSeg, #reactionsSeg, .reactions, .reaction-pop, [data-muted]')).toHaveCount(0);
+// The reaction bar is a downtime-only control: never shown mid-match.
+async function reactionsGated(page) {
+  await check(page.locator('#reactions, #reactionSeg, #reactionsSeg, .reactions, .reaction-pop, [data-muted]')).toHaveCount(0);
+  if (!await page.locator('body[data-role="player"]').count()) return;
+  const phase = await page.locator('body').getAttribute('data-phase');
+  if (!['LOBBY', 'GAME_OVER', 'FINAL'].includes(phase)) await check(page.locator('#reactionBar')).toBeHidden();
 }
 
 async function playerLobby(page, count) {
@@ -352,7 +357,7 @@ async function chooseControlMode(page, mode) {
 async function gameplayLayout(page, label, position, minimumHeight = 0) {
   await page.evaluate(() => document.fonts.ready);
   await frames(page);
-  await noReactions(page);
+  await reactionsGated(page);
   const player = await page.locator('body[data-role="player"]').count();
   if (player) {
     await sharedGameShell(page);
@@ -1848,8 +1853,8 @@ async function multiplayer(browser, name, server, issues, count) {
     await phones[0].reload();
     await active(phones[0]);
     assert.equal(game.matchId, matchId);
-    await noReactions(host);
-    for (const phone of phones) await noReactions(phone);
+    await reactionsGated(host);
+    for (const phone of phones) await reactionsGated(phone);
     stage = 'genuine-attack';
     await host.locator('#pauseBtn').click();
     await check.poll(() => game.paused).toBe(true);

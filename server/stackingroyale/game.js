@@ -25,6 +25,7 @@ class Game {
   constructor() {
     this.players = new Map();
     this.hostPresent = false;
+    this.reactionsMuted = false;
     this.random = () => randomInt(0x100000000) / 0x100000000;
     this.reset();
   }
@@ -160,6 +161,11 @@ class Game {
       if (!result || !result.ok) this.phase = PHASES.FINAL;
     }
     return result;
+  }
+
+  // Reactions are a downtime-only thing: lobby, between-round results, final.
+  reactionsOpen() {
+    return [PHASES.LOBBY, PHASES.GAME_OVER, PHASES.FINAL].includes(this.phase);
   }
 
   setPaused(paused) {
@@ -322,7 +328,7 @@ class Game {
     return {
       phase: this.phase, matchId: this.matchId, paused: this.paused,
       countdown: Math.ceil(this.countdownMs / 1000), elapsedMs: this.elapsedMs,
-      hostPresent: this.hostPresent, botDifficulty: this.botDifficulty,
+      hostPresent: this.hostPresent, reactionsMuted: this.reactionsMuted, botDifficulty: this.botDifficulty,
       players: [...this.players.values()].map(player => ({
         id: player.id, name: player.name, color: player.color, connected: player.connected, isBot: player.isBot,
         alive: player.alive, placement: player.placement, lines: player.lines, sent: player.sent, survivalMs: player.survivalMs,

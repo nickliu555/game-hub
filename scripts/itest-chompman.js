@@ -1,6 +1,7 @@
 'use strict';
 // Headless end-to-end smoke test for Chomp-Man: lobby, start gating,
-// CPU bots, input-relay gating, round-meta rebroadcast, elimination, reconnect.
+// CPU bots, input-relay gating, round-meta rebroadcast, elimination, reconnect,
+// downtime-only reactions.
 // Not a unit test — a socket-flow probe against a running server on :3000.
 const { io } = require('socket.io-client');
 const URL = 'http://localhost:3000/chompman';
@@ -31,6 +32,31 @@ async function main() {
   await wait(60);
   let lob = hostLobbies[hostLobbies.length - 1];
   check('1 player → solo mode, can start', lob && lob.total === 1 && lob.canStart === true && lob.mode === 'solo');
+
+  // Reactions: downtime only, cooldown-throttled, host-mutable.
+  const ask = (s, ev, payload) => new Promise((r) => s.emit(ev, payload, r));
+  const hostReactions = [];
+  host.on('host:reaction', (d) => hostReactions.push(d));
+  const rLobby = await ask(p1, 'player:reaction', { index: 2 });
+  await wait(40);
+  check('lobby reaction ok + relayed to the host', rLobby && rLobby.ok && hostReactions.some((d) => d.id === 'p1' && d.index === 2));
+  const rAgain = await ask(p1, 'player:reaction', { index: 0 });
+  check('second reaction inside the cooldown is refused', rAgain && !rAgain.ok && rAgain.reason === 'cooldown' && rAgain.retryInMs > 0);
+  const rBad = await ask(p1, 'player:reaction', { index: 6 });
+  check('out-of-range reaction refused', rBad && !rBad.ok && rBad.reason === 'bad-index');
+  const muteEvs = [];
+  p1.on('state:reactionsMuted', (d) => muteEvs.push(d));
+  const mute = await ask(host, 'host:setReactionsMuted', { muted: true });
+  await wait(40);
+  check('host can mute reactions (phones told)', mute && mute.ok && mute.reactionsMuted === true && muteEvs.some((d) => d.muted === true));
+  const rMuted = await ask(p1, 'player:reaction', { index: 1 });
+  check('reactions refused while muted', rMuted && !rMuted.ok && rMuted.reason === 'muted');
+  await ask(host, 'host:setReactionsMuted', { muted: false });
+  const notJoined = mk();
+  await new Promise((r) => notJoined.on('connect', r));
+  const rAnon = await ask(notJoined, 'player:reaction', { index: 0 });
+  check('reaction from a non-player refused', rAnon && !rAnon.ok && rAnon.reason === 'not-joined');
+  notJoined.close();
 
   // Config setters.
   const rw = await new Promise((r) => host.emit('host:setRoundsToWin', { roundsToWin: 2 }, r));
@@ -75,6 +101,8 @@ async function main() {
   p1.emit('in', { dir: 2 });
   await wait(40);
   check('input relayed once live', relayed.some((d) => d && d.id === 'p1' && d.dir === 2));
+  const rLive = await ask(p1, 'player:reaction', { index: 1 });
+  check('no reactions mid-round', rLive && !rLive.ok && rLive.reason === 'phase-closed');
 
   // Pause blocks input relay; resume restores it.
   host.emit('host:pause', {});
@@ -119,16 +147,38 @@ async function main() {
   host.emit('host:roundOver', { round: 1, scores: { p1: 120, 'bot-1': 90 }, winnerIds: ['p1'], gamePoints: { p1: 1 }, alive: { p1: false } });
   await wait(40);
   check('player got m:roundOver', pev.some((e) => e[0] === 'm:roundOver' && e[1] && e[1].winnerIds.indexOf('p1') >= 0));
+  await wait(5100); // let the lobby reaction's cooldown lapse
+  const rRound = await ask(p1b, 'player:reaction', { index: 3 });
+  await wait(40);
+  check('reactions open on the round result', rRound && rRound.ok && hostReactions.some((d) => d.id === 'p1' && d.index === 3));
+  const p1c = mk();
+  await new Promise((r) => p1c.on('connect', r));
+  const recRo = await ask(p1c, 'player:reconnect', { playerId: 'p1' });
+  check('reconnect snapshot flags the round result', recRo && recRo.ok && recRo.match && recRo.match.roundOver === true && recRo.reactionsMuted === false);
+  host.emit('host:countdown', { n: 3 });
+  await wait(40);
+  const rNext = await ask(p1c, 'player:reaction', { index: 0 });
+  check('reactions close again when the next round starts', rNext && !rNext.ok && rNext.reason === 'phase-closed');
 
   host.emit('host:matchEnd', { winnerIds: ['p1'], gamePoints: { p1: 2 } });
   await wait(40);
   check('player got m:end', pev.some((e) => e[0] === 'm:end' && e[1] && e[1].winnerIds.indexOf('p1') >= 0));
+  await wait(5100);
+  const rFinal = await ask(p1c, 'player:reaction', { index: 5 });
+  await wait(40);
+  check('reactions open on the final results', rFinal && rFinal.ok && hostReactions.some((d) => d.id === 'p1' && d.index === 5));
+
+  // Hub (host:leave) puts the mute back to its default.
+  await ask(host, 'host:setReactionsMuted', { muted: true });
+  await ask(host, 'host:leave', {});
+  const authBack = await ask(host, 'host:auth', {});
+  check('host:leave resets reactions to unmuted', authBack && authBack.ok && authBack.reactionsMuted === false);
 
   // Reset returns to lobby.
   await new Promise((r) => host.emit('host:reset', {}, r));
   await wait(40);
 
-  [host, p1, p1b].forEach((s) => s.close());
+  [host, p1, p1b, p1c].forEach((s) => s.close());
   console.log('\n' + (failures === 0 ? '✅ ALL PASS' : '❌ ' + failures + ' FAILED'));
   process.exit(failures === 0 ? 0 : 1);
 }

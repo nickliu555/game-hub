@@ -61,6 +61,7 @@
   const hostAbsentOverlay = document.getElementById('hostAbsentOverlay');
   const pauseCover = document.getElementById('pauseCover');
   const playerAttribution = document.getElementById('playerAttribution');
+  const reactionBar = document.getElementById('reactionBar');
   const elimIcon = document.getElementById('elimIcon');
   const elimTitle = document.getElementById('elimTitle');
   const elimSub = document.getElementById('elimSub');
@@ -84,13 +85,33 @@
   let mode = 'multi';        // 'solo' when this is the only chomper
   let myGamePoints = 0;
   let kicked = false;
+  let currentView = 'lobby';
+  let roundOver = false;     // between a round's result and the next round's start
+  let hostPresent = true;
+  let reactionsMuted = false;
+
+  // Reactions are gated on the PHASE, never just the view: lobby, between-round
+  // results and the final standings.
+  function reactionsOpen() {
+    if (kicked) return false;
+    if (currentPhase === 'LOBBY') return currentView === 'lobby';
+    if (currentPhase === 'FINAL') return currentView === 'final';
+    return currentPhase === 'PLAYING' && roundOver && (currentView === 'controller' || currentView === 'eliminated');
+  }
+  function updateChrome() {
+    const on = reactionsOpen() && !reactionsMuted && hostPresent;
+    if (reactionBar) reactionBar.hidden = !on;
+    body.classList.toggle('reactions-on', on);
+    // Attribution only shows on the lobby (waiting) screen, never in-game.
+    if (playerAttribution) playerAttribution.hidden = !(currentPhase === 'LOBBY' && currentView === 'lobby' && !kicked);
+  }
 
   function showView(name) {
     if (kicked && name !== 'kicked') return;
+    currentView = name;
     Object.keys(views).forEach(function (k) { if (views[k]) views[k].style.display = (k === name) ? '' : 'none'; });
     body.classList.toggle('playing', name === 'controller');
-    // Attribution only shows on the lobby (waiting) screen, never in-game.
-    if (playerAttribution) playerAttribution.style.display = (name === 'lobby') ? '' : 'none';
+    updateChrome();
     // The control-scheme picker stays available while playing AND while
     // eliminated, so a dead player can pre-pick their controls for next round.
     if (ctrlSettings) {
@@ -106,8 +127,13 @@
   if (hudName) hudName.textContent = playerName;
 
   // ---------------- Host presence ----------------
-  function setHostPresent(present) { if (hostAbsentOverlay) hostAbsentOverlay.hidden = !!present; }
+  function setHostPresent(present) {
+    hostPresent = !!present;
+    if (hostAbsentOverlay) hostAbsentOverlay.hidden = hostPresent;
+    updateChrome();
+  }
   socket.on('state:hostPresence', function (p) { setHostPresent(!(p && p.present === false)); });
+  socket.on('state:reactionsMuted', function (p) { reactionsMuted = !!(p && p.muted); updateChrome(); });
 
   // ---------------- Boot / reconnect ----------------
   socket.on('connect', function () {
@@ -118,6 +144,7 @@
         window.location.replace('/chompman/join');
         return;
       }
+      reactionsMuted = !!res.reactionsMuted;
       setHostPresent(res.hostPresent !== false);
       applyPhase(res);
     });
@@ -125,6 +152,7 @@
 
   function applyPhase(res) {
     currentPhase = res.phase;
+    roundOver = !!(res.match && res.match.roundOver);
     if (res.match) { roundsToWin = res.match.roundsToWin || roundsToWin; myGamePoints = (res.match.gamePoints || {})[playerId] || 0; mode = res.match.mode === 'solo' ? 'solo' : 'multi'; }
     if (res.phase === 'LOBBY') { showView('lobby'); }
     else if (res.phase === 'PLAYING') {
@@ -151,12 +179,13 @@
     window.location.replace('/chompman/join');
   });
   socket.on('player:rejected', function (p) {
-    if (p && p.reason === 'kicked') { kicked = true; localStorage.removeItem('chompman.playerId'); showView('kicked'); }
+    if (p && p.reason === 'kicked') { kicked = true; localStorage.removeItem('chompman.playerId'); showView('kicked'); updateChrome(); }
   });
 
   // ---------------- Match events ----------------
   socket.on('m:start', function (d) {
     currentPhase = 'PLAYING';
+    roundOver = false;
     if (d) { roundsToWin = d.roundsToWin || roundsToWin; mode = d.mode === 'solo' ? 'solo' : 'multi'; }
     myGamePoints = 0; eliminated = false;
     updateHud(0);
@@ -167,6 +196,7 @@
   });
   socket.on('m:roundStart', function (d) {
     currentPhase = 'PLAYING';
+    roundOver = false;
     eliminated = false;
     if (d) roundsToWin = d.roundsToWin || roundsToWin;
     if (poweredBadge) poweredBadge.hidden = true;
@@ -177,6 +207,7 @@
     showOverlay('', mode === 'solo' ? 'Get ready…' : 'Round ' + (d && d.round ? d.round : '') + '…');
   });
   socket.on('m:countdown', function (d) {
+    if (roundOver) { roundOver = false; updateChrome(); }
     if (eliminated) return;
     hideFlash();
     setControls(false);
@@ -203,6 +234,8 @@
     showEliminated();
   });
   socket.on('m:roundOver', function (d) {
+    roundOver = true;
+    updateChrome();
     setControls(false);
     if (d && d.gamePoints) { myGamePoints = d.gamePoints[playerId] || 0; updateHud(d.scores ? d.scores[playerId] : undefined); }
     const won = d && d.winnerIds && d.winnerIds.indexOf(playerId) >= 0;
@@ -231,6 +264,7 @@
   });
   socket.on('m:end', function (d) {
     currentPhase = 'FINAL';
+    roundOver = false;
     setControls(false);
     hideFlash();
     renderFinal(d || {});
@@ -625,4 +659,42 @@
     });
     window.__setAgain = function (show) { btn.hidden = !show; };
   })();
+  // ---------------- Reactions ----------------
+  const REACTION_COOLDOWN_MS = 5000;
+  const reactionCooldown = document.getElementById('reactionCooldown');
+  const reactionBtns = reactionBar ? Array.prototype.slice.call(reactionBar.querySelectorAll('.reaction-btn')) : [];
+  let reactionUntil = 0, cooldownRaf = null;
+  function startCooldown() {
+    if (cooldownRaf) cancelAnimationFrame(cooldownRaf);
+    function tick() {
+      const left = reactionUntil - Date.now();
+      if (left <= 0) {
+        reactionBtns.forEach(function (b) { b.disabled = false; });
+        if (reactionCooldown) reactionCooldown.hidden = true;
+        cooldownRaf = null;
+        return;
+      }
+      reactionBtns.forEach(function (b) { b.disabled = true; });
+      if (reactionCooldown) { reactionCooldown.hidden = false; reactionCooldown.textContent = Math.ceil(left / 1000) + 's'; }
+      cooldownRaf = requestAnimationFrame(tick);
+    }
+    tick();
+  }
+  if (reactionBar) {
+    reactionBar.addEventListener('pointerdown', function (e) {
+      const btn = e.target.closest('.reaction-btn');
+      if (!btn || btn.disabled) return;
+      e.preventDefault();
+      const idx = parseInt(btn.dataset.reaction, 10);
+      if (isNaN(idx)) return;
+      reactionUntil = Date.now() + REACTION_COOLDOWN_MS;
+      startCooldown();
+      socket.emit('player:reaction', { index: idx }, function (res) {
+        if (res && !res.ok && res.reason === 'cooldown' && res.retryInMs) {
+          reactionUntil = Date.now() + res.retryInMs;
+          startCooldown();
+        }
+      });
+    });
+  }
 })();

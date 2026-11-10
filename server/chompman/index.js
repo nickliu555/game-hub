@@ -20,9 +20,9 @@ const PLAYER_ROOM = 'players';
 const INACTIVITY_RESET_MS = 60 * 60 * 1000; // 60 minutes
 const HOST_GRACE_MS = 15000;
 
-// Emoji a player may send as a reaction. Mirrors EMOTES in player.js.
-const ALLOWED_EMOTES = new Set(['😀', '😂', '😎', '😭', '😡', '👍', '👻', '🍒', '💪', '🎉']);
-const REACTION_COOLDOWN_MS = 2000;
+// 6-emoji reactions (index into REACTION_EMOJIS on the host + player pages).
+const REACTION_COUNT = 6;
+const REACTION_COOLDOWN_MS = 5000;
 
 /**
  * Mount Chomp-Man onto the hub's Express app and HTTP server.
@@ -46,6 +46,8 @@ function mountChompMan(app, httpServer, opts) {
   let lastHostSeenAt = 0;
   let hostGraceTimer = null;
   let hostLeftIntentionally = false;
+  let reactionsMuted = false;
+  const lastReactionAt = new Map();
 
   function isHostPresent() {
     if (hostLeftIntentionally) return false;
@@ -62,6 +64,7 @@ function mountChompMan(app, httpServer, opts) {
   setInterval(() => {
     if (Date.now() - lastActivity >= INACTIVITY_RESET_MS) {
       game.reset();
+      lastReactionAt.clear();
       ns.emit('state:reset');
       broadcastLobby();
       console.log('[chompman] auto-reset after 60 minutes of inactivity.');
@@ -128,7 +131,6 @@ function mountChompMan(app, httpServer, opts) {
   ns.on('connection', (socket) => {
     let role = null;
     let playerId = null;
-    let lastReactionAt = 0;
 
     socket.on('query:status', (_p, ack) => {
       ack && ack({ hostPresent: isHostPresent(), phase: game.phase });
@@ -165,6 +167,7 @@ function mountChompMan(app, httpServer, opts) {
         player: { id: res.player.id, name: res.player.name },
         phase: game.phase,
         hostPresent: isHostPresent(),
+        reactionsMuted,
         lobby: game.getLobby(),
       };
       if (game.phase === PHASES.PLAYING || game.phase === PHASES.FINAL) {
@@ -187,17 +190,24 @@ function mountChompMan(app, httpServer, opts) {
       ns.to(HOST_ROOM).emit('in', { id: playerId, dir });
     });
 
-    // Reaction emoji relay (whitelisted, cooldown-throttled). Shown as a bubble
-    // over that player's chomper on the host screen. Purely cosmetic.
-    socket.on('emote', (msg) => {
-      if (role !== 'player' || !playerId) return;
-      if (game.phase !== PHASES.PLAYING) return;
+    // Reactions: downtime only (lobby, round results, final), cooldown-throttled,
+    // and silenced entirely while the host has them muted.
+    socket.on('player:reaction', ({ index } = {}, ack) => {
+      if (role !== 'player' || !playerId) return ack && ack({ ok: false, reason: 'not-joined' });
+      if (!isHostPresent()) return ack && ack({ ok: false, reason: 'host-absent' });
+      if (typeof index !== 'number' || !Number.isInteger(index) || index < 0 || index >= REACTION_COUNT) {
+        return ack && ack({ ok: false, reason: 'bad-index' });
+      }
+      if (!game.reactionsOpen()) return ack && ack({ ok: false, reason: 'phase-closed' });
+      if (reactionsMuted) return ack && ack({ ok: false, reason: 'muted' });
       const now = Date.now();
-      if (now - lastReactionAt < REACTION_COOLDOWN_MS) return;
-      const e = msg && msg.e;
-      if (!ALLOWED_EMOTES.has(e)) return;
-      lastReactionAt = now;
-      ns.to(HOST_ROOM).emit('emote', { id: playerId, e });
+      const last = lastReactionAt.get(playerId) || 0;
+      if (now - last < REACTION_COOLDOWN_MS) {
+        return ack && ack({ ok: false, reason: 'cooldown', retryInMs: REACTION_COOLDOWN_MS - (now - last) });
+      }
+      lastReactionAt.set(playerId, now);
+      ack && ack({ ok: true });
+      ns.to(HOST_ROOM).emit('host:reaction', { index, id: playerId });
     });
 
     // ---- Host flows ----
@@ -214,6 +224,7 @@ function mountChompMan(app, httpServer, opts) {
         ok: true,
         phase: game.phase,
         lobby: game.getLobby(),
+        reactionsMuted,
         minRoundSec: MIN_ROUND_SEC,
         maxRoundSec: MAX_ROUND_SEC,
         minRoundsToWin: MIN_ROUNDS_TO_WIN,
@@ -247,6 +258,13 @@ function mountChompMan(app, httpServer, opts) {
       if (!res.ok) return ack && ack(res);
       ack && ack({ ok: true, roundsToWin: game.roundsToWin });
       broadcastLobby();
+    });
+
+    socket.on('host:setReactionsMuted', ({ muted } = {}, ack) => {
+      if (!requireHost(ack)) return;
+      reactionsMuted = !!muted;
+      ack && ack({ ok: true, reactionsMuted });
+      ns.emit('state:reactionsMuted', { muted: reactionsMuted });
     });
 
     socket.on('host:kick', ({ playerId: pid } = {}, ack) => {
@@ -327,6 +345,7 @@ function mountChompMan(app, httpServer, opts) {
       game.setRound(round, mazeIndex);
       game.setClock((durationSec || game.roundLengthSec) * 1000);
       game.setLive(false);
+      game.setRoundOver(false);
       // A fresh round: everyone is alive again.
       const roster = game.getRoster();
       const alive = {};
@@ -343,6 +362,7 @@ function mountChompMan(app, httpServer, opts) {
       if (role !== 'host') return;
       touchActivity();
       game.setLive(false);
+      game.setRoundOver(false);
       ns.to(PLAYER_ROOM).emit('m:countdown', { n, note });
     });
     socket.on('host:play', () => {
@@ -392,6 +412,7 @@ function mountChompMan(app, httpServer, opts) {
       if (role !== 'host') return;
       touchActivity();
       game.setLive(false);
+      game.setRoundOver(true);
       if (scores) game.setScores(scores);
       if (gamePoints) game.setGamePoints(gamePoints);
       if (alive) game.setAlive(alive);
@@ -424,6 +445,7 @@ function mountChompMan(app, httpServer, opts) {
       if (!requireHost(ack)) return;
       const keepConfig = game.phase !== PHASES.LOBBY;
       game.reset(keepConfig);
+      lastReactionAt.clear();
       ack && ack({ ok: true });
       ns.emit('state:reset');
       broadcastLobby();
@@ -432,8 +454,10 @@ function mountChompMan(app, httpServer, opts) {
     socket.on('host:leave', (_p, ack) => {
       if (!requireHost(ack)) return;
       game.reset();
+      lastReactionAt.clear();
       hostLeftIntentionally = true;
       if (hostGraceTimer) { clearTimeout(hostGraceTimer); hostGraceTimer = null; }
+      reactionsMuted = false;
       // Phones drop their seat now (back to join) — the host-absent overlay covers it.
       ns.except(HOST_ROOM).emit('state:reset');
       emitHostPresence(false);

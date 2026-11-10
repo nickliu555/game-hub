@@ -15,7 +15,7 @@ function request(socket, event, payload = {}) {
     socket.timeout(4000).emit(event, payload, (error, result) => error ? reject(error) : resolve(result));
   }).then(result => {
     if (result.state) {
-      assert.equal(Object.hasOwn(result.state, 'reactionsMuted'), false);
+      assert.equal(typeof result.state.reactionsMuted, 'boolean');
       assert.ok(result.state.players.every(entry => !Object.hasOwn(entry, 'lastReactionAt')));
       assert.ok(result.state.players.every(entry => !Object.hasOwn(entry, 'targetMode')));
     }
@@ -53,6 +53,134 @@ async function withClockJump(milliseconds, pending) {
     if (descriptor) Object.defineProperty(performance, 'now', descriptor);
     else delete performance.now;
   }
+}
+
+// Skews Date.now() for the server module only (the socket.io client's ping
+// bookkeeping also reads it and would drop the connection).
+async function withDateJump(milliseconds, action) {
+  const realNow = Date.now;
+  const serverDir = require('node:path').join(__dirname, '..', 'server', 'stackingroyale');
+  Date.now = () => realNow() + ((new Error().stack || '').includes(serverDir) ? milliseconds : 0);
+  try {
+    return await action();
+  } finally {
+    Date.now = realNow;
+  }
+}
+
+function silent(socket, event) {
+  const seen = [];
+  const listener = payload => seen.push(payload);
+  socket.on(event, listener);
+  return () => { socket.off(event, listener); return seen; };
+}
+
+async function reactionLifecycle({ game, client, host, outsider }) {
+  assert.equal(game.phase, 'LOBBY');
+  assert.equal(game.players.size, 0);
+  let jump = 0;
+  async function react(socket, index) {
+    jump += 6000;
+    return withDateJump(jump, () => request(socket, 'player:reaction', { index }));
+  }
+  const phone = await client();
+  const joined = await request(phone, 'player:join', { playerId: 'react-1', name: 'Reactor' });
+  assert.equal(joined.ok, true, joined.reason);
+  assert.equal(joined.state.reactionsMuted, false);
+
+  // Lobby: accepted and relayed to hosts only.
+  const stopPhone = silent(phone, 'host:reaction');
+  const stopOutsider = silent(outsider, 'host:reaction');
+  const relayed = eventOnce(host, 'host:reaction');
+  assert.deepEqual(await react(phone, 2), { ok: true });
+  assert.deepEqual(await relayed, { index: 2, id: 'react-1' });
+  await new Promise(resolve => setTimeout(resolve, 100));
+  assert.deepEqual(stopPhone(), []);
+  assert.deepEqual(stopOutsider(), []);
+
+  // Cooldown.
+  const cooldown = await withDateJump(jump + 1000, () => request(phone, 'player:reaction', { index: 1 }));
+  assert.equal(cooldown.reason, 'cooldown');
+  assert.ok(cooldown.retryInMs > 0 && cooldown.retryInMs <= 4000, `retryInMs ${cooldown.retryInMs}`);
+
+  // Bad indices and non-players.
+  for (const index of [-1, 6, 1.5, '1', null, undefined, [0], { 0: 0 }]) {
+    assert.equal((await request(phone, 'player:reaction', { index })).reason, 'bad-index');
+  }
+  assert.equal((await request(phone, 'player:reaction', null)).reason, 'bad-index');
+  assert.equal((await request(outsider, 'player:reaction', { index: 0 })).reason, 'not-joined');
+  assert.equal((await request(host, 'player:reaction', { index: 0 })).reason, 'not-joined');
+
+  // Mute / unmute.
+  assert.equal((await request(outsider, 'host:setReactionsMuted', { muted: true })).reason, 'not-host');
+  assert.equal((await request(phone, 'host:setReactionsMuted', { muted: true })).reason, 'not-host');
+  assert.equal(game.reactionsMuted, false);
+  let mutedEvent = eventOnce(phone, 'state:reactionsMuted');
+  let muted = await request(host, 'host:setReactionsMuted', { muted: true });
+  assert.equal(muted.ok, true);
+  assert.equal(muted.state.reactionsMuted, true);
+  assert.deepEqual(await mutedEvent, { muted: true });
+  assert.equal((await request(phone, 'query:status')).state.reactionsMuted, true);
+  assert.equal((await request(phone, 'player:reconnect', { playerId: 'react-1' })).state.reactionsMuted, true);
+  assert.equal((await request(host, 'host:auth')).state.reactionsMuted, true);
+  assert.equal((await react(phone, 0)).reason, 'muted');
+  mutedEvent = eventOnce(phone, 'state:reactionsMuted');
+  muted = await request(host, 'host:setReactionsMuted', { muted: false });
+  assert.equal(muted.state.reactionsMuted, false);
+  assert.deepEqual(await mutedEvent, { muted: false });
+  assert.deepEqual(await react(phone, 0), { ok: true });
+
+  // Closed during COUNTDOWN and PLAYING (checked before mute/cooldown).
+  const started = await request(host, 'host:start');
+  assert.equal(started.ok, true, started.reason);
+  assert.equal(game.phase, 'COUNTDOWN');
+  assert.equal(game.reactionsOpen(), false);
+  assert.equal((await react(phone, 0)).reason, 'phase-closed');
+  assert.equal((await request(host, 'host:pause')).ok, true);
+  game.countdownMs = STEP_MS;
+  const playing = eventOnce(host, 'state:match', state => state.phase === 'PLAYING');
+  assert.equal((await request(host, 'host:resume')).ok, true);
+  await playing;
+  const stopHost = silent(host, 'host:reaction');
+  assert.equal((await react(phone, 1)).reason, 'phase-closed');
+  assert.equal((await request(phone, 'player:reaction', { index: 1 })).reason, 'phase-closed');
+  await new Promise(resolve => setTimeout(resolve, 100));
+  assert.deepEqual(stopHost(), []);
+
+  // Open again on GAME_OVER and FINAL.
+  const me = game.players.get('react-1');
+  me.board.enqueueGarbage(40, 0, 0, 'fixture');
+  for (let drop = 0; drop < 10 && game.phase === 'PLAYING'; drop++) {
+    assert.equal((await request(phone, 'player:action', { matchId: started.state.matchId, seq: me.seq + 1, action: 'drop' })).ok, true);
+  }
+  assert.equal(game.phase, 'GAME_OVER');
+  let open = eventOnce(host, 'host:reaction');
+  assert.deepEqual(await react(phone, 3), { ok: true });
+  assert.deepEqual(await open, { index: 3, id: 'react-1' });
+  game.gameOverMs = STEP_MS;
+  await eventOnce(phone, 'state:match', state => state.phase === 'FINAL');
+  open = eventOnce(host, 'host:reaction');
+  assert.deepEqual(await react(phone, 5), { ok: true });
+  assert.deepEqual(await open, { index: 5, id: 'react-1' });
+
+  // Host leave resets the mute, drops the phones and leaves the host absent.
+  assert.equal((await request(host, 'host:setReactionsMuted', { muted: true })).state.reactionsMuted, true);
+  const dropped = eventOnce(phone, 'state:reset');
+  const away = eventOnce(phone, 'state:hostPresence', event => event.present === false);
+  const left = await request(host, 'host:leave');
+  assert.equal(left.ok, true);
+  assert.equal(game.reactionsMuted, false);
+  assert.equal((await dropped).reactionsMuted, false);
+  await away;
+  assert.equal((await react(phone, 0)).reason, 'not-joined');
+  const back = await request(host, 'host:auth');
+  assert.equal(back.ok, true);
+  assert.equal(back.state.reactionsMuted, false);
+  assert.equal(back.state.phase, 'LOBBY');
+  assert.deepEqual(back.state.players, []);
+  phone.disconnect();
+  console.log('PASS reactions: lobby relay to hosts only, cooldown, bad index, non-players, mute/unmute + payloads, phase-closed in countdown/play, open on game over + final, host leave resets mute');
+  return host;
 }
 
 async function cpuLifecycle({ game, client, initialHost, outsider }) {
@@ -237,8 +365,8 @@ async function run() {
     await eventOnce(socket, 'connect');
     const serverSocket = ns.sockets.get(socket.id);
     assert.ok(serverSocket);
-    assert.equal(serverSocket.listenerCount('host:setReactionsMuted'), 0);
-    assert.equal(serverSocket.listenerCount('player:reaction'), 0);
+    assert.equal(serverSocket.listenerCount('host:setReactionsMuted'), 1);
+    assert.equal(serverSocket.listenerCount('player:reaction'), 1);
     assert.equal(serverSocket.listenerCount('player:target'), 0);
     return socket;
   }
@@ -300,7 +428,7 @@ async function run() {
     base = `http://127.0.0.1:${server.address().port}`;
     assert.equal(server._triviaIo, sharedIo);
     assert.equal(ns.name, '/stackingroyale');
-    assert.equal(Object.hasOwn(game, 'reactionsMuted'), false);
+    assert.equal(game.reactionsMuted, false);
     const config = await (await fetch(`${base}/api/stackingroyale/config`)).json();
     assert.deepEqual(config, { joinUrl: 'https://example.test/stackingroyale/join', minPlayers: 1, maxPlayers: 30 });
     for (const suffix of ['', '?url=', `?url=${'a'.repeat(501)}`, '?url[]=bad']) {
@@ -321,6 +449,7 @@ async function run() {
     assert.equal((await request(host, 'host:auth')).ok, true);
     assert.equal((await request(host, 'host:auth')).ok, true);
     host = await cpuLifecycle({ game, client, initialHost: host, outsider });
+    host = await reactionLifecycle({ game, client, host, outsider });
     if (process.env.SR_CPU_ONLY === '1') return;
     assert.equal((await request(host, 'host:start')).reason, 'player-count');
     assert.equal((await request(host, 'player:join', { playerId: 'host-player', name: 'Host' })).reason, 'bad-role');
@@ -409,7 +538,7 @@ async function run() {
     assert.equal((await request(outsider, 'player:join', { playerId: 'absent', name: 'Absent' })).reason, 'host-absent');
     assert.equal((await request(host, 'host:auth')).ok, true);
     await rejoinPlayers();
-    console.log('PASS isolated routes, shared namespace, 30/31 capacity, names, kicks, no reaction handlers/state, lobby presence, ownership, solo start/top-out');
+    console.log('PASS isolated routes, shared namespace, 30/31 capacity, names, kicks, reaction handlers/state, lobby presence, ownership, solo start/top-out');
 
     try {
       require.resolve('../public/stackingroyale/js/engine.js');

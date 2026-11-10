@@ -553,5 +553,76 @@ section('Simulation');
   ok(ghostsOut, 'ghosts leave the pen and roam');
 }
 
+// ---- Solo classic power (arcade timings) vs multiplayer defaults ----
+section('Solo classic power');
+{
+  const roster1 = [{ id: 's1', name: 'Solo', color: '#FFE100', seat: 0 }];
+  const mk = (classic) => {
+    const w = new ChompMan.World({ mazes: Mazes, parse: Mazes.parse, classicPower: classic, rng: () => 0.5 });
+    w.setRoster(roster1); w.reset(0); w.frozen = false;
+    for (const g of w.ghosts) { g.state = 'pen'; g.releaseAt = 1e9; }
+    return w;
+  };
+  const fixed = Array.from(Mazes.parse(Mazes[0]).powerPellets).sort().join(' ');
+  const c = mk(true);
+  ok(Array.from(c.board.powerPellets).sort().join(' ') === fixed, 'classic keeps the maze\'s 4 fixed corner energizers');
+  ok(!c.board.pellets.has(fixed.split(' ')[0]), 'classic energizer tiles are not ordinary pellets');
+  const expect = [6, 5, 4, 3, 2, 5, 2, 2, 1, 5, 2, 1, 1, 3, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0];
+  let tableOk = true;
+  expect.forEach((sec, i) => { c.level = i + 1; if (c.powerSec() !== sec) tableOk = false; });
+  ok(tableOk, 'classic fright seconds follow the arcade table for levels 1–25');
+  c.level = 1; ok(Math.abs(c.flashSec() - 5 / 3) < 1e-9, 'level 1 flashes 5 times');
+  c.level = 9; ok(Math.abs(c.flashSec() - 1) < 1e-9, 'level 9 flashes 3 times (whole 1 s)');
+  c.level = 17; ok(c.flashSec() === 0, 'level 17 has no flash');
+  c.level = 1;
+
+  // Eat an energizer: 6 s power, NO respawn.
+  const p = c.players[0];
+  const k1 = Array.from(c.board.powerPellets)[0].split(',').map(Number);
+  p.y = k1[0]; p.x = k1[1]; p.dirIdx = -1; p.desired = -1;
+  c.step(1 / 120);
+  ok(p.powered && Math.abs((p.poweredEnd - c.now) - 6) < 0.02, 'level 1 energizer powers for 6 s');
+  ok(c.board.powerPellets.size === 3, 'eaten energizer is gone');
+  for (let i = 0; i < 120 * 10; i++) { p.y = k1[0]; p.x = k1[1]; c.step(1 / 120); }
+  ok(c.board.powerPellets.size === 3, 'classic energizers never respawn mid-level');
+  ok(!p.powered, 'power expires after the level time');
+
+  // Second energizer while powered restarts the timer.
+  c.level = 2;
+  const k2 = Array.from(c.board.powerPellets)[0].split(',').map(Number);
+  p.powered = true; p.poweredEnd = c.now + 0.5;
+  p.y = k2[0]; p.x = k2[1]; c.step(1 / 120);
+  ok(Math.abs((p.poweredEnd - c.now) - 5) < 0.02, 'classic: an energizer while powered restarts the timer (level 2 → 5 s)');
+
+  // Level 17 (0 s): ghosts reverse, chomper doesn't power up.
+  c.level = 17; p.powered = false; p.poweredEnd = 0;
+  const g0 = c.ghosts[0]; g0.state = 'active'; g0.dirIdx = 2; g0.x = 9; g0.y = 9;
+  const k3 = Array.from(c.board.powerPellets)[0].split(',').map(Number);
+  p.y = k3[0]; p.x = k3[1]; c.step(1 / 120);
+  ok(!p.powered && g0.state === 'active', '0-second level: no power, ghosts stay normal');
+
+  // Clearing every dot AND energizer refills the board with the 4 energizers.
+  c.board.pellets.clear(); c.board.powerPellets.clear();
+  p.y = 1; p.x = 1;
+  const ev = c.step(1 / 120);
+  ok(ev.boardCleared && c.board.powerPellets.size === 4, 'clearing the maze restores the 4 fixed energizers');
+  const c2 = mk(true);
+  c2.board.pellets.clear();
+  const ev2 = c2.step(1 / 120);
+  ok(!ev2.boardCleared, 'classic: dots gone but energizers left → not cleared yet');
+
+  // Multiplayer (default) is untouched.
+  const m = mk(false);
+  ok(m.board.powerPellets.size === 4 && Array.from(m.board.powerPellets).sort().join(' ') !== fixed, 'multiplayer still spawns random power pellets');
+  m.level = 9;
+  ok(m.powerSec() === ChompMan.POWER_SEC && m.flashSec() === ChompMan.POWER_FLASH_SEC, 'multiplayer power/flash timings ignore level');
+  const mp = m.players[0];
+  const mk1 = Array.from(m.board.powerPellets)[0].split(',').map(Number);
+  mp.y = mk1[0]; mp.x = mk1[1]; mp.dirIdx = -1; mp.desired = -1;
+  m.step(1 / 120);
+  ok(mp.powered && Math.abs((mp.poweredEnd - m.now) - ChompMan.POWER_SEC) < 0.02, 'multiplayer power still lasts POWER_SEC');
+  ok(m.powerRespawns.length === 1, 'multiplayer still schedules a power-pellet respawn');
+}
+
 console.log('\n' + (fail === 0 ? '✅ ALL PASS' : '❌ ' + fail + ' FAILED') + '  (' + pass + ' passed)');
 process.exit(fail === 0 ? 0 : 1);

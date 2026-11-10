@@ -11,6 +11,10 @@ const PLAYER_ROOM = 'players';
 const INACTIVITY_RESET_MS = 60 * 60 * 1000; // 60 minutes
 const HOST_GRACE_MS = 15000;
 
+// 6-emoji reactions (index into REACTION_EMOJIS on the host + player pages).
+const REACTION_COUNT = 6;
+const REACTION_COOLDOWN_MS = 5000;
+
 /**
  * Mount Shoot Ball onto the hub's Express app and HTTP server.
  *
@@ -34,6 +38,8 @@ function mountShootBall(app, httpServer, opts) {
   let lastHostSeenAt = 0;
   let hostGraceTimer = null;
   let hostLeftIntentionally = false;
+  let reactionsMuted = false;
+  const lastReactionAt = new Map();
 
   function isHostPresent() {
     if (hostLeftIntentionally) return false;
@@ -50,6 +56,7 @@ function mountShootBall(app, httpServer, opts) {
   setInterval(() => {
     if (Date.now() - lastActivity >= INACTIVITY_RESET_MS) {
       game.reset();
+      lastReactionAt.clear();
       ns.emit('state:reset');
       broadcastLobby();
       console.log('[shootball] auto-reset after 60 minutes of inactivity.');
@@ -155,6 +162,7 @@ function mountShootBall(app, httpServer, opts) {
         player: { id: res.player.id, name: res.player.name, team: res.player.team },
         phase: game.phase,
         hostPresent: isHostPresent(),
+        reactionsMuted,
         lobby: game.getLobby(),
       };
       if (game.phase === PHASES.PLAYING || game.phase === PHASES.FINAL) {
@@ -191,6 +199,26 @@ function mountShootBall(app, httpServer, opts) {
       ns.to(HOST_ROOM).emit('aim:cancel', { id: playerId });
     });
 
+    // Reactions: downtime only (lobby, final), cooldown-throttled, and silenced
+    // entirely while the host has them muted.
+    socket.on('player:reaction', ({ index } = {}, ack) => {
+      if (role !== 'player' || !playerId) return ack && ack({ ok: false, reason: 'not-joined' });
+      if (!isHostPresent()) return ack && ack({ ok: false, reason: 'host-absent' });
+      if (typeof index !== 'number' || !Number.isInteger(index) || index < 0 || index >= REACTION_COUNT) {
+        return ack && ack({ ok: false, reason: 'bad-index' });
+      }
+      if (!game.reactionsOpen()) return ack && ack({ ok: false, reason: 'phase-closed' });
+      if (reactionsMuted) return ack && ack({ ok: false, reason: 'muted' });
+      const now = Date.now();
+      const last = lastReactionAt.get(playerId) || 0;
+      if (now - last < REACTION_COOLDOWN_MS) {
+        return ack && ack({ ok: false, reason: 'cooldown', retryInMs: REACTION_COOLDOWN_MS - (now - last) });
+      }
+      lastReactionAt.set(playerId, now);
+      ack && ack({ ok: true });
+      ns.to(HOST_ROOM).emit('host:reaction', { index, id: playerId });
+    });
+
     // ---- Host flows ----
     socket.on('host:auth', (_p, ack) => {
       role = 'host';
@@ -205,6 +233,7 @@ function mountShootBall(app, httpServer, opts) {
         ok: true,
         phase: game.phase,
         lobby: game.getLobby(),
+        reactionsMuted,
         minGoalTarget: MIN_GOAL_TARGET,
         maxGoalTarget: MAX_GOAL_TARGET,
       };
@@ -236,6 +265,13 @@ function mountShootBall(app, httpServer, opts) {
       if (!res.ok) return ack && ack(res);
       ack && ack({ ok: true });
       broadcastLobby();
+    });
+
+    socket.on('host:setReactionsMuted', ({ muted } = {}, ack) => {
+      if (!requireHost(ack)) return;
+      reactionsMuted = !!muted;
+      ack && ack({ ok: true, reactionsMuted });
+      ns.emit('state:reactionsMuted', { muted: reactionsMuted });
     });
 
     socket.on('host:kick', ({ playerId: pid } = {}, ack) => {
@@ -336,6 +372,7 @@ function mountShootBall(app, httpServer, opts) {
       if (!requireHost(ack)) return;
       const keepConfig = game.phase !== PHASES.LOBBY;
       game.reset(keepConfig);
+      lastReactionAt.clear();
       ack && ack({ ok: true });
       ns.emit('state:reset');
       broadcastLobby();
@@ -344,8 +381,10 @@ function mountShootBall(app, httpServer, opts) {
     socket.on('host:leave', (_p, ack) => {
       if (!requireHost(ack)) return;
       game.reset();
+      lastReactionAt.clear();
       hostLeftIntentionally = true;
       if (hostGraceTimer) { clearTimeout(hostGraceTimer); hostGraceTimer = null; }
+      reactionsMuted = false;
       // Phones drop their seat now (back to join) — the host-absent overlay covers it.
       ns.except(HOST_ROOM).emit('state:reset');
       emitHostPresence(false);

@@ -1,7 +1,8 @@
 'use strict';
 // Headless end-to-end smoke test for Shoot Ball: lobby, teams (up to 3/side,
 // >=1 each), goal target, start, turn rebroadcast, per-turn aim gating, goal /
-// match-end rebroadcast, and reconnect meta. A flow probe, not a unit test.
+// match-end rebroadcast, reconnect meta, and downtime-only reactions. A flow
+// probe, not a unit test.
 const { io } = require('socket.io-client');
 const URL = process.env.SHOOTBALL_URL || 'http://localhost:3000/shootball';
 
@@ -66,6 +67,37 @@ async function main() {
   lob = hostLobbies[hostLobbies.length - 1];
   check('goal target set to 2', lob && lob.goalTarget === 2);
 
+  // Reactions: downtime only, cooldown-throttled, host-mutable.
+  const ask = (s, ev, payload) => new Promise((r) => s.emit(ev, payload, r));
+  const hostReactions = [];
+  host.on('host:reaction', (d) => hostReactions.push(d));
+  const rLobby = await ask(p1, 'player:reaction', { index: 2 });
+  await wait(40);
+  check('lobby reaction ok + relayed to the host', rLobby && rLobby.ok && hostReactions.some((d) => d.id === 'p1' && d.index === 2));
+  const rAgain = await ask(p1, 'player:reaction', { index: 0 });
+  check('second reaction inside the cooldown is refused', rAgain && !rAgain.ok && rAgain.reason === 'cooldown' && rAgain.retryInMs > 0);
+  const rBad = await ask(p2, 'player:reaction', { index: 6 });
+  check('out-of-range reaction refused', rBad && !rBad.ok && rBad.reason === 'bad-index');
+  const muteEvs = [];
+  p2.on('state:reactionsMuted', (d) => muteEvs.push(d));
+  const mute = await ask(host, 'host:setReactionsMuted', { muted: true });
+  await wait(40);
+  check('host can mute reactions (phones told)', mute && mute.ok && mute.reactionsMuted === true && muteEvs.some((d) => d.muted === true));
+  const rMuted = await ask(p2, 'player:reaction', { index: 1 });
+  check('reactions refused while muted', rMuted && !rMuted.ok && rMuted.reason === 'muted');
+  const recMuted = await ask(p2, 'player:reconnect', { playerId: 'p2' });
+  check('reconnect snapshot carries the mute', recMuted && recMuted.ok && recMuted.reactionsMuted === true);
+  const unmute = await ask(host, 'host:setReactionsMuted', { muted: false });
+  await wait(40);
+  check('host can unmute reactions', unmute && unmute.ok && unmute.reactionsMuted === false && muteEvs.some((d) => d.muted === false));
+  const rUnmuted = await ask(p2, 'player:reaction', { index: 4 });
+  check('reactions work again after unmute', rUnmuted && rUnmuted.ok);
+  const notJoined = mk();
+  await new Promise((r) => notJoined.on('connect', r));
+  const rAnon = await ask(notJoined, 'player:reaction', { index: 0 });
+  check('reaction from a non-player refused', rAnon && !rAnon.ok && rAnon.reason === 'not-joined');
+  notJoined.close();
+
   // Start.
   const pEvents = { p1: [], p2: [] };
   ['m:start', 'm:turnIntro', 'm:turn', 'm:goal', 'm:end'].forEach((e) => {
@@ -93,6 +125,9 @@ async function main() {
   host.emit('host:turn', { team: 'red', playerId: 'p1', playerName: 'Alice', red: 0, blue: 0 });
   await wait(50);
   check('players got m:turn (currentPlayerId=p1)', pEvents.p1.some((e) => e[0] === 'm:turn' && e[1].playerId === 'p1'));
+  await wait(5100); // let the lobby reactions' cooldown lapse
+  const rLive = await ask(p1, 'player:reaction', { index: 1 });
+  check('no reactions mid-match (phase-closed)', rLive && !rLive.ok && rLive.reason === 'phase-closed');
 
   // Aim gating: p1 (current) is relayed; p2 (not current) is ignored.
   p1.emit('aim:select', { token: 2 });
@@ -115,6 +150,9 @@ async function main() {
   host.emit('host:matchEnd', { winner: 'red', red: 2, blue: 0 });
   await wait(40);
   check('players got m:end', pEvents.p1.some((e) => e[0] === 'm:end' && e[1].winner === 'red'));
+  const rFinal = await ask(p1, 'player:reaction', { index: 5 });
+  await wait(40);
+  check('reactions open on the final results', rFinal && rFinal.ok && hostReactions.some((d) => d.id === 'p1' && d.index === 5));
 
   // Play again: same players, teams and goal target straight into a new match.
   const reByPlayer = await new Promise((r) => p1.emit('host:rematch', {}, r));
@@ -128,10 +166,18 @@ async function main() {
   const reRec = await new Promise((r) => p2.emit('player:reconnect', { playerId: 'p2' }, r));
   check('rematch is PLAYING from 0–0', reRec && reRec.phase === 'PLAYING' && reRec.match.redScore === 0 && reRec.match.blueScore === 0);
   check('no rematch mid-match', !(await new Promise((r) => host.emit('host:rematch', {}, r))).ok);
+  const rRematch = await ask(p2, 'player:reaction', { index: 0 });
+  check('reactions close again once the rematch starts', rRematch && !rRematch.ok && rRematch.reason === 'phase-closed');
 
   // Reset returns everyone to the lobby.
   await new Promise((r) => host.emit('host:reset', {}, r));
   await wait(40);
+
+  // Hub (host:leave) puts the mute back to its default.
+  await ask(host, 'host:setReactionsMuted', { muted: true });
+  await ask(host, 'host:leave', {});
+  const authBack = await ask(host, 'host:auth', {});
+  check('host:leave resets reactions to unmuted', authBack && authBack.ok && authBack.reactionsMuted === false);
 
   [host, p1, p2].forEach((s) => s.close());
   console.log('\n' + (failures ? (failures + ' FAILURE(S)') : 'ALL PASSED'));

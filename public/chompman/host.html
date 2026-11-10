@@ -31,6 +31,7 @@
           <button class="gtb-btn" type="button" data-gtb-settings-toggle aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️ Settings</button>
           <div class="gtb-settings-panel" id="settingsPanel" hidden>
             <button class="gtb-btn" type="button" data-gtb-help-open="helpOverlay" title="How to play">? Help</button>
+            <button id="muteReactionsBtn" class="gtb-btn" type="button" data-gtb-settings-keep-open title="Mute player reactions">🔔 Reactions: On</button>
             <div class="gtb-divider"></div>
             <button id="resetBtn" class="gtb-btn gtb-btn-danger" type="button" title="Reset the whole game">Reset game</button>
           </div>
@@ -150,6 +151,9 @@
     </section>
   </div>
 
+  <!-- Floating reaction emojis from players -->
+  <div class="reaction-layer" id="reactionLayer" aria-hidden="true"></div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script src="/chompman/js/mazes.js"></script>
   <script src="/chompman/js/engine.js"></script>
@@ -164,7 +168,7 @@
       <p>Chomp-Man plays out on <strong>this screen</strong> while each player steers their chomper from their phone.</p>
       <ol>
         <li>Players scan the QR code to join from their phone (1–4 players)</li>
-        <li><strong>One chomper</strong> (a player or a lone CPU) plays <strong>solo</strong>: one life, no timer — clear the maze to reach the next level as the ghosts speed up</li>
+        <li><strong>One chomper</strong> (a player or a lone CPU) plays <strong>solo</strong>: one life, no timer — clear the maze to reach the next level as the ghosts speed up. Power works like the arcade: just the <strong>4 corner power pellets</strong> per maze, and their power gets <strong>shorter each level</strong></li>
         <li>No second player? Hit <strong>🤖 Add CPU</strong> to add computer chompers</li>
         <li>Set the <strong>round length</strong> and how many <strong>round wins</strong> take the game, then hit <strong>Start!</strong></li>
         <li>On their phones: <strong>up / down / left / right</strong> steer their chomper</li>

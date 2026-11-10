@@ -43,6 +43,14 @@
   const POWER_RESPAWN_MIN = 3;        // seconds after one is eaten
   const POWER_RESPAWN_MAX = 6;
 
+  // Solo "classic" power (arcade Pac-Man): the maze's 4 fixed corner energizers
+  // only, never respawned (they return with the maze on the next level), and a
+  // fright time + flash count that shrink by level — Pac-Man Dossier, Table A.1.
+  // Level 19+ is 0 s: the ghosts just reverse and never turn blue.
+  const CLASSIC_FRIGHT_SEC = [6, 5, 4, 3, 2, 5, 2, 2, 1, 5, 2, 1, 1, 3, 1, 1, 0, 1];
+  const CLASSIC_FRIGHT_FLASHES = [5, 5, 5, 5, 5, 5, 5, 5, 3, 5, 5, 3, 3, 5, 3, 3, 0, 3];
+  const FLASH_CYCLE_SEC = 1 / 3;      // one white+blue blink at the renderer's 6 Hz toggle
+
   const DEATH_ANIM_SEC = 1.6;         // dying chomper plays this before vanishing
 
   const FRUIT_FIRST_SEC = 12;
@@ -66,6 +74,8 @@
       this.mazes = opts.mazes || (global.ChompManMazes || null);
       this.parse = opts.parse || (this.mazes && this.mazes.parse) || null;
       this.rng = opts.rng || Math.random;
+      this.classicPower = !!opts.classicPower;
+      this.level = 1;            // classic power: the solo level (picks the fright time)
       this.frozen = true;
       // While settleFreeze is set, step() advances the clock (so a death
       // animation keeps playing) but freezes ALL movement/collisions — used to
@@ -105,10 +115,14 @@
       // Fresh mutable pellet sets.
       this.board.pellets = new Set(this.board.pellets);
       this.board.powerPellets = new Set(this.board.powerPellets);
-      // The maze's fixed 'o' tiles become ordinary pellets; power pellets are
-      // spawned at random spots instead and respawn as they're eaten.
-      for (const key of this.board.powerPellets) this.board.pellets.add(key);
-      this.board.powerPellets = new Set();
+      // Classic: keep the maze's fixed 'o' energizers. Otherwise they become
+      // ordinary pellets; power pellets are spawned at random spots instead and
+      // respawn as they're eaten.
+      this._allPowers = new Set(this.board.powerPellets);
+      if (!this.classicPower) {
+        for (const key of this.board.powerPellets) this.board.pellets.add(key);
+        this.board.powerPellets = new Set();
+      }
       // Snapshot every pellet-eligible tile so the board can be REFILLED when it
       // gets fully cleared (the round keeps going for its full length instead of
       // ending early).
@@ -153,7 +167,7 @@
       });
 
       // Seed the map with random power pellets.
-      for (let i = 0; i < POWER_TARGET; i++) this._spawnPowerPellet();
+      if (!this.classicPower) for (let i = 0; i < POWER_TARGET; i++) this._spawnPowerPellet();
 
       // Four ghosts in the pen.
       this.ghosts = [];
@@ -181,6 +195,19 @@
 
     // ---- Queries ----
     aliveCount() { let n = 0; for (const p of this.players) if (p.alive) n++; return n; }
+    /** Seconds a power pellet powers the chomper (and frightens the ghosts). */
+    powerSec() {
+      if (!this.classicPower) return POWER_SEC;
+      const i = Math.max(1, this.level | 0) - 1;
+      return i < CLASSIC_FRIGHT_SEC.length ? CLASSIC_FRIGHT_SEC[i] : 0;
+    }
+    /** Length of the end-of-power warning flash, in seconds. */
+    flashSec() {
+      if (!this.classicPower) return POWER_FLASH_SEC;
+      const i = Math.max(1, this.level | 0) - 1;
+      const n = i < CLASSIC_FRIGHT_FLASHES.length ? CLASSIC_FRIGHT_FLASHES[i] : 0;
+      return Math.min(this.powerSec(), n * FLASH_CYCLE_SEC);
+    }
     pelletsLeft() { return this.board ? this.board.pellets.size + this.board.powerPellets.size : 0; }
     // True while any just-killed chomper is still playing its death animation.
     anyDying() { for (const p of this.players) if (!p.alive && p.dying != null && (this.now - p.dying) < DEATH_ANIM_SEC) return true; return false; }
@@ -295,10 +322,12 @@
       for (const t of this.powerRespawns) { if (this.now >= t) this._spawnPowerPellet(); else still.push(t); }
       this.powerRespawns = still;
     }
-    // Re-populate every pellet tile that isn't currently holding a power pellet.
+    // Re-populate every pellet tile that isn't currently holding a power pellet
+    // (classic: the fixed energizers come back too).
     refillPellets() {
       if (!this._allPellets) return;
       for (const key of this._allPellets) if (!this.board.powerPellets.has(key)) this.board.pellets.add(key);
+      if (this.classicPower && this._allPowers) for (const key of this._allPowers) this.board.powerPellets.add(key);
     }
 
     passable(r, c, opts) {
@@ -332,7 +361,9 @@
       this._collisions(ev, dt);
       // Board fully cleared → refill so the round runs its full length rather
       // than ending the moment the maze is empty.
-      if (this.board.pellets.size === 0) { this.refillPellets(); ev.boardCleared = true; }
+      // Classic only counts as cleared once the energizers are eaten too.
+      const cleared = this.classicPower ? this.pelletsLeft() === 0 : this.board.pellets.size === 0;
+      if (cleared) { this.refillPellets(); ev.boardCleared = true; }
       return ev;
     }
 
@@ -624,18 +655,32 @@
         else if (b.powerPellets.has(key)) {
           b.powerPellets.delete(key);
           p._scoreDelta = (p._scoreDelta || 0) + POWER_PTS;
-          if (!p.powered) {
-            // Only a NON-powered player powers up (and re-scares the ghosts).
-            p.powered = true; p.poweredEnd = this.now + POWER_SEC;
-            ev.powerEaten.push(p.id);
-            this._startFright();
+          if (this.classicPower) {
+            // Arcade rules: every energizer (re)starts the fright timer; at 0 s
+            // the ghosts only reverse and the chomper doesn't power up.
+            const sec = this.powerSec();
+            if (sec > 0) {
+              p.powered = true; p.poweredEnd = this.now + sec;
+              ev.powerEaten.push(p.id);
+              this._startFright(sec);
+            } else {
+              for (const g of this.ghosts) if (g.state === 'active') g.dirIdx = REVERSE[g.dirIdx];
+              ev.pellets++;
+            }
           } else {
-            // Already powered: the pellet is simply consumed for points — it does
-            // NOT extend the power timer or re-trigger the ghost fright.
-            ev.pellets++;
+            if (!p.powered) {
+              // Only a NON-powered player powers up (and re-scares the ghosts).
+              p.powered = true; p.poweredEnd = this.now + POWER_SEC;
+              ev.powerEaten.push(p.id);
+              this._startFright();
+            } else {
+              // Already powered: the pellet is simply consumed for points — it does
+              // NOT extend the power timer or re-trigger the ghost fright.
+              ev.pellets++;
+            }
+            // Schedule a replacement power pellet elsewhere on the map.
+            this.powerRespawns.push(this.now + POWER_RESPAWN_MIN + this.rng() * (POWER_RESPAWN_MAX - POWER_RESPAWN_MIN));
           }
-          // Schedule a replacement power pellet elsewhere on the map.
-          this.powerRespawns.push(this.now + POWER_RESPAWN_MIN + this.rng() * (POWER_RESPAWN_MAX - POWER_RESPAWN_MIN));
         }
         if (this.fruit && this.fruit.r === r && this.fruit.c === c) {
           p._scoreDelta = (p._scoreDelta || 0) + FRUIT_PTS;
@@ -692,8 +737,8 @@
       }
     }
 
-    _startFright() {
-      this.frightUntil = this.now + FRIGHT_SEC;
+    _startFright(sec) {
+      this.frightUntil = this.now + (sec != null ? sec : FRIGHT_SEC);
       this.ghostChain = 0;
       for (const g of this.ghosts) {
         if (g.state === 'active') { g.state = 'frightened'; g.dirIdx = REVERSE[g.dirIdx]; }

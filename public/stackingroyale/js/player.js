@@ -136,6 +136,8 @@
     el('playSurface').classList.toggle('is-winout', outro === 'win');
     el('attribution').hidden = !lobby;
     el('playerFooter').hidden = (!lobby && !ended && !eliminated) || !!outro || spectating();
+    const reactionsOn = !!hostAvailable && !state.reactionsMuted && ['LOBBY', 'GAME_OVER', 'FINAL'].includes(state.phase);
+    el('reactionBar').hidden = !reactionsOn;
     el('controller').hidden = lobby || ended || eliminated;
     el('controlSettings').hidden = lobby || ended || eliminated;
     if (el('controlSettings').hidden || !hostAvailable) {
@@ -238,6 +240,7 @@
     if (!next || !next.players || !next.players.some(function (player) { return player.id === playerId; })) { lostIdentity(); return; }
     applyState(next);
   });
+  socket.on('state:reactionsMuted', function (event) { if (state) { state.reactionsMuted = !!(event && event.muted); render(); } });
   socket.on('state:hostPresence', function (event) { if (state) { state.hostPresent = event.present; render(); } });
   socket.on('battle:event', function (event) { if (event.type === 'elimination' && event.playerId === playerId) ui.sound('lose'); });
   document.addEventListener('visibilitychange', function () { if (document.hidden) { input.clear(); previous = 0; accumulator = 0; } else if (socket.connected) reconnect(); });
@@ -252,4 +255,39 @@
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
+  const REACTION_COOLDOWN_MS = 5000;
+  const reactionButtons = Array.prototype.slice.call(el('reactionBar').querySelectorAll('.reaction-btn'));
+  let reactionUntil = 0;
+  let cooldownFrame = null;
+  function startCooldown() {
+    if (cooldownFrame) cancelAnimationFrame(cooldownFrame);
+    function tick() {
+      const left = reactionUntil - Date.now();
+      if (left <= 0) {
+        reactionButtons.forEach(function (button) { button.disabled = false; });
+        el('reactionCooldown').hidden = true;
+        cooldownFrame = null;
+        return;
+      }
+      reactionButtons.forEach(function (button) { button.disabled = true; });
+      el('reactionCooldown').hidden = false; el('reactionCooldown').textContent = Math.ceil(left / 1000) + 's';
+      cooldownFrame = requestAnimationFrame(tick);
+    }
+    tick();
+  }
+  el('reactionBar').addEventListener('pointerdown', function (event) {
+    const button = event.target.closest('.reaction-btn');
+    if (!button || button.disabled) return;
+    event.preventDefault();
+    const index = parseInt(button.dataset.reaction, 10);
+    if (isNaN(index)) return;
+    reactionUntil = Date.now() + REACTION_COOLDOWN_MS;
+    startCooldown();
+    socket.emit('player:reaction', { index: index }, function (response) {
+      if (response && !response.ok && response.reason === 'cooldown' && response.retryInMs) {
+        reactionUntil = Date.now() + response.retryInMs;
+        startCooldown();
+      }
+    });
+  });
 }());

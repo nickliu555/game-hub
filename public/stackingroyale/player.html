@@ -7,7 +7,7 @@
   <script src="/stackingroyale/js/controls.js?v=3"></script>
   <title>Stacking Royale · Play</title>
   <link rel="stylesheet" href="/stackingroyale/css/base.css">
-  <link rel="stylesheet" href="/stackingroyale/css/player.css">
+  <link rel="stylesheet" href="/stackingroyale/css/player.css?v=react1">
   <link rel="stylesheet" href="/stackingroyale/css/touch.css?v=3">
   <script src="/stackingroyale/vendor/lucide.js" defer></script>
   <script src="/socket.io/socket.io.js" defer></script>
@@ -15,7 +15,7 @@
   <script src="/stackingroyale/js/render.js" defer></script>
   <script src="/stackingroyale/js/common.js" defer></script>
   <script src="/shared/confetti.js" defer></script>
-  <script src="/stackingroyale/js/player.js" defer></script>
+  <script src="/stackingroyale/js/player.js?v=react1" defer></script>
 </head>
 <body class="player" data-role="player">
   <div class="player-shell">
@@ -33,6 +33,16 @@
       <section id="playSurface" aria-label="Your game board" hidden></section>
       <section id="results" class="results final-card" hidden><div id="resultEyebrow" class="eyebrow">Eliminated</div><h2 id="resultTitle">Your stack topped out.</h2><div id="standings" class="scroll-list"></div><div id="spectateTools" class="spectate-toolbar"><label id="spectateLabel" for="spectateSelect">Watch</label><select id="spectateSelect" aria-label="Spectate player"><option value="">Standings</option></select></div><canvas id="spectateCanvas" class="spectate-board" width="300" height="600" aria-label="Spectated board" hidden></canvas></section>
     </main>
+    <!-- Reactions: lobby, game over and final only -->
+    <div class="reaction-bar" id="reactionBar" hidden>
+      <button type="button" class="reaction-btn" data-reaction="0" aria-label="laugh">😂</button>
+      <button type="button" class="reaction-btn" data-reaction="1" aria-label="fire">🔥</button>
+      <button type="button" class="reaction-btn" data-reaction="2" aria-label="party">🎉</button>
+      <button type="button" class="reaction-btn" data-reaction="3" aria-label="shock">😱</button>
+      <button type="button" class="reaction-btn" data-reaction="4" aria-label="cry">😭</button>
+      <button type="button" class="reaction-btn" data-reaction="5" aria-label="angry">😡</button>
+      <div class="reaction-cooldown" id="reactionCooldown" hidden></div>
+    </div>
     <footer id="playerFooter" class="player-attribution"><a class="practice-link" href="/stackingroyale/practice?from=play">Practice solo</a><div id="attribution">Developed by Nick Liu (with help from Claude)</div></footer>
   </div>
   <div class="host-absent-overlay" id="hostAbsentOverlay" role="dialog" aria-modal="true" aria-labelledby="hostAbsentTitle">

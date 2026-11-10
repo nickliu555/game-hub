@@ -28,6 +28,7 @@
           <button class="gtb-btn" type="button" data-gtb-settings-toggle aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️ Settings</button>
           <div class="gtb-settings-panel" id="settingsPanel" hidden>
             <button class="gtb-btn" type="button" data-gtb-help-open="helpOverlay" title="How to play">? Help</button>
+            <button id="muteReactionsBtn" class="gtb-btn" type="button" data-gtb-settings-keep-open title="Mute player reactions">🔔 Reactions: On</button>
             <div class="gtb-divider"></div>
             <button id="resetBtn" class="gtb-btn gtb-btn-danger" type="button" title="Reset the whole game">Reset game</button>
           </div>
@@ -138,6 +139,9 @@
 
   <!-- Referee whistle at kickoff -->
   <audio id="sfx-whistle" src="/shootball/assets/sounds/whistle.mp3" preload="auto"></audio>
+
+  <!-- Floating reaction emojis from players -->
+  <div class="reaction-layer" id="reactionLayer" aria-hidden="true"></div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/shootball/js/engine.js"></script>

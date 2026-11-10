@@ -23,8 +23,9 @@
     match: document.getElementById('view-match'),
     final: document.getElementById('view-final'),
   };
+  const DOWNTIME = ['lobby', 'final'];
   function show(name) {
-    if (window.screenChange) window.screenChange(Object.keys(views).find(function (k) { return views[k].classList.contains('active'); }), name);
+    if (window.screenChange) window.screenChange(Object.keys(views).find(function (k) { return views[k].classList.contains('active'); }), name, DOWNTIME);
     Object.keys(views).forEach(function (k) { views[k].classList.toggle('active', k === name); });
   }
 
@@ -68,6 +69,10 @@
 
   const fullscreenBtn = document.getElementById('fullscreenBtn');
   const resetBtn = document.getElementById('resetBtn');
+  const muteBtn = document.getElementById('muteReactionsBtn');
+  const reactionLayer = document.getElementById('reactionLayer');
+  const REACTION_EMOJIS = ['😂', '🔥', '🎉', '😱', '😭', '😡'];
+  const REACTION_MAX = 30;
 
   // ---------------- Modal helpers (match other games) ----------------
   function showInlineConfirm(message, onYes, opts) {
@@ -1056,10 +1061,41 @@
     }
   });
 
+  // ---------------- Reactions ----------------
+  function spawnReaction(index) {
+    const emoji = REACTION_EMOJIS[index];
+    if (!emoji || !reactionLayer) return;
+    while (reactionLayer.children.length >= REACTION_MAX) reactionLayer.removeChild(reactionLayer.firstChild);
+    const el = document.createElement('div');
+    el.className = 'reaction-emoji';
+    el.textContent = emoji;
+    el.style.left = (5 + Math.random() * 90) + '%';
+    const scale = 0.85 + Math.random() * 0.5;
+    el.style.fontSize = (44 * scale) + 'px';
+    el.style.animationDuration = (3.0 + Math.random() * 1.2) + 's';
+    el.addEventListener('animationend', function () { if (el.parentNode) el.parentNode.removeChild(el); });
+    reactionLayer.appendChild(el);
+  }
+  socket.on('host:reaction', function (p) { if (p && typeof p.index === 'number') spawnReaction(p.index); });
+
+  let reactionsMuted = false;
+  function updateMuteBtn() {
+    if (!muteBtn) return;
+    muteBtn.textContent = reactionsMuted ? '🔕 Reactions: Off' : '🔔 Reactions: On';
+    muteBtn.classList.toggle('is-muted', reactionsMuted);
+  }
+  muteBtn && muteBtn.addEventListener('click', function () {
+    socket.emit('host:setReactionsMuted', { muted: !reactionsMuted }, function (res) {
+      if (res && res.ok) { reactionsMuted = !!res.reactionsMuted; updateMuteBtn(); }
+    });
+  });
+  socket.on('state:reactionsMuted', function (p) { reactionsMuted = !!(p && p.muted); updateMuteBtn(); });
+
   // ---------------- Boot ----------------
   socket.on('connect', function () {
     socket.emit('host:auth', {}, function (res) {
       if (!res || !res.ok) return;
+      reactionsMuted = !!res.reactionsMuted; updateMuteBtn();
       renderQR();
       renderLobby(res.lobby);
       if (res.phase === 'LOBBY') show('lobby');
