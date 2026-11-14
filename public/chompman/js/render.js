@@ -208,8 +208,10 @@
       const ang = [Math.PI * 1.5, Math.PI * 0.5, Math.PI, 0][face];
       const open = 0.14 + 0.20 * Math.abs(Math.sin(p.mouth || 0));
       // End-of-power blink: only in the final POWER_FLASH_SEC, ramping up.
+      // Never while the board is frozen at round end: the blink would stick on
+      // its faded beat and leave the (crowned) winner dimmed.
       let alpha = 1, ending = false;
-      if (p.powered) {
+      if (p.powered && !w.settleFreeze) {
         const flash = (typeof this.world.flashSec === 'function') ? this.world.flashSec() : ((window.ChompMan && window.ChompMan.POWER_FLASH_SEC) || 2);
         const remain = p.poweredEnd - ac;
         if (remain < flash) {
