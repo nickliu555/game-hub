@@ -130,6 +130,8 @@ class Game {
     /** @type {Map<string, object>} */
     this.players = new Map();
     this._orderSeq = 0;
+    // Never reset, so a bid id is never reused within this server's lifetime.
+    this._bidSeq = 0;
     this.startDice = DEFAULT_START_DICE;
     // Tests flip this to step timers by hand with tick().
     this.manualTimers = false;
@@ -421,11 +423,36 @@ class Game {
    * One decision from the player on turn.
    * @param {{ playerId:string, type:'bid'|'bs'|'spot', qty?:number, face?:number }} a
    */
-  act({ playerId, type, qty, face }) {
+  /**
+   * Anyone still holding dice, other than the bidder, may call BS on the
+   * latest bid once its announcement is over — not just the player on turn.
+   */
+  canCallBsOutOfTurn(playerId) {
+    const p = this.players.get(playerId);
+    return !!p && !p.isBot && !p.busted
+      && this.phase === PHASES.BIDDING && !this.turnLocked
+      && !!this.currentBid && this.currentBid.playerId !== p.id && this.turnId !== p.id;
+  }
+
+  act({ playerId, type, qty, face, bidId }) {
     if (this.phase !== PHASES.BIDDING) return { ok: false, reason: 'not-bidding' };
     const p = this.players.get(playerId);
     if (!p) return { ok: false, reason: 'unknown-player' };
-    if (this.turnId !== playerId) return { ok: false, reason: 'not-your-turn' };
+    if (p.busted) return { ok: false, reason: 'out' };
+    // A call aimed at a bid that has since been raised must not land on the new one.
+    if ((type === 'bs' || type === 'spot') && bidId != null
+      && (!this.currentBid || this.currentBid.id !== bidId)) return { ok: false, reason: 'stale-bid' };
+    if (this.turnId !== playerId) {
+      if (type !== 'bs' || p.isBot) return { ok: false, reason: 'not-your-turn' };
+      if (this.turnLocked) return { ok: false, reason: 'not-yet' };
+      if (!this.currentBid) return { ok: false, reason: 'no-bid' };
+      if (this.currentBid.playerId === p.id) return { ok: false, reason: 'own-bid' };
+      if (bidId == null) return { ok: false, reason: 'stale-bid' };
+      p.lastAction = { type };
+      this.lastActed = { seq: ++this._eventSeq, playerId: p.id, type };
+      this._startReveal(p, type);
+      return { ok: true };
+    }
     if (this.turnLocked) return { ok: false, reason: 'not-yet' };
 
     if (type === 'bid') {
@@ -438,7 +465,7 @@ class Game {
       const min = this.minQty(f);
       if (min === null) return { ok: false, reason: 'no-legal-bid' };
       if (q < min) return { ok: false, reason: 'too-low', min };
-      this.currentBid = { qty: q, face: f, playerId: p.id };
+      this.currentBid = { id: ++this._bidSeq, qty: q, face: f, playerId: p.id };
       this.bids.push({ qty: q, face: f, playerId: p.id });
       p.lastAction = { type: 'bid', qty: q, face: f };
       p.stats.bids += 1;
@@ -693,7 +720,7 @@ class Game {
     const b = this.currentBid;
     if (!b) return null;
     const p = this.players.get(b.playerId);
-    return { qty: b.qty, face: b.face, playerId: b.playerId, name: p ? p.name : '', seat: this.seatOf(b.playerId) };
+    return { id: b.id, qty: b.qty, face: b.face, playerId: b.playerId, name: p ? p.name : '', seat: this.seatOf(b.playerId) };
   }
 
   _revealPublic() {
@@ -807,6 +834,7 @@ class Game {
       legal,
       canBid: !!legal && Object.keys(legal).some((f) => legal[f] !== null),
       canCall: yourTurn && !!this.currentBid,
+      canCallBs: this.canCallBsOutOfTurn(p.id),
       currentBid: this._bidPublic(),
       turnName: turn ? turn.name : null,
       turnSeat: turn ? this.seatOf(turn.id) : null,

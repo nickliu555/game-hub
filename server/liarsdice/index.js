@@ -235,10 +235,10 @@ function mountLiarsDice(app, httpServer, opts) {
       broadcastPhase();
     });
 
-    socket.on('player:action', ({ type, qty, face } = {}, ack) => {
+    socket.on('player:action', ({ type, qty, face, bidId } = {}, ack) => {
       touchActivity();
       if (!playerId) return ack && ack({ ok: false, reason: 'not-joined' });
-      const res = game.act({ playerId, type, qty, face });
+      const res = game.act({ playerId, type, qty, face, bidId: Number.isInteger(bidId) ? bidId : null });
       if (!res.ok) {
         ack && ack(res);
         sendPrivate(socket.id); // resync the phone; its view was stale

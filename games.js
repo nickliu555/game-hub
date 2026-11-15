@@ -285,7 +285,7 @@ const games = [
             'Each round everyone rolls in secret — your dice show only on your phone',
             'Take turns bidding on how many dice of one face are on the whole table, counting everyone\'s dice. 1s are wild and count as any face',
             'Each bid must go up: more dice, or the same number of a higher face. Bidding 1s needs only half as many (rounded up); switching back off 1s needs double plus one',
-            'Instead of raising, call BS on the last bid: if there are fewer than bid, the bidder loses a die, otherwise you do',
+            'Instead of raising, call BS on the last bid: if there are fewer than bid, the bidder loses a die, otherwise you do. Once a bid has been announced, anyone still in can call BS on it — not just the next player',
             'Or call Spot On: if the count is exactly right you win a die back, otherwise you lose one',
             'Lose all your dice and you\'re out — the last player with dice wins'
         ],

@@ -447,8 +447,10 @@
   }
 
   function renderCalls() {
-    callRow.hidden = !me.canCall;
-    if (!me.canCall) return;
+    const any = me.canCall || me.canCallBs;
+    callRow.hidden = !any;
+    if (!any) return;
+    spotBtn.hidden = !me.canCall;
     bsBtn.classList.toggle('armed', armed === 'bs');
     spotBtn.classList.toggle('armed', armed === 'spot');
     bsBtn.textContent = armed === 'bs' ? 'Tap again to call BS' : 'Call BS';
@@ -488,16 +490,16 @@
     send({ type: 'bid', qty: sel.qty, face: sel.face });
   });
   onTap(bsBtn, function () {
-    if (!me || !me.canCall) return;
+    if (!me || !(me.canCall || me.canCallBs) || !me.currentBid) return;
     if (armed !== 'bs') { arm('bs'); return; }
     disarm();
-    send({ type: 'bs' });
+    send({ type: 'bs', bidId: me.currentBid.id });
   });
   onTap(spotBtn, function () {
-    if (!me || !me.canCall) return;
+    if (!me || !me.canCall || !me.currentBid) return;
     if (armed !== 'spot') { arm('spot'); return; }
     disarm();
-    send({ type: 'spot' });
+    send({ type: 'spot', bidId: me.currentBid.id });
   });
 
   // ---- Sending actions ----
@@ -524,6 +526,9 @@
       'too-high': 'There aren\'t that many dice on the table.',
       'no-legal-bid': 'No bid on that face is high enough.',
       'no-bid': 'There is no bid to call yet.',
+      'stale-bid': 'Too late — the bid has changed.',
+      'own-bid': "You can't call BS on your own bid.",
+      'out': "You're out of dice.",
       'not-bidding': 'The round has already moved on.',
     }[reason] || 'Could not do that.';
   }
@@ -563,7 +568,7 @@
 
     const yourTurn = !!me.yourTurn;
     document.body.classList.toggle('my-turn', yourTurn);
-    const key = [me.round, me.currentBid ? me.currentBid.qty + 'x' + me.currentBid.face : '-', yourTurn].join(':');
+    const key = [me.round, me.currentBid ? me.currentBid.id : '-', yourTurn, !!me.canCallBs].join(':');
     if (key !== decisionKey) {
       decisionKey = key;
       armed = null;
@@ -594,6 +599,7 @@
       setBanner(["You're up next…"], '');
     } else if (me.turnName) {
       setBanner(['Waiting for ', nameSpan(me.turnName, me.turnSeat), '…'], '');
+      if (me.canCallBs) renderCalls();
     } else {
       setBanner(['…'], '');
     }

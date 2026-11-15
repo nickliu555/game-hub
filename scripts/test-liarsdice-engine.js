@@ -293,6 +293,85 @@ test('a rematch reseats everyone with full dice and a fresh round 1', () => {
   assert.strictEqual(g.addPlayer({ playerId: 'late', name: 'Late', socketId: 'sx' }).reason, 'game-in-progress');
 });
 
+// ─────────────────────────── Out-of-turn BS ───────────────────────────
+
+test('anyone still in can call BS on the latest bid once it has been announced', () => {
+  const g = table([[3, 4], [5, 6], [2, 2], [5, 5]]);
+  g.act({ playerId: 'p0', type: 'bid', qty: 3, face: 3 });   // only one 3, no 1s → bluff
+  assert.strictEqual(g.turnId, 'p1');
+  const id = g.currentBid.id;
+  assert.ok(g.getPrivate('p2').canCallBs && g.getPrivate('p3').canCallBs);
+  assert.ok(!g.getPrivate('p0').canCallBs, 'the bidder cannot call on themselves');
+  assert.ok(!g.getPrivate('p1').canCallBs && g.getPrivate('p1').canCall, 'the player on turn uses the normal calls');
+  assert.strictEqual(g.act({ playerId: 'p2', type: 'bs', bidId: id }).ok, true);
+  assert.strictEqual(g.phase, PHASES.REVEAL);
+  assert.strictEqual(g.reveal.callerId, 'p2');
+  assert.strictEqual(g.reveal.correct, true);
+  assert.strictEqual(g.reveal.loserId, 'p0');
+  assert.deepStrictEqual(g.reveal.order, ['p2', 'p3', 'p0', 'p1']);
+  assert.strictEqual(g.act({ playerId: 'p3', type: 'bs', bidId: id }).reason, 'not-bidding', 'only the first call counts');
+  g.tick();
+  assert.strictEqual(g.players.get('p0').diceCount, 1);
+  assert.strictEqual(g.players.get('p2').diceCount, 2);
+  assert.strictEqual(g.openerId, 'p0');
+});
+
+test('a wrong out-of-turn BS costs the caller a die, and they open next', () => {
+  const g = table([[3, 3, 1], [3, 5, 6], [2, 2, 2]]);
+  g.act({ playerId: 'p0', type: 'bid', qty: 4, face: 3 });   // true
+  assert.strictEqual(g.act({ playerId: 'p2', type: 'bs', bidId: g.currentBid.id }).ok, true);
+  assert.strictEqual(g.reveal.correct, false);
+  assert.strictEqual(g.reveal.loserId, 'p2');
+  g.tick();
+  assert.strictEqual(g.players.get('p2').diceCount, 2);
+  assert.strictEqual(g.players.get('p0').diceCount, 3);
+  assert.strictEqual(g.players.get('p1').diceCount, 3);
+  assert.strictEqual(g.openerId, 'p2');
+});
+
+test('nobody can call during the bid announcement', () => {
+  const g = table([[3, 4], [5, 6], [2, 2]]);
+  Game.prototype.act.call(g, { playerId: 'p0', type: 'bid', qty: 1, face: 3 });
+  assert.ok(g.turnLocked);
+  const id = g.currentBid.id;
+  assert.ok(!g.getPrivate('p2').canCallBs);
+  assert.strictEqual(g.act({ playerId: 'p2', type: 'bs', bidId: id }).reason, 'not-yet');
+  assert.strictEqual(g.act({ playerId: 'p1', type: 'bs', bidId: id }).reason, 'not-yet');
+  g.tick();
+  assert.ok(!g.turnLocked && g.getPrivate('p2').canCallBs);
+});
+
+test('out-of-turn: only BS, never on your own bid, and never on a superseded bid', () => {
+  const g = table([[3, 4], [5, 6], [2, 2]]);
+  g.act({ playerId: 'p0', type: 'bid', qty: 1, face: 3 });
+  const first = g.currentBid.id;
+  assert.strictEqual(g.act({ playerId: 'p2', type: 'spot', bidId: first }).reason, 'not-your-turn');
+  assert.strictEqual(g.act({ playerId: 'p2', type: 'bid', qty: 3, face: 3 }).reason, 'not-your-turn');
+  assert.strictEqual(g.act({ playerId: 'p0', type: 'bs', bidId: first }).reason, 'own-bid');
+  assert.strictEqual(g.act({ playerId: 'p2', type: 'bs' }).reason, 'stale-bid', 'a call must name the bid');
+  g.act({ playerId: 'p1', type: 'bid', qty: 2, face: 3 });
+  assert.notStrictEqual(g.currentBid.id, first);
+  assert.strictEqual(g.act({ playerId: 'p0', type: 'bs', bidId: first }).reason, 'stale-bid');
+  assert.strictEqual(g.act({ playerId: 'p2', type: 'bs', bidId: first }).reason, 'stale-bid', 'even the player on turn');
+  assert.strictEqual(g.phase, PHASES.BIDDING);
+  assert.strictEqual(g.act({ playerId: 'p0', type: 'bs', bidId: g.currentBid.id }).ok, true);
+  assert.strictEqual(g.reveal.callerId, 'p0');
+  assert.strictEqual(g.reveal.bid.playerId, 'p1');
+});
+
+test('out players and CPUs never call out of turn', () => {
+  const g = table([[3, 4], [5, 6], [2, 2], [4, 4]]);
+  const out = g.players.get('p3');
+  out.busted = true; out.diceCount = 0; out.dice = [];
+  g.players.get('p2').isBot = true;
+  g.act({ playerId: 'p0', type: 'bid', qty: 1, face: 3 });
+  const id = g.currentBid.id;
+  assert.ok(!g.getPrivate('p3').canCallBs);
+  assert.strictEqual(g.act({ playerId: 'p3', type: 'bs', bidId: id }).reason, 'out');
+  assert.strictEqual(g.act({ playerId: 'p2', type: 'bs', bidId: id }).reason, 'not-your-turn');
+  assert.strictEqual(g.phase, PHASES.BIDDING);
+});
+
 // ─────────────────────────── Secrecy ───────────────────────────
 
 test('no die is public outside a reveal', () => {
