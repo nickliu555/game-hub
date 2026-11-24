@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Egyptian Ratscrew</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#4A1420" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/ratscrew/css/base.css" />
+  <link rel="stylesheet" href="/ratscrew/css/player.css" />
+</head>
+<body class="player play-page">
+  <div class="p-shell">
+
+    <!-- Identity / status bar -->
+    <header class="p-top">
+      <span class="p-seat" id="pSeat" aria-hidden="true"></span>
+      <span class="p-name pname" id="pName">…</span>
+      <span class="p-score" id="pScore"></span>
+      <button type="button" class="emote-toggle" id="emoteToggle" aria-label="React" aria-expanded="false" hidden>😀</button>
+    </header>
+
+    <div class="emote-panel" id="emotePanel" hidden>
+      <div class="emote-grid" id="emoteGrid"></div>
+    </div>
+
+    <!-- Waiting / lobby -->
+    <section class="p-view active" id="pv-wait">
+      <div class="wait-card">
+        <div class="wait-icon" aria-hidden="true">🐀</div>
+        <h2 id="waitTitle">You're in!</h2>
+        <p id="waitSub">Waiting for the host to deal…</p>
+      </div>
+    </section>
+
+    <!-- The controller: slap on top, play on the bottom -->
+    <section class="p-view" id="pv-game">
+      <button type="button" class="slap-zone" id="slapBtn">
+        <span class="sz-hand" aria-hidden="true">🖐️</span>
+        <span class="sz-label">Slap!</span>
+        <span class="sz-sub" id="slapSub"></span>
+      </button>
+      <div class="mid-strip" id="midStrip">
+        <span class="ms-pile" id="msPile"></span>
+        <span class="ms-status" id="msStatus"></span>
+      </div>
+      <button type="button" class="play-zone" id="playBtn">
+        <span class="pz-deck" aria-hidden="true">
+          <span class="card card-back pz-layer"></span>
+          <span class="card card-back pz-top"></span>
+          <span class="pz-count" id="pzCount">0</span>
+        </span>
+        <span class="pz-text">
+          <span class="pz-label" id="playLabel">Play a card</span>
+          <span class="pz-sub" id="playSub"></span>
+        </span>
+        <span class="pz-timer" id="playTimer"><span class="pz-timer-fill" id="playTimerFill"></span></span>
+      </button>
+      <div class="slap-flash" id="slapFlash" hidden>
+        <span class="sf-title" id="sfTitle"></span>
+        <span class="sf-sub" id="sfSub"></span>
+      </div>
+    </section>
+
+    <!-- Out of cards -->
+    <section class="p-view" id="pv-out">
+      <div class="wait-card">
+        <div class="result-emoji">🫡</div>
+        <h2 id="outTitle">You're out</h2>
+        <p id="outSub">Nice game! Keep an eye on the table.</p>
+      </div>
+    </section>
+
+    <!-- Game over -->
+    <section class="p-view" id="pv-result">
+      <div class="wait-card scrollable-region">
+        <div class="result-emoji" id="resultEmoji">🏆</div>
+        <h2 id="resultTitle">Game over</h2>
+        <p id="resultSub"></p>
+        <div class="result-rows" id="resultRows"></div>
+      </div>
+    </section>
+
+    <div class="player-attribution" id="playerAttribution" hidden>Developed by Nick Liu (with help from Claude)</div>
+
+  </div>
+
+  <div class="p-toast" id="pToast" hidden></div>
+
+  <div class="host-absent-overlay" id="pConnOverlay" hidden>
+    <div class="host-absent-card">
+      <div class="icon">🐀</div>
+      <div class="title">Reconnecting…</div>
+      <div class="sub"><span class="pulse-dot"></span>Your seat and your cards are safe.</div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/ratscrew/js/player.js"></script>
+</body>
+</html>

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Egyptian Ratscrew · Host</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="/shared/iris-preload.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/topbar.css" />
+  <link rel="stylesheet" href="/shared/modal.css" />
+  <link rel="stylesheet" href="/shared/iris.css" />
+  <link rel="stylesheet" href="/ratscrew/css/base.css" />
+  <link rel="stylesheet" href="/ratscrew/css/host.css" />
+  <script src="/shared/topbar.js" defer></script>
+  <script src="/shared/confetti.js" defer></script>
+  <script src="/shared/modal.js" defer></script>
+  <script src="/shared/iris.js" defer></script>
+</head>
+<body class="host">
+  <div class="host-shell">
+    <div class="game-topbar">
+      <span class="gtb-brand">🐀 Egyptian Ratscrew</span>
+      <div class="gtb-controls">
+        <a href="/" id="hubBtn" class="gtb-btn" title="Back to hub (resets game)">← Hub</a>
+        <button id="fullscreenBtn" class="gtb-btn" type="button" title="Toggle fullscreen">⛶ Fullscreen</button>
+        <div class="gtb-settings-wrapper">
+          <button class="gtb-btn" type="button" data-gtb-settings-toggle aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️ Settings</button>
+          <div class="gtb-settings-panel" id="settingsPanel" hidden>
+            <button class="gtb-btn" type="button" data-gtb-help-open="helpOverlay" title="How to play">? Help</button>
+            <button id="muteReactionsBtn" class="gtb-btn" type="button" data-gtb-settings-keep-open title="Mute player reactions">🔔 Reactions</button>
+            <div class="gtb-divider"></div>
+            <button id="resetBtn" class="gtb-btn gtb-btn-danger" type="button" title="Reset the whole game">Reset game</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="host-main">
+
+      <!-- ─────────────── Lobby ─────────────── -->
+      <section class="view active" id="view-lobby">
+        <div class="lobby-grid">
+          <div class="qr-panel">
+            <h2>Scan to join</h2>
+            <p>Or type the URL below on your phone</p>
+            <div class="qr-slot" id="qrSlot"></div>
+            <div class="join-url" id="joinUrl"></div>
+          </div>
+
+          <div class="seats-panel">
+            <div class="seats-head">
+              <h3>🐀 Egyptian Ratscrew</h3>
+              <div class="count"><span id="playerCount">0</span> / <span id="playerCap">8</span></div>
+            </div>
+            <p class="seats-hint">Drag to change where everyone sits</p>
+            <div class="seat-list" id="seatList"></div>
+
+            <div class="lobby-config">
+              <div class="config-row">
+                <label>Flush slaps <span class="config-hint">3 of a suit in a row</span></label>
+                <div class="seg" id="flushSeg">
+                  <button class="seg-btn on" type="button" data-value="on">On</button>
+                  <button class="seg-btn" type="button" data-value="off">Off</button>
+                </div>
+              </div>
+              <div class="config-row">
+                <label>Always on</label>
+                <span class="config-note">Doubles · Sandwiches</span>
+              </div>
+            </div>
+
+            <div class="lobby-actions">
+              <button id="addBotBtn" class="btn-ghost" type="button">🤖 Add CPU</button>
+              <button id="startBtn" class="btn-accent" type="button">Deal the cards</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────── The table ─────────────── -->
+      <section class="view" id="view-table">
+        <div class="table-view">
+          <div class="rs-stage" id="stage">
+            <div class="rs-felt" id="felt">
+              <div class="felt-center" id="feltCenter">
+                <div class="turn-line" id="turnLine">
+                  <div class="turn-text" id="turnText"></div>
+                  <div class="lock-bar" id="lockBar"><div class="lock-fill" id="lockFill"></div></div>
+                </div>
+                <div class="pile-area" id="pileArea">
+                  <div class="pile-empty" id="pileEmpty">Pile</div>
+                  <div class="pile-under" id="pileUnder"></div>
+                  <div class="pile-fan" id="pileFan"></div>
+                </div>
+                <div class="pile-info">
+                  <div class="pile-count" id="pileCount"></div>
+                  <div class="challenge-line" id="challengeLine"></div>
+                </div>
+              </div>
+            </div>
+            <div class="seat-layer" id="seatLayer"></div>
+            <div class="fx-layer" id="fxLayer"></div>
+            <div class="call-banner" id="callBanner" hidden>
+              <span class="cb-title" id="cbTitle"></span>
+              <span class="cb-sub" id="cbSub"></span>
+            </div>
+            <div class="waiting-note" id="waitingNote" hidden></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────── Final ─────────────── -->
+      <section class="view" id="view-final">
+        <div class="final-view">
+          <div class="final-head">
+            <div class="final-trophy">🏆</div>
+            <h1 class="final-heading" id="finalHeading">Winner</h1>
+            <div class="final-sub" id="finalSub"></div>
+          </div>
+          <div class="final-list scroll-region" id="finalList"></div>
+          <div class="final-foot">
+            <button id="rematchBtn" class="btn-accent" type="button">▶ Play again</button>
+            <button id="playAgainBtn" class="btn-ghost" type="button">Back to lobby</button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- Floating emotes from players (lobby and final standings) -->
+  <div class="reaction-layer" id="reactionLayer" aria-hidden="true"></div>
+
+  <!-- Host connection overlay -->
+  <div class="host-overlay" id="connOverlay" hidden>
+    <div class="host-overlay-card">
+      <div class="ho-spinner"></div>
+      <h2>Reconnecting…</h2>
+      <p>Hold tight — the table is still here.</p>
+    </div>
+  </div>
+
+  <!-- Help modal -->
+  <div class="gtb-help-overlay" id="helpOverlay">
+    <div class="gtb-help-modal">
+      <button class="gtb-help-modal-close" type="button" data-gtb-help-close aria-label="Close help">&times;</button>
+      <h2>🐀 Egyptian Ratscrew</h2>
+      <p>Flip, watch the pile, and slap it first. The last player holding cards wins.</p>
+      <ol>
+        <li><strong>2 to 8</strong> players — add CPUs to fill seats. The whole deck is <strong>dealt out face down</strong>.</li>
+        <li>On your turn, tap the <strong>bottom half</strong> of your phone to flip your top card onto the pile. Every card stays on the pile for at least <strong>2 seconds</strong> before the next one can follow.</li>
+        <li>Tap <strong>SLAP</strong> on the top half of your phone when the pile shows a <strong>Double</strong> (two of the same rank in a row), a <strong>Sandwich</strong> (same rank with one card between) or, if it's on, a <strong>Flush</strong> (three of the same suit in a row). The <strong>first</strong> slap takes the whole pile and leads next.</li>
+        <li>Slap when it isn't valid and you <strong>pay 2 cards</strong> to the player whose card you slapped. Slap your own card and they go to the next player.</li>
+        <li>A <strong>J, Q, K or A</strong> gives the next player <strong>1, 2, 3 or 4 tries</strong> to play a face card. If they can't, whoever played the face card takes the pile — unless someone slaps it first!</li>
+        <li>Run out of cards and you're out. The <strong>last player holding cards</strong> wins!</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- Applause on the final screen (same recording as Trivia, Hearts and Hold'em) -->
+  <audio id="sfx-applause" src="/holdempoker/assets/sounds/applause.mp3" preload="auto"></audio>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/ratscrew/js/host.js"></script>
+</body>
+</html>

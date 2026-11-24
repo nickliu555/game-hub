@@ -79,6 +79,18 @@ No-Limit Texas Hold'em, tournament style — the last stack standing takes it al
 7. Best five-card hand at showdown wins; an **all-in player can only win what they matched** — the rest goes to a side pot
 8. Lose all your chips and you're out — the **last player standing wins!** Hit **▶ Play again** for an instant rematch with the same players and settings
 
+### 🐀 Egyptian Ratscrew
+The classic slapping card game — flip, watch the pile, and slap it first.
+
+1. Seats **2 to 8 players** — fill empty seats with **CPUs** if you like
+2. **Drag the players in the lobby** to set the seating order, and choose whether **Flushes** count as slaps (on by default)
+3. The whole deck is **dealt out face down**; the shared screen shows everyone round the table with how many cards they hold, plus the top of the pile
+4. On your turn, tap the **bottom half of your phone** to flip your top card onto the pile — every card stays there for **at least 2 seconds** before the next one can follow
+5. Tap **SLAP** on the top half when the pile shows a **Double** (two of the same rank in a row), a **Sandwich** (same rank with one card between) or a **Flush** (three of the same suit in a row) — the **first slap takes the whole pile**
+6. Slap when it isn't valid and you **pay 2 cards** to the player whose card you slapped (slap your own card and they go to the next player)
+7. A **J, Q, K or A** gives the next player **1, 2, 3 or 4 tries** to play a face card of their own — if they can't, whoever played the face card takes the pile
+8. Run out of cards and you're out — the **last player holding cards wins!** Hit **▶ Play again** for an instant rematch with the same players and settings
+
 ### 🎲 Liar's Dice
 The pirate's bluffing game — bid on everyone's hidden dice, then call BS.
 
