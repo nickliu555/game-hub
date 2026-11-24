@@ -123,13 +123,13 @@ async function main() {
   res = await emit(a, 'player:slap', {});
   check(!res.ok && res.reason === 'empty', 'slapping an empty pile is ignored');
 
-  section('Plays and the 2 s lock');
+  section('Plays and the 1.5 s lock');
   rig({ pa: ['9C', '2D', '3D', '4D'], pb: ['9H', '5S', '6S', '7S'] }, 'pa');
   const played = until(host, 'state:table', hasEvent('play', { card: '9C', playerId: 'pa' }));
   res = await emit(a, 'player:play', {});
   check(res.ok, 'Alice flips her top card');
   const t1 = await played;
-  check(t1.pile.join() === '9C' && t1.turnPlayerId === 'pb' && t1.nextPlayAt - t1.serverNow > 1500, 'the host sees it on the pile, Bob is next, locked ~2s');
+  check(t1.pile.join() === '9C' && t1.turnPlayerId === 'pb' && t1.nextPlayAt - t1.serverNow > 1000, 'the host sees it on the pile, Bob is next, locked ~1.5s');
   res = await emit(b, 'player:play', {});
   check(!res.ok && res.reason === 'too-soon', 'Bob must wait out the lock');
 

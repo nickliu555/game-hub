@@ -283,7 +283,7 @@ const games = [
             'Players scan the QR code on their phones and enter a name — 2 to 8 players, and the host can fill seats with CPUs',
             'Drag the players in the lobby to set the seating order, and choose whether Flushes count as slaps',
             'The whole deck is dealt out face down. On your turn, tap the bottom half of your phone to flip your top card onto the pile',
-            'Every card stays on the pile for at least 2 seconds before the next one can be played',
+            'Every card stays on the pile for at least 1.5 seconds before the next one can be played',
             'Tap SLAP on the top half of your phone when the pile shows a Double (two in a row of the same rank), a Sandwich (same rank with one card between) or, if on, a Flush (three in a row of the same suit) — the first slap takes the whole pile',
             'Slap when it isn\'t valid and you pay 2 cards to the player whose card you slapped (slap your own card and they go to the next player)',
             'A Jack, Queen, King or Ace gives the next player 1, 2, 3 or 4 tries to play a face card — if they don\'t, whoever played the face card takes the pile',

@@ -39,7 +39,7 @@ const MAX_NAME_LEN = 20;
 const CHANCES = { J: 1, Q: 2, K: 3, A: 4 };
 
 // Every card sits on the pile at least this long before the next one may follow.
-const PLAY_LOCK_MS = 2000;
+const PLAY_LOCK_MS = 1500;
 // The host deals the deck out round the table before the first card.
 const DEAL_MS = 2600;
 // A good slap: the hand lands, the call shows, then the pile slides to the slapper.

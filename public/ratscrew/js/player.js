@@ -5,7 +5,7 @@
   // Egyptian Ratscrew — phone controller.
   //
   // Top half: SLAP. Bottom half: flip your top card onto the pile, lit only
-  // when it's your turn and the last card has had its 2 s on the pile.
+  // when it's your turn and the last card has had its 1.5 s on the pile.
   // Nothing is private (every deck is face down), so the phone renders from
   // the same table snapshot the host gets; the server validates every move.
   // ============================================================
